@@ -6,18 +6,35 @@ import pygame
 
 from core import CHUNK_SIZE, CELL_SIZE
 
-# ---------- Палитра танка ----------
-TRACK_COLOR = (45, 45, 45)
-TRACK_LINE_COLOR = (20, 20, 20)
-FRONT_ARMOR_COLOR = (115, 140, 60)
-SIDE_ARMOR_COLOR = (85, 107, 47)
-REAR_ARMOR_COLOR = (65, 80, 35)
-DECK_COLOR = (95, 118, 52)
-ARMOR_OUTLINE_COLOR = (35, 48, 18)
-ENGINE_GRILL_COLOR = (30, 40, 20)
-TURRET_COLOR = (120, 150, 40)
-GUN_COLOR = (100, 100, 100)
-HATCH_COLOR = (60, 80, 30)
+# ---------- Рисовка танка ----------
+SS = 2                                   # коэффициент сглаживания (рисуем в SS раз крупнее)
+TANK_SURFACE_SIZE = (200, 200)           # итоговый размер заготовки
+BIG_SIZE = TANK_SURFACE_SIZE[0] * SS     # размер большого холста (квадрат)
+SHADOW_BUF_SIZE = 320                    # буфер тени (больше диагонали 200x200)
+SHADOW_ALPHA = 80
+SHADOW_HULL_OFFSET = (5, 7)              # смещение тени корпуса на экране
+SHADOW_TURRET_OFFSET = (7, 10)           # башня выше, поэтому тень дальше
+
+OUTLINE = (38, 33, 28)                   # общий контур
+TRACK_BODY = (58, 54, 49)                # лента гусеницы
+TRACK_LINK = (118, 111, 100)             # звено трака
+WHEEL = (92, 86, 77)
+WHEEL_HUB = (140, 132, 118)
+
+HULL_MAIN = (170, 160, 140)
+HULL_LIGHT = (200, 191, 169)
+HULL_DARK = (126, 117, 101)
+DECK = (155, 146, 126)
+GRILL = (72, 66, 58)
+GRILL_LINE = (112, 104, 91)
+
+TURRET_MAIN = (184, 174, 152)
+TURRET_LIGHT = (210, 202, 182)
+TURRET_DARK = (140, 131, 114)
+HATCH = (120, 112, 97)
+
+GUN = (112, 110, 105)
+GUN_LIGHT = (150, 147, 140)
 
 TANK_SURFACE_SIZE = (200, 200)
 MIN_CACHED_CHUNKS = 40
@@ -27,6 +44,32 @@ def _shade(color, k):
     """Умножить цвет на коэффициент (k<1 темнее, k>1 светлее)."""
     return tuple(max(0, min(255, int(c * k))) for c in color)
 
+def _rect(surf, color, x, y, w, h, outline=OUTLINE, ow=2, radius=0):
+    """Прямоугольник (x, y — от центра танка) с контуром."""
+    c = surf.get_width() // 2
+    r = pygame.Rect(round(c + x * SS), round(c + y * SS), round(w * SS), round(h * SS))
+    pygame.draw.rect(surf, color, r, border_radius=radius * SS)
+    if outline:
+        pygame.draw.rect(surf, outline, r, ow * SS, border_radius=radius * SS)
+
+def _poly(surf, color, pts, outline=OUTLINE, ow=2):
+    c = surf.get_width() // 2
+    big = [(c + px * SS, c + py * SS) for px, py in pts]
+    pygame.draw.polygon(surf, color, big)
+    if outline:
+        pygame.draw.polygon(surf, outline, big, ow * SS)
+
+def _circle(surf, color, x, y, r, outline=OUTLINE, ow=1):
+    c = surf.get_width() // 2
+    pos = (round(c + x * SS), round(c + y * SS))
+    pygame.draw.circle(surf, color, pos, round(r * SS))
+    if outline:
+        pygame.draw.circle(surf, outline, pos, round(r * SS), ow * SS)
+
+def _line(surf, color, x1, y1, x2, y2, w=1):
+    c = surf.get_width() // 2
+    pygame.draw.line(surf, color, (c + x1 * SS, c + y1 * SS), (c + x2 * SS, c + y2 * SS), w * SS)
+
 
 class Renderer:
     def __init__(self, world_generator):
@@ -34,8 +77,12 @@ class Renderer:
         self.font = pygame.font.Font(None, 22)
 
         self._chunk_cache = OrderedDict()   # (cx, cy) -> Surface
-        self._hull_cache = {}               # (шаг левой, шаг правой) -> Surface
-        self.turret_surface = self._build_turret_surface()
+        self._hull_cache = {}               # (фаза левой, фаза правой, цвет команды) -> Surface
+        self._turret_cache = {}             # цвет команды -> Surface
+        self._sil_cache = {}                # цвет команды -> (силуэт корпуса, силуэт башни)
+
+        self._shadow_buf = pygame.Surface((SHADOW_BUF_SIZE, SHADOW_BUF_SIZE), pygame.SRCALPHA)
+        self._shadow_buf.set_alpha(SHADOW_ALPHA)
 
     # ==========================================
     # ГЛАВНЫЙ МЕТОД
@@ -160,80 +207,135 @@ class Renderer:
         center = (int(round(sx)), int(round(sy)))
 
         hull = self._get_hull_surface(tank)
-        rotated_hull = pygame.transform.rotate(hull, -tank.hull_angle)
-        screen.blit(rotated_hull, rotated_hull.get_rect(center=center))
+        turret = self._get_turret_surface(tank.team_color)
+        hull_rot = pygame.transform.rotozoom(hull, -tank.hull_angle, 1.0)
+        turret_rot = pygame.transform.rotozoom(turret, -tank.turret_angle, 1.0)
 
-        rotated_turret = pygame.transform.rotate(self.turret_surface, -tank.turret_angle)
-        screen.blit(rotated_turret, rotated_turret.get_rect(center=center))
+        # --- тень: сначала в буфер непрозрачным чёрным, потом весь буфер полупрозрачно ---
+        sil_hull, sil_turret = self._get_silhouettes(tank.team_color, hull, turret)
+        sil_hull_rot = pygame.transform.rotozoom(sil_hull, -tank.hull_angle, 1.0)
+        sil_turret_rot = pygame.transform.rotozoom(sil_turret, -tank.turret_angle, 1.0)
+
+        buf = self._shadow_buf
+        buf.fill((0, 0, 0, 0))
+        bc = SHADOW_BUF_SIZE // 2
+        hx, hy = SHADOW_HULL_OFFSET
+        tx, ty = SHADOW_TURRET_OFFSET
+        buf.blit(sil_hull_rot, sil_hull_rot.get_rect(center=(bc + hx, bc + hy)))
+        buf.blit(sil_turret_rot, sil_turret_rot.get_rect(center=(bc + tx, bc + ty)))
+        screen.blit(buf, buf.get_rect(center=center))
+
+        # --- сам танк ---
+        screen.blit(hull_rot, hull_rot.get_rect(center=center))
+        screen.blit(turret_rot, turret_rot.get_rect(center=center))
+
+    @staticmethod
+    def _make_silhouette(surface):
+        mask = pygame.mask.from_surface(surface)
+        return mask.to_surface(setcolor=(0, 0, 0, 255), unsetcolor=(0, 0, 0, 0))
+
+    def _get_silhouettes(self, team_color, hull, turret):
+        pair = self._sil_cache.get(team_color)
+        if pair is None:
+            pair = (self._make_silhouette(hull), self._make_silhouette(turret))
+            self._sil_cache[team_color] = pair
+        return pair
 
     def _get_hull_surface(self, tank):
-        """Корпус для текущей фазы гусениц. Фаз всего 10x10, поэтому кэшируем."""
-        key = (int(tank.left_track_offset), int(tank.right_track_offset))
+        """Корпус для текущей фазы гусениц и цвета команды (кэш)."""
+        key = (int(tank.left_track_offset), int(tank.right_track_offset), tank.team_color)
         surf = self._hull_cache.get(key)
         if surf is None:
-            surf = self._build_hull_surface(key[0], key[1], tank.TRACK_STEP)
+            surf = self._build_hull_surface(key[0], key[1], tank.team_color)
             self._hull_cache[key] = surf
         return surf
 
-    @staticmethod
-    def _draw_track_lines(surface, x1, x2, cy, offset, step):
-        start_y = cy - 55 - int(step)
-        end_y = cy + 55 + int(step)
-        y = start_y + offset
-        while y < end_y:
-            if cy - 53 <= y <= cy + 53:
-                pygame.draw.line(surface, TRACK_LINE_COLOR, (x1, int(y)), (x2, int(y)), 2)
-            y += step
+    def _get_turret_surface(self, team_color):
+        surf = self._turret_cache.get(team_color)
+        if surf is None:
+            surf = self._build_turret_surface(team_color)
+            self._turret_cache[team_color] = surf
+        return surf
 
-    def _build_hull_surface(self, left_off, right_off, track_step):
-        surface = pygame.Surface(TANK_SURFACE_SIZE, pygame.SRCALPHA)
-        cx, cy = TANK_SURFACE_SIZE[0] // 2, TANK_SURFACE_SIZE[1] // 2
+    @staticmethod
+    def _draw_track(surf, x, offset):
+        """Одна гусеница: лента, звенья (бегут с фазой offset), опорные катки."""
+        w, top, h = 22, -56, 112
+        _rect(surf, TRACK_BODY, x, top, w, h, radius=7)
+
+        # звенья рисуем только внутри ленты, чтобы не затирать контур
+        c = surf.get_width() // 2
+        clip = pygame.Rect(c + (x + 2) * SS, c + (top + 2) * SS, (w - 4) * SS, (h - 4) * SS)
+        surf.set_clip(clip)
+        y = -70 + offset
+        while y < 62:
+            _rect(surf, TRACK_LINK, x + 3, y, w - 6, 6, outline=None, radius=1)
+            y += 10
+        surf.set_clip(None)
+
+        # опорные катки на концах гусеницы
+        mid = x + w / 2
+        for wy in (-44, 44):
+            _circle(surf, WHEEL, mid, wy, 8, ow=2)
+            _circle(surf, WHEEL_HUB, mid, wy, 3, ow=1)
+
+    def _build_hull_surface(self, left_off, right_off, team_color):
+        big = pygame.Surface((BIG_SIZE, BIG_SIZE), pygame.SRCALPHA)
 
         # 1. Гусеницы
-        pygame.draw.rect(surface, TRACK_COLOR, (cx - 45, cy - 55, 20, 110))
-        pygame.draw.rect(surface, TRACK_COLOR, (cx + 25, cy - 55, 20, 110))
-        self._draw_track_lines(surface, cx - 45, cx - 26, cy, left_off, track_step)
-        self._draw_track_lines(surface, cx + 25, cx + 44, cy, right_off, track_step)
+        self._draw_track(big, -47, left_off)
+        self._draw_track(big, 25, right_off)
 
-        # 2. Палуба
-        pygame.draw.rect(surface, DECK_COLOR, (cx - 20, cy - 25, 40, 50))
+        # 2. Силуэт корпуса
+        _poly(big, HULL_MAIN, [(-26, -52), (26, -52), (32, -30), (32, 50), (-32, 50), (-32, -30)])
 
-        # 3. Лобовая броня
-        front = [(cx - 30, cy - 25), (cx - 24, cy - 50), (cx + 24, cy - 50), (cx + 30, cy - 25)]
-        pygame.draw.polygon(surface, FRONT_ARMOR_COLOR, front)
-        pygame.draw.polygon(surface, ARMOR_OUTLINE_COLOR, front, 2)
+        # 3. Подкрылки (боковые полки над гусеницами)
+        _rect(big, HULL_DARK, -32, -30, 8, 80)
+        _rect(big, HULL_DARK, 24, -30, 8, 80)
 
-        # 4. Борта
-        for rect in ((cx - 30, cy - 25, 10, 75), (cx + 20, cy - 25, 10, 75)):
-            pygame.draw.rect(surface, SIDE_ARMOR_COLOR, rect)
-            pygame.draw.rect(surface, ARMOR_OUTLINE_COLOR, rect, 2)
+        # 4. Палуба
+        _rect(big, DECK, -24, -30, 48, 78, ow=1)
 
-        # 5. Корма и жалюзи МТО
-        rear = (cx - 20, cy + 25, 40, 25)
-        pygame.draw.rect(surface, REAR_ARMOR_COLOR, rear)
-        pygame.draw.rect(surface, ARMOR_OUTLINE_COLOR, rear, 2)
-        pygame.draw.rect(surface, ENGINE_GRILL_COLOR, (cx - 15, cy + 30, 12, 12))
-        pygame.draw.rect(surface, ENGINE_GRILL_COLOR, (cx + 3, cy + 30, 12, 12))
-        for y_line in range(cy + 33, cy + 40, 3):
-            pygame.draw.line(surface, (15, 20, 10), (cx - 14, y_line), (cx - 4, y_line), 1)
-            pygame.draw.line(surface, (15, 20, 10), (cx + 4, y_line), (cx + 14, y_line), 1)
-        return surface
+        # 5. Лобовая плита и люк механика-водителя
+        _poly(big, HULL_LIGHT, [(-24, -50), (24, -50), (30, -30), (-30, -30)])
+        _rect(big, HULL_DARK, -16, -44, 12, 8, radius=2)
+        _rect(big, HULL_DARK, 4, -44, 12, 8, radius=2)       # смотровые приборы
 
-    @staticmethod
-    def _build_turret_surface():
-        surface = pygame.Surface(TANK_SURFACE_SIZE, pygame.SRCALPHA)
-        cx, cy = TANK_SURFACE_SIZE[0] // 2, TANK_SURFACE_SIZE[1] // 2
+        # 6. МТО: решётка и жалюзи
+        _rect(big, GRILL, -20, 26, 40, 14, radius=2)
+        for ly in (29, 32, 35, 38):
+            _line(big, GRILL_LINE, -17, ly, 17, ly, 1)
 
-        pygame.draw.rect(surface, GUN_COLOR, (cx - 5, cy - 90, 10, 70))
-        pygame.draw.rect(surface, (70, 70, 70), (cx - 7, cy - 95, 14, 15))
+        # 7. Кормовая плита и две полоски цвета команды (середина кормы)
+        _rect(big, HULL_DARK, -22, 42, 44, 8, ow=2)
+        _rect(big, team_color, -14, 44, 10, 4, ow=1)
+        _rect(big, team_color, 4, 44, 10, 4, ow=1)
 
-        turret = [(cx - 16, cy - 25), (cx + 16, cy - 25), (cx + 28, cy + 25), (cx - 28, cy + 25)]
-        pygame.draw.polygon(surface, TURRET_COLOR, turret)
-        pygame.draw.polygon(surface, ARMOR_OUTLINE_COLOR, turret, 2)
+        return pygame.transform.smoothscale(big, TANK_SURFACE_SIZE)
 
-        pygame.draw.circle(surface, HATCH_COLOR, (cx, cy + 5), 8)
-        pygame.draw.circle(surface, ARMOR_OUTLINE_COLOR, (cx, cy + 5), 8, 1)
-        return surface
+    def _build_turret_surface(self, team_color):
+        big = pygame.Surface((BIG_SIZE, BIG_SIZE), pygame.SRCALPHA)
+
+        # 1. Ствол (рисуется первым: маска и башня перекроют основание)
+        _rect(big, GUN, -4, -86, 8, 62)
+        _rect(big, GUN_LIGHT, -6, -64, 12, 8, radius=2)       # эжектор
+        _rect(big, team_color, -5, -92, 10, 7, radius=2)      # кончик ствола (цвет команды)
+
+        # 2. Корпус башни
+        turret = [(-16, -32), (16, -32), (28, -8), (26, 24), (-26, 24), (-28, -8)]
+        _poly(big, TURRET_MAIN, turret)
+        light = [(-10, -24), (10, -24), (18, -6), (16, 14), (-16, 14), (-18, -6)]
+        _poly(big, TURRET_LIGHT, light, outline=TURRET_DARK, ow=1)
+
+        # 3. Маска орудия (цвет команды)
+        _rect(big, team_color, -12, -40, 24, 14, radius=3)
+
+        # 4. Люки
+        _circle(big, HATCH, 11, 8, 7, ow=2)                    # командирский
+        _circle(big, TURRET_LIGHT, 11, 8, 3, ow=1)
+        _rect(big, HATCH, -17, 2, 12, 10, radius=2)            # заряжающего
+
+        return pygame.transform.smoothscale(big, TANK_SURFACE_SIZE)
 
     # ==========================================
     # ОТЛАДКА

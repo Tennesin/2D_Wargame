@@ -213,9 +213,10 @@ class Tank:
     TRACK_RADIUS = 35.0    # расстояние от центра до гусеницы (px)
     AIM_DEAD_ZONE = 20.0   # если курсор ближе к центру танка, башня не дёргается
 
-    def __init__(self, x=0.0, y=0.0, spec=tank_config):
+    def __init__(self, x=0.0, y=0.0, spec=tank_config, team_color=(200, 40, 40)):
         # spec — любой объект с теми же именами (модуль tank_config или будущий класс)
         self.spec = spec
+        self.team_color = team_color  # цвет команды (RGB), красный по умолчанию
         self.x = float(x)
         self.y = float(y)
         self.hull_angle = 0.0           # 0 = вверх, по часовой стрелке
