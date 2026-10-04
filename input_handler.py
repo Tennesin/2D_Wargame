@@ -5,13 +5,16 @@ from core import VehicleCommand
 
 
 class InputHandler:
-    def __init__(self):
+    def __init__(self, ui=None):
+        self.ui = ui
         self.quit_requested = False
         self.show_debug = False
 
     def process_events(self):
         """События окна и разовые клавиши (выход, отладка)."""
         for event in pygame.event.get():
+            if self.ui is not None and self.ui.handle_event(event):
+                continue                  # событие забрал интерфейс
             if event.type == pygame.QUIT:
                 self.quit_requested = True
             elif event.type == pygame.KEYDOWN:
@@ -33,7 +36,8 @@ class InputHandler:
         throttle = float(forward) - float(backward)
 
         aim_point = None
-        if pygame.mouse.get_pressed()[0]:      # башня следит за мышью, пока зажата ЛКМ
+        ui_busy = self.ui is not None and self.ui.captures_mouse()
+        if pygame.mouse.get_pressed()[0] and not ui_busy:
             mx, my = pygame.mouse.get_pos()
             aim_point = camera.screen_to_world(mx, my)   # экран -> мир
 

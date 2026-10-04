@@ -18,8 +18,6 @@ SHADOW_TURRET_OFFSET = (7, 10)           # башня выше, поэтому �
 OUTLINE = (38, 33, 28)                   # общий контур
 TRACK_BODY = (58, 54, 49)                # лента гусеницы
 TRACK_LINK = (118, 111, 100)             # звено трака
-WHEEL = (92, 86, 77)
-WHEEL_HUB = (140, 132, 118)
 
 HULL_MAIN = (170, 160, 140)
 HULL_LIGHT = (200, 191, 169)
@@ -273,12 +271,6 @@ class Renderer:
             y += 10
         surf.set_clip(None)
 
-        # опорные катки на концах гусеницы
-        mid = x + w / 2
-        for wy in (-44, 44):
-            _circle(surf, WHEEL, mid, wy, 8, ow=2)
-            _circle(surf, WHEEL_HUB, mid, wy, 3, ow=1)
-
     def _build_hull_surface(self, left_off, right_off, team_color):
         big = pygame.Surface((BIG_SIZE, BIG_SIZE), pygame.SRCALPHA)
 
@@ -296,10 +288,8 @@ class Renderer:
         # 4. Палуба
         _rect(big, DECK, -24, -30, 48, 78, ow=1)
 
-        # 5. Лобовая плита и люк механика-водителя
+        # 5. Лобовая плита
         _poly(big, HULL_LIGHT, [(-24, -50), (24, -50), (30, -30), (-30, -30)])
-        _rect(big, HULL_DARK, -16, -44, 12, 8, radius=2)
-        _rect(big, HULL_DARK, 4, -44, 12, 8, radius=2)       # смотровые приборы
 
         # 6. МТО: решётка и жалюзи
         _rect(big, GRILL, -20, 26, 40, 14, radius=2)
@@ -330,10 +320,8 @@ class Renderer:
         # 3. Маска орудия (цвет команды)
         _rect(big, team_color, -12, -40, 24, 14, radius=3)
 
-        # 4. Люки
-        _circle(big, HATCH, 11, 8, 7, ow=2)                    # командирский
-        _circle(big, TURRET_LIGHT, 11, 8, 3, ow=1)
-        _rect(big, HATCH, -17, 2, 12, 10, radius=2)            # заряжающего
+        # 4. Люк
+        _circle(big, HATCH, 0, 4, 7, ow=2)
 
         return pygame.transform.smoothscale(big, TANK_SURFACE_SIZE)
 

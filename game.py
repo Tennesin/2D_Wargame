@@ -6,6 +6,7 @@ import pygame
 from core import Camera, Tank, WorldGenerator, CHUNK_SIZE
 from input_handler import InputHandler
 from renderer import Renderer
+from ui import ConstructorUI
 
 class Game:
     MAX_DT = 0.05   # защита от «телепорта» при подвисании окна
@@ -22,7 +23,8 @@ class Game:
         self.world = WorldGenerator(self.seed)
         self.tank = Tank(0.0, 0.0)
         self.camera = Camera(*self.screen.get_size())
-        self.input = InputHandler()
+        self.ui = ConstructorUI(self.screen.get_size())
+        self.input = InputHandler(self.ui)
         self.renderer = Renderer(self.world)
 
     def _debug_lines(self):
@@ -47,6 +49,7 @@ class Game:
             if w == 0 or h == 0:
                 continue
             self.camera.resize(w, h)
+            self.ui.update((w, h))
 
             command = self.input.read_command(self.camera)
             self.tank.update(command, dt)
@@ -54,4 +57,5 @@ class Game:
 
             debug = self._debug_lines() if self.input.show_debug else None
             self.renderer.draw(self.screen, self.camera, self.tank, debug)
+            self.ui.draw(self.screen)
             pygame.display.flip()
