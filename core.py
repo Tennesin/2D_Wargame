@@ -254,11 +254,12 @@ class Tank:
         return distance
 
     def _animate_tracks(self, distance, delta_hull):
+        scale = getattr(self.spec, "HULL_SCALE", 1.0)
         rot_dist = math.radians(delta_hull) * self.TRACK_RADIUS
         # Поворот вправо (delta_hull > 0): левая гусеница едет вперёд, правая назад.
-        # "Вперёд" для узора = отрицательное смещение.
-        self.left_track_offset = (self.left_track_offset - distance - rot_dist) % self.TRACK_STEP
-        self.right_track_offset = (self.right_track_offset - distance + rot_dist) % self.TRACK_STEP
+        # "Вперёд" для узора = отрицательное смещение. distance переводим в пиксели спрайта.
+        self.left_track_offset = (self.left_track_offset - distance / scale - rot_dist) % self.TRACK_STEP
+        self.right_track_offset = (self.right_track_offset - distance / scale + rot_dist) % self.TRACK_STEP
 
     def _aim_turret(self, aim_point, dt):
         if aim_point is None:

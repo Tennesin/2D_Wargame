@@ -9,8 +9,8 @@ from core import CHUNK_SIZE, CELL_SIZE
 # ---------- Рисовка танка ----------
 SS = 2                                   # коэффициент сглаживания (рисуем в SS раз крупнее)
 HULL_SURFACE_SIZE = (200, 200)           # итоговый размер заготовки корпуса
-TURRET_SURFACE_SIZE = (300, 300)         # башня больше: длинный ствол выходит далеко вперёд
 SHADOW_BUF_SIZE = 460                    # буфер тени (больше диагонали заготовки башни)
+TURRET_FRONT = 35                        # от центра башни до передней плиты; ствол отсчитывается отсюда
 SHADOW_ALPHA = 80
 SHADOW_HULL_OFFSET = (5, 7)              # смещение тени корпуса на экране
 SHADOW_TURRET_OFFSET = (7, 10)           # башня выше, поэтому тень дальше
@@ -74,12 +74,13 @@ class Renderer:
         self.font = pygame.font.Font(None, 22)
 
         self._chunk_cache = OrderedDict()   # (cx, cy) -> Surface
-        self._hull_cache = {}               # (фаза левой, фаза правой, цвет команды) -> Surface
-        self._turret_cache = {}             # цвет команды -> Surface
-        self._sil_cache = {}                # цвет команды -> (силуэт корпуса, силуэт башни)
+        self._hull_cache = {}               # (фаза левой, фаза правой, цвет) -> Surface
+        self._turret_cache = {}             # (цвет, длина ствола, толщина) -> Surface
+        self._hull_sil_cache = {}           # цвет -> силуэт корпуса
+        self._turret_sil_cache = {}         # ключ башни -> силуэт башни
 
-        self._shadow_buf = pygame.Surface((SHADOW_BUF_SIZE, SHADOW_BUF_SIZE), pygame.SRCALPHA)
-        self._shadow_buf.set_alpha(SHADOW_ALPHA)
+        self._shadow_buf = None             # создаётся и растёт по мере надобности
+        self._ensure_shadow_buf(SHADOW_BUF_SIZE)
 
     # ==========================================
     # ГЛАВНЫЙ МЕТОД
@@ -203,21 +204,32 @@ class Renderer:
         sx, sy = camera.world_to_screen(tank.x, tank.y)
         center = (int(round(sx)), int(round(sy)))
 
+        # --- параметры внешнего вида из спецификации (значения по умолчанию = эталон) ---
+        spec = tank.spec
+        hs = getattr(spec, "HULL_SCALE", 1.0)
+        ts = getattr(spec, "TURRET_SCALE", 1.0)
+        barrel_len = int(round(getattr(spec, "BARREL_LEN_PX", 100.0) / 4.0)) * 4   # шаг 4 px: меньше перестроек
+        barrel_thick = int(round(getattr(spec, "BARREL_THICK_PX", 10.0)))
+        tkey = (tank.team_color, barrel_len, barrel_thick)
+
         hull = self._get_hull_surface(tank)
-        turret = self._get_turret_surface(tank.team_color)
-        hull_rot = pygame.transform.rotozoom(hull, -tank.hull_angle, 1.0)
-        turret_rot = pygame.transform.rotozoom(turret, -tank.turret_angle, 1.0)
+        turret = self._get_turret_surface(tkey)
+        hull_rot = pygame.transform.rotozoom(hull, -tank.hull_angle, hs)
+        turret_rot = pygame.transform.rotozoom(turret, -tank.turret_angle, ts)
 
         # --- тень: сначала в буфер непрозрачным чёрным, потом весь буфер полупрозрачно ---
-        sil_hull, sil_turret = self._get_silhouettes(tank.team_color, hull, turret)
-        sil_hull_rot = pygame.transform.rotozoom(sil_hull, -tank.hull_angle, 1.0)
-        sil_turret_rot = pygame.transform.rotozoom(sil_turret, -tank.turret_angle, 1.0)
+        sil_hull = self._get_hull_silhouette(tank.team_color, hull)
+        sil_turret = self._get_turret_silhouette(tkey, turret)
+        sil_hull_rot = pygame.transform.rotozoom(sil_hull, -tank.hull_angle, hs)
+        sil_turret_rot = pygame.transform.rotozoom(sil_turret, -tank.turret_angle, ts)
 
-        buf = self._shadow_buf
+        need = max(sil_hull_rot.get_width(), sil_hull_rot.get_height(),
+                   sil_turret_rot.get_width(), sil_turret_rot.get_height()) + 2 * int(12 * hs) + 4
+        buf = self._ensure_shadow_buf(need)
         buf.fill((0, 0, 0, 0))
-        bc = SHADOW_BUF_SIZE // 2
-        hx, hy = SHADOW_HULL_OFFSET
-        tx, ty = SHADOW_TURRET_OFFSET
+        bc = buf.get_width() // 2
+        hx, hy = round(SHADOW_HULL_OFFSET[0] * hs), round(SHADOW_HULL_OFFSET[1] * hs)
+        tx, ty = round(SHADOW_TURRET_OFFSET[0] * hs), round(SHADOW_TURRET_OFFSET[1] * hs)
         buf.blit(sil_hull_rot, sil_hull_rot.get_rect(center=(bc + hx, bc + hy)))
         buf.blit(sil_turret_rot, sil_turret_rot.get_rect(center=(bc + tx, bc + ty)))
         screen.blit(buf, buf.get_rect(center=center))
@@ -231,12 +243,34 @@ class Renderer:
         mask = pygame.mask.from_surface(surface)
         return mask.to_surface(setcolor=(0, 0, 0, 255), unsetcolor=(0, 0, 0, 0))
 
-    def _get_silhouettes(self, team_color, hull, turret):
-        pair = self._sil_cache.get(team_color)
-        if pair is None:
-            pair = (self._make_silhouette(hull), self._make_silhouette(turret))
-            self._sil_cache[team_color] = pair
-        return pair
+    def _ensure_shadow_buf(self, size):
+        """Буфер тени: пересоздаётся только если нужен больший размер."""
+        if self._shadow_buf is None or self._shadow_buf.get_width() < size:
+            size = (size + 63) // 64 * 64
+            self._shadow_buf = pygame.Surface((size, size), pygame.SRCALPHA)
+            self._shadow_buf.set_alpha(SHADOW_ALPHA)
+        return self._shadow_buf
+
+    @staticmethod
+    def _trim_cache(cache, limit=16):
+        """Не даёт кэшу башен расти бесконечно при перетаскивании ползунка."""
+        while len(cache) > limit:
+            cache.pop(next(iter(cache)))      # самый старый ключ
+
+    def _get_hull_silhouette(self, team_color, hull):
+        sil = self._hull_sil_cache.get(team_color)
+        if sil is None:
+            sil = self._make_silhouette(hull)
+            self._hull_sil_cache[team_color] = sil
+        return sil
+
+    def _get_turret_silhouette(self, tkey, turret):
+        sil = self._turret_sil_cache.get(tkey)
+        if sil is None:
+            sil = self._make_silhouette(turret)
+            self._turret_sil_cache[tkey] = sil
+            self._trim_cache(self._turret_sil_cache)
+        return sil
 
     def _get_hull_surface(self, tank):
         """Корпус для текущей фазы гусениц и цвета команды (кэш)."""
@@ -247,11 +281,13 @@ class Renderer:
             self._hull_cache[key] = surf
         return surf
 
-    def _get_turret_surface(self, team_color):
-        surf = self._turret_cache.get(team_color)
+    def _get_turret_surface(self, tkey):
+        """Башня для (цвет команды, длина ствола, толщина ствола) — кэш."""
+        surf = self._turret_cache.get(tkey)
         if surf is None:
-            surf = self._build_turret_surface(team_color)
-            self._turret_cache[team_color] = surf
+            surf = self._build_turret_surface(tkey)
+            self._turret_cache[tkey] = surf
+            self._trim_cache(self._turret_cache)
         return surf
 
     @staticmethod
@@ -302,16 +338,22 @@ class Renderer:
 
         return pygame.transform.smoothscale(big, HULL_SURFACE_SIZE)
 
-    def _build_turret_surface(self, team_color):
-        big = pygame.Surface((TURRET_SURFACE_SIZE[0] * SS, TURRET_SURFACE_SIZE[1] * SS),
-                             pygame.SRCALPHA)
+    def _build_turret_surface(self, tkey):
+        team_color, barrel_len, thick = tkey
 
-        # 1. Ствол: чуть шире (10 вместо 8) и заметно длиннее (до y = -130)
-        _rect(big, GUN, -5, -130, 10, 106)
-        _rect(big, GUN_LIGHT, -7, -96, 14, 8, radius=2)       # эжектор
-        _rect(big, team_color, -6, -136, 12, 8, radius=2)     # кончик ствола (цвет команды)
+        reach = TURRET_FRONT + barrel_len                  # вынос дульного среза от центра башни
+        half = max(100, int(math.ceil(reach)) + 12)        # половина размера заготовки
+        size = half * 2
+        big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
 
-        # 2. Корпус башни: симметричный шестиугольник (перёд и корма зеркальны)
+        # 1. Ствол: толщина и длина из спецификации (у эталона 10 px и дульный срез около y = -135)
+        body_h = (reach - 6) - 24
+        _rect(big, GUN, -thick / 2, -(reach - 6), thick, body_h)
+        ej_y = -(24 + 0.64 * (reach - 24))                 # эжектор на 64% длины от башни
+        _rect(big, GUN_LIGHT, -(thick + 4) / 2, ej_y, thick + 4, 8, radius=2)
+        _rect(big, team_color, -(thick + 2) / 2, -reach, thick + 2, 8, radius=2)   # кончик ствола
+
+        # 2. Корпус башни: симметричный шестиугольник
         turret = [(-15, -34), (15, -34), (29, 1), (15, 36), (-15, 36), (-29, 1)]
         _poly(big, TURRET_MAIN, turret)
         light = [(-10, -23), (10, -23), (19, 1), (10, 26), (-10, 26), (-19, 1)]
@@ -320,10 +362,10 @@ class Renderer:
         # 3. Маска орудия (цвет команды)
         _rect(big, team_color, -12, -40, 24, 14, radius=3)
 
-        # 4. Люк: крупнее (радиус 10), цвета корпуса, смещён вправо и чуть назад
+        # 4. Люк
         _circle(big, HATCH, 8, 8, 10, ow=2)
 
-        return pygame.transform.smoothscale(big, TURRET_SURFACE_SIZE)
+        return pygame.transform.smoothscale(big, (size, size))
 
     # ==========================================
     # ОТЛАДКА

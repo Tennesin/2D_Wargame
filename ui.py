@@ -6,6 +6,7 @@
 import pygame
 
 import tank_config
+from tank_spec import TankSpec
 
 # ==========================================
 # 1. НАСТРОЙКИ ВНЕШНЕГО ВИДА
@@ -284,23 +285,25 @@ class ConstructorUI:
     # ---------- состав панели (сюда добавляем новые параметры) ----------
     def _build_items(self):
         c = tank_config
+        spec0 = TankSpec.from_config()      # нужен только ради списка названий характеристик
         return [
             SectionHeader("Вооружение"),
             ParamRow("gun_caliber_mm", "Калибр орудия", "мм", 45, 175, c.GUN_CALIBER_MM, 1),
 
             SectionHeader("Броня"),
-            ParamRow("front_armor_mm", "Лоб", "мм", 10, 600, c.FRONT_ARMOR_THICKNESS_MM, 5),
-            ParamRow("side_armor_mm", "Борт", "мм", 10, 600, c.SIDE_ARMOR_THICKNESS_MM, 5),
-            ParamRow("rear_armor_mm", "Корма", "мм", 10, 600, c.REAR_ARMOR_THICKNESS_MM, 5),
+            ParamRow("front_armor_mm", "Лоб", "мм", 15, 500, c.FRONT_ARMOR_THICKNESS_MM, 5),
+            ParamRow("side_armor_mm", "Борт", "мм", 15, 375, c.SIDE_ARMOR_THICKNESS_MM, 5),
+            ParamRow("rear_armor_mm", "Корма", "мм", 15, 250, c.REAR_ARMOR_THICKNESS_MM, 5),
 
             SectionHeader("Силовая установка"),
-            ParamRow("engine_power_hp", "Мощность двигателя", "л.с.", 100, 2000,
+            ParamRow("engine_power_hp", "Мощность двигателя", "л.с.", 500, 1500,
                      c.ENGINE_POWER_HP, 25),
 
             SectionHeader("Расчётные характеристики"),
-            StatsBlock(["Масса", "Скорость вперёд", "Поворот корпуса", "Поворот башни",
-                        "Пробитие", "Стоимость", "Время производства"]),
-            InfoText("Формулы ещё не подключены — значения появятся позже."),
+            StatsBlock(list(spec0.main_stats())),
+
+            SectionHeader("Внутренние показатели"),
+            StatsBlock(list(spec0.internal_stats())),
         ]
 
     # ---------- публичный интерфейс ----------

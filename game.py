@@ -1,12 +1,12 @@
 """game.py — окно, главный цикл, связывание частей."""
 import random
-
 import pygame
 
 from core import Camera, Tank, WorldGenerator, CHUNK_SIZE
 from input_handler import InputHandler
 from renderer import Renderer
 from ui import ConstructorUI
+from tank_spec import TankSpec
 
 class Game:
     MAX_DT = 0.05   # защита от «телепорта» при подвисании окна
@@ -21,11 +21,25 @@ class Game:
         print(f"Seed мира: {self.seed}")
 
         self.world = WorldGenerator(self.seed)
-        self.tank = Tank(0.0, 0.0)
         self.camera = Camera(*self.screen.get_size())
         self.ui = ConstructorUI(self.screen.get_size())
+        self.spec = TankSpec.from_values(self.ui.get_values())
+        self.tank = Tank(0.0, 0.0, spec=self.spec)
+        self.ui.on_change = self._on_constructor_change
+        self._show_stats()
+        self.spec.print_specs()
         self.input = InputHandler(self.ui)
         self.renderer = Renderer(self.world)
+
+    def _on_constructor_change(self, values):
+        """Ползунок сдвинут: пересчитываем танк и обновляем панель."""
+        self.spec = TankSpec.from_values(values)
+        self.tank.spec = self.spec
+        self._show_stats()
+
+    def _show_stats(self):
+        for name, text in {**self.spec.main_stats(), **self.spec.internal_stats()}.items():
+            self.ui.set_stat(name, text)
 
     def _debug_lines(self):
         t = self.tank
