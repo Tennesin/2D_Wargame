@@ -7,6 +7,7 @@ from input_handler import InputHandler
 from renderer import Renderer
 from ui import ConstructorUI
 from tank_spec import TankSpec
+from effects import EffectsSystem
 
 class Game:
     MAX_DT = 0.05   # защита от «телепорта» при подвисании окна
@@ -30,6 +31,7 @@ class Game:
         self.spec.print_specs()
         self.input = InputHandler(self.ui)
         self.renderer = Renderer(self.world)
+        self.effects = EffectsSystem()
 
     def _on_constructor_change(self, values):
         """Ползунок сдвинут: пересчитываем танк и обновляем панель."""
@@ -50,6 +52,8 @@ class Game:
             f"Grass: {self.world.grass_at(t.x, t.y):.2f}",
             f"Hull: {t.hull_angle:.0f}  Turret: {t.turret_angle:.0f}",
             f"Seed: {self.seed}",
+            f"Turret follow (Q): {'ON' if self.input.turret_follow else 'OFF'}",
+            f"Reload: {t.reload_left:.1f}s",
         ]
 
     def run(self):
@@ -66,10 +70,13 @@ class Game:
             self.ui.update((w, h))
 
             command = self.input.read_command(self.camera)
-            self.tank.update(command, dt)
+            shot = self.tank.update(command, dt)
+            if shot is not None:
+                self.effects.spawn_shot(shot, self.spec)
             self.camera.center_on(self.tank.x, self.tank.y)
+            self.effects.update(dt, self.camera)
 
             debug = self._debug_lines() if self.input.show_debug else None
-            self.renderer.draw(self.screen, self.camera, self.tank, debug)
+            self.renderer.draw(self.screen, self.camera, self.tank, debug, self.effects)
             self.ui.draw(self.screen)
             pygame.display.flip()

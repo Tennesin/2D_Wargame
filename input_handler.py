@@ -9,6 +9,7 @@ class InputHandler:
         self.ui = ui
         self.quit_requested = False
         self.show_debug = False
+        self.turret_follow = True     # башня следит за мышью (переключается клавишей Q)
 
     def process_events(self):
         """События окна и разовые клавиши (выход, отладка)."""
@@ -22,6 +23,8 @@ class InputHandler:
                     self.quit_requested = True
                 elif event.key == pygame.K_F3:
                     self.show_debug = not self.show_debug
+                elif event.key == pygame.K_q:
+                    self.turret_follow = not self.turret_follow
 
     def read_command(self, camera) -> VehicleCommand:
         """Удерживаемые клавиши и мышь -> команда для машины."""
@@ -37,8 +40,12 @@ class InputHandler:
 
         aim_point = None
         ui_busy = self.ui is not None and self.ui.captures_mouse()
-        if pygame.mouse.get_pressed()[0] and not ui_busy:
+
+        aim_point = None
+        if self.turret_follow and not ui_busy:
             mx, my = pygame.mouse.get_pos()
             aim_point = camera.screen_to_world(mx, my)   # экран -> мир
 
-        return VehicleCommand(throttle=throttle, steer=steer, aim_point=aim_point, fire=False)
+        fire = bool(pygame.mouse.get_pressed()[0]) and not ui_busy
+
+        return VehicleCommand(throttle=throttle, steer=steer, aim_point=aim_point, fire=fire)

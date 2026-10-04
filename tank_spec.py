@@ -27,7 +27,7 @@ REF_ARMOR_SHARE = 0.472    # доля брони в массе эталона
 TURN_SPEED_PENALTY = 0.65  # множитель скорости при повороте (как раньше)
 KMH_TO_PX = 2.0            # игровой перевод км/ч -> px/с
 BARREL_PX_PER_M = 21.0     # px спрайта на метр ствола
-
+TURRET_FRONT_PX = 35.0     # от центра башни до передней плиты (должно совпадать с TURRET_FRONT в renderer.py)
 
 class TankSpec:
     """Считает всё один раз в __init__. Имена в ЗАГЛАВНЫХ буквах читают Tank и Renderer."""
@@ -122,6 +122,31 @@ class TankSpec:
         self.TURRET_SCALE = self.s_h * self.q_gun ** 0.25
         self.BARREL_LEN_PX = cal * self.l_cal / 1000.0 * BARREL_PX_PER_M
         self.BARREL_THICK_PX = max(5.0, 10.0 * cr ** 0.8)
+
+        # 9. ВЫСТРЕЛ (всё зависит от калибра)
+        cal_k = _clamp((cal - CAL_MIN) / (CAL_MAX - CAL_MIN), 0.0, 1.0)   # 0..1 по диапазону калибров
+
+        # где находится дульный срез (в пикселях мира, с учётом масштаба башни)
+        self.MUZZLE_DIST_PX = (TURRET_FRONT_PX + self.BARREL_LEN_PX) * self.TURRET_SCALE
+
+        # снаряд
+        self.SHELL_LEN_PX = 0.6 * cal                                  # 120 мм -> 72 px
+        self.SHELL_THICK_PX = max(3.0, cal / 25.0)
+        self.SHELL_SPEED_PX = 1500.0 * (self.l_cal / 40.0) ** 0.3      # px/с, длинный ствол чуть быстрее
+
+        # откат ствола (в пикселях спрайта башни)
+        self.RECOIL_DEPTH_PX = 4.0 + 0.12 * cal                        # 120 мм -> ~18 px
+        self.RECOIL_TIME = 0.25 + cal / 400.0                          # полный цикл «назад и обратно», с
+
+        # вспышка
+        self.FLASH_SIZE_PX = 0.55 * cal
+        self.FLASH_TIME = 0.07 + 0.05 * cal_k
+
+        # дым
+        self.SMOKE_TIME = 1.0 + 0.5 * cal_k                            # 1.0 .. 1.5 с
+        self.SMOKE_STREAKS = 5 + int(cal / 20)                         # число полосок
+        self.SMOKE_REACH_PX = 40.0 + 0.8 * cal                         # на сколько они расходятся
+        self.SMOKE_WIDTH_PX = max(2.0, cal / 40.0)
 
     # ---------- вывод в интерфейс и в консоль ----------
     def main_stats(self):

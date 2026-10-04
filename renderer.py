@@ -85,9 +85,11 @@ class Renderer:
     # ==========================================
     # ГЛАВНЫЙ МЕТОД
     # ==========================================
-    def draw(self, screen, camera, tank, debug_lines=None):
+    def draw(self, screen, camera, tank, debug_lines=None, effects=None):
         self._draw_ground(screen, camera)
         self._draw_tank(screen, camera, tank)
+        if effects is not None:
+            effects.draw(screen, camera)
         if debug_lines:
             self._draw_debug(screen, debug_lines)
 
@@ -210,7 +212,8 @@ class Renderer:
         ts = getattr(spec, "TURRET_SCALE", 1.0)
         barrel_len = int(round(getattr(spec, "BARREL_LEN_PX", 100.0) / 4.0)) * 4   # шаг 4 px: меньше перестроек
         barrel_thick = int(round(getattr(spec, "BARREL_THICK_PX", 10.0)))
-        tkey = (tank.team_color, barrel_len, barrel_thick)
+        recoil = int(round(tank.recoil_px / 2.0)) * 2      # шаг 2 px: мало вариантов в кэше
+        tkey = (tank.team_color, barrel_len, barrel_thick, recoil)
 
         hull = self._get_hull_surface(tank)
         turret = self._get_turret_surface(tkey)
@@ -252,7 +255,7 @@ class Renderer:
         return self._shadow_buf
 
     @staticmethod
-    def _trim_cache(cache, limit=16):
+    def _trim_cache(cache, limit=64):
         """Не даёт кэшу башен расти бесконечно при перетаскивании ползунка."""
         while len(cache) > limit:
             cache.pop(next(iter(cache)))      # самый старый ключ
@@ -339,19 +342,19 @@ class Renderer:
         return pygame.transform.smoothscale(big, HULL_SURFACE_SIZE)
 
     def _build_turret_surface(self, tkey):
-        team_color, barrel_len, thick = tkey
+        team_color, barrel_len, thick, recoil = tkey
 
         reach = TURRET_FRONT + barrel_len                  # вынос дульного среза от центра башни
         half = max(100, int(math.ceil(reach)) + 12)        # половина размера заготовки
         size = half * 2
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
 
-        # 1. Ствол: толщина и длина из спецификации (у эталона 10 px и дульный срез около y = -135)
+        # 1. Ствол: всё сдвигается на recoil вниз (в сторону башни), башня рисуется поверх и «съедает» его
         body_h = (reach - 6) - 24
-        _rect(big, GUN, -thick / 2, -(reach - 6), thick, body_h)
-        ej_y = -(24 + 0.64 * (reach - 24))                 # эжектор на 64% длины от башни
+        _rect(big, GUN, -thick / 2, -(reach - 6) + recoil, thick, body_h)
+        ej_y = -(24 + 0.64 * (reach - 24)) + recoil
         _rect(big, GUN_LIGHT, -(thick + 4) / 2, ej_y, thick + 4, 8, radius=2)
-        _rect(big, team_color, -(thick + 2) / 2, -reach, thick + 2, 8, radius=2)   # кончик ствола
+        _rect(big, team_color, -(thick + 2) / 2, -reach + recoil, thick + 2, 8, radius=2)   # кончик ствола
 
         # 2. Корпус башни: симметричный шестиугольник
         turret = [(-15, -34), (15, -34), (29, 1), (15, 36), (-15, 36), (-29, 1)]

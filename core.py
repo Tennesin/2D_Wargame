@@ -90,6 +90,12 @@ class VehicleCommand:
     aim_point: Optional[Tuple[float, float]] = None    # куда целиться (МИРОВЫЕ координаты)
     fire: bool = False                                 # задел под стрельбу
 
+@dataclass
+class Shot:
+    """Событие «выстрел»: откуда вылетел снаряд и куда смотрел ствол."""
+    x: float          # мировые координаты дульного среза
+    y: float
+    angle: float      # абсолютный угол башни в градусах (0 = вверх, по часовой)
 
 # ==========================================
 # 4. КАМЕРА
@@ -223,6 +229,8 @@ class Tank:
         self.turret_rel_angle = 0.0     # угол башни ОТНОСИТЕЛЬНО корпуса
         self.left_track_offset = 0.0
         self.right_track_offset = 0.0
+        self.reload_left = 0.0          # сколько секунд осталось до следующего выстрела
+        self.since_shot = 999.0         # сколько секунд прошло с последнего выстрела (для отката)
 
     @property
     def turret_angle(self):
@@ -234,6 +242,7 @@ class Tank:
         distance = self._drive(command.throttle, command.steer, dt)
         self._animate_tracks(distance, delta_hull)
         self._aim_turret(command.aim_point, dt)
+        return self._update_gun(command.fire, dt)      # Shot или None
 
     # --- части update ---
     def _rotate_hull(self, steer, dt):
@@ -276,3 +285,30 @@ class Tank:
         else:
             self.turret_rel_angle += math.copysign(max_step, diff)
         self.turret_rel_angle %= 360.0
+
+    def _update_gun(self, fire, dt):
+        """Перезарядка и выстрел. Возвращает Shot, если выстрел произошёл в этом кадре."""
+        self.reload_left = max(0.0, self.reload_left - dt)
+        self.since_shot += dt
+        if not fire or self.reload_left > 0.0:
+            return None
+
+        self.reload_left = self.spec.reload
+        self.since_shot = 0.0
+        rad = math.radians(self.turret_angle)
+        dist = self.spec.MUZZLE_DIST_PX
+        return Shot(self.x + math.sin(rad) * dist,
+                    self.y - math.cos(rad) * dist,
+                    self.turret_angle)
+
+    @property
+    def recoil_px(self):
+        """Насколько ствол сейчас утоплен в башню (px спрайта башни)."""
+        T = self.spec.RECOIL_TIME
+        if self.since_shot >= T:
+            return 0.0
+        k = self.since_shot / T
+        depth = self.spec.RECOIL_DEPTH_PX
+        if k < 0.2:                                   # быстрый откат назад (первые 20% времени)
+            return depth * (k / 0.2)
+        return depth * (1.0 - (k - 0.2) / 0.8) ** 2   # плавный накат обратно
