@@ -13,7 +13,7 @@ class Game:
 
         self.width, self.height = 800, 600
         self.screen = pygame.display.set_mode((self.width, self.height))
-        pygame.display.set_caption("Top-Down Танк (Исправленная геометрия брони)")
+        pygame.display.set_caption("Top-Down Танк (Анимация гусениц)")
         self.clock = pygame.time.Clock()
 
         # Палитра
@@ -31,12 +31,18 @@ class Game:
         self.GUN_COLOR = (100, 100, 100)
         self.HATCH_COLOR = (60, 80, 30)
 
-        # Позиция
+        # Позиция и углы
         self.tank_x = float(self.width // 2)
         self.tank_y = float(self.height // 2)
 
         self.hull_angle = 0.0
         self.turret_angle = 0.0
+
+        # Состояние анимации гусениц
+        self.left_track_offset = 0.0
+        self.right_track_offset = 0.0
+        self.TRACK_STEP = 10.0  # Шаг между полосами траков (px)
+        self.TRACK_RADIUS = 35.0  # Расстояние от центра танка до центра гусеницы (px)
 
         # Динамика из конфигурации
         self.forward_speed = tank_config.FORWARD_SPEED_PX
@@ -48,28 +54,41 @@ class Game:
 
         self.surface_size = (200, 200)
 
-        self.hull_surface = self.create_hull_surface()
         self.turret_surface = self.create_turret_surface()
 
     def create_hull_surface(self):
         """
-        Отрисовка корпуса с продленными бортами и зажатой между ними кормой.
+        Динамическая отрисовка корпуса с учетом текущих смещений траков.
         """
         surface = pygame.Surface(self.surface_size, pygame.SRCALPHA)
         cx, cy = self.surface_size[0] // 2, self.surface_size[1] // 2
 
-        # 1. Гусеницы
+        # 1. Базовые прямоугольники гусениц
         pygame.draw.rect(surface, self.TRACK_COLOR, (cx - 45, cy - 55, 20, 110))
         pygame.draw.rect(surface, self.TRACK_COLOR, (cx + 25, cy - 55, 20, 110))
 
-        for track_y in range(cy - 50, cy + 55, 10):
-            pygame.draw.line(surface, (20, 20, 20), (cx - 45, track_y), (cx - 26, track_y), 2)
-            pygame.draw.line(surface, (20, 20, 20), (cx + 25, track_y), (cx + 44, track_y), 2)
+        # Отрисовка движущихся траков (поперечных линий)
+        start_y = cy - 55 - int(self.TRACK_STEP)
+        end_y = cy + 55 + int(self.TRACK_STEP)
+
+        # Левая гусеница
+        y_left = start_y + self.left_track_offset
+        while y_left < end_y:
+            if cy - 53 <= y_left <= cy + 53:
+                pygame.draw.line(surface, (20, 20, 20), (cx - 45, int(y_left)), (cx - 26, int(y_left)), 2)
+            y_left += self.TRACK_STEP
+
+        # Правая гусеница
+        y_right = start_y + self.right_track_offset
+        while y_right < end_y:
+            if cy - 53 <= y_right <= cy + 53:
+                pygame.draw.line(surface, (20, 20, 20), (cx + 25, int(y_right)), (cx + 44, int(y_right)), 2)
+            y_right += self.TRACK_STEP
 
         # 2. Центральная палуба
         pygame.draw.rect(surface, self.DECK_COLOR, (cx - 20, cy - 25, 40, 50))
 
-        # 3. Лобовая броня (без изменений)
+        # 3. Лобовая броня
         front_armor_points = [
             (cx - 30, cy - 25),
             (cx - 24, cy - 50),
@@ -79,23 +98,21 @@ class Game:
         pygame.draw.polygon(surface, self.FRONT_ARMOR_COLOR, front_armor_points)
         pygame.draw.polygon(surface, self.ARMOR_OUTLINE_COLOR, front_armor_points, 2)
 
-        # 4. Бортовая броня (ПРОДЛЕНА до самого конца корпуса: высота 75px)
-        # Левый борт
+        # 4. Бортовая броня (продлена до кормы)
         left_side_rect = (cx - 30, cy - 25, 10, 75)
         pygame.draw.rect(surface, self.SIDE_ARMOR_COLOR, left_side_rect)
         pygame.draw.rect(surface, self.ARMOR_OUTLINE_COLOR, left_side_rect, 2)
 
-        # Правый борт
         right_side_rect = (cx + 20, cy - 25, 10, 75)
         pygame.draw.rect(surface, self.SIDE_ARMOR_COLOR, right_side_rect)
         pygame.draw.rect(surface, self.ARMOR_OUTLINE_COLOR, right_side_rect, 2)
 
-        # 5. Кормовая броня (ЗАЖАТА МЕЖДУ БОРТАМИ: ширина 40px)
+        # 5. Кормовая броня (зажата между бортами)
         rear_armor_rect = (cx - 20, cy + 25, 40, 25)
         pygame.draw.rect(surface, self.REAR_ARMOR_COLOR, rear_armor_rect)
         pygame.draw.rect(surface, self.ARMOR_OUTLINE_COLOR, rear_armor_rect, 2)
 
-        # Решетки МТО (вписаны в новые границы кормы)
+        # Решетки МТО
         pygame.draw.rect(surface, self.ENGINE_GRILL_COLOR, (cx - 15, cy + 30, 12, 12))
         pygame.draw.rect(surface, self.ENGINE_GRILL_COLOR, (cx + 3, cy + 30, 12, 12))
         for y_line in range(cy + 33, cy + 40, 3):
@@ -130,18 +147,11 @@ class Game:
         keys = pygame.key.get_pressed()
         mouse_buttons = pygame.mouse.get_pressed()
 
-        delta_hull = 0.0
-        is_turning = False
-
+        turn_dir = 0
         if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-            delta_hull -= self.hull_rotation_speed * dt
-            is_turning = True
+            turn_dir -= 1
         if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-            delta_hull += self.hull_rotation_speed * dt
-            is_turning = True
-
-        self.hull_angle = (self.hull_angle + delta_hull) % 360
-        self.turret_angle = (self.turret_angle + delta_hull) % 360
+            turn_dir += 1
 
         move_dir = 0
         if keys[pygame.K_w] or keys[pygame.K_UP]:
@@ -149,14 +159,35 @@ class Game:
         if keys[pygame.K_s] or keys[pygame.K_DOWN]:
             move_dir -= 1
 
+        # 1. Поворот корпуса
+        delta_hull_angle = turn_dir * self.hull_rotation_speed * dt
+        self.hull_angle = (self.hull_angle + delta_hull_angle) % 360
+        self.turret_angle = (self.turret_angle + delta_hull_angle) % 360
+
+        # 2. Линейное перемещение
+        linear_dist = 0.0
         if move_dir != 0:
             base_speed = self.forward_speed if move_dir > 0 else self.backward_speed
-            current_speed = base_speed * (self.turn_speed_penalty if is_turning else 1.0)
+            current_speed = base_speed * (self.turn_speed_penalty if turn_dir != 0 else 1.0)
+
+            linear_dist = current_speed * dt * move_dir
 
             rad = math.radians(self.hull_angle)
-            self.tank_x += math.sin(rad) * current_speed * dt * move_dir
-            self.tank_y -= math.cos(rad) * current_speed * dt * move_dir
+            self.tank_x += math.sin(rad) * linear_dist
+            self.tank_y -= math.cos(rad) * linear_dist
 
+        # 3. Дифференциальный расчёт анимации гусениц
+        # Вращение корпуса добавляет/вычитает расстояние из каждой гусеницы
+        rot_dist = math.radians(delta_hull_angle) * self.TRACK_RADIUS
+
+        # Левая и правая гусеницы реагируют на линейный ход и разворот
+        delta_left = -linear_dist + rot_dist
+        delta_right = -linear_dist - rot_dist
+
+        self.left_track_offset = (self.left_track_offset + delta_left) % self.TRACK_STEP
+        self.right_track_offset = (self.right_track_offset + delta_right) % self.TRACK_STEP
+
+        # 4. Наведение башни мышью
         if mouse_buttons[0]:
             mx, my = pygame.mouse.get_pos()
 
@@ -183,7 +214,9 @@ class Game:
     def draw(self):
         self.screen.fill(self.BG_COLOR)
 
-        rotated_hull = pygame.transform.rotate(self.hull_surface, -self.hull_angle)
+        # Обновляем поверхность корпуса с учетом актуального положения траков
+        hull_surface = self.create_hull_surface()
+        rotated_hull = pygame.transform.rotate(hull_surface, -self.hull_angle)
         hull_rect = rotated_hull.get_rect(center=(int(self.tank_x), int(self.tank_y)))
         self.screen.blit(rotated_hull, hull_rect.topleft)
 
