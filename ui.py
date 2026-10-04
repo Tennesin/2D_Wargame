@@ -286,7 +286,7 @@ class ConstructorUI:
         c = tank_config
         return [
             SectionHeader("Вооружение"),
-            ParamRow("gun_caliber_mm", "Калибр орудия", "мм", 30, 152, c.GUN_CALIBER_MM, 1),
+            ParamRow("gun_caliber_mm", "Калибр орудия", "мм", 45, 175, c.GUN_CALIBER_MM, 1),
 
             SectionHeader("Броня"),
             ParamRow("front_armor_mm", "Лоб", "мм", 10, 600, c.FRONT_ARMOR_THICKNESS_MM, 5),

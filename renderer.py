@@ -8,9 +8,9 @@ from core import CHUNK_SIZE, CELL_SIZE
 
 # ---------- Рисовка танка ----------
 SS = 2                                   # коэффициент сглаживания (рисуем в SS раз крупнее)
-TANK_SURFACE_SIZE = (200, 200)           # итоговый размер заготовки
-BIG_SIZE = TANK_SURFACE_SIZE[0] * SS     # размер большого холста (квадрат)
-SHADOW_BUF_SIZE = 320                    # буфер тени (больше диагонали 200x200)
+HULL_SURFACE_SIZE = (200, 200)           # итоговый размер заготовки корпуса
+TURRET_SURFACE_SIZE = (300, 300)         # башня больше: длинный ствол выходит далеко вперёд
+SHADOW_BUF_SIZE = 460                    # буфер тени (больше диагонали заготовки башни)
 SHADOW_ALPHA = 80
 SHADOW_HULL_OFFSET = (5, 7)              # смещение тени корпуса на экране
 SHADOW_TURRET_OFFSET = (7, 10)           # башня выше, поэтому тень дальше
@@ -29,12 +29,11 @@ GRILL_LINE = (112, 104, 91)
 TURRET_MAIN = (184, 174, 152)
 TURRET_LIGHT = (210, 202, 182)
 TURRET_DARK = (140, 131, 114)
-HATCH = (120, 112, 97)
+HATCH = (172, 162, 142)
 
 GUN = (112, 110, 105)
 GUN_LIGHT = (150, 147, 140)
 
-TANK_SURFACE_SIZE = (200, 200)
 MIN_CACHED_CHUNKS = 40
 
 
@@ -272,7 +271,7 @@ class Renderer:
         surf.set_clip(None)
 
     def _build_hull_surface(self, left_off, right_off, team_color):
-        big = pygame.Surface((BIG_SIZE, BIG_SIZE), pygame.SRCALPHA)
+        big = pygame.Surface((HULL_SURFACE_SIZE[0] * SS, HULL_SURFACE_SIZE[1] * SS), pygame.SRCALPHA)
 
         # 1. Гусеницы
         self._draw_track(big, -47, left_off)
@@ -301,29 +300,30 @@ class Renderer:
         _rect(big, team_color, -14, 44, 10, 4, ow=1)
         _rect(big, team_color, 4, 44, 10, 4, ow=1)
 
-        return pygame.transform.smoothscale(big, TANK_SURFACE_SIZE)
+        return pygame.transform.smoothscale(big, HULL_SURFACE_SIZE)
 
     def _build_turret_surface(self, team_color):
-        big = pygame.Surface((BIG_SIZE, BIG_SIZE), pygame.SRCALPHA)
+        big = pygame.Surface((TURRET_SURFACE_SIZE[0] * SS, TURRET_SURFACE_SIZE[1] * SS),
+                             pygame.SRCALPHA)
 
-        # 1. Ствол (рисуется первым: маска и башня перекроют основание)
-        _rect(big, GUN, -4, -86, 8, 62)
-        _rect(big, GUN_LIGHT, -6, -64, 12, 8, radius=2)       # эжектор
-        _rect(big, team_color, -5, -92, 10, 7, radius=2)      # кончик ствола (цвет команды)
+        # 1. Ствол: чуть шире (10 вместо 8) и заметно длиннее (до y = -130)
+        _rect(big, GUN, -5, -130, 10, 106)
+        _rect(big, GUN_LIGHT, -7, -96, 14, 8, radius=2)       # эжектор
+        _rect(big, team_color, -6, -136, 12, 8, radius=2)     # кончик ствола (цвет команды)
 
-        # 2. Корпус башни
-        turret = [(-16, -32), (16, -32), (28, -8), (26, 24), (-26, 24), (-28, -8)]
+        # 2. Корпус башни: симметричный шестиугольник (перёд и корма зеркальны)
+        turret = [(-15, -34), (15, -34), (29, 1), (15, 36), (-15, 36), (-29, 1)]
         _poly(big, TURRET_MAIN, turret)
-        light = [(-10, -24), (10, -24), (18, -6), (16, 14), (-16, 14), (-18, -6)]
+        light = [(-10, -23), (10, -23), (19, 1), (10, 26), (-10, 26), (-19, 1)]
         _poly(big, TURRET_LIGHT, light, outline=TURRET_DARK, ow=1)
 
         # 3. Маска орудия (цвет команды)
         _rect(big, team_color, -12, -40, 24, 14, radius=3)
 
-        # 4. Люк
-        _circle(big, HATCH, 0, 4, 7, ow=2)
+        # 4. Люк: крупнее (радиус 10), цвета корпуса, смещён вправо и чуть назад
+        _circle(big, HATCH, 8, 8, 10, ow=2)
 
-        return pygame.transform.smoothscale(big, TANK_SURFACE_SIZE)
+        return pygame.transform.smoothscale(big, TURRET_SURFACE_SIZE)
 
     # ==========================================
     # ОТЛАДКА
