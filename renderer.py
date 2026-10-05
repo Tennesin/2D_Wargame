@@ -26,64 +26,6 @@ def _shade(color, k):
     """Умножить цвет на коэффициент (k<1 темнее, k>1 светлее)."""
     return tuple(max(0, min(255, int(c * k))) for c in color)
 
-
-def _egg(a, front, rear, n=28):
-    """Яйцевидный контур башни: узкий нос, широкая корма. a — полуширина, front/rear — полудлины (м)."""
-    pts = []
-    for i in range(n):
-        t = 2.0 * math.pi * i / n
-        ux, uy = math.sin(t), math.cos(t)                      # uy > 0 — вперёд
-        x = a * ux * (1.0 - 0.22 * max(0.0, uy) ** 2)
-        y = -(front if uy > 0 else rear) * uy
-        pts.append((x, y))
-    return pts
-
-
-class _Pen:
-    """Рисует в метрах относительно центра поверхности (с суперсэмплингом и контуром 1 px)."""
-
-    def __init__(self, surf, k, ox=0.0, oy=0.0):
-        self.s = surf
-        self.k = k                        # пикселей поверхности на метр
-        self.ox, self.oy = ox, oy         # сдвиг начала координат, м
-        self.cx = surf.get_width() / 2
-        self.cy = surf.get_height() / 2
-
-    def p(self, x, y):
-        return (self.cx + (x + self.ox) * self.k, self.cy + (y + self.oy) * self.k)
-
-    def poly(self, color, pts, outline=OUTLINE):
-        big = [self.p(x, y) for x, y in pts]
-        pygame.draw.polygon(self.s, color, big)
-        if outline:
-            pygame.draw.polygon(self.s, outline, big, OUTLINE_W)
-
-    def rect(self, color, x, y, w, h, outline=OUTLINE, r=0.0):
-        x0, y0 = self.p(x, y)
-        rect = pygame.Rect(round(x0), round(y0), max(1, round(w * self.k)), max(1, round(h * self.k)))
-        radius = round(r * self.k)
-        pygame.draw.rect(self.s, color, rect, border_radius=radius)
-        if outline:
-            pygame.draw.rect(self.s, outline, rect, OUTLINE_W, border_radius=radius)
-
-    def ellipse(self, color, cx, cy, rx, ry, outline=OUTLINE):
-        x0, y0 = self.p(cx - rx, cy - ry)
-        rect = pygame.Rect(round(x0), round(y0), max(2, round(2 * rx * self.k)), max(2, round(2 * ry * self.k)))
-        pygame.draw.ellipse(self.s, color, rect)
-        if outline:
-            pygame.draw.ellipse(self.s, outline, rect, OUTLINE_W)
-
-    def line(self, color, x1, y1, x2, y2, w):
-        pygame.draw.line(self.s, color, self.p(x1, y1), self.p(x2, y2), max(1, round(w * self.k)))
-
-    def set_clip(self, x, y, w, h):
-        x0, y0 = self.p(x, y)
-        self.s.set_clip(pygame.Rect(round(x0), round(y0), round(w * self.k), round(h * self.k)))
-
-    def clear_clip(self):
-        self.s.set_clip(None)
-
-
 class Renderer:
     def __init__(self, world_generator):
         self.world = world_generator

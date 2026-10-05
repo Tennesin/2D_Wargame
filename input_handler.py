@@ -70,7 +70,6 @@ class InputHandler:
         steer = float(right) - float(left)
         throttle = float(forward) - float(backward)
 
-        aim_point = None
         ui_busy = self.ui is not None and self.ui.captures_mouse()
 
         aim_point = None
