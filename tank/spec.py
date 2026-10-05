@@ -1,42 +1,32 @@
-"""tank_spec.py — формулы конструктора: входные параметры -> все характеристики танка."""
+"""tank/spec.py — формулы конструктора: входные параметры -> все характеристики танка."""
 import math
-from core import PX_PER_M
 
-def _clamp(v, lo, hi):
-    return max(lo, min(hi, v))
+from common import PX_PER_M, clamp
+from .params import (
+    PARAMS,
+    REF_CAL, REF_POWER, REF_MASS, REF_FILLING, REF_ARMOR_MASS, REF_PW, REF_ARMOR_SHARE,
+    MASS_MIN, MASS_MAX,
+    TURN_SPEED_PENALTY, KMH_TO_PX, TURRET_FRONT_M,
+)
 
-# ---------- границы входных параметров (совпадают с ползунками в ui.py) ----------
-CAL_MIN, CAL_MAX = 45.0, 175.0
-FRONT_MIN, FRONT_MAX = 15.0, 500.0
-SIDE_MIN, SIDE_MAX = 15.0, 375.0
-REAR_MIN, REAR_MAX = 15.0, 250.0
-POWER_MIN, POWER_MAX = 500.0, 1500.0
-MASS_MIN, MASS_MAX = 25.0, 200.0
+# Границы входов берём из params (раньше они дублировались здесь)
+_CAL = PARAMS["gun_caliber_mm"]
+_FRONT = PARAMS["front_armor_mm"]
+_SIDE = PARAMS["side_armor_mm"]
+_REAR = PARAMS["rear_armor_mm"]
+_POWER = PARAMS["engine_power_hp"]
 
-# ---------- эталонный танк (300/75/50, 750 л.с., 120 мм) ----------
-REF_CAL = 120.0
-REF_POWER = 750.0
-REF_MASS = 65.0
-REF_FILLING = 34.30        # масса «начинки» эталона (без брони), т
-REF_ARMOR_MASS = 30.69     # масса брони эталона, т
-REF_PW = 11.54             # удельная мощность эталона, л.с./т
-REF_ARMOR_SHARE = 0.472    # доля брони в массе эталона
-
-# ---------- прочее ----------
-TURN_SPEED_PENALTY = 0.65  # множитель скорости при повороте (как раньше)
-KMH_TO_PX = PX_PER_M * 1000.0 / 3600.0   # км/ч -> px/с (при 100 px = 1 м это ≈ 27.78)
-TURRET_FRONT_M = 1.85      # от центра башни до места выхода ствола, м эталонного спрайта
 
 class TankSpec:
     """Считает всё один раз в __init__. Имена в ЗАГЛАВНЫХ буквах читают Tank и Renderer."""
 
     def __init__(self, cal, front, side, rear, power):
-        # --- 0. входные параметры (с защитой от выхода за границы) ---
-        self.cal = _clamp(float(cal), CAL_MIN, CAL_MAX)
-        self.front = _clamp(float(front), FRONT_MIN, FRONT_MAX)
-        self.side = _clamp(float(side), SIDE_MIN, SIDE_MAX)
-        self.rear = _clamp(float(rear), REAR_MIN, REAR_MAX)
-        self.power = _clamp(float(power), POWER_MIN, POWER_MAX)
+        # входные параметры (с защитой от выхода за границы)
+        self.cal = clamp(float(cal), _CAL.min, _CAL.max)
+        self.front = clamp(float(front), _FRONT.min, _FRONT.max)
+        self.side = clamp(float(side), _SIDE.min, _SIDE.max)
+        self.rear = clamp(float(rear), _REAR.min, _REAR.max)
+        self.power = clamp(float(power), _POWER.min, _POWER.max)
         self._calc()
 
     # ---------- фабрики ----------
@@ -48,17 +38,25 @@ class TankSpec:
 
     @classmethod
     def from_config(cls):
-        """Танк из стартовых значений tank_config."""
-        import tank_config as c
-        return cls(c.GUN_CALIBER_MM, c.FRONT_ARMOR_THICKNESS_MM, c.SIDE_ARMOR_THICKNESS_MM,
-                   c.REAR_ARMOR_THICKNESS_MM, c.ENGINE_POWER_HP)
+        """Танк из стартовых значений (params.PARAMS[...].default)."""
+        return cls(_CAL.default, _FRONT.default, _SIDE.default, _REAR.default, _POWER.default)
 
-    # ---------- расчёт ----------
+    # ---------- расчёт: порядок вызовов важен, каждый метод использует результаты предыдущих ----------
     def _calc(self):
+        self._calc_mass()          # 1. масса
+        self._calc_internal()      # 2. внутренние переменные
+        self._calc_mobility()      # 3. ход и повороты
+        self._calc_gun()           # 4. орудие
+        self._calc_hp()            # 5. HP
+        self._calc_economy()       # 6. стоимость и время
+        self._calc_engine_names()  # 7. имена для Tank
+        self._calc_visual()        # 8. внешний вид
+        self._calc_shot()          # 9. выстрел и эффекты
+
+    def _calc_mass(self):
         cal, P = self.cal, self.power
         cr = cal / REF_CAL
 
-        # 1. МАССА
         self.m_gun = 2.5 * (cal / 125.0) ** 2
         self.m_turret = 12.0 * cr ** 1.5
         self.m_engine = 4.0 * (P / REF_POWER)
@@ -69,38 +67,50 @@ class TankSpec:
         self.m_side = 0.2355 * self.side * k2
         self.m_rear = 0.02512 * self.rear * k2
         self.m_armor = self.m_front + self.m_side + self.m_rear
-        self.mass = _clamp(filling + self.m_armor, MASS_MIN, MASS_MAX)
+        self.mass = clamp(filling + self.m_armor, MASS_MIN, MASS_MAX)
+
+    def _calc_internal(self):
+        cal, P = self.cal, self.power
+        cr = cal / REF_CAL
         M = self.mass
         mr = M / REF_MASS
 
-        # 2. ВНУТРЕННИЕ ПЕРЕМЕННЫЕ
         self.pw = P / M                                       # удельная мощность
         self.s = 1.0 - math.exp(-self.pw / 14.2)              # «ходовая отдача» 0..1
         self.q_pw = self.pw / REF_PW                          # мощность относительно эталона
         self.q_gun = cr / mr ** (1.0 / 3.0)                   # калибр относительно платформы
         self.q_arm = (self.m_armor / M) / REF_ARMOR_SHARE     # доля брони относительно эталона
-        self.l_cal = _clamp(40.0 * mr ** 0.15, 30.0, 55.0)    # длина ствола в калибрах
+        self.l_cal = clamp(40.0 * mr ** 0.15, 30.0, 55.0)     # длина ствола в калибрах
         self.s_h = mr ** (1.0 / 3.0)                          # линейный размер танка
 
-        # 3. ХОД И ПОВОРОТЫ
-        self.v_max = _clamp(90.0 * self.s * (REF_MASS / M) ** 0.1, 8.0, 90.0)
+    def _calc_mobility(self):
+        M = self.mass
+
+        self.v_max = clamp(90.0 * self.s * (REF_MASS / M) ** 0.1, 8.0, 90.0)
         self.v_avg = self.v_max * (0.5 + 0.2 * self.s)
         self.v_back = min(0.3 * self.v_max, 25.0)
-        self.hull_turn = _clamp(81.0 * self.s, 10.0, 80.0)
-        self.turret_turn = _clamp(
+        self.hull_turn = clamp(81.0 * self.s, 10.0, 80.0)
+        self.turret_turn = clamp(
             60.0 * self.q_gun ** -0.5 * self.q_pw ** 0.15 * (self.l_cal / 40.0) ** -0.3,
             15.0, 120.0)
 
-        # 4. ОРУДИЕ
+    def _calc_gun(self):
+        cr = self.cal / REF_CAL
         lr = self.l_cal / 40.0
+
         self.damage = 400.0 * cr ** 2 * lr ** 0.3
         self.penetration = 350.0 * cr ** 0.8 * lr ** 0.5
         self.reload = max(0.5, 2.0 * cr * self.q_gun ** 0.5)
 
-        # 5. HP
+    def _calc_hp(self):
+        mr = self.mass / REF_MASS
+
         self.hp = 2400.0 * mr ** 0.75 * (0.85 + 0.15 * self.q_arm)
 
-        # 6. СТОИМОСТЬ И ВРЕМЯ ПРОИЗВОДСТВА
+    def _calc_economy(self):
+        cr = self.cal / REF_CAL
+        P = self.power
+
         e_armor = (self.m_armor / REF_ARMOR_MASS) ** 1.5
         e_hull = (self.m_fixed + self.m_turret) / 28.0
         e_engine = (P / REF_POWER) ** 1.3
@@ -108,28 +118,34 @@ class TankSpec:
         self.cost = 500000.0 * (0.30 * e_armor + 0.15 * e_hull + 0.20 * e_engine + 0.35 * e_gun)
         self.build_time = 10.0 * (0.40 * e_armor + 0.20 * e_hull + 0.15 * e_engine + 0.25 * e_gun)
 
-        # 7. ИМЕНА ДЛЯ Tank (те же, что он раньше читал из tank_config)
+    def _calc_engine_names(self):
+        """Имена, которые читает Tank (раньше он брал их из tank_config)."""
         self.FORWARD_SPEED_PX = self.v_max * KMH_TO_PX
         self.BACKWARD_SPEED_PX = self.v_back * KMH_TO_PX
         self.TURN_SPEED_PENALTY = TURN_SPEED_PENALTY
         self.HULL_ROTATION_SPEED = self.hull_turn
         self.TURRET_ROTATION_SPEED = self.turret_turn
 
-        # 8. ВНЕШНИЙ ВИД (для Renderer)
+    def _calc_visual(self):
+        cal = self.cal
+        cr = cal / REF_CAL
+
         self.HULL_SCALE = self.s_h
         self.TURRET_SCALE = self.s_h * self.q_gun ** 0.25
-        self.BARREL_LEN_M = cal * self.l_cal / 1000.0 * 0.85   # 120 мм × 40 кал. × 0,75 = 3,6 м
+        self.BARREL_LEN_M = cal * self.l_cal / 1000.0 * 0.75   # 120 мм × 40 кал. × 0,75 = 3,6 м
         self.BARREL_THICK_M = max(0.14, 0.26 * cr ** 0.7)      # чуть утолщён ради читаемости на малом зуме
 
-        # 9. ВЫСТРЕЛ (всё зависит от калибра; размеры в мировых px, 100 px = 1 м)
-        cal_k = _clamp((cal - CAL_MIN) / (CAL_MAX - CAL_MIN), 0.0, 1.0)   # 0..1 по диапазону калибров
+    def _calc_shot(self):
+        """Всё, что зависит от калибра (размеры в мировых px, 100 px = 1 м)."""
+        cal = self.cal
+        cal_k = clamp((cal - _CAL.min) / (_CAL.max - _CAL.min), 0.0, 1.0)   # 0..1 по диапазону калибров
 
         # где находится дульный срез от центра танка (px мира, с учётом масштаба башни)
         self.MUZZLE_DIST_PX = (TURRET_FRONT_M + self.BARREL_LEN_M) * self.TURRET_SCALE * PX_PER_M
 
         # снаряд
         self.SHELL_LEN_PX = 2.5 * cal                                  # 120 мм -> 300 px (3 м)
-        self.SHELL_THICK_PX = 0.15 * cal                               # 120 мм -> 18 px (утолщён для читаемости)
+        self.SHELL_THICK_PX = 0.15 * cal                               # 120 мм -> 18 px
         self.SHELL_SPEED_PX = 6000.0 * (self.l_cal / 40.0) ** 0.3
         self.SHELL_RANGE_PX = 3500.0                                   # дальше — взрыв, как при попадании в землю
 

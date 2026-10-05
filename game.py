@@ -2,11 +2,12 @@
 import random
 import pygame
 
-from core import Camera, Tank, WorldGenerator, CHUNK_SIZE, PX_PER_M
+from common import PX_PER_M
+from core import Camera, WorldGenerator, CHUNK_SIZE
+from tank import Tank, TankSpec
 from input_handler import InputHandler
 from renderer import Renderer
 from ui import ConstructorUI
-from tank_spec import TankSpec
 from effects import EffectsSystem
 
 class Game:

@@ -1,7 +1,7 @@
 """input_handler.py — превращает клавиатуру и мышь в VehicleCommand."""
 import pygame
 
-from core import VehicleCommand
+from common import VehicleCommand
 
 ZOOM_KEY_DELAY = 0.35     # пауза перед автоповтором при удержании LCtrl + Up/Down, с
 ZOOM_KEY_REPEAT = 0.08    # интервал автоповтора, с
