@@ -13,6 +13,7 @@ from renderer import Renderer
 from ui import ConstructorUI, ToolBar
 from effects import EffectsSystem
 from aim import compute_aim
+from controls import Action
 
 class Game:
     MAX_DT = 0.05   # защита от «телепорта» при подвисании окна
@@ -39,6 +40,7 @@ class Game:
         self._show_stats()
         self._rotating = False           # тянут ли сейчас белую точку выбранной стены
         self._rot_state = None           # [последний угол мыши, накопленный угол стены]
+        self.build_mode = False          # режим стройки: танком не управляем, ЛКМ ставит стену
         self.spec.print_specs()
         self.input = InputHandler([self.toolbar, self.ui])
         self.renderer = Renderer(self.world)
@@ -61,10 +63,10 @@ class Game:
     # СТЕНЫ
     # ==========================================
     def _toggle_build_mode(self):
-        self._set_build_mode(not self.input.build_mode)
+        self._set_build_mode(not self.build_mode)
 
     def _set_build_mode(self, on):
-        self.input.build_mode = on
+        self.build_mode = on
         self.toolbar.set_active(on)
         if on:
             self._select_wall(None)          # на время стройки панель стены не нужна
@@ -77,15 +79,15 @@ class Game:
 
     def _build_preview(self):
         """(призрак, красный ли он) или None, если показывать нечего."""
-        if not self.input.build_mode or self.input.ui_captures_mouse():
+        if not self.build_mode or self.input.ui_captures_mouse():
             return None
-        wx, wy = self.camera.screen_to_world(*pygame.mouse.get_pos())
+        wx, wy = self.camera.screen_to_world(*self.input.mouse_pos)
         ghost = Wall.default(wx, wy)
         return ghost, self._wall_blocked(ghost)
 
     def _aim_info(self):
         """Траектория выстрела. Показываем только когда не открыты режимы стройки и стены."""
-        if self.input.build_mode or self.walls.selected is not None:
+        if self.build_mode or self.walls.selected is not None:
             return None
         return compute_aim(self.tank, self.walls)
 
@@ -94,7 +96,7 @@ class Game:
         Вне стройки: ЛКМ по белой точке выбранной стены начинает поворот, ПКМ выбирает стену."""
         for button, pos in self.input.pop_world_clicks():
             wx, wy = self.camera.screen_to_world(*pos)
-            if self.input.build_mode:
+            if self.build_mode:
                 if button == 1:
                     wall = Wall.default(wx, wy)
                     if not self._wall_blocked(wall):
@@ -112,7 +114,7 @@ class Game:
 
     def _handle_escape(self):
         """Esc закрывает по одному слою: стройка -> выбранная стена -> выход из игры."""
-        if self.input.build_mode:
+        if self.build_mode:
             self._set_build_mode(False)
         elif self.walls.selected is not None:
             self._select_wall(None)
@@ -158,13 +160,13 @@ class Game:
         if not self._rotating:
             return
         wall = self.walls.selected
-        if wall is None or not pygame.mouse.get_pressed()[0]:
+        if wall is None or not self.input.mouse_buttons[0]:
             self._rotating = False
             self._rot_state = None
             return
 
         cx, cy = self.camera.world_to_screen(wall.x, wall.y)
-        mx, my = pygame.mouse.get_pos()
+        mx, my = self.input.mouse_pos
         dx, dy = mx - cx, my - cy
         if math.hypot(dx, dy) < ROTATE_DEAD_ZONE_PX:
             return                                       # мышь у самого центра: направление неопределённо
@@ -178,7 +180,7 @@ class Game:
         self._rot_state = [mouse_ang, raw]
 
         new_angle = raw
-        if pygame.key.get_mods() & pygame.KMOD_SHIFT:
+        if self.input.shift:
             new_angle = round(raw / ROTATE_SNAP_DEG) * ROTATE_SNAP_DEG
         new_angle %= 360.0
 
@@ -241,12 +243,12 @@ class Game:
             self.camera.resize(w, h)
             self.ui.update((w, h))
 
-            if self.input.pop_escape():
+            if self.input.was_pressed(Action.CANCEL):
                 self._handle_escape()
             self._handle_world_clicks()
             self._update_wall_rotation()
 
-            command = self.input.read_command(self.camera)
+            command = self.input.read_command(self.camera, active=not self.build_mode)
             if self._rotating:
                 command.fire = False
             shot = self.tank.update(command, dt, self.walls.obbs())
