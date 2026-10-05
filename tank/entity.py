@@ -15,6 +15,7 @@ class Tank:
         self.team_color = team_color  # цвет команды (RGB), красный по умолчанию
         self.x = float(x)
         self.y = float(y)
+        self.hp = float(spec.hp)        # текущее здоровье (максимум задаёт spec.hp)
         self.hull_angle = 0.0           # 0 = вверх, по часовой стрелке
         self.turret_rel_angle = 0.0     # угол башни ОТНОСИТЕЛЬНО корпуса
         self.left_track_offset = 0.0
@@ -27,6 +28,16 @@ class Tank:
     def turret_angle(self):
         """Абсолютный угол башни = корпус + относительный угол."""
         return (self.hull_angle + self.turret_rel_angle) % 360.0
+
+    @property
+    def max_hp(self):
+        return self.spec.hp
+
+    def set_spec(self, spec):
+        """Новая спецификация (ползунки конструктора). Доля здоровья сохраняется."""
+        frac = self.hp / self.spec.hp if self.spec.hp > 0 else 1.0
+        self.spec = spec
+        self.hp = spec.hp * max(0.0, min(1.0, frac))
 
     # --- столкновения ---
     def _hull_obb(self, x, y, angle):

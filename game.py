@@ -16,7 +16,7 @@ from renderer import Renderer
 from ui import ConstructorUI, ToolBar, get_font, FONT_SIZE_LABEL
 from effects import EffectsSystem
 from aim import compute_aim
-
+from hud import TankHud
 
 class Mode(Enum):
     DRIVE = auto()       # езда и стрельба
@@ -49,7 +49,7 @@ class Game:
         self._show_stats()
 
         self.mode = Mode.DRIVE           # единственный источник правды о режиме
-        self.show_debug = False          # отладочные строки (F3)
+        self.show_debug = False          # отладочные строки (Tab)
         self.turret_follow = True        # башня следит за мышью (Q)
         self.combat = False              # боевое состояние (Alt): включает огонь по ЛКМ и красную линию прицела
         self._rot_state = None           # при вращении стены: [последний угол мыши, накопленный угол стены]
@@ -58,6 +58,7 @@ class Game:
         self.input = InputHandler([self.toolbar, self.ui])
         self.renderer = Renderer(self.world)
         self.effects = EffectsSystem()
+        self.hud = TankHud()
 
     # ==========================================
     # ТАНК
@@ -67,6 +68,7 @@ class Game:
         self.spec = TankSpec.from_values(values)
         self.tank.spec = self.spec
         self._show_stats()
+        self.tank.set_spec(self.spec)
 
     def _show_stats(self):
         for name, text in {**self.spec.main_stats(), **self.spec.internal_stats()}.items():
@@ -296,17 +298,18 @@ class Game:
         ]
 
     def _draw_hud(self):
-        """Индикаторы внизу слева: боевое состояние, фиксация башни, подсказка."""
+        """Левый нижний угол: сводка по танку, а над ней индикаторы боевого состояния и подсказки."""
+        y = self.hud.draw(self.screen, self.tank) - 6
+
         rows = []
         if self.combat:
             rows.append(("БОЕВОЙ РЕЖИМ: ЛКМ — огонь", (240, 80, 80)))
         else:
-            rows.append(("Alt — боевой режим", (170, 176, 186)))
+            rows.append(("Alt — боевой режим, Tab — отладка", (170, 176, 186)))
         if not self.turret_follow:
             rows.append(("Башня зафиксирована (Q)", (240, 210, 70)))
 
         font = get_font(FONT_SIZE_LABEL)
-        y = self.screen.get_height() - 8
         for text, color in reversed(rows):
             shadow = font.render(text, True, (0, 0, 0))
             label = font.render(text, True, color)

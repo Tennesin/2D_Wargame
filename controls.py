@@ -46,10 +46,10 @@ HELD_KEYMAP = {
 # Разовые действия: действие -> клавиши
 PRESS_KEYMAP = {
     Action.CANCEL:       (pygame.K_ESCAPE,),
-    Action.TOGGLE_DEBUG: (pygame.K_F3,),
+    Action.TOGGLE_DEBUG: (pygame.K_TAB,),     # Tab: отладочные строки (раньше F3)
     Action.LOCK_TURRET:  (pygame.K_q,),
     Action.TOGGLE_BUILD: (pygame.K_b,),
-    Action.QUIT:         (pygame.K_F10,),
+    Action.QUIT:         (),
     Action.COMBAT:       (pygame.K_LALT, pygame.K_RALT),
 }
 

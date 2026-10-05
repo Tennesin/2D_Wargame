@@ -311,12 +311,13 @@ class ToolBar:
 class ConstructorUI:
     def __init__(self, screen_size):
         self.screen_size = screen_size
-        self.is_open = True
+        self.is_open = False             # при запуске панель свёрнута
+        self._auto_opened = False        # панель раскрылась сама (при выборе стены), а не по кнопке
         self.on_change = None            # колбэк танка: функция(values: dict), при изменении ползунка
         self.on_wall_change = None       # то же для панели стены
         self.mode = "tank"               # какое содержимое показано: "tank" или "wall"
 
-        self.toggle_button = Button((0, 0, TOGGLE_SIZE, TOGGLE_SIZE), ">")
+        self.toggle_button = Button((0, 0, TOGGLE_SIZE, TOGGLE_SIZE), "<")
         self.scroll = ScrollArea()
         self.panel_rect = pygame.Rect(0, 0, PANEL_WIDTH, 0)
         self.content_rect = pygame.Rect(0, 0, 0, 0)
@@ -386,14 +387,20 @@ class ConstructorUI:
 
     def show_tank(self):
         if self.mode != "tank":
+            auto = self._auto_opened
             self._switch("tank", self._tank_items)
+            if auto and self.is_open:        # панель раскрыла стена, а не игрок: закрываем вместе с ней
+                self.toggle()
 
     def show_wall(self, values):
-        """Открыть настройки стены; values — {ключ: число}. Если панель была закрыта, раскрывает её."""
+        """Открыть настройки стены; values — {ключ: число}. Закрытая панель раскрывается,
+        а когда выбор снимут, сама закрывается обратно."""
+        was_closed = not self.is_open
         self.set_wall_values(values)
         self._switch("wall", self._wall_items)
-        if not self.is_open:
+        if was_closed:
             self.toggle()
+            self._auto_opened = True         # после toggle(), иначе он сбросит флаг
 
     def set_wall_values(self, values):
         for it in self._wall_items:
@@ -411,6 +418,7 @@ class ConstructorUI:
         self.is_open = not self.is_open
         self.toggle_button.label = ">" if self.is_open else "<"
         self._active_row = None
+        self._auto_opened = False            # ручное переключение отменяет «автозакрытие»
 
     def update(self, screen_size):
         """Вызывать каждый кадр: учитывает изменение размера окна."""
