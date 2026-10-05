@@ -286,8 +286,13 @@ class ToolBar:
         self.active = active
         self.wall_button.label = "Отмена" if active else "Создать стену"
 
-    def captures_mouse(self):
-        return self.wall_button.rect.collidepoint(pygame.mouse.get_pos())
+    def covers(self, pos):
+        """Лежит ли точка экрана на кнопке панели инструментов."""
+        return self.wall_button.rect.collidepoint(pos)
+
+    def cancel_drag(self):
+        """У кнопки нет перетаскивания; метод нужен ради общего интерфейса слоёв."""
+        pass
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and self.wall_button.collidepoint(event.pos):
@@ -412,14 +417,15 @@ class ConstructorUI:
         self.screen_size = screen_size
         self._layout()
 
-    def captures_mouse(self):
-        """True, если мышь «занята» интерфейсом (игра не должна реагировать на неё)."""
-        if self._active_row is not None:
-            return True
-        pos = pygame.mouse.get_pos()
+    def covers(self, pos):
+        """Лежит ли точка экрана на красной кнопке или на открытой панели."""
         if self.toggle_button.rect.collidepoint(pos):
             return True
         return self.is_open and self.panel_rect.collidepoint(pos)
+
+    def cancel_drag(self):
+        """Бросить перетаскивание ползунка (кнопку отпустили, а событие до нас не дошло)."""
+        self._active_row = None
 
     # ---------- раскладка ----------
     def _layout(self):
