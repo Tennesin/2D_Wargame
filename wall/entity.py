@@ -3,21 +3,22 @@ import math
 import random
 
 from common import PX_PER_M, clamp
-from .params import WALL_PARAMS, WALL_ARMOR_K
+from .params import WALL_PARAMS, WALL_ARMOR_K, WALL_RICOCHET_ANGLE
 
+RICOCHET_COS = math.cos(math.radians(WALL_RICOCHET_ANGLE))
 CRACK_COUNT_MIN, CRACK_COUNT_MAX = 8, 40
-
 
 class Wall:
     """Осевой прямоугольник на земле. x, y — центр (мировые px). Ширина по X, длина по Y."""
 
-    def __init__(self, x, y, hp, width_m, length_m):
+    def __init__(self, x, y, hp, width_m, length_m, angle=0.0):
         self.x = float(x)
         self.y = float(y)
         self.max_hp = float(hp)
         self.hp = float(hp)
         self.width_m = float(width_m)
         self.length_m = float(length_m)
+        self.angle = float(angle) % 360.0           # 0 = длинная сторона вдоль Y, по часовой
         self._seed = random.randrange(1 << 30)     # от него зависит рисунок трещин
         self._crack_key = None
         self._crack_data = []
@@ -54,10 +55,21 @@ class Wall:
     def alive(self):
         return self.hp > 0.0
 
-    def rect(self):
-        """(left, top, right, bottom) в мировых px."""
-        hw, hl = self.half_w_px, self.half_l_px
-        return (self.x - hw, self.y - hl, self.x + hw, self.y + hl)
+    # ---------- локальные координаты (u вправо вдоль ширины, v вниз вдоль длины, в px мира) ----------
+    def to_world(self, u, v):
+        rad = math.radians(self.angle)
+        c, s = math.cos(rad), math.sin(rad)
+        return self.x + u * c - v * s, self.y + u * s + v * c
+
+    def to_local(self, x, y):
+        rad = math.radians(self.angle)
+        c, s = math.cos(rad), math.sin(rad)
+        dx, dy = x - self.x, y - self.y
+        return dx * c + dy * s, -dx * s + dy * c
+
+    def obb(self):
+        """Повёрнутый прямоугольник в формате столкновений: (x, y, half_w, half_l, angle)."""
+        return (self.x, self.y, self.half_w_px, self.half_l_px, self.angle)
 
     # ---------- изменения ----------
     def apply_params(self, hp, width_m, length_m):
@@ -68,34 +80,56 @@ class Wall:
         self.width_m = float(width_m)
         self.length_m = float(length_m)
 
-    def take_hit(self, penetration, damage):
-        """Попадание снаряда. Возвращает True, если пробил (стена получила урон)."""
-        if penetration < self.armor_mm:
+    def effective_armor_mm(self, cos_impact):
+        """Броня с учётом наклона: чем косее удар, тем толще стена для снаряда."""
+        return self.armor_mm / max(cos_impact, RICOCHET_COS)
+
+    def take_hit(self, penetration, damage, cos_impact=1.0):
+        """Попадание снаряда. cos_impact — косинус угла между траекторией и нормалью к грани
+        (1 = прямой удар). Возвращает True, если пробил (стена получила урон)."""
+        if cos_impact < RICOCHET_COS:                 # слишком косо — рикошет
+            return False
+        if penetration < self.effective_armor_mm(cos_impact):
             return False
         self.hp = max(0.0, self.hp - damage)
         return True
 
     # ---------- геометрия ----------
     def contains_point(self, x, y):
-        left, top, right, bottom = self.rect()
-        return left <= x <= right and top <= y <= bottom
+        u, v = self.to_local(x, y)
+        return abs(u) <= self.half_w_px and abs(v) <= self.half_l_px
 
     def segment_hit(self, x0, y0, x1, y1):
-        """Первая точка пересечения отрезка со стеной: доля пути t (0..1) или None."""
-        left, top, right, bottom = self.rect()
+        """Первое пересечение отрезка со стеной: (t, normal) или None.
+        t — доля пути (0..1); normal — единичная нормаль грани, в которую вошли (мировые координаты),
+        либо None, если отрезок начинается внутри стены."""
+        u0, v0 = self.to_local(x0, y0)
+        u1, v1 = self.to_local(x1, y1)
         t0, t1 = 0.0, 1.0
-        for p, q, lo, hi in ((x0, x1 - x0, left, right), (y0, y1 - y0, top, bottom)):
+        normal_local = None
+        for axis, p, q, half in ((0, u0, u1 - u0, self.half_w_px),
+                                 (1, v0, v1 - v0, self.half_l_px)):
             if abs(q) < 1e-9:
-                if p < lo or p > hi:
+                if abs(p) > half:
                     return None
-            else:
-                ta, tb = (lo - p) / q, (hi - p) / q
-                if ta > tb:
-                    ta, tb = tb, ta
-                t0, t1 = max(t0, ta), min(t1, tb)
-                if t0 > t1:
-                    return None
-        return t0
+                continue
+            ta, tb = (-half - p) / q, (half - p) / q
+            sign = -1.0 if q > 0 else 1.0       # грань, через которую входим, смотрит против движения
+            if ta > tb:
+                ta, tb = tb, ta
+            if ta > t0:
+                t0 = ta
+                normal_local = (sign, 0.0) if axis == 0 else (0.0, sign)
+            t1 = min(t1, tb)
+            if t0 > t1:
+                return None
+
+        if normal_local is None:
+            return t0, None
+        rad = math.radians(self.angle)
+        c, s = math.cos(rad), math.sin(rad)
+        nu, nv = normal_local
+        return t0, (nu * c - nv * s, nu * s + nv * c)
 
     # ---------- трещины (рисунок зависит от размеров и seed, не меняется между кадрами) ----------
     def cracks(self):
@@ -138,8 +172,8 @@ class WallManager:
     def add(self, wall):
         self.items.append(wall)
 
-    def rects(self):
-        return [w.rect() for w in self.items]
+    def obbs(self):
+        return [w.obb() for w in self.items]
 
     def pick(self, x, y):
         """Верхняя стена под точкой мира или None."""
@@ -149,12 +183,12 @@ class WallManager:
         return None
 
     def raycast(self, x0, y0, x1, y1):
-        """Ближайшая стена на отрезке: (wall, t) или None."""
+        """Ближайшая стена на отрезке: (wall, t, normal) или None."""
         best = None
         for wall in self.items:
-            t = wall.segment_hit(x0, y0, x1, y1)
-            if t is not None and (best is None or t < best[1]):
-                best = (wall, t)
+            res = wall.segment_hit(x0, y0, x1, y1)
+            if res is not None and (best is None or res[0] < best[1]):
+                best = (wall, res[0], res[1])
         return best
 
     def remove_dead(self):

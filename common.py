@@ -72,6 +72,26 @@ def obb_hits_rect(cx, cy, half_w, half_l, heading_deg, rect):
             return False
     return True
 
+def _obb_axes(heading_deg):
+    """Две оси повёрнутого прямоугольника: (вправо, вперёд). Угол как у танка: 0 = вверх, по часовой."""
+    rad = math.radians(heading_deg)
+    fx, fy = math.sin(rad), -math.cos(rad)
+    return (-fy, fx), (fx, fy)
+
+def obb_hits_obb(cx1, cy1, hw1, hl1, ang1, cx2, cy2, hw2, hl2, ang2):
+    """Пересекаются ли два повёрнутых прямоугольника (теорема о разделяющей оси).
+    Формат каждого: центр, полуширина, получастота вдоль направления, угол. Касание пересечением не считается."""
+    r1, f1 = _obb_axes(ang1)
+    r2, f2 = _obb_axes(ang2)
+    dx, dy = cx2 - cx1, cy2 - cy1
+    for ax, ay in (r1, f1, r2, f2):
+        dist = abs(dx * ax + dy * ay)
+        reach1 = hw1 * abs(r1[0] * ax + r1[1] * ay) + hl1 * abs(f1[0] * ax + f1[1] * ay)
+        reach2 = hw2 * abs(r2[0] * ax + r2[1] * ay) + hl2 * abs(f2[0] * ax + f2[1] * ay)
+        if dist >= reach1 + reach2:
+            return False
+    return True
+
 # ==========================================
 # 3. КОМАНДА МАШИНЕ И СОБЫТИЕ ВЫСТРЕЛА
 # ==========================================

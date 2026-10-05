@@ -52,6 +52,7 @@ class Shell:
         self.alive = True
         self.exploded = False
         self.hit_wall = None              # стена, в которую попали (если попали)
+        self.hit_cos = 1.0                # косинус угла между траекторией и нормалью грани (1 = прямой удар)
 
     def update(self, dt, camera, walls=None):
         step = min(self.speed * dt, self.range_left)
@@ -61,10 +62,12 @@ class Shell:
         if walls is not None:
             hit = walls.raycast(self._sx, self._sy, nx, ny)
             if hit is not None:
-                wall, t = hit
+                wall, t, normal = hit
                 self.x = self._sx + (nx - self._sx) * t       # точка попадания на грани стены
                 self.y = self._sy + (ny - self._sy) * t
                 self.hit_wall = wall
+                if normal is not None:
+                    self.hit_cos = abs(self.dx * normal[0] + self.dy * normal[1])
                 self.alive = False
                 self.exploded = True
                 return
@@ -305,7 +308,7 @@ class EffectsSystem:
             if shell.exploded:
                 self._spawn_impact(shell)
                 if shell.hit_wall is not None:
-                    hits.append((shell.hit_wall, shell.spec))
+                    hits.append((shell.hit_wall, shell.spec, shell.hit_cos))
 
         self.shells = [o for o in self.shells if o.alive]
         self.flashes = [o for o in self.flashes if o.alive]

@@ -1,11 +1,13 @@
 """game.py — окно, главный цикл, связывание частей."""
+import math
 import random
 import pygame
 
-from common import PX_PER_M
+from common import PX_PER_M, shortest_angle_diff
 from core import Camera, WorldGenerator, CHUNK_SIZE
 from tank import Tank, TankSpec
-from wall import Wall, WallManager, PLACE_REPEAT
+from wall import (Wall, WallManager, PLACE_REPEAT,
+                  ROTATE_HANDLE_HIT_PX, ROTATE_DEAD_ZONE_PX, ROTATE_SNAP_DEG)
 from input_handler import InputHandler
 from renderer import Renderer
 from ui import ConstructorUI, ToolBar
@@ -34,6 +36,8 @@ class Game:
         self.ui.on_wall_change = self._on_wall_change
         self.toolbar.on_create_wall = self._toggle_build_mode
         self._show_stats()
+        self._rotating = False           # тянут ли сейчас белую точку выбранной стены
+        self._rot_state = None           # [последний угол мыши, накопленный угол стены]
         self.spec.print_specs()
         self.input = InputHandler([self.toolbar, self.ui])
         self.renderer = Renderer(self.world)
@@ -68,7 +72,7 @@ class Game:
         """Нельзя ли поставить стену здесь. Сейчас мешает только танк.
         Чтобы стены не пересекались друг с другом, добавьте:
         or any(wall_rect_overlap(wall.rect(), r) for r in self.walls.rects())"""
-        return self.tank.hits_rect(wall.rect())
+        return self.tank.hits_obb(wall.obb())
 
     def _build_preview(self):
         """(призрак, красный ли он) или None, если показывать нечего."""
@@ -89,13 +93,27 @@ class Game:
                         self.walls.add(wall)
                         if not PLACE_REPEAT:
                             self._set_build_mode(False)
+                elif button == 1 and self._hit_rotate_handle(pos):
+                    self._rotating = True  # схватили белую точку
+                    self._rot_state = None
                 elif button == 3:
-                    self._set_build_mode(False)
+                    self._select_wall(self.walls.pick(wx, wy))
             elif button == 3:
                 self._select_wall(self.walls.pick(wx, wy))
 
+    def _handle_escape(self):
+        """Esc закрывает по одному слою: стройка -> выбранная стена -> выход из игры."""
+        if self.input.build_mode:
+            self._set_build_mode(False)
+        elif self.walls.selected is not None:
+            self._select_wall(None)
+        else:
+            self.input.quit_requested = True
+
     def _select_wall(self, wall):
         self.walls.selected = wall
+        self._rotating = False
+        self._rot_state = None
         if wall is None:
             self.ui.show_tank()
         else:
@@ -112,14 +130,58 @@ class Game:
             return
         old = (wall.max_hp, wall.width_m, wall.length_m)
         wall.apply_params(values["wall_hp"], values["wall_width_m"], values["wall_length_m"])
-        if self.tank.hits_rect(wall.rect()):
+        if self.tank.hits_obb(wall.obb()):
             wall.apply_params(*old)
             self.ui.set_wall_values(self._wall_values(wall))
 
+    def _hit_rotate_handle(self, pos):
+        """Попал ли клик в белую точку выбранной стены (расстояние считаем в экранных px)."""
+        wall = self.walls.selected
+        if wall is None:
+            return False
+        cx, cy = self.camera.world_to_screen(wall.x, wall.y)
+        return math.hypot(pos[0] - cx, pos[1] - cy) <= ROTATE_HANDLE_HIT_PX
+
+    def _update_wall_rotation(self):
+        """Пока ЛКМ зажата на белой точке, стена поворачивается вслед за направлением мыши от её центра.
+        Поворот относительный (нет рывка при захвате), с накоплением угла (можно крутить больше оборота).
+        Shift — привязка к шагу ROTATE_SNAP_DEG. Поворот, упирающийся в танк, не применяется."""
+        if not self._rotating:
+            return
+        wall = self.walls.selected
+        if wall is None or not pygame.mouse.get_pressed()[0]:
+            self._rotating = False
+            self._rot_state = None
+            return
+
+        cx, cy = self.camera.world_to_screen(wall.x, wall.y)
+        mx, my = pygame.mouse.get_pos()
+        dx, dy = mx - cx, my - cy
+        if math.hypot(dx, dy) < ROTATE_DEAD_ZONE_PX:
+            return                                       # мышь у самого центра: направление неопределённо
+        mouse_ang = math.degrees(math.atan2(dx, -dy))    # 0 = вверх, по часовой
+
+        if self._rot_state is None:
+            self._rot_state = [mouse_ang, wall.angle]
+            return
+        last, raw = self._rot_state
+        raw += shortest_angle_diff(mouse_ang, last)
+        self._rot_state = [mouse_ang, raw]
+
+        new_angle = raw
+        if pygame.key.get_mods() & pygame.KMOD_SHIFT:
+            new_angle = round(raw / ROTATE_SNAP_DEG) * ROTATE_SNAP_DEG
+        new_angle %= 360.0
+
+        old = wall.angle
+        wall.angle = new_angle
+        if self.tank.hits_obb(wall.obb()):
+            wall.angle = old
+
     def _apply_hits(self, hits):
         """Снаряд попал в стену: пробил (пробитие >= эквивалента брони) — урон, иначе ничего."""
-        for wall, spec in hits:
-            wall.take_hit(spec.penetration, spec.damage)
+        for wall, spec, cos_impact in hits:
+            wall.take_hit(spec.penetration, spec.damage, cos_impact)
         self.walls.remove_dead()
         if self.ui.mode == "wall" and self.walls.selected is None:
             self.ui.show_tank()                    # выбранную стену разрушили — возвращаем панель танка
@@ -131,6 +193,7 @@ class Game:
         self.ui.set_stat("Текущее HP", f"{wall.hp:,.0f} / {wall.max_hp:,.0f}".replace(",", " "))
         self.ui.set_stat("Толщина", f"{wall.thickness_m:.2f} м")
         self.ui.set_stat("Эквивалент брони", f"{wall.armor_mm:.0f} мм")
+        self.ui.set_stat("Угол", f"{wall.angle:.0f} °")
 
     # ==========================================
     # ОТЛАДКА И ГЛАВНЫЙ ЦИКЛ
@@ -168,14 +231,15 @@ class Game:
             self.camera.resize(w, h)
             self.ui.update((w, h))
 
-            if self.input.pop_build_cancel():
-                self._set_build_mode(False)
+            if self.input.pop_escape():
+                self._handle_escape()
             self._handle_world_clicks()
+            self._update_wall_rotation()
 
             command = self.input.read_command(self.camera)
-            shot = self.tank.update(command, dt, self.walls.rects())
-            if shot is not None:
-                self.effects.spawn_shot(shot, self.spec)
+            if self._rotating:
+                command.fire = False
+            shot = self.tank.update(command, dt, self.walls.obbs())
             self.camera.center_on(self.tank.x, self.tank.y)
             hits = self.effects.update(dt, self.camera, self.walls)
             self._apply_hits(hits)

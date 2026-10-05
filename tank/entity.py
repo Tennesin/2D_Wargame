@@ -1,7 +1,7 @@
 """tank/entity.py — состояние и логика танка (без отрисовки)."""
 import math
 
-from common import normalize_angle, shortest_angle_diff, obb_hits_rect, VehicleCommand, Shot
+from common import normalize_angle, shortest_angle_diff, obb_hits_obb, VehicleCommand, Shot
 
 class Tank:
     TRACK_STEP = 20.0      # шаг между траками (px эталонного мира; 20 px = 0,2 м)
@@ -37,11 +37,11 @@ class Tank:
 
     def _overlaps(self, x, y, angle, obstacles):
         obb = self._hull_obb(x, y, angle)
-        return any(obb_hits_rect(*obb, rect) for rect in obstacles)
+        return any(obb_hits_obb(*obb, *other) for other in obstacles)
 
-    def hits_rect(self, rect):
-        """Задевает ли танк прямоугольник (нужно для установки стен)."""
-        return obb_hits_rect(*self._hull_obb(self.x, self.y, self.hull_angle), rect)
+    def hits_obb(self, other):
+        """Задевает ли танк повёрнутый прямоугольник (x, y, half_w, half_l, angle), например стену."""
+        return obb_hits_obb(*self._hull_obb(self.x, self.y, self.hull_angle), *other)
 
     def update(self, command: VehicleCommand, dt, obstacles=()):
         """obstacles — список прямоугольников (left, top, right, bottom) в мировых px."""

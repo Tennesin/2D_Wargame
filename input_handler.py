@@ -17,7 +17,7 @@ class InputHandler:
         self._zoom_timer = 0.0
 
         self.build_mode = False       # True: танком не управляем, клики мыши уходят в world_clicks
-        self.build_cancel = False     # нажали Esc в режиме стройки
+        self.escape_pressed = False   # нажали Esc
         self.world_clicks = []        # [(кнопка, (x, y) на экране)] — клики, которые не забрал интерфейс
 
     def ui_captures_mouse(self):
@@ -32,10 +32,7 @@ class InputHandler:
                 self.quit_requested = True
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    if self.build_mode:
-                        self.build_cancel = True      # в режиме стройки Esc — отмена, а не выход
-                    else:
-                        self.quit_requested = True
+                    self.escape_pressed = True
                 elif event.key == pygame.K_F3:
                     self.show_debug = not self.show_debug
                 elif event.key == pygame.K_q:
@@ -50,8 +47,8 @@ class InputHandler:
         clicks, self.world_clicks = self.world_clicks, []
         return clicks
 
-    def pop_build_cancel(self):
-        value, self.build_cancel = self.build_cancel, False
+    def pop_escape(self):
+        value, self.escape_pressed = self.escape_pressed, False
         return value
 
     def update_zoom_keys(self, dt):
