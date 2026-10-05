@@ -36,7 +36,6 @@ GUN_LIGHT = (150, 147, 140)
 
 MIN_CACHED_CHUNKS = 40
 
-
 def _shade(color, k):
     """Умножить цвет на коэффициент (k<1 темнее, k>1 светлее)."""
     return tuple(max(0, min(255, int(c * k))) for c in color)

@@ -1,10 +1,9 @@
 """tank_spec.py — формулы конструктора: входные параметры -> все характеристики танка."""
 import math
-
+from core import PX_PER_M
 
 def _clamp(v, lo, hi):
     return max(lo, min(hi, v))
-
 
 # ---------- границы входных параметров (совпадают с ползунками в ui.py) ----------
 CAL_MIN, CAL_MAX = 45.0, 175.0
@@ -25,7 +24,7 @@ REF_ARMOR_SHARE = 0.472    # доля брони в массе эталона
 
 # ---------- прочее ----------
 TURN_SPEED_PENALTY = 0.65  # множитель скорости при повороте (как раньше)
-KMH_TO_PX = 2.0            # игровой перевод км/ч -> px/с
+KMH_TO_PX = PX_PER_M * 1000.0 / 3600.0   # км/ч -> px/с (при 100 px = 1 м это ≈ 27.78)
 BARREL_PX_PER_M = 21.0     # px спрайта на метр ствола
 TURRET_FRONT_PX = 35.0     # от центра башни до передней плиты (должно совпадать с TURRET_FRONT в renderer.py)
 
@@ -132,7 +131,7 @@ class TankSpec:
         # снаряд
         self.SHELL_LEN_PX = 0.6 * cal                                  # 120 мм -> 72 px
         self.SHELL_THICK_PX = max(3.0, cal / 25.0)
-        self.SHELL_SPEED_PX = 1500.0 * (self.l_cal / 40.0) ** 0.3      # px/с, длинный ствол чуть быстрее
+        self.SHELL_SPEED_PX = 6000.0 * (self.l_cal / 40.0) ** 0.3
 
         # откат ствола (в пикселях спрайта башни)
         self.RECOIL_DEPTH_PX = 4.0 + 0.12 * cal                        # 120 мм -> ~18 px

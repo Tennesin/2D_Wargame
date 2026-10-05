@@ -54,6 +54,7 @@ class Game:
             f"Seed: {self.seed}",
             f"Turret follow (Q): {'ON' if self.input.turret_follow else 'OFF'}",
             f"Reload: {t.reload_left:.1f}s",
+            f"Pos (m): {t.x / PX_PER_M:.1f}, {t.y / PX_PER_M:.1f}",
         ]
 
     def run(self):
