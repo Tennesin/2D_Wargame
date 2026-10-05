@@ -96,6 +96,10 @@ class Wall:
         """Броня с учётом наклона: чем косее удар, тем толще стена для снаряда."""
         return self.armor_mm / max(cos_impact, RICOCHET_COS)
 
+    def is_ricochet(self, cos_impact):
+        """Рикошетит ли снаряд при таком косинусе угла к нормали."""
+        return cos_impact < RICOCHET_COS
+
     def pierce_check(self, penetration, cos_impact=1.0):
         """(приведённая броня, шанс 0..1). При рикошете: (None, 0.0)."""
         if cos_impact < RICOCHET_COS:

@@ -189,8 +189,8 @@ class Game:
 
     def _apply_hits(self, hits):
         """Снаряд попал в стену: пробил (пробитие >= эквивалента брони) — урон, иначе ничего."""
-        for wall, spec, cos_impact in hits:
-            wall.take_hit(spec.penetration, spec.damage, cos_impact)
+        for wall, spec, cos_impact, power in hits:
+            wall.take_hit(spec.penetration * power, spec.damage * power, cos_impact)
         self.walls.remove_dead()
         if self.ui.mode == "wall" and self.walls.selected is None:
             self.ui.show_tank()                    # выбранную стену разрушили — возвращаем панель танка
