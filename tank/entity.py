@@ -2,6 +2,7 @@
 import math
 
 from common import normalize_angle, shortest_angle_diff, obb_hits_obb, VehicleCommand, Shot
+from .params import KMH_TO_PX
 
 class Tank:
     TRACK_STEP = 20.0      # шаг между траками (px эталонного мира; 20 px = 0,2 м)
@@ -19,6 +20,7 @@ class Tank:
         self.left_track_offset = 0.0
         self.right_track_offset = 0.0
         self.reload_left = 0.0          # сколько секунд осталось до следующего выстрела
+        self.speed_kmh = 0.0            # текущая скорость вдоль корпуса, км/ч (минус = назад)
         self.since_shot = 999.0         # сколько секунд прошло с последнего выстрела (для отката)
 
     @property
@@ -92,12 +94,11 @@ class Tank:
         return delta
 
     def _drive(self, throttle, steer, dt, obstacles=()):
-        if throttle == 0:
+        self._update_speed(throttle, steer, dt)
+        distance = self.speed_kmh * KMH_TO_PX * dt          # со знаком: минус = назад
+        if distance == 0.0:
             return 0.0
-        speed = self.spec.FORWARD_SPEED_PX if throttle > 0 else self.spec.BACKWARD_SPEED_PX
-        if steer != 0:
-            speed *= self.spec.TURN_SPEED_PENALTY
-        distance = speed * dt * throttle
+
         rad = math.radians(self.hull_angle)
         dx = math.sin(rad) * distance
         dy = -math.cos(rad) * distance
@@ -117,8 +118,40 @@ class Tank:
             new_x, new_y = self.x + dx * lo, self.y + dy * lo
 
         moved = math.hypot(new_x - self.x, new_y - self.y)
+        if moved < abs(distance) * 0.999:                    # путь урезан препятствием: танк встал
+            self.speed_kmh = 0.0
         self.x, self.y = new_x, new_y
-        return math.copysign(moved, distance)     # гусеницы крутятся только на реально пройденный путь
+        return math.copysign(moved, distance)                # гусеницы крутятся только на реально пройденный путь
+
+    def _update_speed(self, throttle, steer, dt):
+        """Приближает текущую скорость к целевой с учётом разгона, наката и торможения."""
+        s = self.spec
+        cap_fwd, cap_back = s.v_max, s.v_back
+        if steer != 0:                                       # на повороте потолок скорости ниже
+            cap_fwd *= s.TURN_SPEED_PENALTY
+            cap_back *= s.TURN_SPEED_PENALTY
+
+        if throttle > 0:
+            target = throttle * cap_fwd
+        elif throttle < 0:
+            target = throttle * cap_back                     # отрицательное число
+        else:
+            target = 0.0
+
+        v = self.speed_kmh
+        if v > target:
+            if v > 0:                                        # едем вперёд, а надо медленнее или назад
+                rate = s.decel_brake if target < 0 else s.decel_coast
+                v = max(v - rate * dt, max(target, 0.0))     # назад через ноль переходим на следующем кадре
+            else:                                            # едем назад и хотим ещё быстрее назад
+                v = max(v - s.accel_back * dt, target)
+        elif v < target:
+            if v < 0:                                        # едем назад, а надо медленнее или вперёд
+                rate = s.decel_brake if target > 0 else s.decel_coast
+                v = min(v + rate * dt, min(target, 0.0))
+            else:                                            # разгон вперёд
+                v = min(v + s.accel_at(v) * dt, target)
+        self.speed_kmh = v
 
     def _animate_tracks(self, distance, delta_hull):
         scale = getattr(self.spec, "HULL_SCALE", 1.0)

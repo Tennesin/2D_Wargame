@@ -292,6 +292,7 @@ class Game:
             f"Walls: {len(self.walls.items)}",
             f"Mode: {self.mode.name}  Mouse owner: {owner}",
             f"Combat (Alt): {'ON' if self.combat else 'OFF'}",
+            f"Speed: {t.speed_kmh:.1f} km/h",
         ]
 
     def _draw_hud(self):

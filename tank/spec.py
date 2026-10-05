@@ -8,6 +8,8 @@ from .params import (
     BARREL_VISIBLE_K, BARREL_THICK_REF_M, SHELL_LEN_K,
     FRONT_AREA_M2, SIDE_AREA_M2, REAR_AREA_M2, STEEL_T_PER_M3,
     HULL_COLL_HALF_W_M, HULL_COLL_HALF_L_M, HULL_COLL_SHIFT_M,
+    ACCEL_K, ACCEL_MIN, ACCEL_MAX, ACCEL_TAIL_FLOOR, REVERSE_ACCEL_K,
+    COAST_DECEL, BRAKE_DECEL,
 )
 
 # Границы входов берём из params (раньше они дублировались здесь)
@@ -94,6 +96,31 @@ class TankSpec:
         self.turret_turn = clamp(
             60.0 * self.q_gun ** -0.5 * self.q_pw ** 0.15 * (self.l_cal / 40.0) ** -0.3,
             15.0, 120.0)
+        # разгон и торможение (км/ч в секунду)
+        self.accel = clamp(ACCEL_K * self.pw, ACCEL_MIN, ACCEL_MAX)
+        self.accel_back = self.accel * REVERSE_ACCEL_K
+        self.decel_coast = COAST_DECEL
+        self.decel_brake = BRAKE_DECEL
+        self.t_avg = self.v_avg / self.accel                       # время разгона до средней скорости
+        self.t_max = self._time_to_speed(self.v_max - 0.5)         # время разгона до (почти) максимальной
+
+    def accel_at(self, v):
+        """Ускорение (км/ч/с) при скорости v >= 0 км/ч.
+        До v_avg постоянное, потом линейно падает к нулю у v_max (но не ниже доли ACCEL_TAIL_FLOOR)."""
+        if v >= self.v_max:
+            return 0.0
+        if v <= self.v_avg:
+            return self.accel
+        tail = (self.v_max - v) / (self.v_max - self.v_avg)
+        return self.accel * max(tail, ACCEL_TAIL_FLOOR)
+
+    def _time_to_speed(self, target, dt=0.05):
+        """Сколько секунд разгоняться с места до скорости target (численно, один раз при расчёте танка)."""
+        v, t = 0.0, 0.0
+        while v < target and t < 120.0:
+            v += self.accel_at(v) * dt
+            t += dt
+        return t
 
     def _calc_gun(self):
         cr = self.cal / REF_CAL
@@ -198,6 +225,8 @@ class TankSpec:
             "Макс. скорость": f"{self.v_max:.0f} км/ч",
             "Средняя скорость": f"{self.v_avg:.0f} км/ч",
             "Скорость назад": f"{self.v_back:.0f} км/ч",
+            "Разгон до средней": f"{self.t_avg:.1f} с",
+            "Разгон до макс.": f"{self.t_max:.1f} с",
             "Поворот корпуса": f"{self.hull_turn:.0f} °/с",
             "Поворот башни": f"{self.turret_turn:.0f} °/с",
             "Урон": f"{self.damage:.0f}",
