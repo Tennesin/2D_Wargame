@@ -140,11 +140,17 @@ class TankSpec:
         self.BARREL_THICK_M = max(0.18, BARREL_THICK_REF_M * cr ** 0.7)
 
     def _calc_collision(self):
-        """Прямоугольник корпуса для столкновений (мировые px). Масштабируется вместе со спрайтом корпуса."""
+        """Хитбоксы для столкновений (мировые px): корпус и ствол. Масштабируются вместе со спрайтами."""
         k = self.HULL_SCALE * PX_PER_M
         self.COLLISION_HALF_W_PX = HULL_COLL_HALF_W_M * k
         self.COLLISION_HALF_L_PX = HULL_COLL_HALF_L_M * k
         self.COLLISION_SHIFT_PX = HULL_COLL_SHIFT_M * k
+
+        # ствол: прямоугольник вдоль оси башни, от торца маски орудия до дульного среза
+        t = self.TURRET_SCALE * PX_PER_M
+        self.BARREL_COLL_START_PX = TURRET_FRONT_M * t
+        self.BARREL_COLL_END_PX = (TURRET_FRONT_M + self.BARREL_LEN_M) * t   # = MUZZLE_DIST_PX
+        self.BARREL_COLL_HALF_W_PX = (self.BARREL_THICK_M + 0.08) * t / 2.0  # +8 см на эжектор
 
     def _calc_shot(self):
         """Всё, что зависит от калибра (размеры в мировых px, 100 px = 1 м)."""

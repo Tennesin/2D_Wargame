@@ -133,19 +133,24 @@ class Shell:
 # ВСПЫШКА ВЫСТРЕЛА
 # ==========================================
 class MuzzleFlash:
-    def __init__(self, x, y, heading_deg, spec):
+    def __init__(self, x, y, heading_deg, spec, anchor=None):
         self.x, self.y = x, y
         self.dx, self.dy = _dir(heading_deg)
         self.px, self.py = -self.dy, self.dx            # перпендикуляр (вправо от ствола)
         self.size = spec.FLASH_SIZE_PX
         self.life = spec.FLASH_TIME
         self.age = 0.0
+        self.anchor = anchor
 
     @property
     def alive(self):
         return self.age < self.life
 
     def update(self, dt, camera):
+        if self.anchor is not None:
+            self.x, self.y = self.anchor.muzzle_point()
+            self.dx, self.dy = _dir(self.anchor.turret_angle)
+            self.px, self.py = -self.dy, self.dx
         self.age += dt
 
     def _to_screen(self, camera, u, v):
@@ -181,10 +186,10 @@ class MuzzleFlash:
 # ДЫМ: кривые серые полоски
 # ==========================================
 class SmokeStreak:
-    def __init__(self, x, y, heading_deg, spec, rng):
-        self.x, self.y = x, y
-        self.dx, self.dy = _dir(heading_deg + rng.uniform(-60, 60))   # веер вперёд
-        self.px, self.py = -self.dy, self.dx
+    def __init__(self, x, y, heading_deg, spec, rng, anchor=None):
+        self.anchor = anchor                              # танк, к стволу которого привязан дым (или None)
+        self.rel = rng.uniform(-60, 60)                   # угол полоски относительно ствола (веер вперёд)
+        self._set_pose(x, y, heading_deg)
 
         self.dist = spec.SMOKE_REACH_PX * rng.uniform(0.55, 1.0)      # куда доползает
         self.life = spec.SMOKE_TIME * rng.uniform(0.9, 1.0)
@@ -197,11 +202,19 @@ class SmokeStreak:
         self.shade = rng.randint(135, 185)                # у каждой полоски свой оттенок серого
         self.age = 0.0
 
+    def _set_pose(self, x, y, heading_deg):
+        """Начало полоски и направление веера (по текущему положению ствола)."""
+        self.x, self.y = x, y
+        self.dx, self.dy = _dir(heading_deg + self.rel)
+        self.px, self.py = -self.dy, self.dx
+
     @property
     def alive(self):
         return self.age < self.life
 
     def update(self, dt, camera):
+        if self.anchor is not None:
+            self._set_pose(*self.anchor.muzzle_point(), self.anchor.turret_angle)
         self.age += dt
 
     def draw(self, overlay, camera):
@@ -352,14 +365,14 @@ class EffectsSystem:
         self._layers = {}                 # прозрачные слои во весь экран (для полупрозрачности)
         self._rng = random.Random()
 
-    def spawn_shot(self, shot, spec):
+    def spawn_shot(self, shot, spec, tank=None):
         dx, dy = _dir(shot.angle)
         origin = (shot.x - dx * spec.MUZZLE_DIST_PX,        # центр танка: оттуда считаем первый отрезок пролёта
                   shot.y - dy * spec.MUZZLE_DIST_PX)
         self.shells.append(Shell(shot.x, shot.y, shot.angle, spec, origin))
         self.flashes.append(MuzzleFlash(shot.x, shot.y, shot.angle, spec))
         for _ in range(spec.SMOKE_STREAKS):
-            self.smoke.append(SmokeStreak(shot.x, shot.y, shot.angle, spec, self._rng))
+            self.smoke.append(SmokeStreak(shot.x, shot.y, shot.angle, spec, self._rng, anchor=tank))
 
     def _spawn_impact(self, shell):
         self.explosions.append(Explosion(shell.x, shell.y, shell.spec, self._rng))

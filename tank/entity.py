@@ -35,20 +35,39 @@ class Tank:
         return (x - fx * s.COLLISION_SHIFT_PX, y - fy * s.COLLISION_SHIFT_PX,
                 s.COLLISION_HALF_W_PX, s.COLLISION_HALF_L_PX, angle)
 
-    def _overlaps(self, x, y, angle, obstacles):
-        obb = self._hull_obb(x, y, angle)
+    def _barrel_obb(self, x, y, angle):
+        """Прямоугольник ствола. angle — АБСОЛЮТНЫЙ угол башни. Центр лежит на оси башни."""
+        s = self.spec
+        rad = math.radians(angle)
+        fx, fy = math.sin(rad), -math.cos(rad)
+        mid = (s.BARREL_COLL_START_PX + s.BARREL_COLL_END_PX) / 2.0
+        half = (s.BARREL_COLL_END_PX - s.BARREL_COLL_START_PX) / 2.0
+        return (x + fx * mid, y + fy * mid, s.BARREL_COLL_HALF_W_PX, half, angle)
+
+    def _barrel_hits(self, x, y, turret_abs, obstacles):
+        obb = self._barrel_obb(x, y, turret_abs)
         return any(obb_hits_obb(*obb, *other) for other in obstacles)
 
+    def _overlaps(self, x, y, angle, obstacles):
+        """angle — угол КОРПУСА. Задевает ли препятствие корпус или ствол
+        (башня при этом сохраняет свой относительный угол)."""
+        hull = self._hull_obb(x, y, angle)
+        if any(obb_hits_obb(*hull, *other) for other in obstacles):
+            return True
+        return self._barrel_hits(x, y, angle + self.turret_rel_angle, obstacles)
+
     def hits_obb(self, other):
-        """Задевает ли танк повёрнутый прямоугольник (x, y, half_w, half_l, angle), например стену."""
-        return obb_hits_obb(*self._hull_obb(self.x, self.y, self.hull_angle), *other)
+        """Задевает ли танк (корпус или ствол) повёрнутый прямоугольник (x, y, half_w, half_l, angle)."""
+        hull = self._hull_obb(self.x, self.y, self.hull_angle)
+        barrel = self._barrel_obb(self.x, self.y, self.turret_angle)
+        return obb_hits_obb(*hull, *other) or obb_hits_obb(*barrel, *other)
 
     def update(self, command: VehicleCommand, dt, obstacles=()):
         """obstacles — список прямоугольников (left, top, right, bottom) в мировых px."""
         delta_hull = self._rotate_hull(command.steer, dt, obstacles)
         distance = self._drive(command.throttle, command.steer, dt, obstacles)
         self._animate_tracks(distance, delta_hull)
-        self._aim_turret(command.aim_point, dt)
+        self._aim_turret(command.aim_point, dt, obstacles)
         return self._update_gun(command.fire, dt)      # Shot или None
 
     # --- части update ---
@@ -109,7 +128,7 @@ class Tank:
         self.left_track_offset = (self.left_track_offset - distance / scale - rot_dist) % self.TRACK_STEP
         self.right_track_offset = (self.right_track_offset - distance / scale + rot_dist) % self.TRACK_STEP
 
-    def _aim_turret(self, aim_point, dt):
+    def _aim_turret(self, aim_point, dt, obstacles=()):
         if aim_point is None:
             return
         dx = aim_point[0] - self.x
@@ -119,11 +138,22 @@ class Tank:
         target_abs = math.degrees(math.atan2(dy, dx)) + 90.0
         diff = shortest_angle_diff(target_abs, self.turret_angle)
         max_step = self.spec.TURRET_ROTATION_SPEED * dt
-        if abs(diff) <= max_step:
-            self.turret_rel_angle += diff
-        else:
-            self.turret_rel_angle += math.copysign(max_step, diff)
-        self.turret_rel_angle %= 360.0
+        delta = diff if abs(diff) <= max_step else math.copysign(max_step, diff)
+
+        old = self.turret_rel_angle
+        # если поворот упирается в препятствие, поворачиваем только до касания
+        if (obstacles and delta != 0
+                and not self._barrel_hits(self.x, self.y, self.hull_angle + old, obstacles)
+                and self._barrel_hits(self.x, self.y, self.hull_angle + old + delta, obstacles)):
+            lo, hi = 0.0, 1.0
+            for _ in range(8):
+                mid = (lo + hi) / 2.0
+                if self._barrel_hits(self.x, self.y, self.hull_angle + old + delta * mid, obstacles):
+                    hi = mid
+                else:
+                    lo = mid
+            delta *= lo
+        self.turret_rel_angle = (old + delta) % 360.0
 
     def _update_gun(self, fire, dt):
         """Перезарядка и выстрел. Возвращает Shot, если выстрел произошёл в этом кадре."""
@@ -139,6 +169,12 @@ class Tank:
         return Shot(self.x + math.sin(rad) * dist,
                     self.y - math.cos(rad) * dist,
                     self.turret_angle)
+
+    def muzzle_point(self):
+        """Текущая позиция дульного среза (мировые px)."""
+        rad = math.radians(self.turret_angle)
+        dist = self.spec.MUZZLE_DIST_PX
+        return self.x + math.sin(rad) * dist, self.y - math.cos(rad) * dist
 
     @property
     def recoil_m(self):

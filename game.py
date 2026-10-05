@@ -200,6 +200,7 @@ class Game:
         if wall is None:
             return
         self.ui.set_stat("Текущее HP", f"{wall.hp:,.0f} / {wall.max_hp:,.0f}".replace(",", " "))
+        self.ui.set_stat("Масса стены", f"{wall.mass_t:,.1f} т".replace(",", " "))
         self.ui.set_stat("Толщина", f"{wall.thickness_m:.2f} м")
         self.ui.set_stat("Эквивалент брони", f"{wall.armor_mm:.0f} мм")
         self.ui.set_stat("Угол", f"{wall.angle:.0f} °")
@@ -250,7 +251,7 @@ class Game:
                 command.fire = False
             shot = self.tank.update(command, dt, self.walls.obbs())
             if shot is not None:
-                self.effects.spawn_shot(shot, self.tank.spec)
+                self.effects.spawn_shot(shot, self.tank.spec, self.tank)
             self.camera.center_on(self.tank.x, self.tank.y)
             hits = self.effects.update(dt, self.camera, self.walls)
             self._apply_hits(hits)

@@ -3,7 +3,10 @@ import math
 import random
 
 from common import PX_PER_M, clamp
-from .params import WALL_PARAMS, WALL_ARMOR_K, WALL_RICOCHET_ANGLE, PIERCE_SPREAD
+from .params import (
+    WALL_PARAMS, WALL_ARMOR_K, WALL_RICOCHET_ANGLE,
+    PIERCE_SPREAD, WALL_HEIGHT_M, WALL_DENSITY_T_M3,
+)
 
 RICOCHET_COS = math.cos(math.radians(WALL_RICOCHET_ANGLE))
 
@@ -57,6 +60,15 @@ class Wall:
     @property
     def armor_mm(self):
         return self.thickness_m * 1000.0 * WALL_ARMOR_K
+
+    @property
+    def volume_m3(self):
+        return self.width_m * self.length_m * WALL_HEIGHT_M
+
+    @property
+    def mass_t(self):
+        """Масса стены, т (объём × плотность бетона)."""
+        return self.volume_m3 * WALL_DENSITY_T_M3
 
     @property
     def damage_fraction(self):
