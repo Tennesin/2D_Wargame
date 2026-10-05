@@ -83,7 +83,8 @@ class Game:
         return ghost, self._wall_blocked(ghost)
 
     def _handle_world_clicks(self):
-        """Клики по миру: ЛКМ в режиме стройки ставит стену, ПКМ выбирает стену (или отменяет стройку)."""
+        """Клики по миру. В режиме стройки: ЛКМ ставит стену, ПКМ выбирает стену.
+        Вне стройки: ЛКМ по белой точке выбранной стены начинает поворот, ПКМ выбирает стену."""
         for button, pos in self.input.pop_world_clicks():
             wx, wy = self.camera.screen_to_world(*pos)
             if self.input.build_mode:
@@ -93,13 +94,14 @@ class Game:
                         self.walls.add(wall)
                         if not PLACE_REPEAT:
                             self._set_build_mode(False)
-                elif button == 1 and self._hit_rotate_handle(pos):
-                    self._rotating = True  # схватили белую точку
+                elif button == 3:
+                    self._select_wall(self.walls.pick(wx, wy))
+            else:
+                if button == 1 and self._hit_rotate_handle(pos):
+                    self._rotating = True
                     self._rot_state = None
                 elif button == 3:
                     self._select_wall(self.walls.pick(wx, wy))
-            elif button == 3:
-                self._select_wall(self.walls.pick(wx, wy))
 
     def _handle_escape(self):
         """Esc закрывает по одному слою: стройка -> выбранная стена -> выход из игры."""
@@ -240,6 +242,8 @@ class Game:
             if self._rotating:
                 command.fire = False
             shot = self.tank.update(command, dt, self.walls.obbs())
+            if shot is not None:
+                self.effects.spawn_shot(shot, self.tank.spec)
             self.camera.center_on(self.tank.x, self.tank.y)
             hits = self.effects.update(dt, self.camera, self.walls)
             self._apply_hits(hits)
