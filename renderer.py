@@ -438,7 +438,7 @@ class Renderer:
 
         # 4. Лобовая плита (светлее: обращена к свету) и палуба
         pen.poly(HULL_LIGHT, [(-1.00, -2.9), (1.00, -2.9), (1.35, -2.1), (-1.35, -2.1)])
-        pen.rect(DECK, -1.25, -2.05, 2.50, 4.40, ow=1) if False else pen.rect(DECK, -1.25, -2.05, 2.50, 4.40)
+        pen.rect(DECK, -1.25, -2.05, 2.50, 4.40)
 
         # 5. Погон башни: тёмное кольцо вокруг оси (контактная тень под башней)
         pen.ellipse(RING, 0.0, -HULL_SHIFT_M, 1.35, 1.35, outline=None)
@@ -451,10 +451,8 @@ class Renderer:
         for ly in (1.30, 1.55, 1.80, 2.05):
             pen.line(GRILL_LINE, -0.80, ly, 0.80, ly, 0.05)
 
-        # 8. Кормовая плита и две полоски цвета игрока
+        # 8. Кормовая плита
         pen.rect(HULL_DARK, -1.15, 2.40, 2.30, 0.50)
-        pen.rect(team_color, -0.85, 2.50, 0.60, 0.30)
-        pen.rect(team_color, 0.25, 2.50, 0.60, 0.30)
 
         return pygame.transform.smoothscale(big, (size, size))
 
@@ -471,10 +469,9 @@ class Renderer:
                                 (0.48, 1.12), (-0.48, 1.12), (-0.88, 0.00)], outline=TURRET_DARK)
 
         # 2. Маска орудия: выступает вперёд из башни, ствол выходит из её торца
-        pen.rect(TURRET_DARK, -0.55, -TURRET_FRONT_M, 1.10, 0.60, r=0.08)
+        pen.rect(team_color, -0.55, -TURRET_FRONT_M, 1.10, 0.60, r=0.08)
 
-        # 3. Люки: заряжающего (нейтральный) и командира (цвет игрока)
-        pen.ellipse(TURRET_DARK, -0.45, 0.85, 0.24, 0.24)
+        # 3. Люк командира
         pen.ellipse(TURRET_DARK, 0.42, 0.30, 0.42, 0.42)
         pen.ellipse(team_color, 0.42, 0.30, 0.32, 0.32)
 
