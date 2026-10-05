@@ -3,9 +3,14 @@
 import math
 import random
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List
 
 import tank_config
+
+# Временный «мостик»: всё перенесённое в common.py по-прежнему доступно как core.X,
+# чтобы другие файлы не ломались. Удалим на Этапе 6.
+from common import (PX_PER_M, normalize_angle, shortest_angle_diff, clamp, lerp,  # noqa: F401
+                    lerp_color, VehicleCommand, Shot)
 
 # ==========================================
 # 1. НАСТРОЙКИ МИРА
@@ -24,33 +29,12 @@ FLOWER_COLORS = [
     (172, 112, 204),  # сиреневый
     (242, 142, 60),   # оранжевый
 ]
-PX_PER_M = 100.0          # МАСШТАБ МИРА: 100 px = 1 метр (все скорости и расстояния в метрах переводим через него)
 ZOOM_LEVELS = [round(0.10 * 6 ** (i / 20), 4) for i in range(21)]   # 0.10 … 0.60, шаг ≈ 9 %
 DEFAULT_ZOOM_LEVEL = 5                                               # ≈ 0.157: танк 7 м ≈ 110 px
 
 # ==========================================
 # 2. МАТЕМАТИЧЕСКИЕ ПОМОЩНИКИ
 # ==========================================
-def normalize_angle(angle):
-    return angle % 360.0
-
-
-def shortest_angle_diff(target, current):
-    """Кратчайшая разница углов в диапазоне [-180, 180)."""
-    return (target - current + 180.0) % 360.0 - 180.0
-
-
-def clamp(value, low, high):
-    return max(low, min(high, value))
-
-
-def lerp(a, b, t):
-    return a + (b - a) * t
-
-
-def lerp_color(c1, c2, t):
-    return tuple(int(lerp(a, b, t)) for a, b in zip(c1, c2))
-
 
 def hash_int(ix, iy, seed):
     """Детерминированный целочисленный хеш трёх чисел (32 бита)."""
@@ -80,27 +64,8 @@ def value_noise(x, y, seed):
     v11 = hash_float(x0 + 1, y0 + 1, seed)
     return lerp(lerp(v00, v10, fx), lerp(v01, v11, fx), fy)
 
-
 # ==========================================
-# 3. КОМАНДА МАШИНЕ
-# ==========================================
-@dataclass
-class VehicleCommand:
-    """Что машине «приказали» в этом кадре. Кто приказал (игрок или бот) — не важно."""
-    throttle: float = 0.0                              # -1..1 (назад / вперёд)
-    steer: float = 0.0                                 # -1..1 (влево / вправо)
-    aim_point: Optional[Tuple[float, float]] = None    # куда целиться (МИРОВЫЕ координаты)
-    fire: bool = False                                 # задел под стрельбу
-
-@dataclass
-class Shot:
-    """Событие «выстрел»: откуда вылетел снаряд и куда смотрел ствол."""
-    x: float          # мировые координаты дульного среза
-    y: float
-    angle: float      # абсолютный угол башни в градусах (0 = вверх, по часовой)
-
-# ==========================================
-# 4. КАМЕРА
+# 3. КАМЕРА
 # ==========================================
 class Camera:
     """Камера: центр в мировых координатах + зум. Мир: 100 px = 1 м; на экране 1 м = 100 * zoom px."""

@@ -118,7 +118,7 @@ class TankSpec:
         # 8. ВНЕШНИЙ ВИД (для Renderer)
         self.HULL_SCALE = self.s_h
         self.TURRET_SCALE = self.s_h * self.q_gun ** 0.25
-        self.BARREL_LEN_M = cal * self.l_cal / 1000.0 * 0.75   # 120 мм × 40 кал. × 0,75 = 3,6 м
+        self.BARREL_LEN_M = cal * self.l_cal / 1000.0 * 0.85   # 120 мм × 40 кал. × 0,75 = 3,6 м
         self.BARREL_THICK_M = max(0.14, 0.26 * cr ** 0.7)      # чуть утолщён ради читаемости на малом зуме
 
         # 9. ВЫСТРЕЛ (всё зависит от калибра; размеры в мировых px, 100 px = 1 м)
