@@ -3,10 +3,11 @@ import math
 
 from common import PX_PER_M, clamp
 from .params import (
-    PARAMS,
-    REF_CAL, REF_POWER, REF_MASS, REF_FILLING, REF_ARMOR_MASS, REF_PW, REF_ARMOR_SHARE,
-    MASS_MIN, MASS_MAX,
-    TURN_SPEED_PENALTY, KMH_TO_PX, TURRET_FRONT_M,
+    PARAMS, REF_CAL, REF_POWER, REF_MASS, REF_FILLING,
+    REF_ARMOR_MASS, REF_PW, REF_ARMOR_SHARE, MASS_MIN,
+    MASS_MAX, TURN_SPEED_PENALTY, KMH_TO_PX, TURRET_FRONT_M,
+    BARREL_VISIBLE_K, BARREL_THICK_REF_M, SHELL_LEN_K,
+    FRONT_AREA_M2, SIDE_AREA_M2, REAR_AREA_M2, STEEL_T_PER_M3,
 )
 
 # Границы входов берём из params (раньше они дублировались здесь)
@@ -15,7 +16,6 @@ _FRONT = PARAMS["front_armor_mm"]
 _SIDE = PARAMS["side_armor_mm"]
 _REAR = PARAMS["rear_armor_mm"]
 _POWER = PARAMS["engine_power_hp"]
-
 
 class TankSpec:
     """Считает всё один раз в __init__. Имена в ЗАГЛАВНЫХ буквах читают Tank и Renderer."""
@@ -62,26 +62,26 @@ class TankSpec:
         self.m_engine = 4.0 * (P / REF_POWER)
         self.m_fixed = 16.0                                   # гусеницы 5 + каркас 11
         filling = self.m_fixed + self.m_engine + self.m_turret + self.m_gun
-        k2 = (filling / REF_FILLING) ** (2.0 / 3.0)           # k^2: площади плит растут как k^2
-        self.m_front = 0.03925 * self.front * k2
-        self.m_side = 0.2355 * self.side * k2
-        self.m_rear = 0.02512 * self.rear * k2
+        self.size_k = (filling / REF_FILLING) ** (1.0 / 3.0)  # линейный размер, эталон ≈ 1.0
+        k2 = self.size_k ** 2
+        self.m_front = self.front / 1000.0 * FRONT_AREA_M2 * STEEL_T_PER_M3 * k2
+        self.m_side = self.side / 1000.0 * SIDE_AREA_M2 * STEEL_T_PER_M3 * k2
+        self.m_rear = self.rear / 1000.0 * REAR_AREA_M2 * STEEL_T_PER_M3 * k2
         self.m_armor = self.m_front + self.m_side + self.m_rear
-        self.mass = clamp(filling + self.m_armor, MASS_MIN, MASS_MAX)
+        self.mass = filling + self.m_armor
 
     def _calc_internal(self):
         cal, P = self.cal, self.power
         cr = cal / REF_CAL
         M = self.mass
-        mr = M / REF_MASS
 
         self.pw = P / M                                       # удельная мощность
         self.s = 1.0 - math.exp(-self.pw / 14.2)              # «ходовая отдача» 0..1
         self.q_pw = self.pw / REF_PW                          # мощность относительно эталона
-        self.q_gun = cr / mr ** (1.0 / 3.0)                   # калибр относительно платформы
+        self.q_gun = cr / self.size_k
         self.q_arm = (self.m_armor / M) / REF_ARMOR_SHARE     # доля брони относительно эталона
-        self.l_cal = clamp(40.0 * mr ** 0.15, 30.0, 55.0)     # длина ствола в калибрах
-        self.s_h = mr ** (1.0 / 3.0)                          # линейный размер танка
+        self.l_cal = clamp(40.0 * self.size_k ** 0.45, 30.0, 55.0)  # k^0.45 = прежнее mr^0.15
+        self.s_h = self.size_k
 
     def _calc_mobility(self):
         M = self.mass
@@ -102,10 +102,13 @@ class TankSpec:
         self.penetration = 350.0 * cr ** 0.8 * lr ** 0.5
         self.reload = max(0.5, 2.0 * cr * self.q_gun ** 0.5)
 
+        overload = max(0.0, self.q_gun - 1.15)
+        self.reload *= 1.0 + 2.0 * overload
+
     def _calc_hp(self):
         mr = self.mass / REF_MASS
 
-        self.hp = 2400.0 * mr ** 0.75 * (0.85 + 0.15 * self.q_arm)
+        self.hp = 2400.0 * mr ** 0.75 * (0.6 + 0.4 * self.q_arm)
 
     def _calc_economy(self):
         cr = self.cal / REF_CAL
@@ -130,10 +133,10 @@ class TankSpec:
         cal = self.cal
         cr = cal / REF_CAL
 
-        self.HULL_SCALE = self.s_h
-        self.TURRET_SCALE = self.s_h * self.q_gun ** 0.25
-        self.BARREL_LEN_M = cal * self.l_cal / 1000.0 * 0.75   # 120 мм × 40 кал. × 0,75 = 3,6 м
-        self.BARREL_THICK_M = max(0.14, 0.26 * cr ** 0.7)      # чуть утолщён ради читаемости на малом зуме
+        self.HULL_SCALE = self.size_k
+        self.TURRET_SCALE = self.size_k * clamp(cr ** 0.35, 0.8, 1.15)
+        self.BARREL_LEN_M = round(cal * self.l_cal / 1000.0 * BARREL_VISIBLE_K / 0.25) * 0.25
+        self.BARREL_THICK_M = max(0.18, BARREL_THICK_REF_M * cr ** 0.7)
 
     def _calc_shot(self):
         """Всё, что зависит от калибра (размеры в мировых px, 100 px = 1 м)."""
@@ -144,7 +147,7 @@ class TankSpec:
         self.MUZZLE_DIST_PX = (TURRET_FRONT_M + self.BARREL_LEN_M) * self.TURRET_SCALE * PX_PER_M
 
         # снаряд
-        self.SHELL_LEN_PX = 2.5 * cal                                  # 120 мм -> 300 px (3 м)
+        self.SHELL_LEN_PX = SHELL_LEN_K * cal                          # 120 мм -> 300 px (3 м)
         self.SHELL_THICK_PX = 0.15 * cal                               # 120 мм -> 18 px
         self.SHELL_SPEED_PX = 6000.0 * (self.l_cal / 40.0) ** 0.3
         self.SHELL_RANGE_PX = 3500.0                                   # дальше — взрыв, как при попадании в землю
