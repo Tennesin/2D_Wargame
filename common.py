@@ -9,6 +9,16 @@ from typing import Optional, Tuple
 # ==========================================
 PX_PER_M = 100.0          # МАСШТАБ МИРА: 100 px = 1 метр (все скорости и расстояния в метрах переводим через него)
 
+@dataclass(frozen=True)
+class Param:
+    label: str       # подпись на панели
+    unit: str        # единица измерения
+    min: float
+    max: float
+    default: float   # стартовое значение
+    step: float      # шаг ползунка
+    decimals: int = 0   # знаков после запятой на панели
+
 # ==========================================
 # 2. МАТЕМАТИЧЕСКИЕ ПОМОЩНИКИ
 # ==========================================
@@ -28,6 +38,39 @@ def lerp(a, b, t):
 
 def lerp_color(c1, c2, t):
     return tuple(int(lerp(a, b, t)) for a, b in zip(c1, c2))
+
+def obb_hits_rect(cx, cy, half_w, half_l, heading_deg, rect):
+    """Пересекается ли повёрнутый прямоугольник (корпус танка) с осевым rect = (left, top, right, bottom).
+    Прямоугольник: центр (cx, cy), half_w — полуширина, half_l — полудлина вдоль направления heading_deg.
+    Простое касание пересечением не считается."""
+    left, top, right, bottom = rect
+    rad = math.radians(heading_deg)
+    fx, fy = math.sin(rad), -math.cos(rad)      # вперёд
+    rx, ry = -fy, fx                            # вправо
+
+    xs, ys = [], []
+    for sw in (-half_w, half_w):
+        for sl in (-half_l, half_l):
+            xs.append(cx + rx * sw + fx * sl)
+            ys.append(cy + ry * sw + fy * sl)
+
+    # оси самого rect (X и Y)
+    if max(xs) <= left or min(xs) >= right:
+        return False
+    if max(ys) <= top or min(ys) >= bottom:
+        return False
+
+    # оси повёрнутого прямоугольника
+    dx = (left + right) / 2.0 - cx
+    dy = (top + bottom) / 2.0 - cy
+    rhw = (right - left) / 2.0
+    rhh = (bottom - top) / 2.0
+    for ax, ay, half in ((rx, ry, half_w), (fx, fy, half_l)):
+        dist = abs(dx * ax + dy * ay)
+        reach = half + rhw * abs(ax) + rhh * abs(ay)
+        if dist >= reach:
+            return False
+    return True
 
 # ==========================================
 # 3. КОМАНДА МАШИНЕ И СОБЫТИЕ ВЫСТРЕЛА

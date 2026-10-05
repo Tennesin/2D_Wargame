@@ -7,8 +7,8 @@ ZOOM_KEY_DELAY = 0.35     # пауза перед автоповтором пр�
 ZOOM_KEY_REPEAT = 0.08    # интервал автоповтора, с
 
 class InputHandler:
-    def __init__(self, ui=None):
-        self.ui = ui
+    def __init__(self, ui_layers=()):
+        self.ui_layers = list(ui_layers)   # слои интерфейса сверху вниз: у каждого handle_event и captures_mouse
         self.quit_requested = False
         self.show_debug = False
         self.turret_follow = True     # башня следит за мышью (переключается клавишей Q)
@@ -16,22 +16,43 @@ class InputHandler:
         self._zoom_dir = 0
         self._zoom_timer = 0.0
 
+        self.build_mode = False       # True: танком не управляем, клики мыши уходят в world_clicks
+        self.build_cancel = False     # нажали Esc в режиме стройки
+        self.world_clicks = []        # [(кнопка, (x, y) на экране)] — клики, которые не забрал интерфейс
+
+    def ui_captures_mouse(self):
+        return any(layer.captures_mouse() for layer in self.ui_layers)
+
     def process_events(self):
         """События окна и разовые клавиши (выход, отладка)."""
         for event in pygame.event.get():
-            if self.ui is not None and self.ui.handle_event(event):
+            if any(layer.handle_event(event) for layer in self.ui_layers):
                 continue                  # событие забрал интерфейс
             if event.type == pygame.QUIT:
                 self.quit_requested = True
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    self.quit_requested = True
+                    if self.build_mode:
+                        self.build_cancel = True      # в режиме стройки Esc — отмена, а не выход
+                    else:
+                        self.quit_requested = True
                 elif event.key == pygame.K_F3:
                     self.show_debug = not self.show_debug
                 elif event.key == pygame.K_q:
                     self.turret_follow = not self.turret_follow
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button in (1, 3):
+                    self.world_clicks.append((event.button, event.pos))
             elif event.type == pygame.MOUSEWHEEL:
                 self.zoom_steps += event.y        # вверх — приблизить, вниз — отдалить
+
+    def pop_world_clicks(self):
+        clicks, self.world_clicks = self.world_clicks, []
+        return clicks
+
+    def pop_build_cancel(self):
+        value, self.build_cancel = self.build_cancel, False
+        return value
 
     def update_zoom_keys(self, dt):
         """LCtrl + Up/Down: шаг сразу при нажатии, затем автоповтор при удержании."""
@@ -59,6 +80,9 @@ class InputHandler:
 
     def read_command(self, camera) -> VehicleCommand:
         """Удерживаемые клавиши и мышь -> команда для машины."""
+        if self.build_mode:
+            return VehicleCommand()           # режим стройки: танк не управляется вовсе
+
         keys = pygame.key.get_pressed()
 
         left = bool(keys[pygame.K_a] or keys[pygame.K_LEFT])
@@ -70,7 +94,7 @@ class InputHandler:
         steer = float(right) - float(left)
         throttle = float(forward) - float(backward)
 
-        ui_busy = self.ui is not None and self.ui.captures_mouse()
+        ui_busy = self.ui_captures_mouse()
 
         aim_point = None
         if self.turret_follow and not ui_busy:

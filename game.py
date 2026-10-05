@@ -5,9 +5,10 @@ import pygame
 from common import PX_PER_M
 from core import Camera, WorldGenerator, CHUNK_SIZE
 from tank import Tank, TankSpec
+from wall import Wall, WallManager, PLACE_REPEAT
 from input_handler import InputHandler
 from renderer import Renderer
-from ui import ConstructorUI
+from ui import ConstructorUI, ToolBar
 from effects import EffectsSystem
 
 class Game:
@@ -25,15 +26,22 @@ class Game:
         self.world = WorldGenerator(self.seed)
         self.camera = Camera(*self.screen.get_size())
         self.ui = ConstructorUI(self.screen.get_size())
+        self.toolbar = ToolBar()
         self.spec = TankSpec.from_values(self.ui.get_values())
         self.tank = Tank(0.0, 0.0, spec=self.spec)
+        self.walls = WallManager()
         self.ui.on_change = self._on_constructor_change
+        self.ui.on_wall_change = self._on_wall_change
+        self.toolbar.on_create_wall = self._toggle_build_mode
         self._show_stats()
         self.spec.print_specs()
-        self.input = InputHandler(self.ui)
+        self.input = InputHandler([self.toolbar, self.ui])
         self.renderer = Renderer(self.world)
         self.effects = EffectsSystem()
 
+    # ==========================================
+    # ТАНК
+    # ==========================================
     def _on_constructor_change(self, values):
         """Ползунок сдвинут: пересчитываем танк и обновляем панель."""
         self.spec = TankSpec.from_values(values)
@@ -44,6 +52,89 @@ class Game:
         for name, text in {**self.spec.main_stats(), **self.spec.internal_stats()}.items():
             self.ui.set_stat(name, text)
 
+    # ==========================================
+    # СТЕНЫ
+    # ==========================================
+    def _toggle_build_mode(self):
+        self._set_build_mode(not self.input.build_mode)
+
+    def _set_build_mode(self, on):
+        self.input.build_mode = on
+        self.toolbar.set_active(on)
+        if on:
+            self._select_wall(None)          # на время стройки панель стены не нужна
+
+    def _wall_blocked(self, wall):
+        """Нельзя ли поставить стену здесь. Сейчас мешает только танк.
+        Чтобы стены не пересекались друг с другом, добавьте:
+        or any(wall_rect_overlap(wall.rect(), r) for r in self.walls.rects())"""
+        return self.tank.hits_rect(wall.rect())
+
+    def _build_preview(self):
+        """(призрак, красный ли он) или None, если показывать нечего."""
+        if not self.input.build_mode or self.input.ui_captures_mouse():
+            return None
+        wx, wy = self.camera.screen_to_world(*pygame.mouse.get_pos())
+        ghost = Wall.default(wx, wy)
+        return ghost, self._wall_blocked(ghost)
+
+    def _handle_world_clicks(self):
+        """Клики по миру: ЛКМ в режиме стройки ставит стену, ПКМ выбирает стену (или отменяет стройку)."""
+        for button, pos in self.input.pop_world_clicks():
+            wx, wy = self.camera.screen_to_world(*pos)
+            if self.input.build_mode:
+                if button == 1:
+                    wall = Wall.default(wx, wy)
+                    if not self._wall_blocked(wall):
+                        self.walls.add(wall)
+                        if not PLACE_REPEAT:
+                            self._set_build_mode(False)
+                elif button == 3:
+                    self._set_build_mode(False)
+            elif button == 3:
+                self._select_wall(self.walls.pick(wx, wy))
+
+    def _select_wall(self, wall):
+        self.walls.selected = wall
+        if wall is None:
+            self.ui.show_tank()
+        else:
+            self.ui.show_wall(self._wall_values(wall))
+
+    @staticmethod
+    def _wall_values(wall):
+        return {"wall_hp": wall.max_hp, "wall_width_m": wall.width_m, "wall_length_m": wall.length_m}
+
+    def _on_wall_change(self, values):
+        """Ползунок стены сдвинут. Если новая стена упёрлась бы в танк, возвращаем прежние значения."""
+        wall = self.walls.selected
+        if wall is None:
+            return
+        old = (wall.max_hp, wall.width_m, wall.length_m)
+        wall.apply_params(values["wall_hp"], values["wall_width_m"], values["wall_length_m"])
+        if self.tank.hits_rect(wall.rect()):
+            wall.apply_params(*old)
+            self.ui.set_wall_values(self._wall_values(wall))
+
+    def _apply_hits(self, hits):
+        """Снаряд попал в стену: пробил (пробитие >= эквивалента брони) — урон, иначе ничего."""
+        for wall, spec in hits:
+            wall.take_hit(spec.penetration, spec.damage)
+        self.walls.remove_dead()
+        if self.ui.mode == "wall" and self.walls.selected is None:
+            self.ui.show_tank()                    # выбранную стену разрушили — возвращаем панель танка
+
+    def _show_wall_stats(self):
+        wall = self.walls.selected
+        if wall is None:
+            return
+        self.ui.set_stat("Текущее HP", f"{wall.hp:,.0f} / {wall.max_hp:,.0f}".replace(",", " "))
+        self.ui.set_stat("Толщина", f"{wall.thickness_m:.2f} м")
+        self.ui.set_stat("Эквивалент брони", f"{wall.armor_mm:.0f} мм")
+
+    # ==========================================
+    # ОТЛАДКА И ГЛАВНЫЙ ЦИКЛ
+    # ==========================================
     def _debug_lines(self):
         t = self.tank
         return [
@@ -57,6 +148,7 @@ class Game:
             f"Turret follow (Q): {'ON' if self.input.turret_follow else 'OFF'}",
             f"Reload: {t.reload_left:.1f}s",
             f"Pos (m): {t.x / PX_PER_M:.1f}, {t.y / PX_PER_M:.1f}",
+            f"Walls: {len(self.walls.items)}",
         ]
 
     def run(self):
@@ -76,14 +168,22 @@ class Game:
             self.camera.resize(w, h)
             self.ui.update((w, h))
 
+            if self.input.pop_build_cancel():
+                self._set_build_mode(False)
+            self._handle_world_clicks()
+
             command = self.input.read_command(self.camera)
-            shot = self.tank.update(command, dt)
+            shot = self.tank.update(command, dt, self.walls.rects())
             if shot is not None:
                 self.effects.spawn_shot(shot, self.spec)
             self.camera.center_on(self.tank.x, self.tank.y)
-            self.effects.update(dt, self.camera)
+            hits = self.effects.update(dt, self.camera, self.walls)
+            self._apply_hits(hits)
+            self._show_wall_stats()
 
             debug = self._debug_lines() if self.input.show_debug else None
-            self.renderer.draw(self.screen, self.camera, self.tank, debug, self.effects)
+            self.renderer.draw(self.screen, self.camera, self.tank, debug, self.effects,
+                               self.walls, self._build_preview())
             self.ui.draw(self.screen)
+            self.toolbar.draw(self.screen)
             pygame.display.flip()

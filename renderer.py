@@ -7,6 +7,7 @@ import pygame
 from common import PX_PER_M
 from core import CHUNK_SIZE, CELL_SIZE
 from tank import TankRenderer
+from wall import WallRenderer
 
 # ---------- Земля ----------
 MIN_CACHED_CHUNKS = 40
@@ -38,16 +39,21 @@ class Renderer:
         self._scaled_cache = OrderedDict()  # (cx, cy) -> Surface, уже под текущий зум
 
         self.tank_renderer = TankRenderer()
+        self.wall_renderer = WallRenderer()
 
     # ==========================================
     # ГЛАВНЫЙ МЕТОД
     # ==========================================
-    def draw(self, screen, camera, tank, debug_lines=None, effects=None):
+    def draw(self, screen, camera, tank, debug_lines=None, effects=None, walls=None, build_preview=None):
         self._sync_zoom(camera.zoom)
         self._draw_ground(screen, camera)
         if effects is not None:
-            effects.draw_ground(screen, camera)      # пятна от взрывов лежат под танком
+            effects.draw_ground(screen, camera)      # пятна от взрывов лежат под танком и стенами
+        if walls is not None:
+            self.wall_renderer.draw_all(screen, camera, walls)
         self.tank_renderer.draw(screen, camera, tank)
+        if build_preview is not None:                # призрак стены поверх танка, чтобы красное было видно
+            self.wall_renderer.draw_preview(screen, camera, *build_preview)
         if effects is not None:
             effects.draw(screen, camera)
         if debug_lines:
@@ -198,7 +204,7 @@ class Renderer:
     # ОТЛАДКА
     # ==========================================
     def _draw_debug(self, screen, lines):
-        y = 8
+        y = 52
         for text in lines:
             shadow = self.font.render(text, True, (0, 0, 0))
             label = self.font.render(text, True, (255, 255, 255))

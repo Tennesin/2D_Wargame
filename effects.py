@@ -40,8 +40,9 @@ def _dir(heading_deg):
 # СНАРЯД
 # ==========================================
 class Shell:
-    def __init__(self, x, y, heading_deg, spec):
+    def __init__(self, x, y, heading_deg, spec, origin=None):
         self.x, self.y = x, y
+        self._sx, self._sy = origin if origin is not None else (x, y)   # откуда считаем отрезок пролёта
         self.dx, self.dy = _dir(heading_deg)
         self.speed = spec.SHELL_SPEED_PX
         self.length = spec.SHELL_LEN_PX
@@ -50,11 +51,26 @@ class Shell:
         self.spec = spec                  # параметры взрыва берём из той же спецификации, что и выстрел
         self.alive = True
         self.exploded = False
+        self.hit_wall = None              # стена, в которую попали (если попали)
 
-    def update(self, dt, camera):
+    def update(self, dt, camera, walls=None):
         step = min(self.speed * dt, self.range_left)
-        self.x += self.dx * step
-        self.y += self.dy * step
+        nx = self.x + self.dx * step
+        ny = self.y + self.dy * step
+
+        if walls is not None:
+            hit = walls.raycast(self._sx, self._sy, nx, ny)
+            if hit is not None:
+                wall, t = hit
+                self.x = self._sx + (nx - self._sx) * t       # точка попадания на грани стены
+                self.y = self._sy + (ny - self._sy) * t
+                self.hit_wall = wall
+                self.alive = False
+                self.exploded = True
+                return
+
+        self.x, self.y = nx, ny
+        self._sx, self._sy = nx, ny
         self.range_left -= step
         if self.range_left <= 0.0:        # пролетел всю дальность -> взрыв, как при попадании в землю
             self.alive = False
@@ -264,7 +280,10 @@ class EffectsSystem:
         self._rng = random.Random()
 
     def spawn_shot(self, shot, spec):
-        self.shells.append(Shell(shot.x, shot.y, shot.angle, spec))
+        dx, dy = _dir(shot.angle)
+        origin = (shot.x - dx * spec.MUZZLE_DIST_PX,        # центр танка: оттуда считаем первый отрезок пролёта
+                  shot.y - dy * spec.MUZZLE_DIST_PX)
+        self.shells.append(Shell(shot.x, shot.y, shot.angle, spec, origin))
         self.flashes.append(MuzzleFlash(shot.x, shot.y, shot.angle, spec))
         for _ in range(spec.SMOKE_STREAKS):
             self.smoke.append(SmokeStreak(shot.x, shot.y, shot.angle, spec, self._rng))
@@ -273,18 +292,27 @@ class EffectsSystem:
         self.explosions.append(Explosion(shell.x, shell.y, shell.spec, self._rng))
         self.scorches.append(Scorch(shell.x, shell.y, shell.spec, self._rng))
 
-    def update(self, dt, camera):
-        for group in (self.shells, self.flashes, self.smoke, self.explosions, self.scorches):
+    def update(self, dt, camera, walls=None):
+        """Возвращает попадания по стенам [(wall, spec), ...]: урон применяет Game, а не эффекты."""
+        for shell in self.shells:
+            shell.update(dt, camera, walls)
+        for group in (self.flashes, self.smoke, self.explosions, self.scorches):
             for obj in group:
                 obj.update(dt, camera)
+
+        hits = []
         for shell in self.shells:
             if shell.exploded:
                 self._spawn_impact(shell)
+                if shell.hit_wall is not None:
+                    hits.append((shell.hit_wall, shell.spec))
+
         self.shells = [o for o in self.shells if o.alive]
         self.flashes = [o for o in self.flashes if o.alive]
         self.smoke = [o for o in self.smoke if o.alive]
         self.explosions = [o for o in self.explosions if o.alive]
         self.scorches = [o for o in self.scorches if o.alive]
+        return hits
 
     def _layer(self, name, size):
         """Очищенный прозрачный слой (пересоздаётся только при смене размера окна)."""

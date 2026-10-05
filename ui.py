@@ -6,6 +6,7 @@
 import pygame
 
 from tank import TankSpec, PARAMS
+from wall import WALL_PARAMS
 
 # ==========================================
 # 1. НАСТРОЙКИ ВНЕШНЕГО ВИДА
@@ -41,6 +42,13 @@ SLIDER_FILL_COLOR = (200, 140, 60)
 SLIDER_BG_COLOR = (45, 49, 56)
 SLIDER_BORDER_COLOR = (90, 96, 106)
 
+TOOLBAR_MARGIN = 6
+TOOLBAR_BUTTON_SIZE = (150, 36)
+ACTIVE_BUTTON_COLORS = {             # кнопка «Создать стену», пока включён режим стройки
+    "normal": (200, 140, 60), "hover": (225, 165, 85),
+    "disabled": (90, 70, 40), "text": (30, 30, 30),
+}
+PANEL_TITLES = {"tank": "Конструктор техники", "wall": "Настройки стены"}
 
 # ==========================================
 # 2. ОБЩИЕ ПОМОЩНИКИ (из widgets.txt)
@@ -197,6 +205,10 @@ class ParamRow:
     def value(self):
         return self.slider.value
 
+    def set_value(self, v):
+        """Поставить значение ползунка извне (без вызова on_change)."""
+        self.slider.value = max(self.slider.min_value, min(self.slider.max_value, v))
+
     def layout(self, x, y, w):
         self.rect = pygame.Rect(x, y, w, self.height)
         self.slider.rect = pygame.Rect(x, y + 28, w, 12)
@@ -261,6 +273,32 @@ class InfoText:
             surface.blit(font.render(line, True, self.color), (self.rect.x, y))
             y += self.LINE_H
 
+# ==========================================
+# ПАНЕЛЬ ИНСТРУМЕНТОВ (левый верхний угол)
+# ==========================================
+class ToolBar:
+    def __init__(self):
+        self.on_create_wall = None           # колбэк нажатия кнопки
+        self.active = False
+        self.wall_button = Button((TOOLBAR_MARGIN, TOOLBAR_MARGIN, *TOOLBAR_BUTTON_SIZE), "Создать стену")
+
+    def set_active(self, active):
+        self.active = active
+        self.wall_button.label = "Отмена" if active else "Создать стену"
+
+    def captures_mouse(self):
+        return self.wall_button.rect.collidepoint(pygame.mouse.get_pos())
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and self.wall_button.collidepoint(event.pos):
+            if event.button == 1 and self.on_create_wall:
+                self.on_create_wall()
+            return True                      # любые клики по кнопке поглощаем
+        return False
+
+    def draw(self, screen):
+        colors = ACTIVE_BUTTON_COLORS if self.active else BUTTON_COLORS
+        self.wall_button.draw(screen, pygame.mouse.get_pos(), colors=colors)
 
 # ==========================================
 # 5. ПАНЕЛЬ КОНСТРУКТОРА
@@ -269,7 +307,9 @@ class ConstructorUI:
     def __init__(self, screen_size):
         self.screen_size = screen_size
         self.is_open = True
-        self.on_change = None            # колбэк: функция(values: dict), вызывается при изменении ползунка
+        self.on_change = None            # колбэк танка: функция(values: dict), при изменении ползунка
+        self.on_wall_change = None       # то же для панели стены
+        self.mode = "tank"               # какое содержимое показано: "tank" или "wall"
 
         self.toggle_button = Button((0, 0, TOGGLE_SIZE, TOGGLE_SIZE), ">")
         self.scroll = ScrollArea()
@@ -278,7 +318,9 @@ class ConstructorUI:
         self._bg_surface = None
         self._active_row = None          # строка, ползунок которой сейчас тянут
 
-        self.items = self._build_items()
+        self._tank_items = self._build_items()
+        self._wall_items = self._build_wall_items()
+        self.items = self._tank_items
         self._layout()
 
     # ---------- состав панели (сюда добавляем новые параметры) ----------
@@ -287,7 +329,7 @@ class ConstructorUI:
 
         def row(key):
             p = PARAMS[key]
-            return ParamRow(key, p.label, p.unit, p.min, p.max, p.default, p.step)
+            return ParamRow(key, p.label, p.unit, p.min, p.max, p.default, p.step, p.decimals)
 
         return [
             SectionHeader("Вооружение"),
@@ -308,16 +350,56 @@ class ConstructorUI:
             StatsBlock(list(spec0.internal_stats())),
         ]
 
+    def _build_wall_items(self):
+        def row(key):
+            p = WALL_PARAMS[key]
+            return ParamRow(key, p.label, p.unit, p.min, p.max, p.default, p.step, p.decimals)
+
+        return [
+            SectionHeader("Параметры"),
+            row("wall_hp"),
+            row("wall_width_m"),
+            row("wall_length_m"),
+
+            SectionHeader("Расчётные характеристики"),
+            StatsBlock(["Текущее HP", "Толщина", "Эквивалент брони"]),
+            InfoText("Толщина — меньшая из сторон. Снаряд пробивает стену, "
+                     "если пробитие орудия не меньше эквивалента брони."),
+        ]
+
     # ---------- публичный интерфейс ----------
     def get_values(self):
         """Текущие значения всех ползунков: {ключ: число}."""
         return {it.key: it.value for it in self.items if isinstance(it, ParamRow)}
 
     def set_stat(self, name, value):
-        """Записать рассчитанную характеристику в блок статистики (для будущих формул)."""
-        for it in self.items:
+        """Записать рассчитанную характеристику в блок статистики (ищет в обоих режимах панели)."""
+        for it in self._tank_items + self._wall_items:
             if isinstance(it, StatsBlock) and name in it.values:
                 it.values[name] = value
+
+    def show_tank(self):
+        if self.mode != "tank":
+            self._switch("tank", self._tank_items)
+
+    def show_wall(self, values):
+        """Открыть настройки стены; values — {ключ: число}. Если панель была закрыта, раскрывает её."""
+        self.set_wall_values(values)
+        self._switch("wall", self._wall_items)
+        if not self.is_open:
+            self.toggle()
+
+    def set_wall_values(self, values):
+        for it in self._wall_items:
+            if isinstance(it, ParamRow) and it.key in values:
+                it.set_value(values[it.key])
+
+    def _switch(self, mode, items):
+        self.mode = mode
+        self.items = items
+        self._active_row = None
+        self.scroll.offset = 0
+        self._layout()
 
     def toggle(self):
         self.is_open = not self.is_open
@@ -368,18 +450,19 @@ class ConstructorUI:
     # ---------- события ----------
     def handle_event(self, event):
         """Возвращает True, если событие поглощено интерфейсом."""
-        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+        if event.type == pygame.MOUSEBUTTONDOWN:
             if self.toggle_button.collidepoint(event.pos):
-                self.toggle()
+                if event.button == 1:
+                    self.toggle()
                 return True
             if self.is_open and self.panel_rect.collidepoint(event.pos):
-                if self.content_rect.collidepoint(event.pos):
+                if event.button == 1 and self.content_rect.collidepoint(event.pos):
                     for it in self.items:
                         if isinstance(it, ParamRow) and it.hit_rect().collidepoint(event.pos):
                             self._active_row = it
                             self._drag_slider(event.pos[0])
                             break
-                return True
+                return True        # любые кнопки мыши на панели поглощаются (ПКМ не выбирает стену «сквозь» панель)
 
         elif event.type == pygame.MOUSEMOTION:
             if self._active_row is not None:
@@ -400,8 +483,10 @@ class ConstructorUI:
         return False
 
     def _drag_slider(self, mouse_x):
-        if self._active_row.slider.set_from_mouse(mouse_x) and self.on_change:
-            self.on_change(self.get_values())
+        if self._active_row.slider.set_from_mouse(mouse_x):
+            callback = self.on_change if self.mode == "tank" else self.on_wall_change
+            if callback:
+                callback(self.get_values())
 
     # ---------- отрисовка ----------
     def draw(self, screen):
@@ -418,7 +503,7 @@ class ConstructorUI:
         screen.blit(self._bg_surface, rect.topleft)
         pygame.draw.line(screen, PANEL_BORDER, rect.topleft, rect.bottomleft, 2)
 
-        title = get_font(FONT_SIZE_TITLE).render("Конструктор техники", True, TEXT_COLOR)
+        title = get_font(FONT_SIZE_TITLE).render(PANEL_TITLES[self.mode], True, TEXT_COLOR)
         screen.blit(title, (rect.x + PANEL_PADDING, 16))
 
         # содержимое рисуем с обрезкой, чтобы при прокрутке оно не вылезало за панель

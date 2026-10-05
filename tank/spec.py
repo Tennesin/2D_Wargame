@@ -3,11 +3,11 @@ import math
 
 from common import PX_PER_M, clamp
 from .params import (
-    PARAMS, REF_CAL, REF_POWER, REF_MASS, REF_FILLING,
-    REF_ARMOR_MASS, REF_PW, REF_ARMOR_SHARE, MASS_MIN,
-    MASS_MAX, TURN_SPEED_PENALTY, KMH_TO_PX, TURRET_FRONT_M,
+    PARAMS, REF_CAL, REF_POWER, REF_MASS, REF_FILLING, REF_ARMOR_MASS, REF_PW,
+    REF_ARMOR_SHARE, TURN_SPEED_PENALTY, KMH_TO_PX, TURRET_FRONT_M,
     BARREL_VISIBLE_K, BARREL_THICK_REF_M, SHELL_LEN_K,
     FRONT_AREA_M2, SIDE_AREA_M2, REAR_AREA_M2, STEEL_T_PER_M3,
+    HULL_COLL_HALF_W_M, HULL_COLL_HALF_L_M, HULL_COLL_SHIFT_M,
 )
 
 # Границы входов берём из params (раньше они дублировались здесь)
@@ -51,7 +51,8 @@ class TankSpec:
         self._calc_economy()       # 6. стоимость и время
         self._calc_engine_names()  # 7. имена для Tank
         self._calc_visual()        # 8. внешний вид
-        self._calc_shot()          # 9. выстрел и эффекты
+        self._calc_collision()     # 9. размеры для столкновений
+        self._calc_shot()          # 10. выстрел и эффекты
 
     def _calc_mass(self):
         cal, P = self.cal, self.power
@@ -137,6 +138,13 @@ class TankSpec:
         self.TURRET_SCALE = self.size_k * clamp(cr ** 0.35, 0.8, 1.15)
         self.BARREL_LEN_M = round(cal * self.l_cal / 1000.0 * BARREL_VISIBLE_K / 0.25) * 0.25
         self.BARREL_THICK_M = max(0.18, BARREL_THICK_REF_M * cr ** 0.7)
+
+    def _calc_collision(self):
+        """Прямоугольник корпуса для столкновений (мировые px). Масштабируется вместе со спрайтом корпуса."""
+        k = self.HULL_SCALE * PX_PER_M
+        self.COLLISION_HALF_W_PX = HULL_COLL_HALF_W_M * k
+        self.COLLISION_HALF_L_PX = HULL_COLL_HALF_L_M * k
+        self.COLLISION_SHIFT_PX = HULL_COLL_SHIFT_M * k
 
     def _calc_shot(self):
         """Всё, что зависит от калибра (размеры в мировых px, 100 px = 1 м)."""
