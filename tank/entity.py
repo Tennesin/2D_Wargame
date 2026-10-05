@@ -2,7 +2,7 @@
 import math
 
 from common import normalize_angle, shortest_angle_diff, obb_hits_obb, VehicleCommand, Shot
-from .params import KMH_TO_PX
+from .params import KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS
 
 class Tank:
     TRACK_STEP = 20.0      # шаг между траками (px эталонного мира; 20 px = 0,2 м)
@@ -18,6 +18,8 @@ class Tank:
         self.hp = float(spec.hp)        # текущее здоровье (максимум задаёт spec.hp)
         self.hull_angle = 0.0           # 0 = вверх, по часовой стрелке
         self.turret_rel_angle = 0.0     # угол башни ОТНОСИТЕЛЬНО корпуса
+        self.hull_rate = 0.0            # текущая угловая скорость корпуса, °/с (+ = по часовой)
+        self.turret_rate = 0.0          # текущая угловая скорость башни относительно корпуса, °/с
         self.left_track_offset = 0.0
         self.right_track_offset = 0.0
         self.reload_left = 0.0          # сколько секунд осталось до следующего выстрела
@@ -83,12 +85,30 @@ class Tank:
         self._aim_turret(command.aim_point, dt, obstacles)
         return self._update_gun(command.fire, dt)      # Shot или None
 
+    @staticmethod
+    def _approach(current, target, accel, brake, dt):
+        """Приближает скорость current к target. Нарастание модуля идёт с accel, спад или смена знака — с brake."""
+        if current == target:
+            return current
+        speeding_up = abs(target) > abs(current) and current * target >= 0.0
+        step = (accel if speeding_up else brake) * dt
+        if abs(target - current) <= step:
+            return target
+        return current + math.copysign(step, target - current)
+
     # --- части update ---
     def _rotate_hull(self, steer, dt, obstacles=()):
-        delta = steer * self.spec.HULL_ROTATION_SPEED * dt
+        s = self.spec
+        # на ходу развернуться тяжелее, чем с места
+        speed_k = 1.0 - HULL_TURN_SPEED_LOSS * min(1.0, abs(self.speed_kmh) / s.v_max)
+        target = steer * s.HULL_ROTATION_SPEED * speed_k
+        self.hull_rate = self._approach(self.hull_rate, target,
+                                        s.hull_alpha, s.hull_alpha * HULL_BRAKE_K, dt)
+        delta = self.hull_rate * dt
+
         old = self.hull_angle
         new = normalize_angle(old + delta)
-        # если поворот упирается в препятствие, поворачиваем только до касания
+        # если поворот упирается в препятствие, поворачиваем только до касания и гасим вращение
         if (obstacles and delta != 0
                 and not self._overlaps(self.x, self.y, old, obstacles)
                 and self._overlaps(self.x, self.y, new, obstacles)):
@@ -101,6 +121,7 @@ class Tank:
                     lo = mid
             delta *= lo
             new = normalize_angle(old + delta)
+            self.hull_rate = 0.0
         self.hull_angle = new
         return delta
 
@@ -173,19 +194,28 @@ class Tank:
         self.right_track_offset = (self.right_track_offset - distance / scale + rot_dist) % self.TRACK_STEP
 
     def _aim_turret(self, aim_point, dt, obstacles=()):
-        if aim_point is None:
-            return
-        dx = aim_point[0] - self.x
-        dy = aim_point[1] - self.y
-        if math.hypot(dx, dy) < self.AIM_DEAD_ZONE:
-            return
-        target_abs = math.degrees(math.atan2(dy, dx)) + 90.0
-        diff = shortest_angle_diff(target_abs, self.turret_angle)
-        max_step = self.spec.TURRET_ROTATION_SPEED * dt
-        delta = diff if abs(diff) <= max_step else math.copysign(max_step, diff)
+        s = self.spec
+        target_rate = 0.0
+        diff = 0.0
+        if aim_point is not None:
+            dx = aim_point[0] - self.x
+            dy = aim_point[1] - self.y
+            if math.hypot(dx, dy) >= self.AIM_DEAD_ZONE:
+                target_abs = math.degrees(math.atan2(dy, dx)) + 90.0
+                diff = shortest_angle_diff(target_abs, self.turret_angle)
+                # скорость, с которой ещё успеем затормозить к цели: v = sqrt(2·α·путь)
+                allowed = math.sqrt(2.0 * s.turret_alpha * abs(diff))
+                target_rate = math.copysign(min(s.TURRET_ROTATION_SPEED, allowed), diff)
+
+        # цели нет (Q, курсор над интерфейсом) — башня плавно останавливается по инерции
+        self.turret_rate = self._approach(self.turret_rate, target_rate,
+                                          s.turret_alpha, s.turret_alpha, dt)
+        delta = self.turret_rate * dt
+        if diff != 0.0 and delta * diff > 0.0 and abs(delta) > abs(diff):
+            delta = diff                                  # не перелетаем цель
+            self.turret_rate = 0.0
 
         old = self.turret_rel_angle
-        # если поворот упирается в препятствие, поворачиваем только до касания
         if (obstacles and delta != 0
                 and not self._barrel_hits(self.x, self.y, self.hull_angle + old, obstacles)
                 and self._barrel_hits(self.x, self.y, self.hull_angle + old + delta, obstacles)):
@@ -197,6 +227,7 @@ class Tank:
                 else:
                     lo = mid
             delta *= lo
+            self.turret_rate = 0.0
         self.turret_rel_angle = (old + delta) % 360.0
 
     def _update_gun(self, fire, dt):

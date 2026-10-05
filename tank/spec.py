@@ -9,7 +9,10 @@ from .params import (
     FRONT_AREA_M2, SIDE_AREA_M2, REAR_AREA_M2, STEEL_T_PER_M3,
     HULL_COLL_HALF_W_M, HULL_COLL_HALF_L_M, HULL_COLL_SHIFT_M,
     ACCEL_K, ACCEL_MIN, ACCEL_MAX, ACCEL_TAIL_FLOOR, REVERSE_ACCEL_K,
-    COAST_DECEL, BRAKE_DECEL,
+    COAST_DECEL, BRAKE_DECEL, HULL_TURN_CAP, HULL_TURN_MIN, HULL_ALPHA_REF,
+    HULL_ALPHA_MIN, HULL_ALPHA_MAX, GUN_ARM_BASE_M, GUN_ARM_BARREL_K,
+    TURRET_TURN_REF, TURRET_TURN_MIN, TURRET_TURN_MAX, TURRET_POWER_EXP,
+    TURRET_INERTIA_EXP, TURRET_SPINUP_REF, TURRET_RADIUS_M,
 )
 
 # Границы входов берём из params (раньше они дублировались здесь)
@@ -18,6 +21,15 @@ _FRONT = PARAMS["front_armor_mm"]
 _SIDE = PARAMS["side_armor_mm"]
 _REAR = PARAMS["rear_armor_mm"]
 _POWER = PARAMS["engine_power_hp"]
+
+def _turret_inertia(m_turret, m_gun, size_k, barrel_len_m):
+    """Момент инерции вращающейся части (башня + орудие), т·м²."""
+    r_turret = TURRET_RADIUS_M * size_k
+    r_gun = GUN_ARM_BASE_M * size_k + GUN_ARM_BARREL_K * barrel_len_m
+    return m_turret * r_turret ** 2 + m_gun * r_gun ** 2
+
+# инерция эталонной башни (120 мм, длина ствола 40 калибров) — точка отсчёта
+REF_TURRET_INERTIA = _turret_inertia(12.0, 2.5, 1.0, 120.0 * 40.0 / 1000.0 * BARREL_VISIBLE_K)
 
 class TankSpec:
     """Считает всё один раз в __init__. Имена в ЗАГЛАВНЫХ буквах читают Tank и Renderer."""
@@ -92,10 +104,23 @@ class TankSpec:
         self.v_max = clamp(90.0 * self.s * (REF_MASS / M) ** 0.1, 8.0, 90.0)
         self.v_avg = self.v_max * (0.5 + 0.2 * self.s)
         self.v_back = min(0.3 * self.v_max, 25.0)
-        self.hull_turn = clamp(81.0 * self.s, 10.0, 80.0)
+        # --- корпус: мощность против сопротивления грунта и инерции ---
+        # момент сопротивления ~ M * size_k, момент тяги ~ P * size_k, инерция ~ M * size_k²
+        self.q_turn = self.q_pw / self.size_k                     # 1.0 у эталона
+        self.i_hull = (M / REF_MASS) * self.size_k ** 2           # инерция корпуса относительно эталона
+        self.hull_turn = max(
+            HULL_TURN_MIN,
+            HULL_TURN_CAP * (1.0 - math.exp(-math.log(2.0) * self.q_turn)))   # эталон = CAP / 2
+        self.hull_alpha = clamp(HULL_ALPHA_REF * self.q_turn, HULL_ALPHA_MIN, HULL_ALPHA_MAX)
+
+        # --- башня: инерция башни и орудия, привод от двигателя ---
+        barrel_len = self.cal * self.l_cal / 1000.0 * BARREL_VISIBLE_K
+        self.i_turret = _turret_inertia(self.m_turret, self.m_gun, self.size_k, barrel_len)
+        i_rel = self.i_turret / REF_TURRET_INERTIA
         self.turret_turn = clamp(
-            60.0 * self.q_gun ** -0.5 * self.q_pw ** 0.15 * (self.l_cal / 40.0) ** -0.3,
-            15.0, 120.0)
+            TURRET_TURN_REF * (self.power / REF_POWER) ** TURRET_POWER_EXP * i_rel ** -TURRET_INERTIA_EXP,
+            TURRET_TURN_MIN, TURRET_TURN_MAX)
+        self.turret_alpha = self.turret_turn / (TURRET_SPINUP_REF * i_rel ** 0.5)   # °/с²
         # разгон и торможение (км/ч в секунду)
         self.accel = clamp(ACCEL_K * self.pw, ACCEL_MIN, ACCEL_MAX)
         self.accel_back = self.accel * REVERSE_ACCEL_K
@@ -241,6 +266,9 @@ class TankSpec:
             "Калибр / платформа": f"{self.q_gun:.2f}",
             "Бронированность": f"{self.q_arm:.2f}",
             "Длина ствола": f"{self.l_cal:.1f} кал.",
+            "Инерция башни": f"{self.i_turret:.1f} т·м²",
+            "Угл. разгон корпуса": f"{self.hull_alpha:.0f} °/с²",
+            "Угл. разгон башни": f"{self.turret_alpha:.0f} °/с²",
         }
 
     def print_specs(self):
