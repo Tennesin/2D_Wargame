@@ -1,4 +1,5 @@
-"""effects.py — снаряды, вспышка выстрела и дым пороховых газов."""
+"""effects.py — снаряды, вспышка выстрела, дым, взрыв снаряда и тёмные пятна на земле.
+Все размеры здесь в МИРОВЫХ пикселях (100 px = 1 м); на экран переводятся через camera.zoom."""
 import math
 import random
 
@@ -13,6 +14,17 @@ FLASH_LAYERS = (                     # (масштаб, цвет): от внеш
     (0.70, (255, 205, 70)),
     (0.40, (255, 248, 215)),
 )
+
+BLAST_LAYERS = (                     # огненный шар взрыва: от внешнего слоя к ядру
+    (1.00, (190, 75, 30)),
+    (0.72, (255, 140, 40)),
+    (0.46, (255, 210, 90)),
+    (0.22, (255, 245, 210)),
+)
+DIRT_COLORS = ((92, 70, 48), (72, 54, 38), (110, 88, 60))
+
+SCORCH_COLOR = (18, 14, 10)
+SCORCH_MAX_ALPHA = 150
 
 SMOKE_MAX_ALPHA = 190
 SMOKE_POINTS = 12                    # из скольких отрезков состоит одна полоска
@@ -33,25 +45,31 @@ class Shell:
         self.dx, self.dy = _dir(heading_deg)
         self.speed = spec.SHELL_SPEED_PX
         self.length = spec.SHELL_LEN_PX
-        self.thick = max(2, int(round(spec.SHELL_THICK_PX)))
+        self.thick = spec.SHELL_THICK_PX
+        self.range_left = spec.SHELL_RANGE_PX
+        self.spec = spec                  # параметры взрыва берём из той же спецификации, что и выстрел
         self.alive = True
+        self.exploded = False
 
     def update(self, dt, camera):
-        self.x += self.dx * self.speed * dt
-        self.y += self.dy * self.speed * dt
-        # удаляем, когда и голова, и хвост снаряда уже за экраном
-        sx, sy = camera.world_to_screen(self.x, self.y)
-        m = self.length + 20
-        if not (-m <= sx <= camera.view_w + m and -m <= sy <= camera.view_h + m):
+        step = min(self.speed * dt, self.range_left)
+        self.x += self.dx * step
+        self.y += self.dy * step
+        self.range_left -= step
+        if self.range_left <= 0.0:        # пролетел всю дальность -> взрыв, как при попадании в землю
             self.alive = False
+            self.exploded = True
 
     def draw(self, screen, camera):
+        z = camera.zoom
         hx, hy = camera.world_to_screen(self.x, self.y)
-        tx, ty = hx - self.dx * self.length, hy - self.dy * self.length
-        pygame.draw.line(screen, SHELL_COLOR, (tx, ty), (hx, hy), self.thick)
-        pygame.draw.line(screen, SHELL_LIGHT, (tx, ty), (hx, hy), max(1, self.thick // 3))
-        nx, ny = hx - self.dx * self.length * 0.2, hy - self.dy * self.length * 0.2
-        pygame.draw.line(screen, SHELL_TIP, (nx, ny), (hx, hy), self.thick)
+        length = self.length * z
+        tx, ty = hx - self.dx * length, hy - self.dy * length
+        thick = max(2, int(round(self.thick * z)))
+        pygame.draw.line(screen, SHELL_COLOR, (tx, ty), (hx, hy), thick)
+        pygame.draw.line(screen, SHELL_LIGHT, (tx, ty), (hx, hy), max(1, thick // 3))
+        nx, ny = hx - self.dx * length * 0.2, hy - self.dy * length * 0.2
+        pygame.draw.line(screen, SHELL_TIP, (nx, ny), (hx, hy), thick)
 
 
 # ==========================================
@@ -74,10 +92,11 @@ class MuzzleFlash:
         self.age += dt
 
     def _to_screen(self, camera, u, v):
-        """u — вперёд по стволу, v — вбок; результат — экранные координаты."""
+        """u — вперёд по стволу, v — вбок (мировые px); результат — экранные координаты."""
+        z = camera.zoom
         ox, oy = camera.world_to_screen(self.x, self.y)
-        return (ox + self.dx * u + self.px * v,
-                oy + self.dy * u + self.py * v)
+        return (ox + (self.dx * u + self.px * v) * z,
+                oy + (self.dy * u + self.py * v) * z)
 
     def draw(self, screen, camera):
         k = 1.0 - self.age / self.life                 # 1 -> 0
@@ -98,7 +117,7 @@ class MuzzleFlash:
             pygame.draw.polygon(screen, color, [self._to_screen(camera, u, v) for u, v in local])
 
         center = self._to_screen(camera, 0, 0)
-        pygame.draw.circle(screen, (255, 235, 170), center, max(2, int(L * 0.22)))
+        pygame.draw.circle(screen, (255, 235, 170), center, max(2, int(L * 0.22 * camera.zoom)))
 
 
 # ==========================================
@@ -116,8 +135,8 @@ class SmokeStreak:
         self.amp = self.dist * rng.uniform(0.08, 0.20) * rng.choice((-1, 1))   # размах «кривизны»
         self.freq = 2.0 * math.pi / (self.dist * rng.uniform(0.5, 0.9))
         self.phase = rng.uniform(0.0, 2.0 * math.pi)
-        self.vx = rng.uniform(-8.0, 8.0)                  # лёгкий снос ветром
-        self.vy = rng.uniform(-14.0, -2.0)
+        self.vx = rng.uniform(-32.0, 32.0)                # лёгкий снос ветром (px мира в секунду)
+        self.vy = rng.uniform(-56.0, -8.0)
         self.shade = rng.randint(135, 185)                # у каждой полоски свой оттенок серого
         self.age = 0.0
 
@@ -145,9 +164,90 @@ class SmokeStreak:
             pts.append(camera.world_to_screen(wx, wy))
 
         alpha = int(SMOKE_MAX_ALPHA * (1.0 - u) ** 1.2)
-        width = max(1, int(round(self.width * (1.0 - 0.5 * u))))
+        width = max(1, int(round(self.width * (1.0 - 0.5 * u) * camera.zoom)))
         c = self.shade
         pygame.draw.lines(overlay, (c, c, c, alpha), False, pts, width)
+
+
+# ==========================================
+# ВЗРЫВ СНАРЯДА: огненный шар + комья земли
+# ==========================================
+class Explosion:
+    def __init__(self, x, y, spec, rng):
+        self.x, self.y = x, y
+        self.size = spec.BLAST_SIZE_PX
+        self.life = spec.BLAST_TIME
+        self.age = 0.0
+        self.dirt = []                    # (dx, dy, на сколько разлетится, размер комка, цвет)
+        for _ in range(spec.BLAST_DIRT_COUNT):
+            ang = rng.uniform(0.0, 2.0 * math.pi)
+            self.dirt.append((math.cos(ang), math.sin(ang),
+                              self.size * rng.uniform(0.9, 2.0),
+                              self.size * rng.uniform(0.07, 0.16),
+                              rng.choice(DIRT_COLORS)))
+
+    @property
+    def alive(self):
+        return self.age < self.life
+
+    def update(self, dt, camera):
+        self.age += dt
+
+    def draw(self, screen, camera):
+        z = camera.zoom
+        u = self.age / self.life                           # 0 -> 1
+        cx, cy = camera.world_to_screen(self.x, self.y)
+
+        # огненный шар: быстро растёт (первые 40%), потом сжимается и гаснет
+        grow = 1.0 - (1.0 - min(1.0, u / 0.4)) ** 2
+        fade = max(0.0, (u - 0.4) / 0.6)
+        for scale, color in BLAST_LAYERS:
+            r = self.size * 0.5 * scale * grow * (1.0 - fade) * z
+            if r >= 1.0:
+                pygame.draw.circle(screen, color, (round(cx), round(cy)), int(r))
+
+        # комья земли разлетаются и уменьшаются
+        for dxn, dyn, dist, sz, color in self.dirt:
+            d = dist * (1.0 - (1.0 - u) ** 2)
+            pos = (round(cx + dxn * d * z), round(cy + dyn * d * z))
+            pygame.draw.circle(screen, color, pos, max(1, round(sz * (1.0 - 0.6 * u) * z)))
+
+
+# ==========================================
+# ТЁМНОЕ ПЯТНО НА ЗЕМЛЕ
+# ==========================================
+class Scorch:
+    def __init__(self, x, y, spec, rng):
+        self.x, self.y = x, y
+        self.life = spec.SCORCH_TIME
+        self.age = 0.0
+        r = spec.SCORCH_RADIUS_PX
+        self.lumps = []                   # неровное пятно из нескольких кругов: (смещение x, y, радиус)
+        for _ in range(7):
+            ang = rng.uniform(0.0, 2.0 * math.pi)
+            off = r * rng.uniform(0.0, 0.45)
+            self.lumps.append((math.cos(ang) * off, math.sin(ang) * off, r * rng.uniform(0.45, 0.75)))
+
+    @property
+    def alive(self):
+        return self.age < self.life
+
+    def update(self, dt, camera):
+        self.age += dt
+
+    def draw(self, overlay, camera):
+        z = camera.zoom
+        u = self.age / self.life
+        cx, cy = camera.world_to_screen(self.x, self.y)
+        # быстро проявляется (0.05 с), затем плавно тает
+        alpha = SCORCH_MAX_ALPHA * min(1.0, self.age / 0.05) * (1.0 - u) ** 1.3
+        # три слоя: внешний бледный, внутренний тёмный (на слое рисунок заменяет пиксели, а не смешивается)
+        for scale, k in ((1.0, 0.35), (0.72, 0.65), (0.45, 1.0)):
+            color = (*SCORCH_COLOR, int(alpha * k))
+            for ox, oy, r in self.lumps:
+                pr = int(round(r * scale * z))
+                if pr >= 1:
+                    pygame.draw.circle(overlay, color, (round(cx + ox * z), round(cy + oy * z)), pr)
 
 
 # ==========================================
@@ -158,7 +258,9 @@ class EffectsSystem:
         self.shells = []
         self.flashes = []
         self.smoke = []
-        self._overlay = None              # прозрачный слой для дыма (чтобы работала полупрозрачность)
+        self.explosions = []
+        self.scorches = []
+        self._layers = {}                 # прозрачные слои во весь экран (для полупрозрачности)
         self._rng = random.Random()
 
     def spawn_shot(self, shot, spec):
@@ -167,24 +269,50 @@ class EffectsSystem:
         for _ in range(spec.SMOKE_STREAKS):
             self.smoke.append(SmokeStreak(shot.x, shot.y, shot.angle, spec, self._rng))
 
+    def _spawn_impact(self, shell):
+        self.explosions.append(Explosion(shell.x, shell.y, shell.spec, self._rng))
+        self.scorches.append(Scorch(shell.x, shell.y, shell.spec, self._rng))
+
     def update(self, dt, camera):
-        for group in (self.shells, self.flashes, self.smoke):
+        for group in (self.shells, self.flashes, self.smoke, self.explosions, self.scorches):
             for obj in group:
                 obj.update(dt, camera)
+        for shell in self.shells:
+            if shell.exploded:
+                self._spawn_impact(shell)
         self.shells = [o for o in self.shells if o.alive]
         self.flashes = [o for o in self.flashes if o.alive]
         self.smoke = [o for o in self.smoke if o.alive]
+        self.explosions = [o for o in self.explosions if o.alive]
+        self.scorches = [o for o in self.scorches if o.alive]
+
+    def _layer(self, name, size):
+        """Очищенный прозрачный слой (пересоздаётся только при смене размера окна)."""
+        layer = self._layers.get(name)
+        if layer is None or layer.get_size() != size:
+            layer = pygame.Surface(size, pygame.SRCALPHA)
+            self._layers[name] = layer
+        layer.fill((0, 0, 0, 0))
+        return layer
+
+    def draw_ground(self, screen, camera):
+        """Всё, что лежит на земле (рисуется ДО танка, чтобы пятна были под ним)."""
+        if self.scorches:
+            layer = self._layer("scorch", screen.get_size())
+            for s in self.scorches:
+                s.draw(layer, camera)
+            screen.blit(layer, (0, 0))
 
     def draw(self, screen, camera):
+        """Всё, что летит и горит (рисуется ПОСЛЕ танка)."""
         if self.smoke:
-            size = screen.get_size()
-            if self._overlay is None or self._overlay.get_size() != size:
-                self._overlay = pygame.Surface(size, pygame.SRCALPHA)
-            self._overlay.fill((0, 0, 0, 0))
+            layer = self._layer("smoke", screen.get_size())
             for s in self.smoke:
-                s.draw(self._overlay, camera)
-            screen.blit(self._overlay, (0, 0))
+                s.draw(layer, camera)
+            screen.blit(layer, (0, 0))
         for shell in self.shells:
             shell.draw(screen, camera)
+        for boom in self.explosions:
+            boom.draw(screen, camera)
         for flash in self.flashes:
             flash.draw(screen, camera)

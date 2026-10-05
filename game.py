@@ -2,7 +2,7 @@
 import random
 import pygame
 
-from core import Camera, Tank, WorldGenerator, CHUNK_SIZE
+from core import Camera, Tank, WorldGenerator, CHUNK_SIZE, PX_PER_M
 from input_handler import InputHandler
 from renderer import Renderer
 from ui import ConstructorUI
@@ -47,6 +47,7 @@ class Game:
         t = self.tank
         return [
             f"FPS: {self.clock.get_fps():.0f}",
+            f"Zoom: {self.camera.zoom:.2f} (1 m = {PX_PER_M * self.camera.zoom:.0f} px)",
             f"X: {t.x:.0f}  Y: {t.y:.0f}",
             f"Chunk: {int(t.x // CHUNK_SIZE)}, {int(t.y // CHUNK_SIZE)}",
             f"Grass: {self.world.grass_at(t.x, t.y):.2f}",
@@ -62,6 +63,10 @@ class Game:
             dt = min(self.clock.tick(60) / 1000.0, self.MAX_DT)
 
             self.input.process_events()
+            self.input.update_zoom_keys(dt)
+            steps = self.input.pop_zoom_steps()
+            if steps:
+                self.camera.zoom_by(steps)
 
             self.screen = pygame.display.get_surface()      # актуально после изменения размера окна
             w, h = self.screen.get_size()

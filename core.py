@@ -25,6 +25,8 @@ FLOWER_COLORS = [
     (242, 142, 60),   # оранжевый
 ]
 PX_PER_M = 100.0          # МАСШТАБ МИРА: 100 px = 1 метр (все скорости и расстояния в метрах переводим через него)
+ZOOM_LEVELS = [round(0.10 * 6 ** (i / 20), 4) for i in range(21)]   # 0.10 … 0.60, шаг ≈ 9 %
+DEFAULT_ZOOM_LEVEL = 5                                               # ≈ 0.157: танк 7 м ≈ 110 px
 
 # ==========================================
 # 2. МАТЕМАТИЧЕСКИЕ ПОМОЩНИКИ
@@ -101,13 +103,22 @@ class Shot:
 # 4. КАМЕРА
 # ==========================================
 class Camera:
-    """Камера: центр в мировых координатах, размер видимой области в пикселях."""
+    """Камера: центр в мировых координатах + зум. Мир: 100 px = 1 м; на экране 1 м = 100 * zoom px."""
 
     def __init__(self, view_w=800, view_h=600):
         self.x = 0.0
         self.y = 0.0
         self.view_w = view_w
         self.view_h = view_h
+        self.zoom_level = DEFAULT_ZOOM_LEVEL
+
+    @property
+    def zoom(self):
+        return ZOOM_LEVELS[self.zoom_level]
+
+    def zoom_by(self, steps):
+        """Сдвинуть уровень зума: steps > 0 — приблизить, < 0 — отдалить."""
+        self.zoom_level = int(clamp(self.zoom_level + steps, 0, len(ZOOM_LEVELS) - 1))
 
     def resize(self, view_w, view_h):
         self.view_w = view_w
@@ -117,18 +128,20 @@ class Camera:
         self.x = x
         self.y = y
 
-    def top_left(self):
-        """Мировые координаты левого верхнего угла экрана (целые, чтобы не было дрожания)."""
-        return round(self.x) - self.view_w // 2, round(self.y) - self.view_h // 2
+    def origin_px(self):
+        """Сдвиг мира в ЭКРАННЫХ пикселях (целые числа, чтобы земля не дрожала)."""
+        z = self.zoom
+        return round(self.x * z) - self.view_w // 2, round(self.y * z) - self.view_h // 2
 
     def world_to_screen(self, wx, wy):
-        left, top = self.top_left()
-        return wx - left, wy - top
+        z = self.zoom
+        left, top = self.origin_px()
+        return wx * z - left, wy * z - top
 
     def screen_to_world(self, sx, sy):
-        left, top = self.top_left()
-        return sx + left, sy + top
-
+        z = self.zoom
+        left, top = self.origin_px()
+        return (sx + left) / z, (sy + top) / z
 
 # ==========================================
 # 5. ПРОЦЕДУРНЫЙ МИР
@@ -161,9 +174,9 @@ class WorldGenerator:
     def grass_color(g):
         return lerp_color(DRY_GRASS, LUSH_GRASS, g)
 
-    def ground_color(self, cell_x, cell_y):
-        """Цвет клетки земли (индексы клеток в мире, не пиксели)."""
-        g = self.grass_at((cell_x + 0.5) * CELL_SIZE, (cell_y + 0.5) * CELL_SIZE)
+    def ground_color(self, cell_x, cell_y, cell_size=CELL_SIZE):
+        """Цвет клетки земли (индексы клеток, не пиксели). cell_size больше обычного — для дальнего зума."""
+        g = self.grass_at((cell_x + 0.5) * cell_size, (cell_y + 0.5) * cell_size)
         base = self.grass_color(g)
         jitter = int((hash_float(cell_x, cell_y, self.seed + 7) - 0.5) * 12)
         return tuple(clamp(c + jitter, 0, 255) for c in base)
@@ -215,9 +228,9 @@ class WorldGenerator:
 # 6. ТАНК (состояние + логика, без отрисовки)
 # ==========================================
 class Tank:
-    TRACK_STEP = 10.0      # шаг между траками (px)
-    TRACK_RADIUS = 35.0    # расстояние от центра до гусеницы (px)
-    AIM_DEAD_ZONE = 20.0   # если курсор ближе к центру танка, башня не дёргается
+    TRACK_STEP = 20.0      # шаг между траками (px эталонного мира; 20 px = 0,2 м)
+    TRACK_RADIUS = 160.0   # расстояние от центра до гусеницы
+    AIM_DEAD_ZONE = 100.0  # если курсор ближе к центру танка (1 м), башня не дёргается
 
     def __init__(self, x=0.0, y=0.0, spec=tank_config, team_color=(200, 40, 40)):
         # spec — любой объект с теми же именами (модуль tank_config или будущий класс)
@@ -302,13 +315,13 @@ class Tank:
                     self.turret_angle)
 
     @property
-    def recoil_px(self):
-        """Насколько ствол сейчас утоплен в башню (px спрайта башни)."""
+    def recoil_m(self):
+        """Насколько ствол сейчас утоплен в башню (метры эталонного спрайта)."""
         T = self.spec.RECOIL_TIME
         if self.since_shot >= T:
             return 0.0
         k = self.since_shot / T
-        depth = self.spec.RECOIL_DEPTH_PX
+        depth = self.spec.RECOIL_DEPTH_M
         if k < 0.2:                                   # быстрый откат назад (первые 20% времени)
             return depth * (k / 0.2)
         return depth * (1.0 - (k - 0.2) / 0.8) ** 2   # плавный накат обратно
