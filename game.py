@@ -12,6 +12,7 @@ from input_handler import InputHandler
 from renderer import Renderer
 from ui import ConstructorUI, ToolBar
 from effects import EffectsSystem
+from aim import compute_aim
 
 class Game:
     MAX_DT = 0.05   # защита от «телепорта» при подвисании окна
@@ -81,6 +82,12 @@ class Game:
         wx, wy = self.camera.screen_to_world(*pygame.mouse.get_pos())
         ghost = Wall.default(wx, wy)
         return ghost, self._wall_blocked(ghost)
+
+    def _aim_info(self):
+        """Траектория выстрела. Показываем только когда не открыты режимы стройки и стены."""
+        if self.input.build_mode or self.walls.selected is not None:
+            return None
+        return compute_aim(self.tank, self.walls)
 
     def _handle_world_clicks(self):
         """Клики по миру. В режиме стройки: ЛКМ ставит стену, ПКМ выбирает стену.
@@ -251,7 +258,7 @@ class Game:
 
             debug = self._debug_lines() if self.input.show_debug else None
             self.renderer.draw(self.screen, self.camera, self.tank, debug, self.effects,
-                               self.walls, self._build_preview())
+                               self.walls, self._build_preview(), self._aim_info())
             self.ui.draw(self.screen)
             self.toolbar.draw(self.screen)
             pygame.display.flip()

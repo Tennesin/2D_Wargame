@@ -8,6 +8,7 @@ from common import PX_PER_M
 from core import CHUNK_SIZE, CELL_SIZE
 from tank import TankRenderer
 from wall import WallRenderer
+from aim import AimRenderer
 
 # ---------- Земля ----------
 MIN_CACHED_CHUNKS = 40
@@ -40,11 +41,13 @@ class Renderer:
 
         self.tank_renderer = TankRenderer()
         self.wall_renderer = WallRenderer()
+        self.aim_renderer = AimRenderer()
 
     # ==========================================
     # ГЛАВНЫЙ МЕТОД
     # ==========================================
-    def draw(self, screen, camera, tank, debug_lines=None, effects=None, walls=None, build_preview=None):
+    def draw(self, screen, camera, tank, debug_lines=None, effects=None, walls=None,
+             build_preview=None, aim=None):
         self._sync_zoom(camera.zoom)
         self._draw_ground(screen, camera)
         if effects is not None:
@@ -54,6 +57,8 @@ class Renderer:
         self.tank_renderer.draw(screen, camera, tank)
         if build_preview is not None:                # призрак стены поверх танка, чтобы красное было видно
             self.wall_renderer.draw_preview(screen, camera, *build_preview)
+        if aim is not None:                          # линия выстрела под снарядами и вспышкой
+            self.aim_renderer.draw(screen, camera, aim)
         if effects is not None:
             effects.draw(screen, camera)
         if debug_lines:

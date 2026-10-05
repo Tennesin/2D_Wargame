@@ -3,9 +3,21 @@ import math
 import random
 
 from common import PX_PER_M, clamp
-from .params import WALL_PARAMS, WALL_ARMOR_K, WALL_RICOCHET_ANGLE
+from .params import WALL_PARAMS, WALL_ARMOR_K, WALL_RICOCHET_ANGLE, PIERCE_SPREAD
 
 RICOCHET_COS = math.cos(math.radians(WALL_RICOCHET_ANGLE))
+
+def pierce_probability(penetration, armor_mm):
+    """Шанс пробития 0..1. Окно ±PIERCE_SPREAD от пробития: слева 99%, справа 1%, в центре 50%."""
+    if penetration <= 0.0:
+        return 0.0
+    x = (armor_mm - penetration) / (penetration * PIERCE_SPREAD)   # -1 .. +1 внутри окна
+    if x <= -1.0:
+        return 1.0
+    if x >= 1.0:
+        return 0.0
+    return 0.5 - 0.49 * x
+
 CRACK_COUNT_MIN, CRACK_COUNT_MAX = 8, 40
 
 class Wall:
@@ -84,12 +96,18 @@ class Wall:
         """Броня с учётом наклона: чем косее удар, тем толще стена для снаряда."""
         return self.armor_mm / max(cos_impact, RICOCHET_COS)
 
+    def pierce_check(self, penetration, cos_impact=1.0):
+        """(приведённая броня, шанс 0..1). При рикошете: (None, 0.0)."""
+        if cos_impact < RICOCHET_COS:
+            return None, 0.0
+        eff = self.effective_armor_mm(cos_impact)
+        return eff, pierce_probability(penetration, eff)
+
     def take_hit(self, penetration, damage, cos_impact=1.0):
-        """Попадание снаряда. cos_impact — косинус угла между траекторией и нормалью к грани
-        (1 = прямой удар). Возвращает True, если пробил (стена получила урон)."""
-        if cos_impact < RICOCHET_COS:                 # слишком косо — рикошет
-            return False
-        if penetration < self.effective_armor_mm(cos_impact):
+        """Попадание снаряда. cos_impact: косинус угла между траекторией и нормалью к грани
+        (1 = прямой удар). Пробитие определяется броском по шансу. Возвращает True, если пробил."""
+        _, chance = self.pierce_check(penetration, cos_impact)
+        if chance <= 0.0 or random.random() >= chance:
             return False
         self.hp = max(0.0, self.hp - damage)
         return True

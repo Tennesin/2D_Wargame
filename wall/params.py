@@ -18,3 +18,4 @@ ROTATE_HANDLE_RADIUS_PX = 6     # радиус белой точки
 ROTATE_HANDLE_HIT_PX = 12       # радиус, в котором точку можно «схватить»
 ROTATE_DEAD_ZONE_PX = 14        # пока мышь ближе к центру, угол не считаем (иначе стена дёргается)
 ROTATE_SNAP_DEG = 15.0          # шаг привязки при зажатом Shift
+PIERCE_SPREAD = 0.07
