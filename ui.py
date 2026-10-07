@@ -6,6 +6,7 @@ import pygame
 from tank import TankSpec, PARAMS
 from wall import WALL_PARAMS
 from functools import partial
+from common import LRUCache
 
 # ==========================================
 # 1. НАСТРОЙКИ ВНЕШНЕГО ВИДА
@@ -57,6 +58,7 @@ PANEL_TITLES = {"tank": "Конструктор техники", "wall": "Нас
 # 2. ОБЩИЕ ПОМОЩНИКИ
 # ==========================================
 _font_cache = {}
+_text_cache = LRUCache(512)
 
 def get_font(size, name=FONT_NAME):
     """Общий кэш шрифтов, чтобы не создавать Font на каждый кадр."""
@@ -67,6 +69,15 @@ def get_font(size, name=FONT_NAME):
         _font_cache[key] = font
     return font
 
+def get_text(text, size, color):
+    """Готовая поверхность с текстом. Кэшируется по (текст, размер, цвет).
+    Полученную поверхность нельзя менять: она общая. color должен быть кортежем."""
+    key = (text, size, color)
+    surf = _text_cache.get(key)
+    if surf is None:
+        surf = get_font(size).render(text, True, color)
+        _text_cache.put(key, surf)
+    return surf
 
 def wrap_text(font, text, max_width):
     """Разбивает текст на строки по словам так, чтобы каждая влезала в max_width."""
@@ -82,7 +93,6 @@ def wrap_text(font, text, max_width):
     if line:
         lines.append(line)
     return lines
-
 
 # ==========================================
 # 3. БАЗОВЫЕ ВИДЖЕТЫ
@@ -102,12 +112,11 @@ class Button:
         else:
             bg = colors["normal"]
         pygame.draw.rect(surface, bg, self.rect, border_radius=4)
-        txt = get_font(font_size).render(self.label, True, colors["text"])
+        txt = get_text(self.label, font_size, colors["text"])
         surface.blit(txt, txt.get_rect(center=self.rect.center))
 
     def collidepoint(self, *args):
         return self.enabled and self.rect.collidepoint(*args)
-
 
 class Slider:
     def __init__(self, rect, value=0.5, min_value=0.0, max_value=1.0, step=0.05):
@@ -145,7 +154,6 @@ class Slider:
         handle.center = (self.rect.x + fill_w, self.rect.centery)
         pygame.draw.rect(surface, (240, 240, 240), handle, border_radius=2)
 
-
 class ScrollArea:
     def __init__(self):
         self.offset = 0
@@ -169,7 +177,6 @@ class ScrollArea:
         thumb_y = rect.y + int((rect.height - thumb_h) * (self.offset / self.max_scroll))
         pygame.draw.rect(surface, (150, 150, 150), (track.x, thumb_y, 4, thumb_h))
 
-
 # ==========================================
 # 4. ЭЛЕМЕНТЫ СОДЕРЖИМОГО ПАНЕЛИ
 #    У каждого: height, layout(x, y, w), draw(surface)
@@ -186,7 +193,7 @@ class SectionHeader:
         self.rect = pygame.Rect(x, y, w, self.height)
 
     def draw(self, surface):
-        label = get_font(FONT_SIZE_HEADER).render(self.text, True, TEXT_COLOR)
+        label = get_text(self.text, FONT_SIZE_HEADER, TEXT_COLOR)
         surface.blit(label, (self.rect.x, self.rect.y + 8))
         y = self.rect.bottom - 4
         pygame.draw.line(surface, LINE_COLOR, (self.rect.x, y), (self.rect.right, y), 1)
@@ -220,10 +227,9 @@ class ParamRow:
         return self.slider.rect.inflate(0, 18)
 
     def draw(self, surface):
-        font = get_font(FONT_SIZE_LABEL)
-        name = font.render(self.label, True, TEXT_COLOR)
+        name = get_text(self.label, FONT_SIZE_LABEL, TEXT_COLOR)
         value_text = f"{self.value:.{self.decimals}f} {self.unit}".strip()
-        val = font.render(value_text, True, TEXT_DIM)
+        val = get_text(value_text, FONT_SIZE_LABEL, TEXT_DIM)
         surface.blit(name, (self.rect.x, self.rect.y + 4))
         surface.blit(val, val.get_rect(topright=(self.rect.right, self.rect.y + 4)))
         self.slider.draw(surface)
@@ -246,11 +252,10 @@ class StatsBlock:
         self.rect = pygame.Rect(x, y, w, self.height)
 
     def draw(self, surface):
-        font = get_font(FONT_SIZE_LABEL)
         y = self.rect.y + 4
         for name, value in self.values.items():
-            n = font.render(name, True, TEXT_DIM)
-            v = font.render(str(value), True, TEXT_COLOR)
+            n = get_text(name, FONT_SIZE_LABEL, TEXT_DIM)
+            v = get_text(str(value), FONT_SIZE_LABEL, TEXT_COLOR)
             surface.blit(n, (self.rect.x, y))
             surface.blit(v, v.get_rect(topright=(self.rect.right, y)))
             y += self.ROW_H
@@ -272,10 +277,9 @@ class InfoText:
         self.rect = pygame.Rect(x, y, w, self.height)
 
     def draw(self, surface):
-        font = get_font(FONT_SIZE_LABEL)
         y = self.rect.y + 4
         for line in self.lines:
-            surface.blit(font.render(line, True, self.color), (self.rect.x, y))
+            surface.blit(get_text(line, FONT_SIZE_LABEL, self.color), (self.rect.x, y))
             y += self.LINE_H
 
 class ActionButton:
@@ -357,6 +361,8 @@ class ConstructorUI:
         self._tank_items = self._build_items()
         self._wall_items = self._build_wall_items()
         self.items = self._tank_items
+        self._stat_blocks = {}  # название характеристики -> StatsBlock, где она показана
+        self._index_stats()
         self._layout()
 
     # ---------- состав панели (сюда добавляем новые параметры) ----------
@@ -412,11 +418,18 @@ class ConstructorUI:
         """Текущие значения всех ползунков: {ключ: число}."""
         return {it.key: it.value for it in self.items if isinstance(it, ParamRow)}
 
-    def set_stat(self, name, value):
-        """Записать рассчитанную характеристику в блок статистики (ищет в обоих режимах панели)."""
+    def _index_stats(self):
+        """Один раз связывает названия характеристик с блоками, чтобы не искать их при каждой записи."""
         for it in self._tank_items + self._wall_items:
-            if isinstance(it, StatsBlock) and name in it.values:
-                it.values[name] = value
+            if isinstance(it, StatsBlock):
+                for name in it.values:
+                    self._stat_blocks[name] = it
+
+    def set_stat(self, name, value):
+        """Записать рассчитанную характеристику в блок статистики."""
+        block = self._stat_blocks.get(name)
+        if block is not None:
+            block.values[name] = value
 
     def show_tank(self):
         if self.mode != "tank":
@@ -454,9 +467,11 @@ class ConstructorUI:
         self._auto_opened = False            # ручное переключение отменяет «автозакрытие»
 
     def update(self, screen_size):
-        """Вызывать каждый кадр: учитывает изменение размера окна."""
-        self.screen_size = screen_size
-        self._layout()
+        """Вызывать каждый кадр, но раскладка пересчитывается только при смене размера окна.
+        Остальные поводы (прокрутка, смена панели) вызывают _layout() сами."""
+        if screen_size != self.screen_size:
+            self.screen_size = screen_size
+            self._layout()
 
     def covers(self, pos):
         """Лежит ли точка экрана на красной кнопке или на открытой панели."""
@@ -554,7 +569,7 @@ class ConstructorUI:
         screen.blit(self._bg_surface, rect.topleft)
         pygame.draw.line(screen, PANEL_BORDER, rect.topleft, rect.bottomleft, 2)
 
-        title = get_font(FONT_SIZE_TITLE).render(PANEL_TITLES[self.mode], True, TEXT_COLOR)
+        title = get_text(PANEL_TITLES[self.mode], FONT_SIZE_TITLE, TEXT_COLOR)
         screen.blit(title, (rect.x + PANEL_PADDING, 16))
 
         # содержимое рисуем с обрезкой, чтобы при прокрутке оно не вылезало за панель

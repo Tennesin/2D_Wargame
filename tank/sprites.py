@@ -125,7 +125,7 @@ class TankRenderer:
         lp = int(tank.left_track_offset / tank.TRACK_STEP * TRACK_PHASES) % TRACK_PHASES
         rp = int(tank.right_track_offset / tank.TRACK_STEP * TRACK_PHASES) % TRACK_PHASES
 
-        hull = self._get_hull(lp, rp, team)
+        hull = self._get_hull(lp, rp)
         turret = self._get_turret(team)
         barrel = self._get_barrel(bl, bt)
 
@@ -143,9 +143,9 @@ class TankRenderer:
 
         # --- тень: все силуэты в общий буфер непрозрачным чёрным, потом буфер целиком полупрозрачно ---
         hox, hoy = (round(v * ppm * hs) for v in SHADOW_HULL_M)
-        tox, toy = (round(v * ppm * hs) for v in SHADOW_TURRET_M)
+        tox, toy = (round(v * ppm * ts) for v in SHADOW_TURRET_M)
         sil_hull = pygame.transform.rotozoom(
-            self._get_sil(("hull", lp, rp, team), hull), -tank.hull_angle, hs)
+            self._get_sil(("hull", lp, rp), hull), -tank.hull_angle, hs)
         sil_turret = pygame.transform.rotozoom(
             self._get_sil(("turret", team), turret), -tank.turret_angle, ts)
         sil_barrel = pygame.transform.rotozoom(
@@ -185,9 +185,8 @@ class TankRenderer:
     def _get_sil(self, key, surface):
         return self._sil_cache.get_or_build(key, lambda: self._make_silhouette(surface))
 
-    def _get_hull(self, lp, rp, team_color):
-        return self._hull_cache.get_or_build(
-            (lp, rp, team_color), lambda: self._build_hull(lp, rp, team_color))
+    def _get_hull(self, lp, rp):
+        return self._hull_cache.get_or_build((lp, rp), lambda: self._build_hull(lp, rp))
 
     def _get_turret(self, team_color):
         return self._turret_cache.get_or_build(team_color, lambda: self._build_turret(team_color))
@@ -209,7 +208,7 @@ class TankRenderer:
             y += TRACK_LINK_M
         pen.clear_clip()
 
-    def _build_hull(self, lp, rp, team_color):
+    def _build_hull(self, lp, rp):
         ppm = self._ppm
         size = 2 * math.ceil(HULL_HALF_M * ppm)
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)

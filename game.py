@@ -13,7 +13,7 @@ from wall import (Wall, WallManager, PLACE_REPEAT,
 from controls import Action, MouseOwner, COMBAT_HOLD
 from input_handler import InputHandler
 from renderer import Renderer
-from ui import ConstructorUI, ToolBar, get_font, FONT_SIZE_LABEL
+from ui import ConstructorUI, ToolBar, get_text, FONT_SIZE_LABEL
 from effects import EffectsSystem
 from aim import compute_aim
 from hud import TankHud
@@ -59,6 +59,7 @@ class Game:
         self.turret_follow = True        # башня следит за мышью (Q)
         self.combat = False              # боевое состояние (Alt): включает огонь по ЛКМ и красную линию прицела
         self._rot_state = None           # при вращении стены: [последний угол мыши, накопленный угол стены]
+        self._wall_stats_key = None      # последние показанные значения стены
         self.free_camera = False         # свободная камера (L): не следует за танком, двигается зажатой ПКМ
         self._pan_state = None           # при нажатой ПКМ: {"start", "last", "dragged"}
 
@@ -221,8 +222,7 @@ class Game:
             st["dragged"] = True
         lx, ly = st["last"]
         z = self.camera.zoom
-        self.camera.x -= (mx - lx) / z                           # мир следует за курсором
-        self.camera.y -= (my - ly) / z
+        self.camera.move_by(-(mx - lx) / z, -(my - ly) / z)  # мир следует за курсором
         st["last"] = (mx, my)
 
     def _click_build(self, button, wx, wy):
@@ -317,16 +317,23 @@ class Game:
 
     def _apply_hits(self, hits):
         """Снаряд попал в цель: урон = заявленный × доля по правилам armor.py (стена и танк одинаково)."""
+        if not hits:
+            return
         for target, spec, cos_impact, normal, power in hits:
             target.take_hit(spec.penetration * power, spec.damage * power, cos_impact, normal)
         self.walls.remove_dead()
         if self.mode == Mode.WALL_EDIT and self.walls.selected is None:
-            self._set_mode(Mode.DRIVE)             # выбранную стену разрушили — возвращаем панель танка
+            self._set_mode(Mode.DRIVE)
 
     def _show_wall_stats(self):
+        """Статистика выбранной стены. Пишем только в режиме WALL_EDIT и только если значения изменились."""
         wall = self.walls.selected
-        if wall is None:
+        if wall is None or self.mode != Mode.WALL_EDIT:
             return
+        key = (wall.hp, wall.max_hp, wall.width_m, wall.length_m, wall.angle)
+        if key == self._wall_stats_key:
+            return
+        self._wall_stats_key = key
         self.ui.set_stat("Текущее HP", f"{fmt_num(wall.hp)} / {fmt_num(wall.max_hp)}")
         self.ui.set_stat("Масса стены", f"{fmt_num(wall.mass_t, 1)} т")
         self.ui.set_stat("Толщина", f"{wall.thickness_m:.2f} м")
@@ -374,10 +381,9 @@ class Game:
         if not self.turret_follow:
             rows.append(("Башня зафиксирована (Q)", (240, 210, 70)))
 
-        font = get_font(FONT_SIZE_LABEL)
         for text, color in reversed(rows):
-            shadow = font.render(text, True, (0, 0, 0))
-            label = font.render(text, True, color)
+            shadow = get_text(text, FONT_SIZE_LABEL, (0, 0, 0))
+            label = get_text(text, FONT_SIZE_LABEL, color)
             y -= label.get_height() + 2
             self.screen.blit(shadow, (11, y + 1))
             self.screen.blit(label, (10, y))
@@ -408,7 +414,8 @@ class Game:
                                               active=self.mode != Mode.BUILD,
                                               follow_mouse=self.turret_follow,
                                               combat=self.combat)
-            shot = self.tank.update(command, dt, self.walls.obbs(), self.terrain)
+            near_walls = self.walls.obbs_near(self.tank.x, self.tank.y, self.tank.reach_px())
+            shot = self.tank.update(command, dt, near_walls, self.terrain)
             if shot is not None:
                 self.effects.spawn_shot(shot, self.tank.spec, self.tank)
             if not self.free_camera:

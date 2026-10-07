@@ -284,28 +284,51 @@ class TerrainMap:
         radius = math.hypot(x1 - x0, y1 - y0) / 2.0
         return sorted(self._near(mx, my, radius), key=lambda p: p.kind.layer)
 
-    def kind_at(self, x, y):
-        """Вид местности под точкой (самый «тяжёлый» из перекрывающихся) или None — обычная трава."""
+    def patches_near(self, x, y, radius):
+        """Список пятен, которые могут оказаться в круге (x, y, radius). Для проверок на нескольких кадрах подряд
+        не годится: список нужно брать заново (радиус берут с запасом на сдвиг за один кадр)."""
+        return list(self._near(x, y, radius))
+
+    @staticmethod
+    def kind_in(patches, x, y):
+        """Вид местности под точкой среди заданных пятен (самый «тяжёлый») или None — обычная трава."""
         best = None
-        for p in self._near(x, y, 0.0):
+        for p in patches:
             if p.contains(x, y) and (best is None or p.kind.speed_k < best.speed_k):
                 best = p.kind
         return best
 
-    def speed_factor(self, x, y):
-        kind = self.kind_at(x, y)
+    @classmethod
+    def speed_in(cls, patches, x, y):
+        kind = cls.kind_in(patches, x, y)
         return 1.0 if kind is None else kind.speed_k
 
-    def blocks_obb(self, obb):
-        """Задевает ли повёрнутый прямоугольник (x, y, half_w, half_l, angle) твёрдое пятно."""
+    @staticmethod
+    def blocks_obb_in(patches, obb):
+        """Задевает ли повёрнутый прямоугольник (x, y, half_w, half_l, angle) твёрдое пятно из списка."""
         cx, cy, hw, hl, ang = obb
-        for p in self._near(cx, cy, math.hypot(hw, hl)):
+        for p in patches:
             if not p.kind.solid:
                 continue
+            dx, dy = p.x - cx, p.y - cy
+            lim = p.r_max + math.hypot(hw, hl)
+            if dx * dx + dy * dy > lim * lim:
+                continue  # грубая отсечка по кругу
             for tri in p.tris:
                 if obb_hits_convex(cx, cy, hw, hl, ang, tri):
                     return True
         return False
+
+    # --- те же вопросы без заранее собранного списка (для кода вне танка) ---
+    def kind_at(self, x, y):
+        return self.kind_in(self.patches_near(x, y, 0.0), x, y)
+
+    def speed_factor(self, x, y):
+        return self.speed_in(self.patches_near(x, y, 0.0), x, y)
+
+    def blocks_obb(self, obb):
+        cx, cy, hw, hl, _ = obb
+        return self.blocks_obb_in(self.patches_near(cx, cy, math.hypot(hw, hl)), obb)
 
     def raycast(self, x0, y0, x1, y1):
         """Ближайшее пятно, останавливающее снаряды, на отрезке: (patch, t, normal) или None.

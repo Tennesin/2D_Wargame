@@ -66,6 +66,11 @@ class Wall(Damageable):
     def alive(self):
         return self.hp > 0.0
 
+    @property
+    def radius_px(self):
+        """Радиус описанной окружности (для быстрых проверок «далеко/близко»)."""
+        return math.hypot(self.half_w_px, self.half_l_px)
+
     # ---------- локальные координаты (u вправо вдоль ширины, v вниз вдоль длины, в px мира) ----------
     def to_world(self, u, v):
         rad = math.radians(self.angle)
@@ -156,10 +161,26 @@ class WallManager:
                 return wall
         return None
 
+    def obbs_near(self, x, y, radius):
+        """Прямоугольники только тех стен, что лежат в радиусе radius от точки (x, y)."""
+        result = []
+        for w in self.items:
+            reach = radius + w.radius_px
+            dx, dy = w.x - x, w.y - y
+            if dx * dx + dy * dy <= reach * reach:
+                result.append(w.obb())
+        return result
+
     def raycast(self, x0, y0, x1, y1):
         """Ближайшая стена на отрезке: (wall, t, normal) или None."""
+        mx, my = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+        seg_r = math.hypot(x1 - x0, y1 - y0) / 2.0
         best = None
         for wall in self.items:
+            reach = seg_r + wall.radius_px
+            dx, dy = wall.x - mx, wall.y - my
+            if dx * dx + dy * dy > reach * reach:
+                continue  # стена заведомо далеко от отрезка
             res = wall.segment_hit(x0, y0, x1, y1)
             if res is not None and (best is None or res[0] < best[1]):
                 best = (wall, res[0], res[1])

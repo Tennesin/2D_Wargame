@@ -6,7 +6,7 @@ from common import (normalize_angle, shortest_angle_diff, obb_hits_obb, obb_segm
 from armor import resolve_hit, Damageable
 from .params import (KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, TANK_ARMOR_K,
                      TERRAIN_MIN_K, TERRAIN_BRAKE, TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY,
-                     TRACK_LINK_M, TRACK_OFFSET_M)
+                     TRACK_LINK_M, TRACK_OFFSET_M, COLLISION_MARGIN_PX,)
 
 class Tank(Damageable):
     TRACK_STEP = TRACK_LINK_M * PX_PER_M     # шаг между траками, px эталонного мира
@@ -31,6 +31,7 @@ class Tank(Damageable):
         self.since_shot = 999.0         # сколько секунд прошло с последнего выстрела (для отката)
         self.terrain_k = 1.0            # множитель скорости от местности под корпусом (1.0 = обычная)
         self._terrain = None            # карта препятствий; её передаёт Game в update()
+        self._patches = ()              # пятна карты рядом с танком; обновляется в начале update()
 
     @property
     def turret_angle(self):
@@ -78,13 +79,20 @@ class Tank(Damageable):
         hull = self._hull_obb(x, y, angle)
         if any(obb_hits_obb(*hull, *other) for other in obstacles):
             return True
-        if self._terrain is not None and self._terrain.blocks_obb(hull):
+        if self._terrain is not None and self._terrain.blocks_obb_in(self._patches, hull):
             return True
         return self._barrel_hits(x, y, angle + self.turret_rel_angle, obstacles)
 
     def _has_solids(self, obstacles):
         """Есть ли вообще что проверять на столкновение (стены или карта местности)."""
         return bool(obstacles) or self._terrain is not None
+
+    def reach_px(self):
+        """Радиус, в который попадает всё, что танк может задеть за один кадр (корпус, ствол + запас на сдвиг)."""
+        s = self.spec
+        hull = math.hypot(s.COLLISION_HALF_W_PX, s.COLLISION_HALF_L_PX) + abs(s.COLLISION_SHIFT_PX)
+        barrel = math.hypot(s.BARREL_COLL_END_PX, s.BARREL_COLL_HALF_W_PX)
+        return max(hull, barrel) + COLLISION_MARGIN_PX
 
     def hits_obb(self, other):
         """Задевает ли танк (корпус или ствол) повёрнутый прямоугольник (x, y, half_w, half_l, angle)."""
@@ -126,6 +134,7 @@ class Tank(Damageable):
         """obstacles — повёрнутые прямоугольники стен (x, y, half_w, half_l, angle).
         terrain — карта естественных препятствий (TerrainMap) или None."""
         self._terrain = terrain
+        self._patches = terrain.patches_near(self.x, self.y, self.reach_px()) if terrain is not None else ()
         self._sample_terrain()
         delta_hull = self._rotate_hull(command.steer, dt, obstacles)
         distance = self._drive(command.throttle, command.steer, dt, obstacles)
@@ -145,7 +154,7 @@ class Tank(Damageable):
         reach = half_l * 0.8
         total = 0.0
         for d in (-reach, 0.0, reach):
-            total += terrain.speed_factor(hx + fx * d, hy + fy * d)
+            total += terrain.speed_in(self._patches, hx + fx * d, hy + fy * d)
         self.terrain_k = max(TERRAIN_MIN_K, total / 3.0)
 
     @staticmethod

@@ -1,9 +1,8 @@
 """hud.py — компактная сводка по танку в левом нижнем углу."""
 import pygame
 
-from common import clamp
-from ui import get_font, FONT_SIZE_LABEL
 from common import clamp, fmt_num
+from ui import get_text, FONT_SIZE_LABEL
 
 MARGIN = 10          # отступ от краёв окна
 WIDTH = 190
@@ -37,7 +36,6 @@ class TankHud:
             pygame.draw.rect(self._bg, BORDER, self._bg.get_rect(), 1, border_radius=6)
         screen.blit(self._bg, rect.topleft)
 
-        font = get_font(FONT_SIZE_LABEL)
         spec = tank.spec
         x0, x1 = rect.x + PAD, rect.right - PAD
         y = rect.y + PAD
@@ -45,12 +43,12 @@ class TankHud:
         # 1. Здоровье
         hp_frac = clamp(tank.hp / tank.max_hp, 0.0, 1.0) if tank.max_hp > 0 else 0.0
         hp_color = C_HP_OK if hp_frac > 0.6 else C_HP_MID if hp_frac > 0.3 else C_HP_LOW
-        y = self._row(screen, font, x0, x1, y, "Здоровье", f"{fmt_num(tank.hp)} / {fmt_num(tank.max_hp)}")
+        y = self._row(screen, x0, x1, y, "Здоровье", f"{fmt_num(tank.hp)} / {fmt_num(tank.max_hp)}")
         y = self._bar(screen, x0, x1, y, hp_frac, hp_color)
 
         # 2. Урон и пробитие
-        y = self._row(screen, font, x0, x1, y, "Урон", fmt_num(spec.damage))
-        y = self._row(screen, font, x0, x1, y, "Пробитие", f"{spec.penetration:.0f} мм")
+        y = self._row(screen, x0, x1, y, "Урон", fmt_num(spec.damage))
+        y = self._row(screen, x0, x1, y, "Пробитие", f"{spec.penetration:.0f} мм")
 
         # 3. Перезарядка: полоска заполняется после выстрела
         if tank.reload_left <= 0.0 or spec.reload <= 0.0:
@@ -58,21 +56,21 @@ class TankHud:
         else:
             reload_frac = clamp(1.0 - tank.reload_left / spec.reload, 0.0, 1.0)
             reload_text, reload_color = f"{tank.reload_left:.1f} с", C_LOADING
-        y = self._row(screen, font, x0, x1, y, "Перезарядка", reload_text)
+        y = self._row(screen, x0, x1, y, "Перезарядка", reload_text)
         y = self._bar(screen, x0, x1, y, reload_frac, reload_color)
 
         # 4. Скорость
         speed = f"{abs(tank.speed_kmh):.0f} км/ч"
         if tank.speed_kmh < -0.5:
             speed += " (назад)"
-        self._row(screen, font, x0, x1, y, "Скорость", speed)
+        self._row(screen, x0, x1, y, "Скорость", speed)
 
         return rect.top
 
     @staticmethod
-    def _row(screen, font, x0, x1, y, name, value):
-        screen.blit(font.render(name, True, C_DIM), (x0, y))
-        val = font.render(value, True, C_TEXT)
+    def _row(screen, x0, x1, y, name, value):
+        screen.blit(get_text(name, FONT_SIZE_LABEL, C_DIM), (x0, y))
+        val = get_text(value, FONT_SIZE_LABEL, C_TEXT)
         screen.blit(val, val.get_rect(topright=(x1, y)))
         return y + ROW_H
 
