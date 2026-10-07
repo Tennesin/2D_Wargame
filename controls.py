@@ -53,7 +53,6 @@ PRESS_KEYMAP = {
     Action.TOGGLE_BUILD: (pygame.K_b,),
     Action.TOGGLE_FREE_CAM: (pygame.K_l,),
     Action.DELETE_WALL:  (pygame.K_DELETE,),
-    Action.QUIT:         (),
     Action.COMBAT:       (pygame.K_LALT, pygame.K_RALT),
 }
 

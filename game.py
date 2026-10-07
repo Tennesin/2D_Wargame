@@ -74,7 +74,6 @@ class Game:
     def _on_constructor_change(self, values):
         """Ползунок сдвинут: пересчитываем танк и обновляем панель."""
         self.spec = TankSpec.from_values(values)
-        self.tank.spec = self.spec
         self._show_stats()
         self.tank.set_spec(self.spec)
 

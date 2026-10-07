@@ -96,7 +96,6 @@ class TankSpec:
         self.q_gun = cr / self.size_k
         self.q_arm = (self.m_armor / M) / REF_ARMOR_SHARE     # доля брони относительно эталона
         self.l_cal = clamp(40.0 * self.size_k ** 0.45, 30.0, 55.0)  # k^0.45 = прежнее mr^0.15
-        self.s_h = self.size_k
 
     def _calc_mobility(self):
         M = self.mass
@@ -107,7 +106,6 @@ class TankSpec:
         # --- корпус: мощность против сопротивления грунта и инерции ---
         # момент сопротивления ~ M * size_k, момент тяги ~ P * size_k, инерция ~ M * size_k²
         self.q_turn = self.q_pw / self.size_k                     # 1.0 у эталона
-        self.i_hull = (M / REF_MASS) * self.size_k ** 2           # инерция корпуса относительно эталона
         self.hull_turn = max(
             HULL_TURN_MIN,
             HULL_TURN_CAP * (1.0 - math.exp(-math.log(2.0) * self.q_turn)))   # эталон = CAP / 2
@@ -175,9 +173,7 @@ class TankSpec:
         self.build_time = 10.0 * (0.40 * e_armor + 0.20 * e_hull + 0.15 * e_engine + 0.25 * e_gun)
 
     def _calc_engine_names(self):
-        """Имена, которые читает Tank (раньше он брал их из tank_config)."""
-        self.FORWARD_SPEED_PX = self.v_max * KMH_TO_PX
-        self.BACKWARD_SPEED_PX = self.v_back * KMH_TO_PX
+        """Имена, которые читает Tank."""
         self.TURN_SPEED_PENALTY = TURN_SPEED_PENALTY
         self.HULL_ROTATION_SPEED = self.hull_turn
         self.TURRET_ROTATION_SPEED = self.turret_turn
