@@ -43,7 +43,7 @@ class Shell:
     def __init__(self, x, y, heading_deg, spec, origin=None, owner=None):
         self.x, self.y = x, y
         self._sx, self._sy = origin if origin is not None else (x, y)   # откуда считаем отрезок пролёта
-        self.dx, self.dy = _dir(heading_deg)
+        self.dx, self.dy = heading_vector(heading_deg)
         self.speed = spec.SHELL_SPEED_PX
         self.length = spec.SHELL_LEN_PX
         self.thick = spec.SHELL_THICK_PX
