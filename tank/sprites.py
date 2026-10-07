@@ -6,7 +6,7 @@ import pygame
 
 from .params import (TURRET_FRONT_M, TRACK_LINK_M, TRACK_OFFSET_M,
                      BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M)
-from common import LRUCache
+from common import LRUCache, SHADOW_ALPHA
 
 # ==========================================
 # 1. КОНСТАНТЫ РИСОВКИ
@@ -17,13 +17,11 @@ TRACK_PHASES = 6                         # сколько фаз анимаци�
 HULL_SHIFT_M = 0.3                       # корпус сдвинут назад: ось башни = центр спрайта = центр танка
 HULL_HALF_M = 3.7                        # половина стороны квадратной заготовки корпуса, м
 TURRET_HALF_M = 2.1                      # половина стороны заготовки башни (без ствола), м
-TRACK_X = 1.6                            # центр гусеницы от оси, м
+TRACK_X = TRACK_OFFSET_M                 # центр гусеницы от оси, м
 TRACK_W = 0.75
 TRACK_TOP = -3.1                         # передний край гусеницы (в координатах корпуса)
 TRACK_LEN = 6.3
-TRACK_LINK_M = 0.2                       # шаг траков (= Tank.TRACK_STEP / PX_PER_M)
 
-SHADOW_ALPHA = 80
 SHADOW_HULL_M = (0.25, 0.35)             # смещение тени корпуса, м
 SHADOW_TURRET_M = (0.40, 0.55)           # башня выше, поэтому тень дальше
 
@@ -46,7 +44,6 @@ TURRET_DARK = (140, 131, 114)
 GUN = (112, 110, 105)
 GUN_LIGHT = (150, 147, 140)
 GUN_DARK = (62, 60, 56)
-
 
 # ==========================================
 # 2. «РУЧКА» ДЛЯ РИСОВАНИЯ В МЕТРАХ

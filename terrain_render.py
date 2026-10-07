@@ -2,6 +2,7 @@
 import pygame
 
 from terrain import ROCK, DEEP_WATER, MID_WATER, SHALLOWS, MUD
+from common import CONCRETE_SIDE, OUTLINE_DARK
 
 MIN_SCREEN_R = 1.5           # пятна мельче этого радиуса (экранные px) не рисуем
 
@@ -17,12 +18,11 @@ MUD_DARK = (88, 68, 46)
 MUD_EDGE = (72, 56, 40)
 
 ROCK_SHADOW = (40, 62, 40)
-ROCK_SIDE = (92, 92, 96)
+ROCK_SIDE = CONCRETE_SIDE
+ROCK_OUTLINE = OUTLINE_DARK
 ROCK_TOP = (150, 150, 154)
 ROCK_LIT = (178, 178, 182)
 ROCK_FACET = (118, 118, 122)
-ROCK_OUTLINE = (40, 40, 44)
-
 
 def _shrink(pts, cx, cy, k, dx=0.0, dy=0.0):
     """Уменьшить фигуру относительно центра в k раз и сдвинуть."""

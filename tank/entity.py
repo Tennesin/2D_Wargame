@@ -9,8 +9,8 @@ from .params import (KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, TANK_ARMOR_K
                      TRACK_LINK_M, TRACK_OFFSET_M)
 
 class Tank(Damageable):
-    TRACK_STEP = 20.0      # шаг между траками (px эталонного мира; 20 px = 0,2 м)
-    TRACK_RADIUS = 160.0   # расстояние от центра до гусеницы
+    TRACK_STEP = TRACK_LINK_M * PX_PER_M     # шаг между траками, px эталонного мира
+    TRACK_RADIUS = TRACK_OFFSET_M * PX_PER_M # расстояние от центра до гусеницы, px
     AIM_DEAD_ZONE = 100.0  # если курсор ближе к центру танка (1 м), башня не дёргается
 
     def __init__(self, x=0.0, y=0.0, *, spec, team_color=(200, 40, 40)):

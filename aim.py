@@ -6,6 +6,7 @@ import pygame
 
 from ui import get_font, FONT_SIZE_LABEL
 from armor import HitResult
+from gfx import AlphaLayer
 
 LINE_COLOR = (255, 40, 40, 110)      # красный, полупрозрачный
 LINE_WIDTH = 2
@@ -43,6 +44,10 @@ def compute_aim(tank, targets):
     return AimInfo(start, point, target.hit_result(spec.penetration, cos_impact, normal))
 
 class AimRenderer:
+
+    def __init__(self):
+        self._alpha = AlphaLayer()
+
     def draw(self, screen, camera, info):
         a = camera.world_to_screen(*info.start)
         b = camera.world_to_screen(*info.end)
@@ -50,14 +55,13 @@ class AimRenderer:
         if info.result is not None:
             self._draw_label(screen, b, info)
 
-    @staticmethod
-    def _draw_line(screen, a, b, marker):
+    def _draw_line(self, screen, a, b, marker):
         x0, y0 = int(min(a[0], b[0])) - 8, int(min(a[1], b[1])) - 8
         x1, y1 = int(max(a[0], b[0])) + 8, int(max(a[1], b[1])) + 8
         area = pygame.Rect(x0, y0, x1 - x0, y1 - y0).clip(screen.get_rect())
         if area.w <= 0 or area.h <= 0:
             return
-        layer = pygame.Surface(area.size, pygame.SRCALPHA)
+        layer = self._alpha.begin(area.size)
         pa = (a[0] - area.x, a[1] - area.y)
         pb = (b[0] - area.x, b[1] - area.y)
         pygame.draw.line(layer, LINE_COLOR, pa, pb, LINE_WIDTH)
@@ -65,8 +69,7 @@ class AimRenderer:
             pygame.draw.circle(layer, LINE_COLOR, (round(pb[0]), round(pb[1])), 5)
         screen.blit(layer, area.topleft)
 
-    @staticmethod
-    def _draw_label(screen, point, info):
+    def _draw_label(self, screen, point, info):
         res = info.result
         if res.ricochet:
             eff_text = "Приведённая броня: —"
@@ -90,7 +93,7 @@ class AimRenderer:
         rect = pygame.Rect(round(point[0]) + LABEL_OFFSET, round(point[1]) + LABEL_OFFSET, w, h)
         rect.clamp_ip(screen.get_rect())
 
-        layer = pygame.Surface((w, h), pygame.SRCALPHA)
+        layer = self._alpha.begin((w, h))
         pygame.draw.rect(layer, LABEL_BG, layer.get_rect(), border_radius=5)
         y = LABEL_PAD
         for s in surfaces:

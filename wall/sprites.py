@@ -3,13 +3,14 @@ import math
 
 import pygame
 
-from common import PX_PER_M, clamp
+from common import PX_PER_M, clamp, CONCRETE_SIDE, OUTLINE_DARK, SHADOW_ALPHA
 from .params import ROTATE_HANDLE_RADIUS_PX
+from gfx import AlphaLayer
 
-WALL_SIDE = (92, 92, 96)
+WALL_SIDE = CONCRETE_SIDE
 WALL_TOP = (158, 158, 162)
 WALL_JOINT = (132, 132, 136)
-WALL_OUTLINE = (40, 40, 44)
+WALL_OUTLINE = OUTLINE_DARK
 CRACK_COLOR = (36, 34, 32)
 SELECT_COLOR = (255, 220, 80)
 HANDLE_COLOR = (255, 255, 255)
@@ -19,15 +20,17 @@ GHOST_OK_BORDER = (255, 255, 255, 200)
 GHOST_BAD_FILL = (230, 40, 40, 140)
 GHOST_BAD_BORDER = (255, 90, 90, 230)
 
-SHADOW_ALPHA = 80
 SHADOW_OFFSET_M = (0.30, 0.40)
 JOINT_STEP_M = 2.0            # расстояние между швами плит
 BEVEL_M = 0.12                # ширина «боковой грани»
 CRACK_GROW = 0.12             # на сколько «урона» трещина вырастает от начала до полной длины
 CRACK_WIDTH_M = 0.05
 
-
 class WallRenderer:
+
+    def __init__(self):
+        self._alpha = AlphaLayer()
+
     # ---------- помощники ----------
     @staticmethod
     def _to_screen(camera, wall, u, v):
@@ -59,22 +62,29 @@ class WallRenderer:
                 visible.append((wall, quad))
 
         for _, quad in visible:                       # сначала все тени, чтобы не ложились поверх соседей
-            self._draw_shadow(screen, quad, ppm)
+            self._draw_shadows(screen, [quad for _, quad in visible], ppm)
         for wall, quad in visible:
             self._draw_body(screen, camera, wall, quad, ppm)
             self._draw_cracks(screen, camera, wall)
             if wall is walls.selected:
                 self._draw_selection(screen, camera, wall)
 
-    def _draw_shadow(self, screen, quad, ppm):
+    def _draw_shadows(self, screen, quads, ppm):
+        """Все тени за один проход: общий слой, один blit."""
+        if not quads:
+            return
         ox, oy = (v * ppm for v in SHADOW_OFFSET_M)
-        pts = [(x + ox, y + oy) for x, y in quad]
-        area = self._bounds(pts).clip(screen.get_rect())
+        shapes = [[(x + ox, y + oy) for x, y in quad] for quad in quads]
+        area = self._bounds(shapes[0])
+        for pts in shapes[1:]:
+            area = area.union(self._bounds(pts))
+        area = area.clip(screen.get_rect())
         if area.w <= 0 or area.h <= 0:
             return
-        layer = pygame.Surface(area.size, pygame.SRCALPHA)
-        pygame.draw.polygon(layer, (0, 0, 0, SHADOW_ALPHA),
-                            [(x - area.x, y - area.y) for x, y in pts])
+        layer = self._alpha.begin(area.size)
+        for pts in shapes:
+            pygame.draw.polygon(layer, (0, 0, 0, SHADOW_ALPHA),
+                                [(x - area.x, y - area.y) for x, y in pts])
         screen.blit(layer, area.topleft)
 
     def _draw_body(self, screen, camera, wall, quad, ppm):
@@ -134,7 +144,7 @@ class WallRenderer:
             return
         fill, border = (GHOST_BAD_FILL, GHOST_BAD_BORDER) if blocked else (GHOST_OK_FILL, GHOST_OK_BORDER)
         pts = [(x - area.x, y - area.y) for x, y in quad]
-        layer = pygame.Surface(area.size, pygame.SRCALPHA)
+        layer = self._alpha.begin(area.size)
         pygame.draw.polygon(layer, fill, pts)
         pygame.draw.polygon(layer, border, pts, 2)
         screen.blit(layer, area.topleft)
