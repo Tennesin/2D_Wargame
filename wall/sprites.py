@@ -61,8 +61,7 @@ class WallRenderer:
             if self._bounds(quad).inflate(60, 60).colliderect(view):
                 visible.append((wall, quad))
 
-        for _, quad in visible:                       # сначала все тени, чтобы не ложились поверх соседей
-            self._draw_shadows(screen, [quad for _, quad in visible], ppm)
+        self._draw_shadows(screen, [quad for _, quad in visible], ppm)
         for wall, quad in visible:
             self._draw_body(screen, camera, wall, quad, ppm)
             self._draw_cracks(screen, camera, wall)

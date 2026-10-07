@@ -16,6 +16,7 @@ TAU = 2.0 * math.pi
 # ==========================================
 # 1. НАСТРОЙКИ
 # ==========================================
+
 FEATURE_CELL = 3000.0        # размер ячейки генерации, px мира (30 м)
 MAX_PATCH_R = 2600.0         # никакое пятно не выходит за этот радиус от центра (нужно для поиска соседей)
 SPAWN_CLEAR = 600.0          # вокруг точки (0, 0) пятен нет, px
@@ -53,7 +54,6 @@ ROCK_H_K = 0.45
 ROCK_H_MIN, ROCK_H_MAX = 0.5, 4.0
 ROCK_ARMOR_MM = 3000.0       # броня камня: практически непробиваем
 
-
 @dataclass(frozen=True)
 class TerrainKind:
     name: str
@@ -64,9 +64,6 @@ class TerrainKind:
     armor_mm: float = 0.0          # броня для снарядов (имеет смысл, если blocks_shells)
     blocks_shells: bool = False    # останавливает снаряды
 
-
-# Чтобы добавить новый вид, достаточно объявить его здесь, добавить строку в _generate
-# и цвета в terrain_render.py.
 SHALLOWS = TerrainKind("Мелководье", SHALLOWS_K, False, 0)
 MUD = TerrainKind("Грязь", MUD_K, False, 1)
 MID_WATER = TerrainKind("Вода", MID_WATER_K, False, 2)
@@ -74,10 +71,10 @@ DEEP_WATER = TerrainKind("Глубокая вода", 0.0, True, 3)
 ROCK = TerrainKind("Камень", 0.0, True, 4,
                    density=ROCK_DENSITY, armor_mm=ROCK_ARMOR_MM, blocks_shells=True)
 
-
 # ==========================================
 # 2. ПЯТНО
 # ==========================================
+
 def _polygon_area(pts):
     """Площадь многоугольника (формула Гаусса), px²."""
     s = 0.0
@@ -174,7 +171,6 @@ class Patch:
         """Камень неразрушаем: урон не наносится."""
         return 0.0
 
-
 def _make_pts(rng, cx, cy, radius, n, stretch=1.0, rough=0.2, jitter=0.1):
     """Вершины неровной фигуры: радиус меняется плавно (rough) и случайно (jitter),
     затем фигура растягивается в stretch раз и поворачивается."""
@@ -202,6 +198,30 @@ def _scaled(patch, k):
     """Контур пятна, уменьшенный к его центру в k раз."""
     return [(patch.x + (px - patch.x) * k, patch.y + (py - patch.y) * k) for px, py in patch.pts]
 
+def _segments_cross(a, b, c, d):
+    """Пересекаются ли отрезки ab и cd."""
+    def orient(p, q, r):
+        return (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+    return ((orient(a, b, c) > 0) != (orient(a, b, d) > 0)
+            and (orient(c, d, a) > 0) != (orient(c, d, b) > 0))
+
+def patches_overlap(p, q):
+    """Пересекаются ли два пятна (точно, по многоугольникам; сначала дешёвая проверка по кругам)."""
+    dx, dy = p.x - q.x, p.y - q.y
+    lim = p.r_max + q.r_max
+    if dx * dx + dy * dy > lim * lim:
+        return False
+    if any(q.contains(x, y) for x, y in p.pts):      # вершина одного внутри другого
+        return True
+    if any(p.contains(x, y) for x, y in q.pts):
+        return True
+    n, m = len(p.pts), len(q.pts)
+    for i in range(n):                               # рёбра пересекаются без вершин внутри
+        a, b = p.pts[i], p.pts[(i + 1) % n]
+        for j in range(m):
+            if _segments_cross(a, b, q.pts[j], q.pts[(j + 1) % m]):
+                return True
+    return False
 
 # ==========================================
 # 3. КАРТА ПРЕПЯТСТВИЙ
@@ -211,37 +231,31 @@ class TerrainMap:
 
     def __init__(self, seed):
         self.seed = seed
-        self._cells = LRUCache(CELL_CACHE_LIMIT)  # (ix, iy) -> [Patch, ...]
+        self._cells = LRUCache(CELL_CACHE_LIMIT)        # (ix, iy) -> [Patch, ...] итоговые пятна
+        self._raw_cells = LRUCache(CELL_CACHE_LIMIT)    # (ix, iy) -> (озеро, грязь, [камни]) до проверок
+        self._lakes = LRUCache(CELL_CACHE_LIMIT)        # (ix, iy) -> [озеро] или [], прошедшее проверку
 
     # ---------- генерация ----------
-    def _generate(self, ix, iy):
+    def _make_raw(self, ix, iy):
+        """Кандидаты ячейки без учёта соседей: (озеро или None, грязь или None, [камни])."""
         rng = random.Random(hash_int(ix, iy, self.seed + 4242))
         ox, oy = ix * FEATURE_CELL, iy * FEATURE_CELL
-        patches = []
-        lakes = []
 
         def place(kind, radius, n, stretch, rough, jitter):
             x = ox + rng.uniform(0.0, FEATURE_CELL)
             y = oy + rng.uniform(0.0, FEATURE_CELL)
             pts = _make_pts(rng, x, y, radius, n, stretch, rough, jitter)
             patch = Patch(kind, x, y, pts)
-            if math.hypot(x, y) - patch.r_max < SPAWN_CLEAR:     # стартовую площадку не трогаем
+            if math.hypot(x, y) - patch.r_max < SPAWN_CLEAR:  # стартовую площадку не трогаем
                 return None
             return patch
 
+        lake = mud = None
+        rocks = []
         if rng.random() < LAKE_CHANCE:
-            shore = place(SHALLOWS, rng.uniform(*LAKE_RADIUS), 22, rng.uniform(1.0, 1.5), 0.22, 0.04)
-            if shore is not None:
-                lakes.append(shore)
-                patches.append(shore)
-                patches.append(Patch(MID_WATER, shore.x, shore.y, _scaled(shore, MID_SCALE)))
-                patches.append(Patch(DEEP_WATER, shore.x, shore.y, _scaled(shore, DEEP_SCALE)))
-
+            lake = place(SHALLOWS, rng.uniform(*LAKE_RADIUS), 22, rng.uniform(1.0, 1.5), 0.22, 0.04)
         if rng.random() < MUD_CHANCE:
             mud = place(MUD, rng.uniform(*MUD_RADIUS), 16, rng.uniform(1.0, 1.6), 0.28, 0.06)
-            if mud is not None:
-                patches.append(mud)
-
         if rng.random() < ROCK_CELL_CHANCE:
             for _ in range(rng.randint(*ROCKS_PER_CELL)):
                 roll = rng.random()
@@ -252,10 +266,49 @@ class TerrainMap:
                 else:
                     radius = rng.uniform(*ROCK_SMALL)
                 rock = place(ROCK, radius, rng.randint(7, 11), rng.uniform(1.0, 1.7), 0.15, 0.20)
-                if rock is None:
-                    continue
-                if any(lake.contains(rock.x, rock.y) for lake in lakes):   # камней посреди озера не бывает
-                    continue
+                if rock is not None:
+                    rocks.append(rock)
+        return lake, mud, rocks
+
+    def _raw(self, ix, iy):
+        return self._raw_cells.get_or_build((ix, iy), lambda: self._make_raw(ix, iy))
+
+    def _survives(self, patch, rank, ix, iy):
+        """Остаётся ли озеро (rank 0) или грязь (rank 1) этой ячейки: нет ли рядом пересекающегося кандидата
+        с более высоким приоритетом (меньший ключ (rank, ix, iy) побеждает)."""
+        key = (rank, ix, iy)
+        for jy in range(iy - 2, iy + 3):
+            for jx in range(ix - 2, ix + 3):
+                lake, mud, _ = self._raw(jx, jy)
+                for other, other_rank in ((lake, 0), (mud, 1)):
+                    if other is not None and (other_rank, jx, jy) < key and patches_overlap(patch, other):
+                        return False
+        return True
+
+    def _accepted_lake(self, ix, iy):
+        """[озеро ячейки], если оно прошло проверку пересечений, иначе []."""
+
+        def build():
+            lake = self._raw(ix, iy)[0]
+            return [lake] if lake is not None and self._survives(lake, 0, ix, iy) else []
+
+        return self._lakes.get_or_build((ix, iy), build)
+
+    def _generate(self, ix, iy):
+        _, mud, rocks = self._raw(ix, iy)
+        patches = []
+        for shore in self._accepted_lake(ix, iy):
+            patches.append(shore)
+            patches.append(Patch(MID_WATER, shore.x, shore.y, _scaled(shore, MID_SCALE)))
+            patches.append(Patch(DEEP_WATER, shore.x, shore.y, _scaled(shore, DEEP_SCALE)))
+        if mud is not None and self._survives(mud, 1, ix, iy):
+            patches.append(mud)
+
+        # камней посреди озера не бывает, в том числе и озера из соседней ячейки
+        lakes = [lake for jy in range(iy - 1, iy + 2) for jx in range(ix - 1, ix + 2)
+                 for lake in self._accepted_lake(jx, jy)]
+        for rock in rocks:
+            if not any(lake.contains(rock.x, rock.y) for lake in lakes):
                 patches.append(rock)
         return patches
 

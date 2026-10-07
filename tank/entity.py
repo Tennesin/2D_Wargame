@@ -6,7 +6,12 @@ from common import (normalize_angle, shortest_angle_diff, obb_hits_obb, obb_segm
 from armor import resolve_hit, Damageable
 from .params import (KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, TANK_ARMOR_K,
                      TERRAIN_MIN_K, TERRAIN_BRAKE, TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY,
-                     TRACK_LINK_M, TRACK_OFFSET_M, COLLISION_MARGIN_PX,)
+                     TRACK_LINK_M, TRACK_OFFSET_M, COLLISION_MARGIN_PX,
+                     CONTACT_TURN_STEPS, CONTACT_PUSH_STEPS)
+
+# Направления отодвигания корпуса: (вдоль корпуса, поперёк). Назад, вперёд, в стороны и диагонали.
+_NUDGE_DIRS = ((-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0),
+               (-0.7, -0.7), (-0.7, 0.7), (0.7, -0.7), (0.7, 0.7))
 
 class Tank(Damageable):
     TRACK_STEP = TRACK_LINK_M * PX_PER_M     # шаг между траками, px эталонного мира
@@ -117,8 +122,8 @@ class Tank(Damageable):
         s = self.spec
         if normal is None:                      # выстрел начался внутри корпуса
             return s.side * TANK_ARMOR_K
-        rad = math.radians(self.hull_angle)
-        along = normal[0] * math.sin(rad) - normal[1] * math.cos(rad)   # >0 лоб, <0 корма
+        fx, fy = heading_vector(self.hull_angle)
+        along = normal[0] * fx + normal[1] * fy
         if along > 0.5:
             base = s.front
         elif along < -0.5:
@@ -180,17 +185,44 @@ class Tank(Damageable):
 
         old = self.hull_angle
         new = normalize_angle(old + delta)
-        # если поворот упирается в препятствие, поворачиваем только до касания и гасим вращение
         if (self._has_solids(obstacles) and delta != 0
                 and not self._overlaps(self.x, self.y, old, obstacles)
                 and self._overlaps(self.x, self.y, new, obstacles)):
-            frac = find_free_fraction(
-                lambda f: self._overlaps(self.x, self.y, normalize_angle(old + delta * f), obstacles))
-            delta *= frac
-            new = normalize_angle(old + delta)
-            self.hull_rate = 0.0
+            turned = self._turn_with_resistance(old, delta, obstacles)
+            if turned is not None:
+                # поворачиваемся медленнее и «отползаем» от препятствия; hull_rate не гасим,
+                # поэтому сопротивление действует, пока игрок держит поворот
+                new, ox, oy, delta = turned
+                self.x += ox
+                self.y += oy
+            else:
+                # подобрать не удалось: поворачиваем до касания и гасим вращение
+                frac = find_free_fraction(
+                    lambda f: self._overlaps(self.x, self.y, normalize_angle(old + delta * f), obstacles))
+                delta *= frac
+                new = normalize_angle(old + delta)
+                self.hull_rate = 0.0
         self.hull_angle = new
         return delta
+
+    def _turn_with_resistance(self, old, delta, obstacles):
+        """Поворот на delta упёрся в препятствие. Пробуем повернуть на часть угла и чуть сдвинуть корпус
+        от препятствия. Возвращает (новый угол, смещение x, смещение y, применённый угол) или None."""
+        s = self.spec
+        radius = max(math.hypot(s.COLLISION_HALF_W_PX, s.COLLISION_HALF_L_PX), s.BARREL_COLL_END_PX)
+        fx, fy = heading_vector(old)
+        rx, ry = -fy, fx  # вправо от корпуса
+        for k in CONTACT_TURN_STEPS:
+            part = delta * k
+            new = normalize_angle(old + part)
+            push_max = radius * math.radians(abs(part)) * 1.5 + 0.5  # на столько угол мог «въехать» в препятствие
+            for f in CONTACT_PUSH_STEPS:
+                for a, b in _NUDGE_DIRS:
+                    ox = (fx * a + rx * b) * push_max * f
+                    oy = (fy * a + ry * b) * push_max * f
+                    if not self._overlaps(self.x + ox, self.y + oy, new, obstacles):
+                        return new, ox, oy, part
+        return None
 
     def _drive(self, throttle, steer, dt, obstacles=()):
         self._update_speed(throttle, steer, dt)

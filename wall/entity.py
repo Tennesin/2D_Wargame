@@ -151,9 +151,6 @@ class WallManager:
     def add(self, wall):
         self.items.append(wall)
 
-    def obbs(self):
-        return [w.obb() for w in self.items]
-
     def pick(self, x, y):
         """Верхняя стена под точкой мира или None."""
         for wall in reversed(self.items):

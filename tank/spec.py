@@ -93,7 +93,7 @@ class TankSpec:
         self.q_pw = self.pw / REF_PW                          # мощность относительно эталона
         self.q_gun = cr / self.size_k
         self.q_arm = (self.m_armor / M) / REF_ARMOR_SHARE     # доля брони относительно эталона
-        self.l_cal = clamp(40.0 * self.size_k ** 0.45, 30.0, 55.0)  # k^0.45 = прежнее mr^0.15
+        self.l_cal = clamp(40.0 * self.size_k ** 0.45, 30.0, 55.0)
 
     def _calc_mobility(self):
         M = self.mass

@@ -6,7 +6,7 @@ import pygame
 
 from .params import (TURRET_FRONT_M, TRACK_LINK_M, TRACK_OFFSET_M,
                      BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M)
-from common import LRUCache, SHADOW_ALPHA
+from common import LRUCache, SHADOW_ALPHA, heading_vector
 
 # ==========================================
 # 1. КОНСТАНТЫ РИСОВКИ
@@ -133,13 +133,12 @@ class TankRenderer:
         turret_rot = pygame.transform.rotozoom(turret, -tank.turret_angle, ts)
         barrel_rot = pygame.transform.rotozoom(barrel, -tank.turret_angle, ts)
 
-        # ствол — отдельный спрайт: его центр лежит на оси башни на расстоянии f от центра танка
-        # (откат просто уменьшает f)
-        a = math.radians(tank.turret_angle)
+        # ствол — отдельный спрайт
+        fx, fy = heading_vector(tank.turret_angle)
         f = (TURRET_FRONT_M + bl * BARREL_LEN_STEP_M / 2.0 - BARREL_HIDDEN_M / 2.0 - tank.recoil_m) * ppm * ts
         hull_rect = hull_rot.get_rect(center=(cx, cy))
         turret_rect = turret_rot.get_rect(center=(cx, cy))
-        barrel_rect = barrel_rot.get_rect(center=(round(cx + math.sin(a) * f), round(cy - math.cos(a) * f)))
+        barrel_rect = barrel_rot.get_rect(center=(round(cx + fx * f), round(cy + fy * f)))
 
         # --- тень: все силуэты в общий буфер непрозрачным чёрным, потом буфер целиком полупрозрачно ---
         hox, hoy = (round(v * ppm * hs) for v in SHADOW_HULL_M)
