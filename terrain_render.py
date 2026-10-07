@@ -1,14 +1,15 @@
-"""terrain_render.py — отрисовка естественных препятствий: вода, грязь, камни."""
+"""terrain_render.py — отрисовка естественных препятствий: вода (три зоны), грязь, камни."""
 import pygame
 
-from terrain import ROCK, DEEP_WATER, SHALLOWS, MUD
+from terrain import ROCK, DEEP_WATER, MID_WATER, SHALLOWS, MUD
 
 MIN_SCREEN_R = 1.5           # пятна мельче этого радиуса (экранные px) не рисуем
 
 SHALLOW_FILL = (124, 186, 198)
 SHALLOW_FOAM = (206, 234, 238)
-DEEP_FILL = (52, 116, 168)
-DEEP_CORE = (40, 98, 150)
+MID_FILL = (78, 152, 190)
+MID_EDGE = (96, 168, 204)
+DEEP_FILL = (44, 106, 158)
 DEEP_EDGE = (34, 84, 130)
 
 MUD_FILL = (108, 86, 58)
@@ -45,9 +46,11 @@ class TerrainRenderer:
             if kind is SHALLOWS:
                 pygame.draw.polygon(screen, SHALLOW_FILL, pts)
                 pygame.draw.polygon(screen, SHALLOW_FOAM, pts, 2)
+            elif kind is MID_WATER:
+                pygame.draw.polygon(screen, MID_FILL, pts)
+                pygame.draw.polygon(screen, MID_EDGE, pts, 1)
             elif kind is DEEP_WATER:
                 pygame.draw.polygon(screen, DEEP_FILL, pts)
-                pygame.draw.polygon(screen, DEEP_CORE, _shrink(pts, cx, cy, 0.6))
                 pygame.draw.polygon(screen, DEEP_EDGE, pts, 1)
             elif kind is MUD:
                 pygame.draw.polygon(screen, MUD_FILL, pts)

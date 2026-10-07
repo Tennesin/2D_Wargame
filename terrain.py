@@ -1,13 +1,15 @@
 """terrain.py — естественные препятствия: камни, вода, грязь.
 Мир делится на большие ячейки; в каждой по seed создаётся набор «пятен» — многоугольников
 разной формы и размера. У пятна есть вид местности: непроходимый (solid) или замедляющий (speed_k < 1).
+Камни ещё и останавливают снаряды (blocks_shells) и имеют массу (заготовка для тарана).
 Здесь нет pygame: рисует terrain_render.py."""
 import math
 import random
 from collections import OrderedDict
 from dataclasses import dataclass
 
-from common import obb_hits_convex
+from armor import resolve_hit
+from common import PX_PER_M, clamp, obb_hits_convex
 from core import hash_int
 
 TAU = 2.0 * math.pi
@@ -20,40 +22,74 @@ MAX_PATCH_R = 2600.0         # никакое пятно не выходит з�
 SPAWN_CLEAR = 600.0          # вокруг точки (0, 0) пятен нет, px
 CELL_CACHE_LIMIT = 600
 
-LAKE_CHANCE = 0.12           # вероятность озера в ячейке
+# --- озёра: три вложенные зоны ---
+LAKE_CHANCE = 0.28           # вероятность озера в ячейке
 LAKE_RADIUS = (900.0, 2000.0)
-DEEP_SCALE = 0.60            # глубокая часть озера: доля размера мелководья
+MID_SCALE = 0.68             # зона «вода» (брод): доля размера мелководья
+DEEP_SCALE = 0.38            # глубокая часть (непроходима): доля размера мелководья
 
-MUD_CHANCE = 0.14
+# --- грязь ---
+MUD_CHANCE = 0.35
 MUD_RADIUS = (500.0, 1400.0)
 
-ROCKS_PER_CELL = (0, 6)      # сколько камней на ячейку (min, max)
+# --- камни ---
+ROCK_CELL_CHANCE = 0.55      # вероятность, что в ячейке вообще есть камни
+ROCKS_PER_CELL = (1, 3)      # сколько камней в такой ячейке (min, max)
 ROCK_SMALL = (80.0, 200.0)   # радиус, px (0,8–2 м)
 ROCK_MEDIUM = (250.0, 450.0)
 ROCK_BIG = (600.0, 1000.0)   # скальные гряды
 ROCK_MEDIUM_P = 0.23         # доля средних
 ROCK_BIG_P = 0.07            # доля больших
 
+# --- множители скорости ---
+SHALLOWS_K = 0.60            # мелководье: замедление 40%
+MID_WATER_K = 0.40           # вода средней глубины: замедление 60%
+MUD_K = 0.40
+
+# --- масса камней ---
+ROCK_DENSITY = 2.7           # гранит, т/м³
+ROCK_SHAPE_K = 0.65          # камень — не коробка, а «купол»: доля от площадь × высота
+ROCK_H_BASE = 0.4            # высота = ROCK_H_BASE + ROCK_H_K × (радиус круга той же площади, м)
+ROCK_H_K = 0.45
+ROCK_H_MIN, ROCK_H_MAX = 0.5, 4.0
+ROCK_ARMOR_MM = 3000.0       # броня камня: практически непробиваем
+
 
 @dataclass(frozen=True)
 class TerrainKind:
     name: str
-    speed_k: float           # множитель скорости: 1.0 как трава, 0.0 — нельзя
-    solid: bool              # блокирует корпус
-    layer: int               # порядок рисования: меньше — раньше
+    speed_k: float                 # множитель скорости: 1.0 как трава, 0.0 — нельзя
+    solid: bool                    # блокирует корпус
+    layer: int                     # порядок рисования: меньше — раньше
+    density: float = 0.0           # т/м³; 0 — масса не считается (вода, грязь)
+    armor_mm: float = 0.0          # броня для снарядов (имеет смысл, если blocks_shells)
+    blocks_shells: bool = False    # останавливает снаряды
 
 
 # Чтобы добавить новый вид, достаточно объявить его здесь, добавить строку в _generate
 # и цвета в terrain_render.py.
-SHALLOWS = TerrainKind("Мелководье", 0.30, False, 0)
-MUD = TerrainKind("Грязь", 0.40, False, 1)
-DEEP_WATER = TerrainKind("Глубокая вода", 0.0, True, 2)
-ROCK = TerrainKind("Камень", 0.0, True, 3)
+SHALLOWS = TerrainKind("Мелководье", SHALLOWS_K, False, 0)
+MUD = TerrainKind("Грязь", MUD_K, False, 1)
+MID_WATER = TerrainKind("Вода", MID_WATER_K, False, 2)
+DEEP_WATER = TerrainKind("Глубокая вода", 0.0, True, 3)
+ROCK = TerrainKind("Камень", 0.0, True, 4,
+                   density=ROCK_DENSITY, armor_mm=ROCK_ARMOR_MM, blocks_shells=True)
 
 
 # ==========================================
 # 2. ПЯТНО
 # ==========================================
+def _polygon_area(pts):
+    """Площадь многоугольника (формула Гаусса), px²."""
+    s = 0.0
+    n = len(pts)
+    for i in range(n):
+        x0, y0 = pts[i]
+        x1, y1 = pts[(i + 1) % n]
+        s += x0 * y1 - x1 * y0
+    return abs(s) / 2.0
+
+
 class Patch:
     """Одно препятствие: звёздчатый многоугольник вокруг центра (мировые px)."""
 
@@ -62,11 +98,30 @@ class Patch:
         self.x, self.y = x, y
         self.pts = pts
         self.r_max = max(math.hypot(px - x, py - y) for px, py in pts)
+        self.area_m2 = _polygon_area(pts) / (PX_PER_M * PX_PER_M)
         n = len(pts)
         # треугольники для столкновений нужны только твёрдым пятнам
         self.tris = ([((x, y), pts[i], pts[(i + 1) % n]) for i in range(n)]
                      if kind.solid else ())
 
+    # ---------- вес (заготовка для тарана) ----------
+    @property
+    def height_m(self):
+        if self.kind.density <= 0.0:
+            return 0.0
+        r_eq = math.sqrt(self.area_m2 / math.pi)
+        return clamp(ROCK_H_BASE + ROCK_H_K * r_eq, ROCK_H_MIN, ROCK_H_MAX)
+
+    @property
+    def volume_m3(self):
+        return self.area_m2 * self.height_m * ROCK_SHAPE_K
+
+    @property
+    def mass_t(self):
+        """Масса, т (0 для воды и грязи)."""
+        return self.volume_m3 * self.kind.density
+
+    # ---------- геометрия ----------
     def contains(self, x, y):
         """Лежит ли точка внутри многоугольника."""
         dx, dy = x - self.x, y - self.y
@@ -82,6 +137,43 @@ class Patch:
                 inside = not inside
             j = i
         return inside
+
+    def segment_hit(self, x0, y0, x1, y1):
+        """Первое пересечение отрезка с границей: (t, normal) или None.
+        normal — наружная нормаль ребра (None, если отрезок начинается внутри пятна)."""
+        if self.contains(x0, y0):
+            return 0.0, None
+        rx, ry = x1 - x0, y1 - y0
+        best_t, best_n = None, None
+        pts = self.pts
+        n = len(pts)
+        for i in range(n):
+            ax, ay = pts[i]
+            bx, by = pts[(i + 1) % n]
+            sx, sy = bx - ax, by - ay
+            denom = rx * sy - ry * sx
+            if abs(denom) < 1e-9:
+                continue
+            qx, qy = ax - x0, ay - y0
+            t = (qx * sy - qy * sx) / denom
+            u = (qx * ry - qy * rx) / denom
+            if 0.0 <= t <= 1.0 and 0.0 <= u <= 1.0 and (best_t is None or t < best_t):
+                ln = math.hypot(sx, sy)
+                if ln < 1e-9:
+                    continue
+                nx, ny = sy / ln, -sx / ln
+                if nx * ((ax + bx) / 2.0 - self.x) + ny * ((ay + by) / 2.0 - self.y) < 0.0:
+                    nx, ny = -nx, -ny                    # нормаль должна смотреть наружу
+                best_t, best_n = t, (nx, ny)
+        return None if best_t is None else (best_t, best_n)
+
+    # ---------- интерфейс цели для снарядов ----------
+    def hit_result(self, penetration, cos_impact=1.0, normal=None):
+        return resolve_hit(penetration, self.kind.armor_mm, cos_impact)
+
+    def take_hit(self, penetration, damage, cos_impact=1.0, normal=None):
+        """Камень неразрушаем: урон не наносится."""
+        return 0.0
 
 
 def _make_pts(rng, cx, cy, radius, n, stretch=1.0, rough=0.2, jitter=0.1):
@@ -107,11 +199,16 @@ def _make_pts(rng, cx, cy, radius, n, stretch=1.0, rough=0.2, jitter=0.1):
     return pts
 
 
+def _scaled(patch, k):
+    """Контур пятна, уменьшенный к его центру в k раз."""
+    return [(patch.x + (px - patch.x) * k, patch.y + (py - patch.y) * k) for px, py in patch.pts]
+
+
 # ==========================================
 # 3. КАРТА ПРЕПЯТСТВИЙ
 # ==========================================
 class TerrainMap:
-    """Всё о препятствиях: что где лежит, что под точкой, мешает ли прямоугольник."""
+    """Всё о препятствиях: что где лежит, что под точкой, мешает ли прямоугольник, куда попал снаряд."""
 
     def __init__(self, seed):
         self.seed = seed
@@ -122,6 +219,7 @@ class TerrainMap:
         rng = random.Random(hash_int(ix, iy, self.seed + 4242))
         ox, oy = ix * FEATURE_CELL, iy * FEATURE_CELL
         patches = []
+        lakes = []
 
         def place(kind, radius, n, stretch, rough, jitter):
             x = ox + rng.uniform(0.0, FEATURE_CELL)
@@ -135,26 +233,30 @@ class TerrainMap:
         if rng.random() < LAKE_CHANCE:
             shore = place(SHALLOWS, rng.uniform(*LAKE_RADIUS), 22, rng.uniform(1.0, 1.5), 0.22, 0.04)
             if shore is not None:
+                lakes.append(shore)
                 patches.append(shore)
-                deep = [(shore.x + (px - shore.x) * DEEP_SCALE,
-                         shore.y + (py - shore.y) * DEEP_SCALE) for px, py in shore.pts]
-                patches.append(Patch(DEEP_WATER, shore.x, shore.y, deep))
+                patches.append(Patch(MID_WATER, shore.x, shore.y, _scaled(shore, MID_SCALE)))
+                patches.append(Patch(DEEP_WATER, shore.x, shore.y, _scaled(shore, DEEP_SCALE)))
 
         if rng.random() < MUD_CHANCE:
             mud = place(MUD, rng.uniform(*MUD_RADIUS), 16, rng.uniform(1.0, 1.6), 0.28, 0.06)
             if mud is not None:
                 patches.append(mud)
 
-        for _ in range(rng.randint(*ROCKS_PER_CELL)):
-            roll = rng.random()
-            if roll < ROCK_BIG_P:
-                radius = rng.uniform(*ROCK_BIG)
-            elif roll < ROCK_BIG_P + ROCK_MEDIUM_P:
-                radius = rng.uniform(*ROCK_MEDIUM)
-            else:
-                radius = rng.uniform(*ROCK_SMALL)
-            rock = place(ROCK, radius, rng.randint(7, 11), rng.uniform(1.0, 1.7), 0.15, 0.20)
-            if rock is not None:
+        if rng.random() < ROCK_CELL_CHANCE:
+            for _ in range(rng.randint(*ROCKS_PER_CELL)):
+                roll = rng.random()
+                if roll < ROCK_BIG_P:
+                    radius = rng.uniform(*ROCK_BIG)
+                elif roll < ROCK_BIG_P + ROCK_MEDIUM_P:
+                    radius = rng.uniform(*ROCK_MEDIUM)
+                else:
+                    radius = rng.uniform(*ROCK_SMALL)
+                rock = place(ROCK, radius, rng.randint(7, 11), rng.uniform(1.0, 1.7), 0.15, 0.20)
+                if rock is None:
+                    continue
+                if any(lake.contains(rock.x, rock.y) for lake in lakes):   # камней посреди озера не бывает
+                    continue
                 patches.append(rock)
         return patches
 
@@ -212,3 +314,17 @@ class TerrainMap:
                 if obb_hits_convex(cx, cy, hw, hl, ang, tri):
                     return True
         return False
+
+    def raycast(self, x0, y0, x1, y1):
+        """Ближайшее пятно, останавливающее снаряды, на отрезке: (patch, t, normal) или None.
+        Тот же формат, что у WallManager.raycast, поэтому карта подключается в TargetSet как есть."""
+        mx, my = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+        radius = math.hypot(x1 - x0, y1 - y0) / 2.0
+        best = None
+        for p in self._near(mx, my, radius):
+            if not p.kind.blocks_shells:
+                continue
+            res = p.segment_hit(x0, y0, x1, y1)
+            if res is not None and (best is None or res[0] < best[1]):
+                best = (p, res[0], res[1])
+        return best

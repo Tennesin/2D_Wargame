@@ -47,7 +47,7 @@ class Game:
         self.spec = TankSpec.from_values(self.ui.get_values())
         self.tank = Tank(0.0, 0.0, spec=self.spec)
         self.walls = WallManager()
-        self.targets = TargetSet(self.walls)     # всё, во что можно попасть. Враги: self.targets.add(enemy_tank)
+        self.targets = TargetSet(self.walls, self.terrain)
         self.ui.on_change = self._on_constructor_change
         self.ui.on_wall_change = self._on_wall_change
         self.ui.on_wall_delete = self._delete_selected_wall

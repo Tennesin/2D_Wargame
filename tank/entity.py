@@ -40,6 +40,11 @@ class Tank:
     def max_hp(self):
         return self.spec.hp
 
+    @property
+    def mass_t(self):
+        """Масса танка, т (для тарана: такой же интерфейс, как у Wall.mass_t и Patch.mass_t)."""
+        return self.spec.mass
+
     def set_spec(self, spec):
         """Новая спецификация (ползунки конструктора). Доля здоровья сохраняется."""
         frac = self.hp / self.spec.hp if self.spec.hp > 0 else 1.0
