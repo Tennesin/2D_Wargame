@@ -3,14 +3,14 @@ import math
 import random
 
 from common import PX_PER_M, clamp, obb_segment_hit
-from armor import resolve_hit
+from armor import resolve_hit, Damageable
 from .params import (
     WALL_PARAMS, WALL_ARMOR_K, WALL_HEIGHT_M, WALL_DENSITY_T_M3,
 )
 
 CRACK_COUNT_MIN, CRACK_COUNT_MAX = 8, 40
 
-class Wall:
+class Wall(Damageable):
     """Осевой прямоугольник на земле. x, y — центр (мировые px). Ширина по X, длина по Y."""
 
     def __init__(self, x, y, hp, width_m, length_m, angle=0.0):
@@ -95,12 +95,6 @@ class Wall:
         """Результат попадания (универсальный интерфейс цели). normal стене не нужна:
         броня одинакова со всех сторон."""
         return resolve_hit(penetration, self.armor_mm, cos_impact)
-
-    def take_hit(self, penetration, damage, cos_impact=1.0, normal=None):
-        """Попадание снаряда: урон умножается на смягчённую долю. Возвращает нанесённый урон."""
-        dealt = damage * self.hit_result(penetration, cos_impact, normal).damage_frac
-        self.hp = max(0.0, self.hp - dealt)
-        return dealt
 
     # ---------- геометрия ----------
     def contains_point(self, x, y):

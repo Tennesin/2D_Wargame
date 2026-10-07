@@ -5,7 +5,7 @@ from enum import Enum, auto
 
 import pygame
 
-from common import PX_PER_M, shortest_angle_diff
+from common import PX_PER_M, shortest_angle_diff, fmt_num
 from core import Camera, WorldGenerator, CHUNK_SIZE
 from tank import Tank, TankSpec
 from wall import (Wall, WallManager, PLACE_REPEAT,
@@ -21,6 +21,7 @@ from armor import TargetSet
 from terrain import TerrainMap
 
 PAN_DRAG_THRESHOLD_PX = 5     # на сколько px надо сдвинуть мышь с зажатой ПКМ, чтобы это считалось перетаскиванием
+DEBUG_PRINT_SPECS = False     # печатать характеристики танка в консоль при запуске
 
 class Mode(Enum):
     DRIVE = auto()       # езда и стрельба
@@ -44,8 +45,7 @@ class Game:
         self.camera = Camera(*self.screen.get_size())
         self.ui = ConstructorUI(self.screen.get_size())
         self.toolbar = ToolBar()
-        self.spec = TankSpec.from_values(self.ui.get_values())
-        self.tank = Tank(0.0, 0.0, spec=self.spec)
+        self.tank = Tank(0.0, 0.0, spec=TankSpec.from_values(self.ui.get_values()))
         self.walls = WallManager()
         self.targets = TargetSet(self.walls, self.terrain)
         self.ui.on_change = self._on_constructor_change
@@ -62,7 +62,8 @@ class Game:
         self.free_camera = False         # свободная камера (L): не следует за танком, двигается зажатой ПКМ
         self._pan_state = None           # при нажатой ПКМ: {"start", "last", "dragged"}
 
-        self.spec.print_specs()
+        if DEBUG_PRINT_SPECS:
+            self.tank.spec.print_specs()
         self.input = InputHandler([self.toolbar, self.ui])
         self.renderer = Renderer(self.world, self.terrain)
         self.effects = EffectsSystem()
@@ -73,12 +74,12 @@ class Game:
     # ==========================================
     def _on_constructor_change(self, values):
         """Ползунок сдвинут: пересчитываем танк и обновляем панель."""
-        self.spec = TankSpec.from_values(values)
+        self.tank.set_spec(TankSpec.from_values(values))  # доля HP сохраняется внутри set_spec
         self._show_stats()
-        self.tank.set_spec(self.spec)
 
     def _show_stats(self):
-        for name, text in {**self.spec.main_stats(), **self.spec.internal_stats()}.items():
+        spec = self.tank.spec
+        for name, text in {**spec.main_stats(), **spec.internal_stats()}.items():
             self.ui.set_stat(name, text)
 
     # ==========================================
@@ -137,8 +138,6 @@ class Game:
     def _handle_hotkeys(self):
         """Разовые клавиши, меняющие состояние игры."""
         inp = self.input
-        if inp.was_pressed(Action.QUIT):
-            inp.quit_requested = True
         if inp.was_pressed(Action.TOGGLE_DEBUG):
             self.show_debug = not self.show_debug
         if inp.was_pressed(Action.LOCK_TURRET):
@@ -328,8 +327,8 @@ class Game:
         wall = self.walls.selected
         if wall is None:
             return
-        self.ui.set_stat("Текущее HP", f"{wall.hp:,.0f} / {wall.max_hp:,.0f}".replace(",", " "))
-        self.ui.set_stat("Масса стены", f"{wall.mass_t:,.1f} т".replace(",", " "))
+        self.ui.set_stat("Текущее HP", f"{fmt_num(wall.hp)} / {fmt_num(wall.max_hp)}")
+        self.ui.set_stat("Масса стены", f"{fmt_num(wall.mass_t, 1)} т")
         self.ui.set_stat("Толщина", f"{wall.thickness_m:.2f} м")
         self.ui.set_stat("Эквивалент брони", f"{wall.armor_mm:.0f} мм")
         self.ui.set_stat("Угол", f"{wall.angle:.0f} °")
@@ -414,7 +413,7 @@ class Game:
                 self.effects.spawn_shot(shot, self.tank.spec, self.tank)
             if not self.free_camera:
                 self.camera.center_on(self.tank.x, self.tank.y)
-            hits = self.effects.update(dt, self.camera, self.targets)
+            hits = self.effects.update(dt, self.targets)
             self._apply_hits(hits)
             self._show_wall_stats()
 

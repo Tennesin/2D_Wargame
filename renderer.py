@@ -1,10 +1,8 @@
 """renderer.py — вся отрисовка: земля (чанки с зумом), декор, танк, отладка."""
 import math
-from collections import OrderedDict
-
 import pygame
 
-from common import PX_PER_M
+from common import PX_PER_M, LRUCache
 from core import CHUNK_SIZE, CELL_SIZE
 from tank import TankRenderer
 from wall import WallRenderer
@@ -37,8 +35,8 @@ class Renderer:
         self._zoom = None                   # зум, под который сейчас построены кэши
         self._ppm = 0.0                     # пикселей экрана на метр эталонного спрайта (= PX_PER_M * zoom)
 
-        self._chunk_cache = OrderedDict()   # (cx, cy, lod) -> Surface, как построено (без масштаба)
-        self._scaled_cache = OrderedDict()  # (cx, cy) -> Surface, уже под текущий зум
+        self._chunk_cache = LRUCache()  # (cx, cy, lod) -> Surface, как построено (без масштаба)
+        self._scaled_cache = LRUCache()  # (cx, cy) -> Surface, уже под текущий зум
 
         self.tank_renderer = TankRenderer()
         self.wall_renderer = WallRenderer()
@@ -104,37 +102,22 @@ class Renderer:
                 visible += 1
 
         limit = max(MIN_CACHED_CHUNKS, visible + 12)
-        self._trim_ordered(self._chunk_cache, limit)
-        self._trim_ordered(self._scaled_cache, limit)
-
-    @staticmethod
-    def _trim_ordered(cache, limit):
-        while len(cache) > limit:
-            cache.popitem(last=False)
+        self._chunk_cache.trim(limit)
+        self._scaled_cache.trim(limit)
 
     def _get_scaled_chunk(self, cx, cy, lod, size):
         key = (cx, cy)
         tile = self._scaled_cache.get(key)
-        if tile is None:
-            base = self._get_chunk(cx, cy, lod)
-            tile = base if base.get_width() == size else pygame.transform.smoothscale(base, (size, size))
-            self._scaled_cache[key] = tile
-        else:
-            self._scaled_cache.move_to_end(key)
-            bkey = (cx, cy, lod)
-            if bkey in self._chunk_cache:
-                self._chunk_cache.move_to_end(bkey)
+        if tile is not None:
+            self._chunk_cache.get((cx, cy, lod))  # освежаем базовый чанк, чтобы его не вытеснило
+            return tile
+        base = self._get_chunk(cx, cy, lod)
+        tile = base if base.get_width() == size else pygame.transform.smoothscale(base, (size, size))
+        self._scaled_cache.put(key, tile)
         return tile
 
     def _get_chunk(self, cx, cy, lod):
-        key = (cx, cy, lod)
-        chunk = self._chunk_cache.get(key)
-        if chunk is None:
-            chunk = self._build_chunk(cx, cy, lod)
-            self._chunk_cache[key] = chunk
-        else:
-            self._chunk_cache.move_to_end(key)
-        return chunk
+        return self._chunk_cache.get_or_build((cx, cy, lod), lambda: self._build_chunk(cx, cy, lod))
 
     def _build_chunk(self, cx, cy, lod):
         """Чанк в уменьшенном виде: при lod=4 это 8x8 клеток вместо 32x32 (в 16 раз меньше расчётов шума)."""

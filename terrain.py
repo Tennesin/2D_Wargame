@@ -5,11 +5,10 @@
 Здесь нет pygame: рисует terrain_render.py."""
 import math
 import random
-from collections import OrderedDict
 from dataclasses import dataclass
 
 from armor import resolve_hit
-from common import PX_PER_M, clamp, obb_hits_convex
+from common import PX_PER_M, clamp, obb_hits_convex, LRUCache
 from core import hash_int
 
 TAU = 2.0 * math.pi
@@ -212,7 +211,7 @@ class TerrainMap:
 
     def __init__(self, seed):
         self.seed = seed
-        self._cells = OrderedDict()              # (ix, iy) -> [Patch, ...]
+        self._cells = LRUCache(CELL_CACHE_LIMIT)  # (ix, iy) -> [Patch, ...]
 
     # ---------- генерация ----------
     def _generate(self, ix, iy):
@@ -261,14 +260,7 @@ class TerrainMap:
         return patches
 
     def _cell(self, ix, iy):
-        key = (ix, iy)
-        cell = self._cells.get(key)
-        if cell is None:
-            cell = self._generate(ix, iy)
-            self._cells[key] = cell
-            while len(self._cells) > CELL_CACHE_LIMIT:
-                self._cells.popitem(last=False)
-        return cell
+        return self._cells.get_or_build((ix, iy), lambda: self._generate(ix, iy))
 
     # ---------- поиск ----------
     def _near(self, x, y, radius):

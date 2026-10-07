@@ -3,6 +3,7 @@ import pygame
 
 from common import clamp
 from ui import get_font, FONT_SIZE_LABEL
+from common import clamp, fmt_num
 
 MARGIN = 10          # отступ от краёв окна
 WIDTH = 190
@@ -22,12 +23,6 @@ C_HP_MID = (230, 200, 70)
 C_HP_LOW = (230, 80, 70)
 C_LOADING = (230, 170, 60)
 C_READY = (90, 200, 90)
-
-
-def _fmt(value):
-    """Число с пробелом между тысячами: 2400 -> '2 400'."""
-    return f"{value:,.0f}".replace(",", " ")
-
 
 class TankHud:
     def __init__(self):
@@ -50,11 +45,11 @@ class TankHud:
         # 1. Здоровье
         hp_frac = clamp(tank.hp / tank.max_hp, 0.0, 1.0) if tank.max_hp > 0 else 0.0
         hp_color = C_HP_OK if hp_frac > 0.6 else C_HP_MID if hp_frac > 0.3 else C_HP_LOW
-        y = self._row(screen, font, x0, x1, y, "Здоровье", f"{_fmt(tank.hp)} / {_fmt(tank.max_hp)}")
+        y = self._row(screen, font, x0, x1, y, "Здоровье", f"{fmt_num(tank.hp)} / {fmt_num(tank.max_hp)}")
         y = self._bar(screen, x0, x1, y, hp_frac, hp_color)
 
         # 2. Урон и пробитие
-        y = self._row(screen, font, x0, x1, y, "Урон", _fmt(spec.damage))
+        y = self._row(screen, font, x0, x1, y, "Урон", fmt_num(spec.damage))
         y = self._row(screen, font, x0, x1, y, "Пробитие", f"{spec.penetration:.0f} мм")
 
         # 3. Перезарядка: полоска заполняется после выстрела

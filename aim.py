@@ -1,9 +1,7 @@
 """aim.py — линия траектории выстрела и подпись пробития.
 compute_aim считает, куда полетит снаряд (те же формулы, что у Shell), AimRenderer рисует."""
-import math
 from dataclasses import dataclass
 from typing import Optional
-
 import pygame
 
 from ui import get_font, FONT_SIZE_LABEL
@@ -31,8 +29,7 @@ def compute_aim(tank, targets):
     """Траектория от дульного среза вдоль башни. Отрезок для проверки начинается в центре танка,
     как и у настоящего снаряда (Shell), поэтому результат совпадает с реальным выстрелом."""
     spec = tank.spec
-    rad = math.radians(tank.turret_angle)
-    dx, dy = math.sin(rad), -math.cos(rad)
+    dx, dy = heading_vector(tank.turret_angle)
     start = (tank.x + dx * spec.MUZZLE_DIST_PX, tank.y + dy * spec.MUZZLE_DIST_PX)
     end = (start[0] + dx * spec.SHELL_RANGE_PX, start[1] + dy * spec.SHELL_RANGE_PX)
 

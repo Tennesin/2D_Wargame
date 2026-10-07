@@ -1,21 +1,20 @@
 """tank/spec.py — формулы конструктора: входные параметры -> все характеристики танка."""
 import math
 
-from common import PX_PER_M, clamp
+from common import PX_PER_M, clamp, fmt_num
 from .params import (
     PARAMS, REF_CAL, REF_POWER, REF_MASS, REF_FILLING, REF_ARMOR_MASS, REF_PW,
-    REF_ARMOR_SHARE, TURN_SPEED_PENALTY, KMH_TO_PX, TURRET_FRONT_M,
-    BARREL_VISIBLE_K, BARREL_THICK_REF_M, SHELL_LEN_K,
-    FRONT_AREA_M2, SIDE_AREA_M2, REAR_AREA_M2, STEEL_T_PER_M3,
+    REF_ARMOR_SHARE, TURRET_FRONT_M, BARREL_VISIBLE_K, BARREL_THICK_REF_M,
+    SHELL_LEN_K, FRONT_AREA_M2, SIDE_AREA_M2, REAR_AREA_M2, STEEL_T_PER_M3,
     HULL_COLL_HALF_W_M, HULL_COLL_HALF_L_M, HULL_COLL_SHIFT_M,
     ACCEL_K, ACCEL_MIN, ACCEL_MAX, ACCEL_TAIL_FLOOR, REVERSE_ACCEL_K,
     COAST_DECEL, BRAKE_DECEL, HULL_TURN_CAP, HULL_TURN_MIN, HULL_ALPHA_REF,
     HULL_ALPHA_MIN, HULL_ALPHA_MAX, GUN_ARM_BASE_M, GUN_ARM_BARREL_K,
     TURRET_TURN_REF, TURRET_TURN_MIN, TURRET_TURN_MAX, TURRET_POWER_EXP,
-    TURRET_INERTIA_EXP, TURRET_SPINUP_REF, TURRET_RADIUS_M,
+    TURRET_INERTIA_EXP, TURRET_SPINUP_REF, TURRET_RADIUS_M, BARREL_LEN_STEP_M,
 )
 
-# Границы входов берём из params (раньше они дублировались здесь)
+# Границы входов берём из params
 _CAL = PARAMS["gun_caliber_mm"]
 _FRONT = PARAMS["front_armor_mm"]
 _SIDE = PARAMS["side_armor_mm"]
@@ -57,16 +56,15 @@ class TankSpec:
 
     # ---------- расчёт: порядок вызовов важен, каждый метод использует результаты предыдущих ----------
     def _calc(self):
-        self._calc_mass()          # 1. масса
-        self._calc_internal()      # 2. внутренние переменные
-        self._calc_mobility()      # 3. ход и повороты
-        self._calc_gun()           # 4. орудие
-        self._calc_hp()            # 5. HP
-        self._calc_economy()       # 6. стоимость и время
-        self._calc_engine_names()  # 7. имена для Tank
-        self._calc_visual()        # 8. внешний вид
-        self._calc_collision()     # 9. размеры для столкновений
-        self._calc_shot()          # 10. выстрел и эффекты
+        self._calc_mass()  # 1. масса
+        self._calc_internal()  # 2. внутренние переменные
+        self._calc_mobility()  # 3. ход и повороты
+        self._calc_gun()  # 4. орудие
+        self._calc_hp()  # 5. HP
+        self._calc_economy()  # 6. стоимость и время
+        self._calc_visual()  # 7. внешний вид
+        self._calc_collision()  # 8. размеры для столкновений
+        self._calc_shot()  # 9. выстрел и эффекты
 
     def _calc_mass(self):
         cal, P = self.cal, self.power
@@ -172,19 +170,13 @@ class TankSpec:
         self.cost = 500000.0 * (0.30 * e_armor + 0.15 * e_hull + 0.20 * e_engine + 0.35 * e_gun)
         self.build_time = 10.0 * (0.40 * e_armor + 0.20 * e_hull + 0.15 * e_engine + 0.25 * e_gun)
 
-    def _calc_engine_names(self):
-        """Имена, которые читает Tank."""
-        self.TURN_SPEED_PENALTY = TURN_SPEED_PENALTY
-        self.HULL_ROTATION_SPEED = self.hull_turn
-        self.TURRET_ROTATION_SPEED = self.turret_turn
-
     def _calc_visual(self):
         cal = self.cal
         cr = cal / REF_CAL
 
         self.HULL_SCALE = self.size_k
         self.TURRET_SCALE = self.size_k * clamp(cr ** 0.35, 0.8, 1.15)
-        self.BARREL_LEN_M = round(cal * self.l_cal / 1000.0 * BARREL_VISIBLE_K / 0.25) * 0.25
+        self.BARREL_LEN_M = round(cal * self.l_cal / 1000.0 * BARREL_VISIBLE_K / BARREL_LEN_STEP_M) * BARREL_LEN_STEP_M
         self.BARREL_THICK_M = max(0.18, BARREL_THICK_REF_M * cr ** 0.7)
 
     def _calc_collision(self):
@@ -239,9 +231,9 @@ class TankSpec:
     def main_stats(self):
         """Расчётные характеристики: {название: готовая строка} (порядок = порядок в панели)."""
         return {
-            "Стоимость": f"{self.cost:,.0f}".replace(",", " "),
+            "Стоимость": fmt_num(self.cost),
             "Время производства": f"{self.build_time:.1f} с",
-            "HP": f"{self.hp:,.0f}".replace(",", " "),
+            "HP": fmt_num(self.hp),
             "Масса": f"{self.mass:.1f} т",
             "Макс. скорость": f"{self.v_max:.0f} км/ч",
             "Средняя скорость": f"{self.v_avg:.0f} км/ч",

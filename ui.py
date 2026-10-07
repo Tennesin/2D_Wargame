@@ -1,12 +1,11 @@
 """ui.py — интерфейс конструктора техники: правая панель с открытием/закрытием.
 
-Виджеты (get_font, wrap_text, Button, Slider, ScrollArea) адаптированы
-из widgets.txt: убраны зависимости от settings и ImageManager.
-"""
+Содержит виджеты, панель инструментов и панель конструктора."""
 import pygame
 
 from tank import TankSpec, PARAMS
 from wall import WALL_PARAMS
+from functools import partial
 
 # ==========================================
 # 1. НАСТРОЙКИ ВНЕШНЕГО ВИДА
@@ -55,7 +54,7 @@ DELETE_BUTTON_COLORS = {             # красная кнопка «Удали�
 PANEL_TITLES = {"tank": "Конструктор техники", "wall": "Настройки стены"}
 
 # ==========================================
-# 2. ОБЩИЕ ПОМОЩНИКИ (из widgets.txt)
+# 2. ОБЩИЕ ПОМОЩНИКИ
 # ==========================================
 _font_cache = {}
 
@@ -86,7 +85,7 @@ def wrap_text(font, text, max_width):
 
 
 # ==========================================
-# 3. БАЗОВЫЕ ВИДЖЕТЫ (из widgets.txt)
+# 3. БАЗОВЫЕ ВИДЖЕТЫ
 # ==========================================
 class Button:
     def __init__(self, rect, label, enabled=True):
@@ -229,8 +228,13 @@ class ParamRow:
         surface.blit(val, val.get_rect(topright=(self.rect.right, self.rect.y + 4)))
         self.slider.draw(surface)
 
+def make_param_row(params, key):
+    """Строка-ползунок по описанию параметра params[key] (Param)."""
+    p = params[key]
+    return ParamRow(key, p.label, p.unit, p.min, p.max, p.default, p.step, p.decimals)
+
 class StatsBlock:
-    """Блок «название ... значение». Значения пока прочерки — их потом заполнят формулы."""
+    """Блок «название ... значение»."""
     ROW_H = 24
 
     def __init__(self, names):
@@ -359,9 +363,7 @@ class ConstructorUI:
     def _build_items(self):
         spec0 = TankSpec.from_config()      # нужен только ради списка названий характеристик
 
-        def row(key):
-            p = PARAMS[key]
-            return ParamRow(key, p.label, p.unit, p.min, p.max, p.default, p.step, p.decimals)
+        row = partial(make_param_row, PARAMS)
 
         return [
             SectionHeader("Вооружение"),
@@ -383,9 +385,7 @@ class ConstructorUI:
         ]
 
     def _build_wall_items(self):
-        def row(key):
-            p = WALL_PARAMS[key]
-            return ParamRow(key, p.label, p.unit, p.min, p.max, p.default, p.step, p.decimals)
+        row = partial(make_param_row, WALL_PARAMS)
 
         def delete():
             if self.on_wall_delete:

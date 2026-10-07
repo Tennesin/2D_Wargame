@@ -1,6 +1,7 @@
 """common.py — общее для мира и техники: масштаб, математика, команда машине, событие выстрела.
 Не импортирует ни core, ни tank, поэтому циклических импортов не возникает."""
 import math
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
@@ -39,10 +40,79 @@ def lerp(a, b, t):
 def lerp_color(c1, c2, t):
     return tuple(int(lerp(a, b, t)) for a, b in zip(c1, c2))
 
+def heading_vector(angle_deg):
+    """Единичный вектор «вперёд» для угла (0 = вверх, по часовой): (x, y) в экранных/мировых осях."""
+    rad = math.radians(angle_deg)
+    return math.sin(rad), -math.cos(rad)
+
+
+def find_free_fraction(is_blocked, iterations=8):
+    """Бисекция: наибольшая доля пути 0..1, при которой is_blocked(доля) ещё False.
+    Вызывать, когда известно, что при 0 свободно, а при 1 занято."""
+    lo, hi = 0.0, 1.0
+    for _ in range(iterations):
+        mid = (lo + hi) / 2.0
+        if is_blocked(mid):
+            hi = mid
+        else:
+            lo = mid
+    return lo
+
+
+def fmt_num(value, decimals=0):
+    """Число с пробелом между тысячами: fmt_num(2400) -> '2 400'."""
+    return f"{value:,.{decimals}f}".replace(",", " ")
+
+
+class LRUCache:
+    """Кэш с вытеснением давно не использованных записей. limit=None: без ограничения
+    (тогда размер можно подрезать вручную через trim(limit))."""
+
+    def __init__(self, limit=None):
+        self.limit = limit
+        self._data = OrderedDict()
+
+    def get(self, key):
+        """Значение или None; найденная запись становится «свежей»."""
+        value = self._data.get(key)
+        if value is not None:
+            self._data.move_to_end(key)
+        return value
+
+    def put(self, key, value):
+        self._data[key] = value
+        self._data.move_to_end(key)
+        self.trim()
+
+    def get_or_build(self, key, builder):
+        """Взять из кэша или вызвать builder() и сохранить результат."""
+        value = self.get(key)
+        if value is None:
+            value = builder()
+            self.put(key, value)
+        return value
+
+    def trim(self, limit=None):
+        """Выбросить самые старые записи, пока их больше limit (по умолчанию self.limit)."""
+        if limit is None:
+            limit = self.limit
+        if limit is None:
+            return
+        while len(self._data) > limit:
+            self._data.popitem(last=False)
+
+    def clear(self):
+        self._data.clear()
+
+    def __len__(self):
+        return len(self._data)
+
+    def __contains__(self, key):
+        return key in self._data
+
 def _obb_axes(heading_deg):
     """Две оси повёрнутого прямоугольника: (вправо, вперёд). Угол как у танка: 0 = вверх, по часовой."""
-    rad = math.radians(heading_deg)
-    fx, fy = math.sin(rad), -math.cos(rad)
+    fx, fy = heading_vector(heading_deg)
     return (-fy, fx), (fx, fy)
 
 def obb_hits_obb(cx1, cy1, hw1, hl1, ang1, cx2, cy2, hw2, hl2, ang2):

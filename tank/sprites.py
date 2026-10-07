@@ -4,7 +4,9 @@ import math
 
 import pygame
 
-from .params import TURRET_FRONT_M
+from .params import (TURRET_FRONT_M, TRACK_LINK_M, TRACK_OFFSET_M,
+                     BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M)
+from common import LRUCache
 
 # ==========================================
 # 1. КОНСТАНТЫ РИСОВКИ
@@ -99,12 +101,12 @@ class _Pen:
 # ==========================================
 class TankRenderer:
     def __init__(self):
-        self._ppm = 0.0                     # пикселей экрана на метр эталонного спрайта (= PX_PER_M * zoom)
-        self._hull_cache = {}               # (фаза левой, фаза правой, цвет) -> Surface
-        self._turret_cache = {}             # цвет -> Surface
-        self._barrel_cache = {}             # (длина, толщина) -> Surface
-        self._sil_cache = {}                # ключ -> силуэт для тени
-        self._shadow_buf = None             # создаётся и растёт по мере надобности
+        self._ppm = 0.0
+        self._hull_cache = LRUCache(40)  # (фаза левой, фаза правой, цвет) -> Surface
+        self._turret_cache = LRUCache(8)  # цвет -> Surface
+        self._barrel_cache = LRUCache(40)  # (длина, толщина) -> Surface
+        self._sil_cache = LRUCache(120)  # ключ -> силуэт для тени
+        self._shadow_buf = None
 
     def set_zoom(self, ppm):
         """Вызывается при смене зума: запоминает масштаб и сбрасывает кэши спрайтов."""
@@ -120,8 +122,8 @@ class TankRenderer:
 
         spec = tank.spec
         hs, ts = spec.HULL_SCALE, spec.TURRET_SCALE
-        bl = int(round(spec.BARREL_LEN_M / 0.25))          # длина ствола в шагах по 0.25 м (меньше вариантов в кэше)
-        bt = int(round(spec.BARREL_THICK_M / 0.02))        # толщина в шагах по 2 см
+        bl = int(round(spec.BARREL_LEN_M / BARREL_LEN_STEP_M))  # длина ствола в шагах
+        bt = int(round(spec.BARREL_THICK_M / BARREL_THICK_STEP_M))  # толщина в шагах
         team = tank.team_color
         lp = int(tank.left_track_offset / tank.TRACK_STEP * TRACK_PHASES) % TRACK_PHASES
         rp = int(tank.right_track_offset / tank.TRACK_STEP * TRACK_PHASES) % TRACK_PHASES
@@ -137,7 +139,7 @@ class TankRenderer:
         # ствол — отдельный спрайт: его центр лежит на оси башни на расстоянии f от центра танка
         # (откат просто уменьшает f)
         a = math.radians(tank.turret_angle)
-        f = (TURRET_FRONT_M + bl * 0.125 - 0.25 - tank.recoil_m) * ppm * ts
+        f = (TURRET_FRONT_M + bl * BARREL_LEN_STEP_M / 2.0 - BARREL_HIDDEN_M / 2.0 - tank.recoil_m) * ppm * ts
         hull_rect = hull_rot.get_rect(center=(cx, cy))
         turret_rect = turret_rot.get_rect(center=(cx, cy))
         barrel_rect = barrel_rot.get_rect(center=(round(cx + math.sin(a) * f), round(cy - math.cos(a) * f)))
@@ -183,44 +185,18 @@ class TankRenderer:
             self._shadow_buf.set_alpha(SHADOW_ALPHA)
         return self._shadow_buf
 
-    @staticmethod
-    def _trim_cache(cache, limit):
-        """Не даёт кэшу расти бесконечно при перетаскивании ползунков."""
-        while len(cache) > limit:
-            cache.pop(next(iter(cache)))      # самый старый ключ
-
     def _get_sil(self, key, surface):
-        sil = self._sil_cache.get(key)
-        if sil is None:
-            sil = self._make_silhouette(surface)
-            self._sil_cache[key] = sil
-            self._trim_cache(self._sil_cache, 120)
-        return sil
+        return self._sil_cache.get_or_build(key, lambda: self._make_silhouette(surface))
 
     def _get_hull(self, lp, rp, team_color):
-        key = (lp, rp, team_color)
-        surf = self._hull_cache.get(key)
-        if surf is None:
-            surf = self._build_hull(lp, rp, team_color)
-            self._hull_cache[key] = surf
-            self._trim_cache(self._hull_cache, 40)
-        return surf
+        return self._hull_cache.get_or_build(
+            (lp, rp, team_color), lambda: self._build_hull(lp, rp, team_color))
 
     def _get_turret(self, team_color):
-        surf = self._turret_cache.get(team_color)
-        if surf is None:
-            surf = self._build_turret(team_color)
-            self._turret_cache[team_color] = surf
-        return surf
+        return self._turret_cache.get_or_build(team_color, lambda: self._build_turret(team_color))
 
     def _get_barrel(self, bl, bt):
-        key = (bl, bt)
-        surf = self._barrel_cache.get(key)
-        if surf is None:
-            surf = self._build_barrel(bl, bt)
-            self._barrel_cache[key] = surf
-            self._trim_cache(self._barrel_cache, 40)
-        return surf
+        return self._barrel_cache.get_or_build((bl, bt), lambda: self._build_barrel(bl, bt))
 
     # ---------- построение спрайтов ----------
     @staticmethod
@@ -298,9 +274,9 @@ class TankRenderer:
     def _build_barrel(self, bl, bt):
         """Ствол: узкая вертикальная картинка (дульный срез сверху). Центр — середина видимой длины."""
         ppm = self._ppm
-        length = bl * 0.25
-        thick = bt * 0.02
-        half = (length + 0.5) / 2.0                      # +0.5 м уходит под башню
+        length = bl * BARREL_LEN_STEP_M
+        thick = bt * BARREL_THICK_STEP_M
+        half = (length + BARREL_HIDDEN_M) / 2.0  # часть уходит под башню
         w = max(2, 2 * math.ceil((thick + 0.30) * ppm / 2.0))
         h = max(2, round(2.0 * half * ppm))
         big = pygame.Surface((w * SS, h * SS), pygame.SRCALPHA)

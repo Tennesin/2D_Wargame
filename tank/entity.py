@@ -2,12 +2,13 @@
 import math
 
 from common import (normalize_angle, shortest_angle_diff, obb_hits_obb, obb_segment_hit,
-                    VehicleCommand, Shot)
-from armor import resolve_hit
+                    VehicleCommand, Shot, PX_PER_M, heading_vector, find_free_fraction)
+from armor import resolve_hit, Damageable
 from .params import (KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, TANK_ARMOR_K,
-                     TERRAIN_MIN_K, TERRAIN_BRAKE, TERRAIN_ROLL_DECEL)
+                     TERRAIN_MIN_K, TERRAIN_BRAKE, TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY,
+                     TRACK_LINK_M, TRACK_OFFSET_M)
 
-class Tank:
+class Tank(Damageable):
     TRACK_STEP = 20.0      # шаг между траками (px эталонного мира; 20 px = 0,2 м)
     TRACK_RADIUS = 160.0   # расстояние от центра до гусеницы
     AIM_DEAD_ZONE = 100.0  # если курсор ближе к центру танка (1 м), башня не дёргается
@@ -55,16 +56,14 @@ class Tank:
     def _hull_obb(self, x, y, angle):
         """Прямоугольник корпуса: центр лежит позади оси башни."""
         s = self.spec
-        rad = math.radians(angle)
-        fx, fy = math.sin(rad), -math.cos(rad)
+        fx, fy = heading_vector(angle)
         return (x - fx * s.COLLISION_SHIFT_PX, y - fy * s.COLLISION_SHIFT_PX,
                 s.COLLISION_HALF_W_PX, s.COLLISION_HALF_L_PX, angle)
 
     def _barrel_obb(self, x, y, angle):
         """Прямоугольник ствола. angle — АБСОЛЮТНЫЙ угол башни. Центр лежит на оси башни."""
         s = self.spec
-        rad = math.radians(angle)
-        fx, fy = math.sin(rad), -math.cos(rad)
+        fx, fy = heading_vector(angle)
         mid = (s.BARREL_COLL_START_PX + s.BARREL_COLL_END_PX) / 2.0
         half = (s.BARREL_COLL_END_PX - s.BARREL_COLL_START_PX) / 2.0
         return (x + fx * mid, y + fy * mid, s.BARREL_COLL_HALF_W_PX, half, angle)
@@ -123,12 +122,6 @@ class Tank:
     def hit_result(self, penetration, cos_impact=1.0, normal=None):
         return resolve_hit(penetration, self.armor_at(normal), cos_impact)
 
-    def take_hit(self, penetration, damage, cos_impact=1.0, normal=None):
-        """Попадание снаряда: урон умножается на смягчённую долю. Возвращает нанесённый урон."""
-        dealt = damage * self.hit_result(penetration, cos_impact, normal).damage_frac
-        self.hp = max(0.0, self.hp - dealt)
-        return dealt
-
     def update(self, command: VehicleCommand, dt, obstacles=(), terrain=None):
         """obstacles — повёрнутые прямоугольники стен (x, y, half_w, half_l, angle).
         terrain — карта естественных препятствий (TerrainMap) или None."""
@@ -148,8 +141,7 @@ class Tank:
             self.terrain_k = 1.0
             return
         hx, hy, _, half_l, angle = self._hull_obb(self.x, self.y, self.hull_angle)
-        rad = math.radians(angle)
-        fx, fy = math.sin(rad), -math.cos(rad)
+        fx, fy = heading_vector(angle)
         reach = half_l * 0.8
         total = 0.0
         for d in (-reach, 0.0, reach):
@@ -172,7 +164,7 @@ class Tank:
         s = self.spec
         # на ходу развернуться тяжелее, чем с места
         speed_k = 1.0 - HULL_TURN_SPEED_LOSS * min(1.0, abs(self.speed_kmh) / s.v_max)
-        target = steer * s.HULL_ROTATION_SPEED * speed_k * (0.5 + 0.5 * self.terrain_k)
+        target = steer * s.hull_turn * speed_k * (0.5 + 0.5 * self.terrain_k)
         self.hull_rate = self._approach(self.hull_rate, target,
                                         s.hull_alpha, s.hull_alpha * HULL_BRAKE_K, dt)
         delta = self.hull_rate * dt
@@ -183,14 +175,9 @@ class Tank:
         if (self._has_solids(obstacles) and delta != 0
                 and not self._overlaps(self.x, self.y, old, obstacles)
                 and self._overlaps(self.x, self.y, new, obstacles)):
-            lo, hi = 0.0, 1.0
-            for _ in range(8):
-                mid = (lo + hi) / 2.0
-                if self._overlaps(self.x, self.y, normalize_angle(old + delta * mid), obstacles):
-                    hi = mid
-                else:
-                    lo = mid
-            delta *= lo
+            frac = find_free_fraction(
+                lambda f: self._overlaps(self.x, self.y, normalize_angle(old + delta * f), obstacles))
+            delta *= frac
             new = normalize_angle(old + delta)
             self.hull_rate = 0.0
         self.hull_angle = new
@@ -198,41 +185,36 @@ class Tank:
 
     def _drive(self, throttle, steer, dt, obstacles=()):
         self._update_speed(throttle, steer, dt)
-        distance = self.speed_kmh * KMH_TO_PX * dt          # со знаком: минус = назад
+        distance = self.speed_kmh * KMH_TO_PX * dt  # со знаком: минус = назад
         if distance == 0.0:
             return 0.0
 
-        rad = math.radians(self.hull_angle)
-        dx = math.sin(rad) * distance
-        dy = -math.cos(rad) * distance
+        fx, fy = heading_vector(self.hull_angle)
+        dx = fx * distance
+        dy = fy * distance
 
         new_x, new_y = self.x + dx, self.y + dy
-        # если путь упирается в препятствие, подъезжаем вплотную (деление отрезка пополам)
+        # если путь упирается в препятствие, подъезжаем вплотную
         if (self._has_solids(obstacles)
                 and not self._overlaps(self.x, self.y, self.hull_angle, obstacles)
                 and self._overlaps(new_x, new_y, self.hull_angle, obstacles)):
-            lo, hi = 0.0, 1.0
-            for _ in range(8):
-                mid = (lo + hi) / 2.0
-                if self._overlaps(self.x + dx * mid, self.y + dy * mid, self.hull_angle, obstacles):
-                    hi = mid
-                else:
-                    lo = mid
-            new_x, new_y = self.x + dx * lo, self.y + dy * lo
+            frac = find_free_fraction(
+                lambda f: self._overlaps(self.x + dx * f, self.y + dy * f, self.hull_angle, obstacles))
+            new_x, new_y = self.x + dx * frac, self.y + dy * frac
 
         moved = math.hypot(new_x - self.x, new_y - self.y)
-        if moved < abs(distance) * 0.999:                    # путь урезан препятствием: танк встал
+        if moved < abs(distance) * 0.999:  # путь урезан препятствием: танк встал
             self.speed_kmh = 0.0
         self.x, self.y = new_x, new_y
-        return math.copysign(moved, distance)                # гусеницы крутятся только на реально пройденный путь
+        return math.copysign(moved, distance)  # гусеницы крутятся только на реально пройденный путь
 
     def _update_speed(self, throttle, steer, dt):
         """Приближает текущую скорость к целевой с учётом разгона, наката и торможения."""
         s = self.spec
         cap_fwd, cap_back = s.v_max, s.v_back
-        if steer != 0:                                       # на повороте потолок скорости ниже
-            cap_fwd *= s.TURN_SPEED_PENALTY
-            cap_back *= s.TURN_SPEED_PENALTY
+        if steer != 0:
+            cap_fwd *= TURN_SPEED_PENALTY
+            cap_back *= TURN_SPEED_PENALTY
         cap_fwd *= self.terrain_k                            # вязкая местность: потолок ниже
         cap_back *= self.terrain_k
 
@@ -273,7 +255,7 @@ class Tank:
         return v
 
     def _animate_tracks(self, distance, delta_hull):
-        scale = getattr(self.spec, "HULL_SCALE", 1.0)
+        scale = self.spec.HULL_SCALE
         rot_dist = math.radians(delta_hull) * self.TRACK_RADIUS
         # Поворот вправо (delta_hull > 0): левая гусеница едет вперёд, правая назад.
         # "Вперёд" для узора = отрицательное смещение. distance переводим в пиксели спрайта.
@@ -292,7 +274,7 @@ class Tank:
                 diff = shortest_angle_diff(target_abs, self.turret_angle)
                 # скорость, с которой ещё успеем затормозить к цели: v = sqrt(2·α·путь)
                 allowed = math.sqrt(2.0 * s.turret_alpha * abs(diff))
-                target_rate = math.copysign(min(s.TURRET_ROTATION_SPEED, allowed), diff)
+                target_rate = math.copysign(min(s.turret_turn, allowed), diff)
 
         # цели нет (Q, курсор над интерфейсом) — башня плавно останавливается по инерции
         self.turret_rate = self._approach(self.turret_rate, target_rate,
@@ -306,14 +288,9 @@ class Tank:
         if (obstacles and delta != 0
                 and not self._barrel_hits(self.x, self.y, self.hull_angle + old, obstacles)
                 and self._barrel_hits(self.x, self.y, self.hull_angle + old + delta, obstacles)):
-            lo, hi = 0.0, 1.0
-            for _ in range(8):
-                mid = (lo + hi) / 2.0
-                if self._barrel_hits(self.x, self.y, self.hull_angle + old + delta * mid, obstacles):
-                    hi = mid
-                else:
-                    lo = mid
-            delta *= lo
+            frac = find_free_fraction(
+                lambda f: self._barrel_hits(self.x, self.y, self.hull_angle + old + delta * f, obstacles))
+            delta *= frac
             self.turret_rate = 0.0
         self.turret_rel_angle = (old + delta) % 360.0
 
@@ -326,17 +303,14 @@ class Tank:
 
         self.reload_left = self.spec.reload
         self.since_shot = 0.0
-        rad = math.radians(self.turret_angle)
-        dist = self.spec.MUZZLE_DIST_PX
-        return Shot(self.x + math.sin(rad) * dist,
-                    self.y - math.cos(rad) * dist,
-                    self.turret_angle)
+        mx, my = self.muzzle_point()
+        return Shot(mx, my, self.turret_angle)
 
     def muzzle_point(self):
         """Текущая позиция дульного среза (мировые px)."""
-        rad = math.radians(self.turret_angle)
+        fx, fy = heading_vector(self.turret_angle)
         dist = self.spec.MUZZLE_DIST_PX
-        return self.x + math.sin(rad) * dist, self.y - math.cos(rad) * dist
+        return self.x + fx * dist, self.y + fy * dist
 
     @property
     def recoil_m(self):

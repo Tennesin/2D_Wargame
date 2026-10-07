@@ -5,6 +5,7 @@ import random
 
 import pygame
 from armor import is_ricochet
+from common import heading_vector
 
 SHELL_COLOR = (205, 160, 105)       # светло-коричневый
 SHELL_LIGHT = (234, 202, 154)       # блик по центру
@@ -35,13 +36,6 @@ SCORCH_MAX_ALPHA = 150
 SMOKE_MAX_ALPHA = 190
 SMOKE_POINTS = 12                    # из скольких отрезков состоит одна полоска
 
-
-def _dir(heading_deg):
-    """Угол (0 = вверх, по часовой) -> единичный вектор на экране/в мире."""
-    rad = math.radians(heading_deg)
-    return math.sin(rad), -math.cos(rad)
-
-
 # ==========================================
 # СНАРЯД
 # ==========================================
@@ -66,7 +60,7 @@ class Shell:
         self.bounces = 0                  # сколько раз уже отскочил
         self.ricochet_at = None           # (x, y), если рикошет случился в этом кадре (читает EffectsSystem)
 
-    def update(self, dt, camera, targets=None):
+    def update(self, dt, targets=None):
         step = min(self.speed * dt, self.range_left)
         nx = self.x + self.dx * step
         ny = self.y + self.dy * step
@@ -140,7 +134,7 @@ class Shell:
 class MuzzleFlash:
     def __init__(self, x, y, heading_deg, spec, anchor=None):
         self.x, self.y = x, y
-        self.dx, self.dy = _dir(heading_deg)
+        self.dx, self.dy = heading_vector(heading_deg)
         self.px, self.py = -self.dy, self.dx            # перпендикуляр (вправо от ствола)
         self.size = spec.FLASH_SIZE_PX
         self.life = spec.FLASH_TIME
@@ -151,10 +145,10 @@ class MuzzleFlash:
     def alive(self):
         return self.age < self.life
 
-    def update(self, dt, camera):
+    def update(self, dt):
         if self.anchor is not None:
             self.x, self.y = self.anchor.muzzle_point()
-            self.dx, self.dy = _dir(self.anchor.turret_angle)
+            self.dx, self.dy = heading_vector(self.anchor.turret_angle)
             self.px, self.py = -self.dy, self.dx
         self.age += dt
 
@@ -210,14 +204,14 @@ class SmokeStreak:
     def _set_pose(self, x, y, heading_deg):
         """Начало полоски и направление веера (по текущему положению ствола)."""
         self.x, self.y = x, y
-        self.dx, self.dy = _dir(heading_deg + self.rel)
+        self.dx, self.dy = heading_vector(heading_deg + self.rel)
         self.px, self.py = -self.dy, self.dx
 
     @property
     def alive(self):
         return self.age < self.life
 
-    def update(self, dt, camera):
+    def update(self, dt):
         if self.anchor is not None:
             self._set_pose(*self.anchor.muzzle_point(), self.anchor.turret_angle)
         self.age += dt
@@ -265,7 +259,7 @@ class Explosion:
     def alive(self):
         return self.age < self.life
 
-    def update(self, dt, camera):
+    def update(self, dt):
         self.age += dt
 
     def draw(self, screen, camera):
@@ -307,7 +301,7 @@ class Scorch:
     def alive(self):
         return self.age < self.life
 
-    def update(self, dt, camera):
+    def update(self, dt):
         self.age += dt
 
     def draw(self, overlay, camera):
@@ -342,7 +336,7 @@ class Spark:
     def alive(self):
         return self.age < self.life
 
-    def update(self, dt, camera):
+    def update(self, dt):
         self.age += dt
 
     def draw(self, screen, camera):
@@ -371,11 +365,11 @@ class EffectsSystem:
         self._rng = random.Random()
 
     def spawn_shot(self, shot, spec, tank=None):
-        dx, dy = _dir(shot.angle)
+        dx, dy = heading_vector(shot.angle)
         origin = (shot.x - dx * spec.MUZZLE_DIST_PX,        # центр танка: оттуда считаем первый отрезок пролёта
                   shot.y - dy * spec.MUZZLE_DIST_PX)
         self.shells.append(Shell(shot.x, shot.y, shot.angle, spec, origin, owner=tank))
-        self.flashes.append(MuzzleFlash(shot.x, shot.y, shot.angle, spec))
+        self.flashes.append(MuzzleFlash(shot.x, shot.y, shot.angle, spec, anchor=tank))
         for _ in range(spec.SMOKE_STREAKS):
             self.smoke.append(SmokeStreak(shot.x, shot.y, shot.angle, spec, self._rng, anchor=tank))
 
@@ -383,14 +377,14 @@ class EffectsSystem:
         self.explosions.append(Explosion(shell.x, shell.y, shell.spec, self._rng))
         self.scorches.append(Scorch(shell.x, shell.y, shell.spec, self._rng))
 
-    def update(self, dt, camera, targets=None):
+    def update(self, dt, targets=None):
         """Возвращает попадания [(цель, spec, cos_impact, normal, power), ...]:
         урон применяет Game, а не эффекты."""
         for shell in self.shells:
-            shell.update(dt, camera, targets)
+            shell.update(dt, targets)
         for group in (self.flashes, self.smoke, self.explosions, self.scorches, self.sparks):
             for obj in group:
-                obj.update(dt, camera)
+                obj.update(dt)
 
         hits = []
         for shell in self.shells:
