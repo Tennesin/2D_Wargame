@@ -7,6 +7,7 @@ from typing import Optional
 import pygame
 
 from ui import get_font, FONT_SIZE_LABEL
+from armor import HitResult
 
 LINE_COLOR = (255, 40, 40, 110)      # красный, полупрозрачный
 LINE_WIDTH = 2
@@ -22,15 +23,11 @@ C_CHANCE = (240, 210, 70)
 
 @dataclass
 class AimInfo:
-    start: tuple                      # дульный срез (мировые px)
-    end: tuple                        # точка попадания в стену или конец дальности
-    wall: Optional[object] = None     # стена на пути (None, если линия свободна)
-    armor: float = 0.0                # исходная броня, мм
-    eff_armor: Optional[float] = None # приведённая броня, мм (None = рикошет)
-    chance: float = 0.0               # шанс пробития 0..1
+    start: tuple                          # дульный срез (мировые px)
+    end: tuple                            # точка попадания или конец дальности
+    result: Optional[HitResult] = None    # результат попадания (None, если линия свободна)
 
-
-def compute_aim(tank, walls):
+def compute_aim(tank, targets):
     """Траектория от дульного среза вдоль башни. Отрезок для проверки начинается в центре танка,
     как и у настоящего снаряда (Shell), поэтому результат совпадает с реальным выстрелом."""
     spec = tank.spec
@@ -39,23 +36,21 @@ def compute_aim(tank, walls):
     start = (tank.x + dx * spec.MUZZLE_DIST_PX, tank.y + dy * spec.MUZZLE_DIST_PX)
     end = (start[0] + dx * spec.SHELL_RANGE_PX, start[1] + dy * spec.SHELL_RANGE_PX)
 
-    hit = walls.raycast(tank.x, tank.y, end[0], end[1])
+    hit = targets.raycast(tank.x, tank.y, end[0], end[1], ignore=tank)
     if hit is None:
         return AimInfo(start, end)
 
-    wall, t, normal = hit
+    target, t, normal = hit
     point = (tank.x + (end[0] - tank.x) * t, tank.y + (end[1] - tank.y) * t)
     cos_impact = 1.0 if normal is None else abs(dx * normal[0] + dy * normal[1])
-    eff, chance = wall.pierce_check(spec.penetration, cos_impact)
-    return AimInfo(start, point, wall, wall.armor_mm, eff, chance)
-
+    return AimInfo(start, point, target.hit_result(spec.penetration, cos_impact, normal))
 
 class AimRenderer:
     def draw(self, screen, camera, info):
         a = camera.world_to_screen(*info.start)
         b = camera.world_to_screen(*info.end)
-        self._draw_line(screen, a, b, marker=info.wall is not None)
-        if info.wall is not None:
+        self._draw_line(screen, a, b, marker=info.result is not None)
+        if info.result is not None:
             self._draw_label(screen, b, info)
 
     @staticmethod
@@ -75,20 +70,21 @@ class AimRenderer:
 
     @staticmethod
     def _draw_label(screen, point, info):
-        if info.eff_armor is None:
+        res = info.result
+        if res.ricochet:
             eff_text = "Приведённая броня: —"
-            result, color = "Пробитие: Нет (рикошет)", C_NO
+            result, color = "Рикошет: урона нет", C_NO
         else:
-            eff_text = f"Приведённая броня: {info.eff_armor:.0f} мм"
-            if info.chance >= 1.0:
-                result, color = "Пробитие: Да", C_YES
-            elif info.chance <= 0.0:
-                result, color = "Пробитие: Нет", C_NO
+            eff_text = f"Приведённая броня: {res.eff_armor:.0f} мм"
+            if res.damage_frac >= 1.0:
+                result, color = "Урон: 100%", C_YES
+            elif res.damage_frac <= 0.0:
+                result, color = "Урон: 0% (не пробито)", C_NO
             else:
-                pct = max(1, min(99, round(info.chance * 100)))
-                result, color = f"Пробитие: с шансом {pct}%", C_CHANCE
+                pct = max(1, min(99, round(res.damage_frac * 100)))
+                result, color = f"Урон: {pct}% (ослаблен)", C_CHANCE
 
-        rows = [(f"Исходная броня: {info.armor:.0f} мм", C_TEXT), (eff_text, C_TEXT), (result, color)]
+        rows = [(f"Исходная броня: {res.armor_mm:.0f} мм", C_TEXT), (eff_text, C_TEXT), (result, color)]
         font = get_font(FONT_SIZE_LABEL)
         surfaces = [font.render(text, True, col) for text, col in rows]
 

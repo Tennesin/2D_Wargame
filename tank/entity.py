@@ -1,8 +1,10 @@
 """tank/entity.py — состояние и логика танка (без отрисовки)."""
 import math
 
-from common import normalize_angle, shortest_angle_diff, obb_hits_obb, VehicleCommand, Shot
-from .params import KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS
+from common import (normalize_angle, shortest_angle_diff, obb_hits_obb, obb_segment_hit,
+                    VehicleCommand, Shot)
+from armor import resolve_hit
+from .params import KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, TANK_ARMOR_K
 
 class Tank:
     TRACK_STEP = 20.0      # шаг между траками (px эталонного мира; 20 px = 0,2 м)
@@ -76,6 +78,42 @@ class Tank:
         hull = self._hull_obb(self.x, self.y, self.hull_angle)
         barrel = self._barrel_obb(self.x, self.y, self.turret_angle)
         return obb_hits_obb(*hull, *other) or obb_hits_obb(*barrel, *other)
+
+    # --- попадания снарядов (универсальный интерфейс цели) ---
+    @property
+    def alive(self):
+        return self.hp > 0.0
+
+    def raycast(self, x0, y0, x1, y1):
+        """Пересечение отрезка с корпусом: (self, t, normal) или None."""
+        hull = self._hull_obb(self.x, self.y, self.hull_angle)
+        res = obb_segment_hit(hull, x0, y0, x1, y1)
+        return None if res is None else (self, res[0], res[1])
+
+    def armor_at(self, normal):
+        """Броня грани, в которую попали (мм, с коэффициентом TANK_ARMOR_K).
+        normal — наружная нормаль грани: совпадает с направлением «вперёд» у лба, противоположна у кормы."""
+        s = self.spec
+        if normal is None:                      # выстрел начался внутри корпуса
+            return s.side * TANK_ARMOR_K
+        rad = math.radians(self.hull_angle)
+        along = normal[0] * math.sin(rad) - normal[1] * math.cos(rad)   # >0 лоб, <0 корма
+        if along > 0.5:
+            base = s.front
+        elif along < -0.5:
+            base = s.rear
+        else:
+            base = s.side
+        return base * TANK_ARMOR_K
+
+    def hit_result(self, penetration, cos_impact=1.0, normal=None):
+        return resolve_hit(penetration, self.armor_at(normal), cos_impact)
+
+    def take_hit(self, penetration, damage, cos_impact=1.0, normal=None):
+        """Попадание снаряда: урон умножается на смягчённую долю. Возвращает нанесённый урон."""
+        dealt = damage * self.hit_result(penetration, cos_impact, normal).damage_frac
+        self.hp = max(0.0, self.hp - dealt)
+        return dealt
 
     def update(self, command: VehicleCommand, dt, obstacles=()):
         """obstacles — список прямоугольников (left, top, right, bottom) в мировых px."""

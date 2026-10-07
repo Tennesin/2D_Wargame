@@ -2,24 +2,11 @@
 import math
 import random
 
-from common import PX_PER_M, clamp
+from common import PX_PER_M, clamp, obb_segment_hit
+from armor import resolve_hit
 from .params import (
-    WALL_PARAMS, WALL_ARMOR_K, WALL_RICOCHET_ANGLE,
-    PIERCE_SPREAD, WALL_HEIGHT_M, WALL_DENSITY_T_M3,
+    WALL_PARAMS, WALL_ARMOR_K, WALL_HEIGHT_M, WALL_DENSITY_T_M3,
 )
-
-RICOCHET_COS = math.cos(math.radians(WALL_RICOCHET_ANGLE))
-
-def pierce_probability(penetration, armor_mm):
-    """Шанс пробития 0..1. Окно ±PIERCE_SPREAD от пробития: слева 99%, справа 1%, в центре 50%."""
-    if penetration <= 0.0:
-        return 0.0
-    x = (armor_mm - penetration) / (penetration * PIERCE_SPREAD)   # -1 .. +1 внутри окна
-    if x <= -1.0:
-        return 1.0
-    if x >= 1.0:
-        return 0.0
-    return 0.5 - 0.49 * x
 
 CRACK_COUNT_MIN, CRACK_COUNT_MAX = 8, 40
 
@@ -104,29 +91,16 @@ class Wall:
         self.width_m = float(width_m)
         self.length_m = float(length_m)
 
-    def effective_armor_mm(self, cos_impact):
-        """Броня с учётом наклона: чем косее удар, тем толще стена для снаряда."""
-        return self.armor_mm / max(cos_impact, RICOCHET_COS)
+    def hit_result(self, penetration, cos_impact=1.0, normal=None):
+        """Результат попадания (универсальный интерфейс цели). normal стене не нужна:
+        броня одинакова со всех сторон."""
+        return resolve_hit(penetration, self.armor_mm, cos_impact)
 
-    def is_ricochet(self, cos_impact):
-        """Рикошетит ли снаряд при таком косинусе угла к нормали."""
-        return cos_impact < RICOCHET_COS
-
-    def pierce_check(self, penetration, cos_impact=1.0):
-        """(приведённая броня, шанс 0..1). При рикошете: (None, 0.0)."""
-        if cos_impact < RICOCHET_COS:
-            return None, 0.0
-        eff = self.effective_armor_mm(cos_impact)
-        return eff, pierce_probability(penetration, eff)
-
-    def take_hit(self, penetration, damage, cos_impact=1.0):
-        """Попадание снаряда. cos_impact: косинус угла между траекторией и нормалью к грани
-        (1 = прямой удар). Пробитие определяется броском по шансу. Возвращает True, если пробил."""
-        _, chance = self.pierce_check(penetration, cos_impact)
-        if chance <= 0.0 or random.random() >= chance:
-            return False
-        self.hp = max(0.0, self.hp - damage)
-        return True
+    def take_hit(self, penetration, damage, cos_impact=1.0, normal=None):
+        """Попадание снаряда: урон умножается на смягчённую долю. Возвращает нанесённый урон."""
+        dealt = damage * self.hit_result(penetration, cos_impact, normal).damage_frac
+        self.hp = max(0.0, self.hp - dealt)
+        return dealt
 
     # ---------- геометрия ----------
     def contains_point(self, x, y):
@@ -134,36 +108,8 @@ class Wall:
         return abs(u) <= self.half_w_px and abs(v) <= self.half_l_px
 
     def segment_hit(self, x0, y0, x1, y1):
-        """Первое пересечение отрезка со стеной: (t, normal) или None.
-        t — доля пути (0..1); normal — единичная нормаль грани, в которую вошли (мировые координаты),
-        либо None, если отрезок начинается внутри стены."""
-        u0, v0 = self.to_local(x0, y0)
-        u1, v1 = self.to_local(x1, y1)
-        t0, t1 = 0.0, 1.0
-        normal_local = None
-        for axis, p, q, half in ((0, u0, u1 - u0, self.half_w_px),
-                                 (1, v0, v1 - v0, self.half_l_px)):
-            if abs(q) < 1e-9:
-                if abs(p) > half:
-                    return None
-                continue
-            ta, tb = (-half - p) / q, (half - p) / q
-            sign = -1.0 if q > 0 else 1.0       # грань, через которую входим, смотрит против движения
-            if ta > tb:
-                ta, tb = tb, ta
-            if ta > t0:
-                t0 = ta
-                normal_local = (sign, 0.0) if axis == 0 else (0.0, sign)
-            t1 = min(t1, tb)
-            if t0 > t1:
-                return None
-
-        if normal_local is None:
-            return t0, None
-        rad = math.radians(self.angle)
-        c, s = math.cos(rad), math.sin(rad)
-        nu, nv = normal_local
-        return t0, (nu * c - nv * s, nu * s + nv * c)
+        """Первое пересечение отрезка со стеной: (t, normal) или None."""
+        return obb_segment_hit(self.obb(), x0, y0, x1, y1)
 
     # ---------- трещины (рисунок зависит от размеров и seed, не меняется между кадрами) ----------
     def cracks(self):

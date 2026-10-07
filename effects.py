@@ -4,6 +4,7 @@ import math
 import random
 
 import pygame
+from armor import is_ricochet
 
 SHELL_COLOR = (205, 160, 105)       # светло-коричневый
 SHELL_LIGHT = (234, 202, 154)       # блик по центру
@@ -45,7 +46,7 @@ def _dir(heading_deg):
 # СНАРЯД
 # ==========================================
 class Shell:
-    def __init__(self, x, y, heading_deg, spec, origin=None):
+    def __init__(self, x, y, heading_deg, spec, origin=None, owner=None):
         self.x, self.y = x, y
         self._sx, self._sy = origin if origin is not None else (x, y)   # откуда считаем отрезок пролёта
         self.dx, self.dy = _dir(heading_deg)
@@ -56,33 +57,37 @@ class Shell:
         self.spec = spec                  # параметры взрыва берём из той же спецификации, что и выстрел
         self.alive = True
         self.exploded = False
+        self.owner = owner                # кто стрелял: в него снаряд не попадает
+        self.hit_target = None            # цель, в которую попали (стена, танк...)
+        self.hit_normal = None            # нормаль грани, в которую попали (нужна танку для выбора брони)
         self.hit_wall = None              # стена, в которую попали (если попали)
         self.hit_cos = 1.0                # косинус угла между траекторией и нормалью грани (1 = прямой удар)
         self.power = 1.0                  # доля силы: 1.0 в начале, после каждого рикошета уменьшается
         self.bounces = 0                  # сколько раз уже отскочил
         self.ricochet_at = None           # (x, y), если рикошет случился в этом кадре (читает EffectsSystem)
 
-    def update(self, dt, camera, walls=None):
+    def update(self, dt, camera, targets=None):
         step = min(self.speed * dt, self.range_left)
         nx = self.x + self.dx * step
         ny = self.y + self.dy * step
 
-        if walls is not None:
-            hit = walls.raycast(self._sx, self._sy, nx, ny)
+        if targets is not None:
+            hit = targets.raycast(self._sx, self._sy, nx, ny, ignore=self.owner)
             if hit is not None:
-                wall, t, normal = hit
-                hx = self._sx + (nx - self._sx) * t           # точка попадания на грани стены
+                target, t, normal = hit
+                hx = self._sx + (nx - self._sx) * t           # точка попадания на грани
                 hy = self._sy + (ny - self._sy) * t
 
                 if normal is not None:
                     cos_i = abs(self.dx * normal[0] + self.dy * normal[1])
-                    if self.bounces < RICOCHET_MAX and wall.is_ricochet(cos_i):
+                    if self.bounces < RICOCHET_MAX and is_ricochet(cos_i):
                         self._ricochet(hx, hy, normal)
                         return
                     self.hit_cos = cos_i
 
                 self.x, self.y = hx, hy
-                self.hit_wall = wall
+                self.hit_target = target
+                self.hit_normal = normal
                 self.alive = False
                 self.exploded = True
                 return
@@ -90,7 +95,7 @@ class Shell:
         self.x, self.y = nx, ny
         self._sx, self._sy = nx, ny
         self.range_left -= step
-        if self.range_left <= 0.0:        # пролетел всю дальность -> взрыв, как при попадании в землю
+        if self.range_left <= 0.0:
             self.alive = False
             self.exploded = True
 
@@ -369,7 +374,7 @@ class EffectsSystem:
         dx, dy = _dir(shot.angle)
         origin = (shot.x - dx * spec.MUZZLE_DIST_PX,        # центр танка: оттуда считаем первый отрезок пролёта
                   shot.y - dy * spec.MUZZLE_DIST_PX)
-        self.shells.append(Shell(shot.x, shot.y, shot.angle, spec, origin))
+        self.shells.append(Shell(shot.x, shot.y, shot.angle, spec, origin, owner=tank))
         self.flashes.append(MuzzleFlash(shot.x, shot.y, shot.angle, spec))
         for _ in range(spec.SMOKE_STREAKS):
             self.smoke.append(SmokeStreak(shot.x, shot.y, shot.angle, spec, self._rng, anchor=tank))
@@ -378,11 +383,11 @@ class EffectsSystem:
         self.explosions.append(Explosion(shell.x, shell.y, shell.spec, self._rng))
         self.scorches.append(Scorch(shell.x, shell.y, shell.spec, self._rng))
 
-    def update(self, dt, camera, walls=None):
-        """Возвращает попадания по стенам [(wall, spec, cos_impact, power), ...]:
+    def update(self, dt, camera, targets=None):
+        """Возвращает попадания [(цель, spec, cos_impact, normal, power), ...]:
         урон применяет Game, а не эффекты."""
         for shell in self.shells:
-            shell.update(dt, camera, walls)
+            shell.update(dt, camera, targets)
         for group in (self.flashes, self.smoke, self.explosions, self.scorches, self.sparks):
             for obj in group:
                 obj.update(dt, camera)
@@ -394,8 +399,9 @@ class EffectsSystem:
                 shell.ricochet_at = None
             if shell.exploded:
                 self._spawn_impact(shell)
-                if shell.hit_wall is not None:
-                    hits.append((shell.hit_wall, shell.spec, shell.hit_cos, shell.power))
+                if shell.hit_target is not None:
+                    hits.append((shell.hit_target, shell.spec, shell.hit_cos,
+                                 shell.hit_normal, shell.power))
 
         self.shells = [o for o in self.shells if o.alive]
         self.flashes = [o for o in self.flashes if o.alive]

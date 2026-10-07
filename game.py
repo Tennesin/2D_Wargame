@@ -17,6 +17,7 @@ from ui import ConstructorUI, ToolBar, get_font, FONT_SIZE_LABEL
 from effects import EffectsSystem
 from aim import compute_aim
 from hud import TankHud
+from armor import TargetSet
 
 class Mode(Enum):
     DRIVE = auto()       # езда и стрельба
@@ -43,6 +44,7 @@ class Game:
         self.spec = TankSpec.from_values(self.ui.get_values())
         self.tank = Tank(0.0, 0.0, spec=self.spec)
         self.walls = WallManager()
+        self.targets = TargetSet(self.walls)     # всё, во что можно попасть. Враги: self.targets.add(enemy_tank)
         self.ui.on_change = self._on_constructor_change
         self.ui.on_wall_change = self._on_wall_change
         self.toolbar.on_create_wall = self._toggle_build_mode
@@ -153,7 +155,7 @@ class Game:
         """Траектория выстрела. Показываем только в режиме DRIVE."""
         if not self.combat or self.mode == Mode.BUILD:
             return None
-        return compute_aim(self.tank, self.walls)
+        return compute_aim(self.tank, self.targets)
 
     # ---------- клики по миру ----------
     def _handle_world_clicks(self):
@@ -257,9 +259,9 @@ class Game:
             wall.angle = old
 
     def _apply_hits(self, hits):
-        """Снаряд попал в стену: пробил (пробитие >= эквивалента брони) — урон, иначе ничего."""
-        for wall, spec, cos_impact, power in hits:
-            wall.take_hit(spec.penetration * power, spec.damage * power, cos_impact)
+        """Снаряд попал в цель: урон = заявленный × доля по правилам armor.py (стена и танк одинаково)."""
+        for target, spec, cos_impact, normal, power in hits:
+            target.take_hit(spec.penetration * power, spec.damage * power, cos_impact, normal)
         self.walls.remove_dead()
         if self.mode == Mode.WALL_EDIT and self.walls.selected is None:
             self._set_mode(Mode.DRIVE)             # выбранную стену разрушили — возвращаем панель танка
@@ -346,7 +348,7 @@ class Game:
             if shot is not None:
                 self.effects.spawn_shot(shot, self.tank.spec, self.tank)
             self.camera.center_on(self.tank.x, self.tank.y)
-            hits = self.effects.update(dt, self.camera, self.walls)
+            hits = self.effects.update(dt, self.camera, self.targets)
             self._apply_hits(hits)
             self._show_wall_stats()
 

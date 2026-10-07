@@ -92,6 +92,44 @@ def obb_hits_obb(cx1, cy1, hw1, hl1, ang1, cx2, cy2, hw2, hl2, ang2):
             return False
     return True
 
+def obb_segment_hit(obb, x0, y0, x1, y1):
+    """Первое пересечение отрезка с повёрнутым прямоугольником obb = (x, y, half_w, half_l, angle).
+    Возвращает (t, normal) или None. t — доля пути 0..1; normal — наружная нормаль грани,
+    в которую вошли (мировые координаты), либо None, если отрезок начинается внутри."""
+    cx, cy, half_w, half_l, angle = obb
+    rad = math.radians(angle)
+    c, s = math.cos(rad), math.sin(rad)
+
+    def to_local(x, y):
+        dx, dy = x - cx, y - cy
+        return dx * c + dy * s, -dx * s + dy * c
+
+    u0, v0 = to_local(x0, y0)
+    u1, v1 = to_local(x1, y1)
+    t0, t1 = 0.0, 1.0
+    normal_local = None
+    for axis, p, q, half in ((0, u0, u1 - u0, half_w),
+                             (1, v0, v1 - v0, half_l)):
+        if abs(q) < 1e-9:
+            if abs(p) > half:
+                return None
+            continue
+        ta, tb = (-half - p) / q, (half - p) / q
+        sign = -1.0 if q > 0 else 1.0
+        if ta > tb:
+            ta, tb = tb, ta
+        if ta > t0:
+            t0 = ta
+            normal_local = (sign, 0.0) if axis == 0 else (0.0, sign)
+        t1 = min(t1, tb)
+        if t0 > t1:
+            return None
+
+    if normal_local is None:
+        return t0, None
+    nu, nv = normal_local
+    return t0, (nu * c - nv * s, nu * s + nv * c)
+
 # ==========================================
 # 3. КОМАНДА МАШИНЕ И СОБЫТИЕ ВЫСТРЕЛА
 # ==========================================
