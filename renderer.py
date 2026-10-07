@@ -9,6 +9,7 @@ from core import CHUNK_SIZE, CELL_SIZE
 from tank import TankRenderer
 from wall import WallRenderer
 from aim import AimRenderer
+from terrain_render import TerrainRenderer
 
 # ---------- Земля ----------
 MIN_CACHED_CHUNKS = 40
@@ -29,7 +30,7 @@ def _shade(color, k):
     return tuple(max(0, min(255, int(c * k))) for c in color)
 
 class Renderer:
-    def __init__(self, world_generator):
+    def __init__(self, world_generator, terrain=None):
         self.world = world_generator
         self.font = pygame.font.Font(None, 22)
 
@@ -43,6 +44,9 @@ class Renderer:
         self.wall_renderer = WallRenderer()
         self.aim_renderer = AimRenderer()
 
+        self.terrain = terrain
+        self.terrain_renderer = TerrainRenderer()
+
     # ==========================================
     # ГЛАВНЫЙ МЕТОД
     # ==========================================
@@ -50,6 +54,8 @@ class Renderer:
              build_preview=None, aim=None):
         self._sync_zoom(camera.zoom)
         self._draw_ground(screen, camera)
+        if self.terrain is not None:
+            self.terrain_renderer.draw(screen, camera, self.terrain)
         if effects is not None:
             effects.draw_ground(screen, camera)      # пятна от взрывов лежат под танком и стенами
         if walls is not None:

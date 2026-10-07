@@ -18,6 +18,7 @@ from effects import EffectsSystem
 from aim import compute_aim
 from hud import TankHud
 from armor import TargetSet
+from terrain import TerrainMap
 
 PAN_DRAG_THRESHOLD_PX = 5     # на сколько px надо сдвинуть мышь с зажатой ПКМ, чтобы это считалось перетаскиванием
 
@@ -39,6 +40,7 @@ class Game:
         print(f"Seed мира: {self.seed}")
 
         self.world = WorldGenerator(self.seed)
+        self.terrain = TerrainMap(self.seed)
         self.camera = Camera(*self.screen.get_size())
         self.ui = ConstructorUI(self.screen.get_size())
         self.toolbar = ToolBar()
@@ -62,7 +64,7 @@ class Game:
 
         self.spec.print_specs()
         self.input = InputHandler([self.toolbar, self.ui])
-        self.renderer = Renderer(self.world)
+        self.renderer = Renderer(self.world, self.terrain)
         self.effects = EffectsSystem()
         self.hud = TankHud()
 
@@ -161,9 +163,8 @@ class Game:
     # СТЕНЫ
     # ==========================================
     def _wall_blocked(self, wall):
-        """Нельзя ли поставить стену здесь. Сейчас мешает только танк.
-        Чтобы стены не пересекались друг с другом, добавьте проверку пересечения с self.walls.items."""
-        return self.tank.hits_obb(wall.obb())
+        """Нельзя ли поставить стену здесь: мешает танк, камень или глубокая вода."""
+        return self.tank.hits_obb(wall.obb()) or self.terrain.blocks_obb(wall.obb())
 
     def _build_preview(self):
         """(призрак, красный ли он) или None, если показывать нечего."""
@@ -356,6 +357,7 @@ class Game:
             f"Mode: {self.mode.name}  Mouse owner: {owner}",
             f"Combat (Alt): {'ON' if self.combat else 'OFF'}",
             f"Speed: {t.speed_kmh:.1f} km/h",
+            f"Terrain speed k: {t.terrain_k:.2f}",
         ]
 
     def _draw_hud(self):
@@ -369,6 +371,8 @@ class Game:
             rows.append(("Alt — боевой режим, L — камера, Tab — отладка", (170, 176, 186)))
         if self.free_camera:
             rows.append(("Свободная камера (L): ПКМ — двигать", (110, 190, 240)))
+        if self.tank.terrain_k < 0.99:
+            rows.append((f"Вязкая местность: скорость ×{self.tank.terrain_k:.2f}", (200, 170, 120)))
         if not self.turret_follow:
             rows.append(("Башня зафиксирована (Q)", (240, 210, 70)))
 
@@ -406,7 +410,7 @@ class Game:
                                               active=self.mode != Mode.BUILD,
                                               follow_mouse=self.turret_follow,
                                               combat=self.combat)
-            shot = self.tank.update(command, dt, self.walls.obbs())
+            shot = self.tank.update(command, dt, self.walls.obbs(), self.terrain)
             if shot is not None:
                 self.effects.spawn_shot(shot, self.tank.spec, self.tank)
             if not self.free_camera:

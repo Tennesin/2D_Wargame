@@ -4,7 +4,8 @@ import math
 from common import (normalize_angle, shortest_angle_diff, obb_hits_obb, obb_segment_hit,
                     VehicleCommand, Shot)
 from armor import resolve_hit
-from .params import KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, TANK_ARMOR_K
+from .params import (KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, TANK_ARMOR_K,
+                     TERRAIN_MIN_K, TERRAIN_BRAKE, TERRAIN_ROLL_DECEL)
 
 class Tank:
     TRACK_STEP = 20.0      # шаг между траками (px эталонного мира; 20 px = 0,2 м)
@@ -27,6 +28,8 @@ class Tank:
         self.reload_left = 0.0          # сколько секунд осталось до следующего выстрела
         self.speed_kmh = 0.0            # текущая скорость вдоль корпуса, км/ч (минус = назад)
         self.since_shot = 999.0         # сколько секунд прошло с последнего выстрела (для отката)
+        self.terrain_k = 1.0            # множитель скорости от местности под корпусом (1.0 = обычная)
+        self._terrain = None            # карта препятствий; её передаёт Game в update()
 
     @property
     def turret_angle(self):
@@ -71,7 +74,13 @@ class Tank:
         hull = self._hull_obb(x, y, angle)
         if any(obb_hits_obb(*hull, *other) for other in obstacles):
             return True
+        if self._terrain is not None and self._terrain.blocks_obb(hull):
+            return True
         return self._barrel_hits(x, y, angle + self.turret_rel_angle, obstacles)
+
+    def _has_solids(self, obstacles):
+        """Есть ли вообще что проверять на столкновение (стены или карта местности)."""
+        return bool(obstacles) or self._terrain is not None
 
     def hits_obb(self, other):
         """Задевает ли танк (корпус или ствол) повёрнутый прямоугольник (x, y, half_w, half_l, angle)."""
@@ -115,13 +124,32 @@ class Tank:
         self.hp = max(0.0, self.hp - dealt)
         return dealt
 
-    def update(self, command: VehicleCommand, dt, obstacles=()):
-        """obstacles — список прямоугольников (left, top, right, bottom) в мировых px."""
+    def update(self, command: VehicleCommand, dt, obstacles=(), terrain=None):
+        """obstacles — повёрнутые прямоугольники стен (x, y, half_w, half_l, angle).
+        terrain — карта естественных препятствий (TerrainMap) или None."""
+        self._terrain = terrain
+        self._sample_terrain()
         delta_hull = self._rotate_hull(command.steer, dt, obstacles)
         distance = self._drive(command.throttle, command.steer, dt, obstacles)
         self._animate_tracks(distance, delta_hull)
         self._aim_turret(command.aim_point, dt, obstacles)
         return self._update_gun(command.fire, dt)      # Shot или None
+
+    def _sample_terrain(self):
+        """Множитель скорости: среднее по трём точкам под корпусом (зад, центр, перед),
+        поэтому при въезде в воду танк тормозится постепенно."""
+        terrain = self._terrain
+        if terrain is None:
+            self.terrain_k = 1.0
+            return
+        hx, hy, _, half_l, angle = self._hull_obb(self.x, self.y, self.hull_angle)
+        rad = math.radians(angle)
+        fx, fy = math.sin(rad), -math.cos(rad)
+        reach = half_l * 0.8
+        total = 0.0
+        for d in (-reach, 0.0, reach):
+            total += terrain.speed_factor(hx + fx * d, hy + fy * d)
+        self.terrain_k = max(TERRAIN_MIN_K, total / 3.0)
 
     @staticmethod
     def _approach(current, target, accel, brake, dt):
@@ -139,7 +167,7 @@ class Tank:
         s = self.spec
         # на ходу развернуться тяжелее, чем с места
         speed_k = 1.0 - HULL_TURN_SPEED_LOSS * min(1.0, abs(self.speed_kmh) / s.v_max)
-        target = steer * s.HULL_ROTATION_SPEED * speed_k
+        target = steer * s.HULL_ROTATION_SPEED * speed_k * (0.5 + 0.5 * self.terrain_k)
         self.hull_rate = self._approach(self.hull_rate, target,
                                         s.hull_alpha, s.hull_alpha * HULL_BRAKE_K, dt)
         delta = self.hull_rate * dt
@@ -147,7 +175,7 @@ class Tank:
         old = self.hull_angle
         new = normalize_angle(old + delta)
         # если поворот упирается в препятствие, поворачиваем только до касания и гасим вращение
-        if (obstacles and delta != 0
+        if (self._has_solids(obstacles) and delta != 0
                 and not self._overlaps(self.x, self.y, old, obstacles)
                 and self._overlaps(self.x, self.y, new, obstacles)):
             lo, hi = 0.0, 1.0
@@ -175,7 +203,7 @@ class Tank:
 
         new_x, new_y = self.x + dx, self.y + dy
         # если путь упирается в препятствие, подъезжаем вплотную (деление отрезка пополам)
-        if (obstacles
+        if (self._has_solids(obstacles)
                 and not self._overlaps(self.x, self.y, self.hull_angle, obstacles)
                 and self._overlaps(new_x, new_y, self.hull_angle, obstacles)):
             lo, hi = 0.0, 1.0
@@ -200,6 +228,8 @@ class Tank:
         if steer != 0:                                       # на повороте потолок скорости ниже
             cap_fwd *= s.TURN_SPEED_PENALTY
             cap_back *= s.TURN_SPEED_PENALTY
+        cap_fwd *= self.terrain_k                            # вязкая местность: потолок ниже
+        cap_back *= self.terrain_k
 
         if throttle > 0:
             target = throttle * cap_fwd
@@ -221,7 +251,21 @@ class Tank:
                 v = min(v + rate * dt, min(target, 0.0))
             else:                                            # разгон вперёд
                 v = min(v + s.accel_at(v) * dt, target)
+
+        if self.terrain_k < 1.0:
+            v = self._terrain_drag(v, throttle, cap_fwd, cap_back, dt)
         self.speed_kmh = v
+
+    def _terrain_drag(self, v, throttle, cap_fwd, cap_back, dt):
+        """Вязкая местность: скорость сверх потолка гасится быстро; без газа танк останавливается быстрее обычного."""
+        if v > cap_fwd:
+            v = max(cap_fwd, v - TERRAIN_BRAKE * dt)
+        elif v < -cap_back:
+            v = min(-cap_back, v + TERRAIN_BRAKE * dt)
+        if throttle == 0.0:
+            roll = (1.0 - self.terrain_k) * TERRAIN_ROLL_DECEL * dt
+            v = math.copysign(max(0.0, abs(v) - roll), v)
+        return v
 
     def _animate_tracks(self, distance, delta_hull):
         scale = getattr(self.spec, "HULL_SCALE", 1.0)
