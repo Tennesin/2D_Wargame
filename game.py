@@ -19,11 +19,12 @@ from aim import compute_aim
 from hud import TankHud
 from armor import TargetSet
 
+PAN_DRAG_THRESHOLD_PX = 5     # на сколько px надо сдвинуть мышь с зажатой ПКМ, чтобы это считалось перетаскиванием
+
 class Mode(Enum):
     DRIVE = auto()       # езда и стрельба
     BUILD = auto()       # расстановка стен: танк не управляется
     WALL_EDIT = auto()   # выбрана стена: открыта её панель, можно вращать
-
 
 class Game:
     MAX_DT = 0.05   # защита от «телепорта» при подвисании окна
@@ -47,6 +48,7 @@ class Game:
         self.targets = TargetSet(self.walls)     # всё, во что можно попасть. Враги: self.targets.add(enemy_tank)
         self.ui.on_change = self._on_constructor_change
         self.ui.on_wall_change = self._on_wall_change
+        self.ui.on_wall_delete = self._delete_selected_wall
         self.toolbar.on_create_wall = self._toggle_build_mode
         self._show_stats()
 
@@ -55,6 +57,8 @@ class Game:
         self.turret_follow = True        # башня следит за мышью (Q)
         self.combat = False              # боевое состояние (Alt): включает огонь по ЛКМ и красную линию прицела
         self._rot_state = None           # при вращении стены: [последний угол мыши, накопленный угол стены]
+        self.free_camera = False         # свободная камера (L): не следует за танком, двигается зажатой ПКМ
+        self._pan_state = None           # при нажатой ПКМ: {"start", "last", "dragged"}
 
         self.spec.print_specs()
         self.input = InputHandler([self.toolbar, self.ui])
@@ -108,6 +112,20 @@ class Game:
     def _toggle_build_mode(self):
         self._set_mode(Mode.DRIVE if self.mode == Mode.BUILD else Mode.BUILD)
 
+    def _set_free_camera(self, on):
+        """L: свободная камера. При включении остаётся там, где была; при выключении возвращается к танку."""
+        self.free_camera = on
+        self._pan_state = None
+        self.input.release_mouse(MouseOwner.PAN)
+
+    def _delete_selected_wall(self):
+        """Delete или красная кнопка панели: удалить выбранную стену и вернуться в DRIVE."""
+        wall = self.walls.selected
+        if wall is None:
+            return
+        self.walls.remove(wall)
+        self._set_mode(Mode.DRIVE)
+
     def _handle_escape(self):
         """Esc закрывает по одному слою: стройка или стена, затем боевое состояние. Из игры не выходит."""
         if self.mode != Mode.DRIVE:
@@ -126,6 +144,10 @@ class Game:
             self.turret_follow = not self.turret_follow
         if inp.was_pressed(Action.TOGGLE_BUILD):
             self._toggle_build_mode()
+        if inp.was_pressed(Action.TOGGLE_FREE_CAM):
+            self._set_free_camera(not self.free_camera)
+        if inp.was_pressed(Action.DELETE_WALL):
+            self._delete_selected_wall()
 
         if COMBAT_HOLD:
             self._set_combat(Action.COMBAT in inp.held)
@@ -159,13 +181,50 @@ class Game:
 
     # ---------- клики по миру ----------
     def _handle_world_clicks(self):
-        """Клики по миру (интерфейс свои уже забрал). Что значит клик, решает режим."""
+        """Клики по миру (интерфейс свои уже забрал). При свободной камере ПКМ может оказаться
+        началом перетаскивания, поэтому его обработка откладывается до отпускания кнопки."""
         for button, pos in self.input.pop_world_clicks():
-            wx, wy = self.camera.screen_to_world(*pos)
-            if self.mode == Mode.BUILD:
-                self._click_build(button, wx, wy)
+            if button == 3 and self.free_camera:
+                self._begin_pan(pos)
             else:
-                self._click_play(button, pos, wx, wy)
+                self._dispatch_click(button, pos)
+
+    def _dispatch_click(self, button, pos):
+        """Что значит клик, решает режим."""
+        wx, wy = self.camera.screen_to_world(*pos)
+        if self.mode == Mode.BUILD:
+            self._click_build(button, wx, wy)
+        else:
+            self._click_play(button, pos, wx, wy)
+
+    def _begin_pan(self, pos):
+        """ПКМ нажата при свободной камере: мышь закрепляется за PAN, решение «клик или drag» принимается позже."""
+        if self.input.grab_mouse(MouseOwner.PAN, 3):
+            self._pan_state = {"start": pos, "last": pos, "dragged": False}
+
+    def _update_camera_pan(self):
+        """Пока мышь принадлежит PAN: сдвиг мимо порога = перетаскивание камеры.
+        Кнопку отпустили без сдвига: выполняем отложенный ПКМ-клик (выбор стены / выход из стройки)."""
+        st = self._pan_state
+        if st is None:
+            return
+        if self.input.mouse_owner != MouseOwner.PAN:             # кнопку отпустили
+            self._pan_state = None
+            if not st["dragged"] and self.free_camera:
+                self._dispatch_click(3, st["start"])
+            return
+
+        mx, my = self.input.mouse_pos
+        if not st["dragged"]:
+            sx, sy = st["start"]
+            if math.hypot(mx - sx, my - sy) < PAN_DRAG_THRESHOLD_PX:
+                return
+            st["dragged"] = True
+        lx, ly = st["last"]
+        z = self.camera.zoom
+        self.camera.x -= (mx - lx) / z                           # мир следует за курсором
+        self.camera.y -= (my - ly) / z
+        st["last"] = (mx, my)
 
     def _click_build(self, button, wx, wy):
         """BUILD: ЛКМ ставит стену, ПКМ выходит из стройки."""
@@ -181,16 +240,15 @@ class Game:
     def _click_play(self, button, pos, wx, wy):
         """DRIVE и WALL_EDIT.
         ЛКМ: по белой точке вращает стену; иначе в боевом состоянии это огонь, а без него выбор стены.
-        ПКМ: выбор стены / снятие выбора (работает всегда)."""
-        if button == 1:
-            if self._hit_rotate_handle(pos):
-                self.input.grab_mouse(MouseOwner.ROTATE, 1)
-                self._rot_state = None
-            elif self.combat:
-                self.input.grab_mouse(MouseOwner.FIRE, 1)
-            else:
-                self._select_or_drive(wx, wy)
-        elif button == 3:
+        ПКМ здесь ничего не делает (выбор стены на неё не привязан)."""
+        if button != 1:
+            return
+        if self._hit_rotate_handle(pos):
+            self.input.grab_mouse(MouseOwner.ROTATE, 1)
+            self._rot_state = None
+        elif self.combat:
+            self.input.grab_mouse(MouseOwner.FIRE, 1)
+        else:
             self._select_or_drive(wx, wy)
 
     def _select_or_drive(self, wx, wy):
@@ -285,6 +343,7 @@ class Game:
         return [
             f"FPS: {self.clock.get_fps():.0f}",
             f"Zoom: {self.camera.zoom:.2f} (1 m = {PX_PER_M * self.camera.zoom:.0f} px)",
+            f"Free camera (L): {'ON' if self.free_camera else 'OFF'}",
             f"X: {t.x:.0f}  Y: {t.y:.0f}",
             f"Chunk: {int(t.x // CHUNK_SIZE)}, {int(t.y // CHUNK_SIZE)}",
             f"Grass: {self.world.grass_at(t.x, t.y):.2f}",
@@ -307,7 +366,9 @@ class Game:
         if self.combat:
             rows.append(("БОЕВОЙ РЕЖИМ: ЛКМ — огонь", (240, 80, 80)))
         else:
-            rows.append(("Alt — боевой режим, Tab — отладка", (170, 176, 186)))
+            rows.append(("Alt — боевой режим, L — камера, Tab — отладка", (170, 176, 186)))
+        if self.free_camera:
+            rows.append(("Свободная камера (L): ПКМ — двигать", (110, 190, 240)))
         if not self.turret_follow:
             rows.append(("Башня зафиксирована (Q)", (240, 210, 70)))
 
@@ -338,6 +399,7 @@ class Game:
 
             self._handle_hotkeys()
             self._handle_world_clicks()
+            self._update_camera_pan()
             self._update_wall_rotation()
 
             command = self.input.read_command(self.camera,
@@ -347,7 +409,8 @@ class Game:
             shot = self.tank.update(command, dt, self.walls.obbs())
             if shot is not None:
                 self.effects.spawn_shot(shot, self.tank.spec, self.tank)
-            self.camera.center_on(self.tank.x, self.tank.y)
+            if not self.free_camera:
+                self.camera.center_on(self.tank.x, self.tank.y)
             hits = self.effects.update(dt, self.camera, self.targets)
             self._apply_hits(hits)
             self._show_wall_stats()

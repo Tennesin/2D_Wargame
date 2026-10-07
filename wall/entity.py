@@ -171,6 +171,13 @@ class WallManager:
                 best = (wall, res[0], res[1])
         return best
 
+    def remove(self, wall):
+        """Убрать конкретную стену (и снять выбор, если выбрана именно она)."""
+        if wall in self.items:
+            self.items.remove(wall)
+        if self.selected is wall:
+            self.selected = None
+
     def remove_dead(self):
         self.items = [w for w in self.items if w.alive]
         if self.selected is not None and self.selected not in self.items:

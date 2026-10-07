@@ -17,6 +17,8 @@ class Action(Enum):
     TOGGLE_DEBUG = auto()
     LOCK_TURRET = auto()
     TOGGLE_BUILD = auto()
+    TOGGLE_FREE_CAM = auto()
+    DELETE_WALL = auto()
     QUIT = auto()
     # боевое состояние: есть и в HELD_KEYMAP, и в PRESS_KEYMAP, Game выбирает по COMBAT_HOLD
     COMBAT = auto()
@@ -27,7 +29,7 @@ class MouseOwner(Enum):
     UI = auto()       # интерфейс: ползунок, кнопка, панель
     ROTATE = auto()   # вращение выбранной стены за белую точку
     FIRE = auto()     # удержание ЛКМ в мире при включённом боевом состоянии
-
+    PAN = auto()      # перетаскивание камеры зажатой ПКМ (свободная камера)
 
 # False: Alt переключает боевое состояние нажатием. True: боевое состояние, пока Alt зажат.
 COMBAT_HOLD = False
@@ -49,6 +51,8 @@ PRESS_KEYMAP = {
     Action.TOGGLE_DEBUG: (pygame.K_TAB,),     # Tab: отладочные строки (раньше F3)
     Action.LOCK_TURRET:  (pygame.K_q,),
     Action.TOGGLE_BUILD: (pygame.K_b,),
+    Action.TOGGLE_FREE_CAM: (pygame.K_l,),
+    Action.DELETE_WALL:  (pygame.K_DELETE,),
     Action.QUIT:         (),
     Action.COMBAT:       (pygame.K_LALT, pygame.K_RALT),
 }

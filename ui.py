@@ -48,13 +48,16 @@ ACTIVE_BUTTON_COLORS = {             # кнопка «Создать стену�
     "normal": (200, 140, 60), "hover": (225, 165, 85),
     "disabled": (90, 70, 40), "text": (30, 30, 30),
 }
+DELETE_BUTTON_COLORS = {             # красная кнопка «Удалить стену»
+    "normal": (190, 45, 45), "hover": (225, 75, 75),
+    "disabled": (80, 40, 40), "text": (255, 255, 255),
+}
 PANEL_TITLES = {"tank": "Конструктор техники", "wall": "Настройки стены"}
 
 # ==========================================
 # 2. ОБЩИЕ ПОМОЩНИКИ (из widgets.txt)
 # ==========================================
 _font_cache = {}
-
 
 def get_font(size, name=FONT_NAME):
     """Общий кэш шрифтов, чтобы не создавать Font на каждый кадр."""
@@ -172,6 +175,7 @@ class ScrollArea:
 # 4. ЭЛЕМЕНТЫ СОДЕРЖИМОГО ПАНЕЛИ
 #    У каждого: height, layout(x, y, w), draw(surface)
 # ==========================================
+
 class SectionHeader:
     height = 36
 
@@ -187,7 +191,6 @@ class SectionHeader:
         surface.blit(label, (self.rect.x, self.rect.y + 8))
         y = self.rect.bottom - 4
         pygame.draw.line(surface, LINE_COLOR, (self.rect.x, y), (self.rect.right, y), 1)
-
 
 class ParamRow:
     """Строка параметра: подпись слева, значение справа, под ними ползунок."""
@@ -226,7 +229,6 @@ class ParamRow:
         surface.blit(val, val.get_rect(topright=(self.rect.right, self.rect.y + 4)))
         self.slider.draw(surface)
 
-
 class StatsBlock:
     """Блок «название ... значение». Значения пока прочерки — их потом заполнят формулы."""
     ROW_H = 24
@@ -248,7 +250,6 @@ class StatsBlock:
             surface.blit(n, (self.rect.x, y))
             surface.blit(v, v.get_rect(topright=(self.rect.right, y)))
             y += self.ROW_H
-
 
 class InfoText:
     """Абзац текста с переносом по словам."""
@@ -272,6 +273,30 @@ class InfoText:
         for line in self.lines:
             surface.blit(font.render(line, True, self.color), (self.rect.x, y))
             y += self.LINE_H
+
+class ActionButton:
+    """Кнопка-действие внутри прокручиваемой панели (например, «Удалить стену»)."""
+    height = 56
+
+    def __init__(self, label, colors, callback=None):
+        self.colors = colors
+        self.callback = callback             # функция без аргументов
+        self.button = Button((0, 0, 10, 36), label)
+        self.rect = pygame.Rect(0, 0, 0, self.height)
+
+    def layout(self, x, y, w):
+        self.rect = pygame.Rect(x, y, w, self.height)
+        self.button.rect = pygame.Rect(x, y + 12, w, 36)
+
+    def hit(self, pos):
+        return self.button.collidepoint(pos)
+
+    def click(self):
+        if self.callback:
+            self.callback()
+
+    def draw(self, surface):
+        self.button.draw(surface, pygame.mouse.get_pos(), colors=self.colors)
 
 # ==========================================
 # ПАНЕЛЬ ИНСТРУМЕНТОВ (левый верхний угол)
@@ -315,6 +340,7 @@ class ConstructorUI:
         self._auto_opened = False        # панель раскрылась сама (при выборе стены), а не по кнопке
         self.on_change = None            # колбэк танка: функция(values: dict), при изменении ползунка
         self.on_wall_change = None       # то же для панели стены
+        self.on_wall_delete = None       # колбэк красной кнопки «Удалить стену»
         self.mode = "tank"               # какое содержимое показано: "tank" или "wall"
 
         self.toggle_button = Button((0, 0, TOGGLE_SIZE, TOGGLE_SIZE), "<")
@@ -361,6 +387,10 @@ class ConstructorUI:
             p = WALL_PARAMS[key]
             return ParamRow(key, p.label, p.unit, p.min, p.max, p.default, p.step, p.decimals)
 
+        def delete():
+            if self.on_wall_delete:
+                self.on_wall_delete()
+
         return [
             SectionHeader("Параметры"),
             row("wall_hp"),
@@ -371,7 +401,10 @@ class ConstructorUI:
             StatsBlock(["Текущее HP", "Толщина", "Эквивалент брони", "Масса стены", "Угол"]),
             InfoText("Толщина — меньшая из сторон. Эквивалент брони растёт при косом попадании "
                      "(броня / cos угла), а при угле больше 70° снаряд рикошетит. "
-                     "Белая точка в центре поворачивает стену; с Shift поворот идёт шагом 15°."),
+                     "Белая точка в центре поворачивает стену; с Shift поворот идёт шагом 15°. "
+                     "Delete — удалить выбранную стену."),
+
+            ActionButton("Удалить стену", DELETE_BUTTON_COLORS, delete),
         ]
 
     # ---------- публичный интерфейс ----------
@@ -477,7 +510,10 @@ class ConstructorUI:
                             self._active_row = it
                             self._drag_slider(event.pos[0])
                             break
-                return True        # любые кнопки мыши на панели поглощаются (ПКМ не выбирает стену «сквозь» панель)
+                        if isinstance(it, ActionButton) and it.hit(event.pos):
+                            it.click()       # колбэк может сменить self.items, поэтому сразу выходим
+                            break
+                return True
 
         elif event.type == pygame.MOUSEMOTION:
             if self._active_row is not None:
