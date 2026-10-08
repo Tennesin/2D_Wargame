@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Optional
 import pygame
 
-from ui import get_font, FONT_SIZE_LABEL
+from gfx import AlphaLayer, get_font, FONT_SIZE_LABEL
 from common import heading_vector
 from armor import HitResult
 from gfx import AlphaLayer

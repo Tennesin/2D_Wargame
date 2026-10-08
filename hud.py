@@ -2,7 +2,7 @@
 import pygame
 
 from common import clamp, fmt_num
-from ui import get_text, FONT_SIZE_LABEL
+from gfx import get_text, FONT_SIZE_LABEL
 
 MARGIN = 10          # отступ от краёв окна
 WIDTH = 190

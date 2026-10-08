@@ -69,8 +69,9 @@ class InputHandler:
     def process_events(self):
         """События окна, затем снимок состояния. Вызывать один раз в начале кадра."""
         self.pressed = set()
+        mouse_pos = pygame.mouse.get_pos()  # одно чтение на все события кадра (для слоёв интерфейса)
         for event in pygame.event.get():
-            consumed = any(layer.handle_event(event) for layer in self.ui_layers)
+            consumed = any(layer.handle_event(event, mouse_pos) for layer in self.ui_layers)
 
             # владение мышью: берём, если нажатие забрал интерфейс; отдаём при отпускании своей кнопки
             if event.type == pygame.MOUSEBUTTONDOWN and event.button in (1, 2, 3):

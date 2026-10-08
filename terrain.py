@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from armor import resolve_hit
 from common import PX_PER_M, clamp, obb_hits_convex, LRUCache
-from core import hash_int
+from noise import hash_int
 
 TAU = 2.0 * math.pi
 

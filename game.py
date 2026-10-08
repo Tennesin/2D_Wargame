@@ -13,7 +13,9 @@ from wall import (Wall, WallManager, PLACE_REPEAT,
 from controls import Action, MouseOwner, COMBAT_HOLD
 from input_handler import InputHandler
 from renderer import Renderer
-from ui import ConstructorUI, ToolBar, get_text, FONT_SIZE_LABEL
+from gfx import get_text, FONT_SIZE_LABEL
+from ui import ConstructorUI, ToolBar
+from ui_panels import PanelMode, build_panels
 from effects import EffectsSystem
 from aim import compute_aim
 from hud import TankHud
@@ -43,14 +45,13 @@ class Game:
         self.world = WorldGenerator(self.seed)
         self.terrain = TerrainMap(self.seed)
         self.camera = Camera(*self.screen.get_size())
-        self.ui = ConstructorUI(self.screen.get_size())
+        self.ui = ConstructorUI(self.screen.get_size(), build_panels(self._delete_selected_wall), PanelMode.TANK)
         self.toolbar = ToolBar()
-        self.tank = Tank(0.0, 0.0, spec=TankSpec.from_values(self.ui.get_values()))
+        self.tank = Tank(0.0, 0.0, spec=TankSpec.from_values(self.ui.get_values(PanelMode.TANK)))
         self.walls = WallManager()
         self.targets = TargetSet(self.walls, self.terrain)
-        self.ui.on_change = self._on_constructor_change
-        self.ui.on_wall_change = self._on_wall_change
-        self.ui.on_wall_delete = self._delete_selected_wall
+        self.ui.set_on_change(PanelMode.TANK, self._on_constructor_change)
+        self.ui.set_on_change(PanelMode.WALL, self._on_wall_change)
         self.toolbar.on_create_wall = self._toggle_build_mode
         self._show_stats()
 
@@ -100,9 +101,9 @@ class Game:
         self.walls.selected = wall if mode == Mode.WALL_EDIT else None
         self.toolbar.set_active(mode == Mode.BUILD)
         if mode == Mode.WALL_EDIT:
-            self.ui.show_wall(self._wall_values(wall))
+            self.ui.show(PanelMode.WALL, self._wall_values(wall), auto_open=True)
         else:
-            self.ui.show_tank()
+            self.ui.show(PanelMode.TANK)
 
     def _set_combat(self, on):
         """Боевое состояние. В режиме стройки включить нельзя. При выключении стрельба обрывается."""
@@ -272,7 +273,7 @@ class Game:
         wall.apply_params(values["wall_hp"], values["wall_width_m"], values["wall_length_m"])
         if self.tank.hits_obb(wall.obb()):
             wall.apply_params(*old)
-            self.ui.set_wall_values(self._wall_values(wall))
+            self.ui.set_values(PanelMode.WALL, self._wall_values(wall))
 
     def _hit_rotate_handle(self, pos):
         """Попал ли клик в белую точку выбранной стены (расстояние считаем в экранных px)."""
@@ -427,7 +428,7 @@ class Game:
             debug = self._debug_lines() if self.show_debug else None
             self.renderer.draw(self.screen, self.camera, self.tank, debug, self.effects,
                                self.walls, self._build_preview(), self._aim_info())
-            self.ui.draw(self.screen)
-            self.toolbar.draw(self.screen)
+            self.ui.draw(self.screen, self.input.mouse_pos)
+            self.toolbar.draw(self.screen, self.input.mouse_pos)
             self._draw_hud()
             pygame.display.flip()

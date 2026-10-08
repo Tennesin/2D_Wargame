@@ -99,7 +99,7 @@ class _Pen:
 class TankRenderer:
     def __init__(self):
         self._ppm = 0.0
-        self._hull_cache = LRUCache(40)  # (фаза левой, фаза правой, цвет) -> Surface
+        self._hull_cache = LRUCache(40)  # (фаза левой, фаза правой) -> Surface
         self._turret_cache = LRUCache(8)  # цвет -> Surface
         self._barrel_cache = LRUCache(40)  # (длина, толщина) -> Surface
         self._sil_cache = LRUCache(120)  # ключ -> силуэт для тени
