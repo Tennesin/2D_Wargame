@@ -7,7 +7,6 @@ import pygame
 from gfx import AlphaLayer, get_font, FONT_SIZE_LABEL
 from common import heading_vector
 from armor import HitResult
-from gfx import AlphaLayer
 
 LINE_COLOR = (255, 40, 40, 110)      # красный, полупрозрачный
 LINE_WIDTH = 2
@@ -19,7 +18,6 @@ C_TEXT = (235, 235, 235)
 C_YES = (90, 220, 90)
 C_NO = (240, 80, 80)
 C_CHANCE = (240, 210, 70)
-
 
 @dataclass
 class AimInfo:

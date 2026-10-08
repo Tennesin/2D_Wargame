@@ -19,7 +19,6 @@ class Action(Enum):
     TOGGLE_BUILD = auto()
     TOGGLE_FREE_CAM = auto()
     DELETE_WALL = auto()
-    QUIT = auto()
     # боевое состояние: есть и в HELD_KEYMAP, и в PRESS_KEYMAP, Game выбирает по COMBAT_HOLD
     COMBAT = auto()
 
