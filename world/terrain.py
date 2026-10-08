@@ -7,9 +7,9 @@ import math
 import random
 from dataclasses import dataclass
 
-from armor import resolve_hit
-from common import PX_PER_M, clamp, obb_hits_convex, LRUCache
-from noise import hash_int
+from combat import resolve_hit
+from engine import PX_PER_M, clamp, obb_hits_convex, LRUCache
+from engine import hash_int
 
 TAU = 2.0 * math.pi
 
@@ -19,7 +19,7 @@ TAU = 2.0 * math.pi
 
 FEATURE_CELL = 3000.0        # размер ячейки генерации, px мира (30 м)
 MAX_PATCH_R = 2600.0         # никакое пятно не выходит за этот радиус от центра (нужно для поиска соседей)
-SPAWN_CLEAR = 600.0          # вокруг точки (0, 0) пятен нет, px
+SPAWN_CLEAR = 1400.0          # вокруг точки (0, 0) пятен нет, px
 CELL_CACHE_LIMIT = 600
 
 # --- озёра: три вложенные зоны ---
@@ -63,13 +63,15 @@ class TerrainKind:
     density: float = 0.0           # т/м³; 0 — масса не считается (вода, грязь)
     armor_mm: float = 0.0          # броня для снарядов (имеет смысл, если blocks_shells)
     blocks_shells: bool = False    # останавливает снаряды
+    blocks_barrel: bool = False
 
 SHALLOWS = TerrainKind("Мелководье", SHALLOWS_K, False, 0)
 MUD = TerrainKind("Грязь", MUD_K, False, 1)
 MID_WATER = TerrainKind("Вода", MID_WATER_K, False, 2)
 DEEP_WATER = TerrainKind("Глубокая вода", 0.0, True, 3)
 ROCK = TerrainKind("Камень", 0.0, True, 4,
-                   density=ROCK_DENSITY, armor_mm=ROCK_ARMOR_MM, blocks_shells=True)
+                   density=ROCK_DENSITY, armor_mm=ROCK_ARMOR_MM,
+                   blocks_shells=True, blocks_barrel=True)
 
 # ==========================================
 # 2. ПЯТНО
@@ -84,7 +86,6 @@ def _polygon_area(pts):
         x1, y1 = pts[(i + 1) % n]
         s += x0 * y1 - x1 * y0
     return abs(s) / 2.0
-
 
 class Patch:
     """Одно препятствие: звёздчатый многоугольник вокруг центра (мировые px)."""
@@ -192,7 +193,6 @@ def _make_pts(rng, cx, cy, radius, n, stretch=1.0, rough=0.2, jitter=0.1):
         s = MAX_PATCH_R / rmax
         pts = [(cx + (px - cx) * s, cy + (py - cy) * s) for px, py in pts]
     return pts
-
 
 def _scaled(patch, k):
     """Контур пятна, уменьшенный к его центру в k раз."""
@@ -357,11 +357,14 @@ class TerrainMap:
         return 1.0 if kind is None else kind.speed_k
 
     @staticmethod
-    def blocks_obb_in(patches, obb):
-        """Задевает ли повёрнутый прямоугольник (x, y, half_w, half_l, angle) твёрдое пятно из списка."""
+    def blocks_obb_in(patches, obb, barrel=False):
+        """Задевает ли повёрнутый прямоугольник (x, y, half_w, half_l, angle) твёрдое пятно из списка.
+        barrel=True: учитываются только пятна, о которые упирается ствол (камни)."""
         cx, cy, hw, hl, ang = obb
         for p in patches:
             if not p.kind.solid:
+                continue
+            if barrel and not p.kind.blocks_barrel:
                 continue
             dx, dy = p.x - cx, p.y - cy
             lim = p.r_max + math.hypot(hw, hl)

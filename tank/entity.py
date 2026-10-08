@@ -1,9 +1,9 @@
 """tank/entity.py — состояние и логика танка (без отрисовки)."""
 import math
 
-from common import (normalize_angle, shortest_angle_diff, obb_hits_obb, obb_segment_hit,
+from engine import (normalize_angle, shortest_angle_diff, obb_hits_obb, obb_segment_hit,
                     VehicleCommand, Shot, PX_PER_M, heading_vector, find_free_fraction)
-from armor import resolve_hit, Damageable
+from combat.armor import resolve_hit, Damageable
 from .params import (KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, TANK_ARMOR_K,
                      TERRAIN_MIN_K, TERRAIN_BRAKE, TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY,
                      TRACK_LINK_M, TRACK_OFFSET_M, COLLISION_MARGIN_PX,
@@ -76,7 +76,10 @@ class Tank(Damageable):
 
     def _barrel_hits(self, x, y, turret_abs, obstacles):
         obb = self._barrel_obb(x, y, turret_abs)
-        return any(obb_hits_obb(*obb, *other) for other in obstacles)
+        if any(obb_hits_obb(*obb, *other) for other in obstacles):
+            return True
+        return (self._terrain is not None
+                and self._terrain.blocks_obb_in(self._patches, obb, barrel=True))
 
     def _overlaps(self, x, y, angle, obstacles):
         """angle — угол КОРПУСА. Задевает ли препятствие корпус или ствол
@@ -326,7 +329,7 @@ class Tank(Damageable):
             self.turret_rate = 0.0
 
         old = self.turret_rel_angle
-        if (obstacles and delta != 0
+        if (self._has_solids(obstacles) and delta != 0
                 and not self._barrel_hits(self.x, self.y, self.hull_angle + old, obstacles)
                 and self._barrel_hits(self.x, self.y, self.hull_angle + old + delta, obstacles)):
             frac = find_free_fraction(

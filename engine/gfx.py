@@ -1,7 +1,7 @@
 """gfx.py — общие помощники рисования: шрифты, кэш текста, прозрачный буфер."""
 import pygame
 
-from common import LRUCache
+from .cache import LRUCache
 
 FONT_NAME = "arial"          # SysFont; на Windows поддерживает кириллицу
 FONT_SIZE_TITLE = 22

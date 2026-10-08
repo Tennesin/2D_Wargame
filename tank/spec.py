@@ -1,7 +1,7 @@
 """tank/spec.py — формулы конструктора: входные параметры -> все характеристики танка."""
 import math
 
-from common import PX_PER_M, clamp, fmt_num
+from engine import PX_PER_M, clamp, fmt_num
 from .params import (
     PARAMS, REF_CAL, REF_POWER, REF_MASS, REF_FILLING, REF_ARMOR_MASS, REF_PW,
     REF_ARMOR_SHARE, TURRET_FRONT_M, BARREL_VISIBLE_K, BARREL_THICK_REF_M,

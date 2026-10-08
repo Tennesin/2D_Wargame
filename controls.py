@@ -3,7 +3,6 @@ from enum import Enum, auto
 
 import pygame
 
-
 class Action(Enum):
     # удерживаемые
     FORWARD = auto()

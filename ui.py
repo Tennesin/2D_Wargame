@@ -2,7 +2,7 @@
 О танке и стене ничего не знает: состав панелей приходит снаружи."""
 import pygame
 
-from gfx import FONT_SIZE_TITLE, FONT_SIZE_HEADER, FONT_SIZE_LABEL, get_font, get_text, wrap_text
+from engine import FONT_SIZE_TITLE, FONT_SIZE_HEADER, FONT_SIZE_LABEL, get_font, get_text, wrap_text
 
 # ==========================================
 # 1. НАСТРОЙКИ ВНЕШНЕГО ВИДА

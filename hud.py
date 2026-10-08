@@ -1,8 +1,8 @@
 """hud.py — компактная сводка по танку в левом нижнем углу."""
 import pygame
 
-from common import clamp, fmt_num
-from gfx import get_text, FONT_SIZE_LABEL
+from engine import clamp, fmt_num
+from engine import get_text, FONT_SIZE_LABEL
 
 MARGIN = 10          # отступ от краёв окна
 WIDTH = 190

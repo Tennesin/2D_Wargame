@@ -1,5 +1,5 @@
 """wall/params.py — параметры стены (ползунки) и константы."""
-from common import Param
+from engine import Param
 
 WALL_PARAMS = {
     "wall_hp":       Param("Здоровье", "",  500, 10000, 2000, 100),

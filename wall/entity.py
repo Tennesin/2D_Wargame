@@ -2,8 +2,8 @@
 import math
 import random
 
-from common import PX_PER_M, clamp, obb_segment_hit
-from armor import resolve_hit, Damageable
+from engine import PX_PER_M, clamp, obb_segment_hit
+from combat.armor import resolve_hit, Damageable
 from .params import (
     WALL_PARAMS, WALL_ARMOR_K, WALL_HEIGHT_M, WALL_DENSITY_T_M3,
 )

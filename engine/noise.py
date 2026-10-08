@@ -1,7 +1,7 @@
 """noise.py — детерминированные хеши и плавный шум. Без pygame и без знания о мире."""
 import math
 
-from common import lerp
+from .mathx import lerp
 
 def hash_int(ix, iy, seed):
     """Детерминированный целочисленный хеш трёх чисел (32 бита)."""

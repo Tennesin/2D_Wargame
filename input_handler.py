@@ -3,7 +3,7 @@
 Здесь же живёт «владелец мыши»: нажатая кнопка принадлежит одному владельцу до её отпускания."""
 import pygame
 
-from common import VehicleCommand
+from engine import VehicleCommand
 from controls import Action, MouseOwner, HELD_KEYMAP, KEY_TO_PRESS
 
 ZOOM_KEY_DELAY = 0.35     # пауза перед автоповтором при удержании зума с клавиатуры, с

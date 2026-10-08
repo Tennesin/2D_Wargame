@@ -1,8 +1,8 @@
 """terrain_render.py — отрисовка естественных препятствий: вода (три зоны), грязь, камни."""
 import pygame
 
-from terrain import ROCK, DEEP_WATER, MID_WATER, SHALLOWS, MUD
-from common import CONCRETE_SIDE, OUTLINE_DARK
+from .terrain import ROCK, DEEP_WATER, MID_WATER, SHALLOWS, MUD
+from engine import CONCRETE_SIDE, OUTLINE_DARK
 
 MIN_SCREEN_R = 1.5           # пятна мельче этого радиуса (экранные px) не рисуем
 
