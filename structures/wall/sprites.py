@@ -3,9 +3,9 @@ import math
 
 import pygame
 
-from engine import PX_PER_M, clamp, CONCRETE_SIDE, OUTLINE_DARK, SHADOW_ALPHA
+from engine import (PX_PER_M, clamp, CONCRETE_SIDE,
+                    OUTLINE_DARK, SHADOW_ALPHA, AlphaLayer)
 from .params import ROTATE_HANDLE_RADIUS_PX
-from engine.gfx import AlphaLayer
 
 WALL_SIDE = CONCRETE_SIDE
 WALL_TOP = (158, 158, 162)

@@ -1,10 +1,10 @@
-"""input_handler.py — единственное место, которое читает клавиатуру и мышь.
+"""handler.py — единственное место, которое читает клавиатуру и мышь.
 В начале кадра process_events() делает «снимок» ввода; остальной код берёт данные только из него.
 Здесь же живёт «владелец мыши»: нажатая кнопка принадлежит одному владельцу до её отпускания."""
 import pygame
 
 from engine import VehicleCommand
-from controls import Action, MouseOwner, HELD_KEYMAP, KEY_TO_PRESS
+from .keymap import Action, MouseOwner, HELD_KEYMAP, KEY_TO_PRESS
 
 ZOOM_KEY_DELAY = 0.35     # пауза перед автоповтором при удержании зума с клавиатуры, с
 ZOOM_KEY_REPEAT = 0.08    # интервал автоповтора, с

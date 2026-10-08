@@ -3,7 +3,7 @@ import math
 
 from engine import (normalize_angle, shortest_angle_diff, obb_hits_obb, obb_segment_hit,
                     VehicleCommand, Shot, PX_PER_M, heading_vector, find_free_fraction)
-from combat.armor import resolve_hit, Damageable
+from combat import resolve_hit, Damageable
 from .params import (KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, TANK_ARMOR_K,
                      TERRAIN_MIN_K, TERRAIN_BRAKE, TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY,
                      TRACK_LINK_M, TRACK_OFFSET_M, COLLISION_MARGIN_PX,

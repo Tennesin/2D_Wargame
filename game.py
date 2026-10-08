@@ -7,17 +7,15 @@ import pygame
 
 from engine import PX_PER_M, shortest_angle_diff, fmt_num
 from world import Camera, WorldGenerator, CHUNK_SIZE
-from tank import Tank, TankSpec
-from wall import (Wall, WallManager, PLACE_REPEAT,
-                  ROTATE_HANDLE_HIT_PX, ROTATE_DEAD_ZONE_PX, ROTATE_SNAP_DEG)
-from controls import Action, MouseOwner, COMBAT_HOLD
-from input_handler import InputHandler
+from vehicles import Tank, TankSpec
+from structures import (Wall, WallManager, PLACE_REPEAT,
+                        ROTATE_HANDLE_HIT_PX, ROTATE_DEAD_ZONE_PX, ROTATE_SNAP_DEG)
+from inputs import Action, MouseOwner, COMBAT_HOLD, InputHandler
 from renderer import Renderer
 from engine.gfx import get_text, FONT_SIZE_LABEL
-from ui import ConstructorUI, ToolBar
+from ui import ConstructorUI, ToolBar, TankHud
 from ui_panels import PanelMode, build_panels
 from combat import EffectsSystem, compute_aim, TargetSet
-from hud import TankHud
 from world.terrain import TerrainMap
 
 PAN_DRAG_THRESHOLD_PX = 5     # на сколько px надо сдвинуть мышь с зажатой ПКМ, чтобы это считалось перетаскиванием

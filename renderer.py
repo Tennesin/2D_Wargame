@@ -1,28 +1,20 @@
-"""renderer.py — вся отрисовка: земля (чанки с зумом), декор, танк, отладка."""
-import math
+"""renderer.py — порядок слоёв: земля, местность, эффекты, стены, танк, прицел, отладка."""
 import pygame
 
-from engine import PX_PER_M, LRUCache
-from world import CHUNK_SIZE, CELL_SIZE
-from tank import TankRenderer
-from wall import WallRenderer
+from engine import PX_PER_M
+from world import GroundRenderer, TerrainRenderer
+from vehicles import TankRenderer
+from structures import WallRenderer
 from combat import AimRenderer
-from world.terrain_render import TerrainRenderer
-
-# ---------- Земля ----------
-MIN_CACHED_CHUNKS = 40
 
 class Renderer:
     def __init__(self, world_generator, terrain=None):
-        self.world = world_generator
         self.font = pygame.font.Font(None, 22)
 
         self._zoom = None                   # зум, под который сейчас построены кэши
         self._ppm = 0.0                     # пикселей экрана на метр эталонного спрайта (= PX_PER_M * zoom)
 
-        self._chunk_cache = LRUCache()  # (cx, cy, lod) -> Surface, как построено (без масштаба)
-        self._scaled_cache = LRUCache()  # (cx, cy) -> Surface, уже под текущий зум
-
+        self.ground_renderer = GroundRenderer(world_generator)
         self.tank_renderer = TankRenderer()
         self.wall_renderer = WallRenderer()
         self.aim_renderer = AimRenderer()
@@ -36,7 +28,7 @@ class Renderer:
     def draw(self, screen, camera, tank, debug_lines=None, effects=None, walls=None,
              build_preview=None, aim=None):
         self._sync_zoom(camera.zoom)
-        self._draw_ground(screen, camera)
+        self.ground_renderer.draw(screen, camera)
         if self.terrain is not None:
             self.terrain_renderer.draw(screen, camera, self.terrain)
         if effects is not None:
@@ -54,12 +46,12 @@ class Renderer:
             self._draw_debug(screen, debug_lines)
 
     def _sync_zoom(self, zoom):
-        """При смене зума сбрасываем всё, что зависит от масштаба (земля-базовые чанки остаются)."""
+        """При смене зума сбрасываем всё, что зависит от масштаба (базовые чанки земли остаются)."""
         if zoom == self._zoom:
             return
         self._zoom = zoom
         self._ppm = PX_PER_M * zoom
-        self._scaled_cache.clear()
+        self.ground_renderer.set_zoom()
         self.tank_renderer.set_zoom(self._ppm)
 
     # ==========================================

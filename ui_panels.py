@@ -1,11 +1,10 @@
 """ui_panels.py — состав панелей интерфейса: какие ползунки и характеристики показывать
-для танка и для стены. Единственное место, где интерфейс «знакомится» с танком и стеной
-(сам ui.py о них ничего не знает)."""
+для танка и для стены. Единственное место, где интерфейс «знакомится» с танком и стеной."""
 from enum import Enum, auto
 from functools import partial
 
-from tank import TankSpec, PARAMS
-from wall import WALL_PARAMS
+from vehicles import TankSpec, TANK_PARAMS
+from structures import WALL_PARAMS
 from ui import (Panel, SectionHeader, StatsBlock, InfoText, ActionButton,
                 make_param_row, DELETE_BUTTON_COLORS)
 
@@ -15,7 +14,7 @@ class PanelMode(Enum):
 
 def build_tank_panel():
     spec0 = TankSpec.from_config()      # нужен только ради списка названий характеристик
-    row = partial(make_param_row, PARAMS)
+    row = partial(make_param_row, TANK_PARAMS)
     return Panel("Конструктор техники", [
         SectionHeader("Вооружение"),
         row("gun_caliber_mm"),

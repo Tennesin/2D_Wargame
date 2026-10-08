@@ -4,8 +4,7 @@ from dataclasses import dataclass
 from typing import Optional
 import pygame
 
-from engine.gfx import AlphaLayer, get_font, FONT_SIZE_LABEL
-from engine import heading_vector
+from engine import heading_vector, AlphaLayer, get_font, FONT_SIZE_LABEL
 from .armor import HitResult
 
 LINE_COLOR = (255, 40, 40, 110)      # красный, полупрозрачный
