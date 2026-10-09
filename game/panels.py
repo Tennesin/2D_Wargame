@@ -53,13 +53,6 @@ def build_wall_panel():
         ActionButton("Удалить стену", DELETE_BUTTON_COLORS),
     ])
 
-def build_panels():
-    """Все панели: {PanelMode: Panel}."""
-    return {
-        PanelMode.TANK: build_tank_panel(),
-        PanelMode.WALL: build_wall_panel(),
-    }
-
 def wall_values(wall):
     """Значения ползунков панели стены для конкретной стены."""
     return {"wall_hp": wall.max_hp, "wall_width_m": wall.width_m, "wall_length_m": wall.length_m}

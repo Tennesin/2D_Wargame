@@ -5,11 +5,11 @@ import random
 import pygame
 
 from world import Camera, WorldGenerator, TerrainMap
-from vehicles import Tank, TankSpec
+from vehicles import Tank
 from structures import WallManager
 from inputs import InputHandler
 from ui import ConstructorUI, ToolBar, TankHud
-from ..panels import PanelMode, build_panels
+from ..panels import PanelMode, build_wall_panel
 from ..modes import Modes
 from ..camera_control import CameraController
 from ..combat_control import CombatController
@@ -23,9 +23,8 @@ from .base import Scene
 DEBUG_PRINT_SPECS = False     # печатать характеристики танка в консоль при запуске
 
 class PlayScene(Scene):
-    def __init__(self, seed, clock, on_menu, on_quit):
-        """on_menu: вернуться в меню (Esc, когда закрывать больше нечего).
-        on_quit: закрыть приложение (крестик окна)."""
+    def __init__(self, seed, clock, session, on_menu, on_quit):
+        """session: настройки танка из конструктора."""
         self.on_quit = on_quit
         size = pygame.display.get_surface().get_size()
 
@@ -39,10 +38,11 @@ class PlayScene(Scene):
         self.camera = Camera(*size)
 
         # --- интерфейс, ввод, танк ---
-        self.ui = ConstructorUI(size, build_panels(), PanelMode.TANK)
+        self.ui = ConstructorUI(size, {PanelMode.WALL: build_wall_panel()}, PanelMode.WALL,
+                                has_toggle=False)
         self.toolbar = ToolBar()
         self.input = InputHandler([self.toolbar, self.ui])
-        tank = Tank(0.0, 0.0, spec=TankSpec.from_values(self.ui.get_values(PanelMode.TANK)))
+        tank = Tank(0.0, 0.0, spec=session.tank_spec())
         if DEBUG_PRINT_SPECS:
             tank.spec.print_specs()
 
@@ -52,7 +52,7 @@ class PlayScene(Scene):
         self.camera_ctrl = CameraController(self.camera, self.input)
         self.combat = CombatController(tank, walls, terrain, modes)
         self.tank_ctrl = TankController(tank, self.input, self.camera, modes, walls, terrain,
-                                        self.combat.effects, self.ui)
+                                        self.combat.effects)
         self.wall_editor = WallEditor(self.input, self.camera, modes, walls, tank, terrain, self.ui)
         self.clicks = ClickRouter(self.input, self.camera, modes, self.camera_ctrl, self.wall_editor)
 

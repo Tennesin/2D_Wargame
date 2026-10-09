@@ -16,11 +16,13 @@ BUTTON_GAP = 16
 BUTTON_FONT = 24
 
 class MenuScene(Scene):
-    def __init__(self, on_play, on_quit):
-        self.on_play = on_play           # функция без аргументов: начать игру
-        self.on_quit = on_quit           # функция без аргументов: закрыть приложение
+    def __init__(self, on_play, on_constructor, on_quit):
+        self.on_play = on_play                  # начать игру
+        self.on_constructor = on_constructor    # открыть конструктор
+        self.on_quit = on_quit                  # закрыть приложение
 
         self.play_button = Button((0, 0, BUTTON_W, BUTTON_H), "Играть")
+        self.constructor_button = Button((0, 0, BUTTON_W, BUTTON_H), "Конструктор")
         self.quit_button = Button((0, 0, BUTTON_W, BUTTON_H), "Выйти")
         self._title_pos = (0, 0)
         self._size = None
@@ -31,8 +33,10 @@ class MenuScene(Scene):
         self._size = size
         cx, cy = size[0] // 2, size[1] // 2
         self._title_pos = (cx, cy - TITLE_OFFSET)
+        step = BUTTON_H + BUTTON_GAP
         self.play_button.rect.center = (cx, cy)
-        self.quit_button.rect.center = (cx, cy + BUTTON_H + BUTTON_GAP)
+        self.constructor_button.rect.center = (cx, cy + step)
+        self.quit_button.rect.center = (cx, cy + 2 * step)
 
     def update(self, dt):
         size = pygame.display.get_surface().get_size()
@@ -54,6 +58,9 @@ class MenuScene(Scene):
                 if self.play_button.collidepoint(event.pos):
                     self.on_play()
                     return
+                if self.constructor_button.collidepoint(event.pos):
+                    self.on_constructor()
+                    return
                 if self.quit_button.collidepoint(event.pos):
                     self.on_quit()
                     return
@@ -65,4 +72,5 @@ class MenuScene(Scene):
 
         mouse = pygame.mouse.get_pos()      # у меню нет InputHandler, мышь читаем здесь
         self.play_button.draw(screen, mouse, font_size=BUTTON_FONT)
+        self.constructor_button.draw(screen, mouse, font_size=BUTTON_FONT)
         self.quit_button.draw(screen, mouse, font_size=BUTTON_FONT, colors=DELETE_BUTTON_COLORS)

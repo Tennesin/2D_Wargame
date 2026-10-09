@@ -25,15 +25,15 @@ class Panel:
                 it.set_value(values[it.key])
 
 class ConstructorUI:
-    def __init__(self, screen_size, panels, start_mode):
-        """panels — {режим: Panel}; start_mode — какая панель показана вначале."""
+    def __init__(self, screen_size, panels, start_mode, *, has_toggle=True, start_open=False):
         self.screen_size = screen_size
-        self.is_open = False             # при запуске панель свёрнута
-        self._auto_opened = False        # панель раскрылась сама (при выборе стены), а не по кнопке
+        self.has_toggle = has_toggle
+        self.is_open = start_open
+        self._auto_opened = False
         self.panels = panels
         self.mode = start_mode
 
-        self.toggle_button = Button((0, 0, TOGGLE_SIZE, TOGGLE_SIZE), "<")
+        self.toggle_button = Button((0, 0, TOGGLE_SIZE, TOGGLE_SIZE), ">" if start_open else "<")
         self.scroll = ScrollArea()
         self.panel_rect = pygame.Rect(0, 0, PANEL_WIDTH, 0)
         self.content_rect = pygame.Rect(0, 0, 0, 0)
@@ -76,10 +76,7 @@ class ConstructorUI:
             block.values[name] = value
 
     def show(self, mode, values=None, auto_open=False):
-        """Показать панель mode. values — стартовые значения ползунков (необязательно).
-        auto_open=True: закрытая панель раскрывается сама и закрывается обратно, когда
-        игрок вернётся к другой панели. Без него открытое/закрытое состояние не трогаем,
-        кроме случая, когда уходим с панели, которая раскрылась сама."""
+        """Показать панель mode."""
         if values is not None:
             self.set_values(mode, values)
         if auto_open:
@@ -100,6 +97,11 @@ class ConstructorUI:
         self.scroll.offset = 0
         self._layout()
 
+    def close(self):
+        """Закрыть панель, если она открыта."""
+        if self.is_open:
+            self.toggle()
+
     def toggle(self):
         self.is_open = not self.is_open
         self.toggle_button.label = ">" if self.is_open else "<"
@@ -114,8 +116,8 @@ class ConstructorUI:
             self._layout()
 
     def covers(self, pos):
-        """Лежит ли точка экрана на красной кнопке или на открытой панели."""
-        if self.toggle_button.rect.collidepoint(pos):
+        """Лежит ли точка экрана на красной кнопке (если она есть) или на открытой панели."""
+        if self.has_toggle and self.toggle_button.rect.collidepoint(pos):
             return True
         return self.is_open and self.panel_rect.collidepoint(pos)
 
@@ -154,7 +156,7 @@ class ConstructorUI:
     def handle_event(self, event, mouse_pos):
         """Возвращает True, если событие поглощено интерфейсом."""
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if self.toggle_button.collidepoint(event.pos):
+            if self.has_toggle and self.toggle_button.collidepoint(event.pos):
                 if event.button == 1:
                     self.toggle()
                 return True
@@ -198,7 +200,8 @@ class ConstructorUI:
     def draw(self, screen, mouse_pos):
         if self.is_open:
             self._draw_panel(screen, mouse_pos)
-        self.toggle_button.draw(screen, mouse_pos, font_size=20, colors=TOGGLE_COLORS)
+        if self.has_toggle:
+            self.toggle_button.draw(screen, mouse_pos, font_size=20, colors=TOGGLE_COLORS)
 
     def _draw_panel(self, screen, mouse_pos):
         rect = self.panel_rect

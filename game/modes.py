@@ -40,7 +40,7 @@ class Modes:
         if mode == Mode.WALL_EDIT:
             self.ui.show(PanelMode.WALL, wall_values(wall), auto_open=True)
         else:
-            self.ui.show(PanelMode.TANK)
+            self.ui.close()
 
     def set_combat(self, on):
         """В режиме стройки включить нельзя. При выключении стрельба обрывается."""

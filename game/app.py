@@ -1,7 +1,8 @@
 """game/app.py — окно, главный цикл и смена сцен. Логики игры здесь нет."""
 import pygame
 
-from .scenes import MenuScene, PlayScene
+from .scenes import MenuScene, ConstructorScene, PlayScene
+from .session import Session
 
 class App:
     MAX_DT = 0.05   # защита от «телепорта» при подвисании окна
@@ -12,6 +13,7 @@ class App:
         pygame.display.set_caption("2D Wargame")
         self.clock = pygame.time.Clock()
         self.seed = seed                 # None: у каждой новой игры свой случайный мир
+        self.session = Session()         # настройки техники живут здесь, пока открыто приложение
 
         self.running = True
         self.scene = None
@@ -22,10 +24,16 @@ class App:
 
     # ---------- смена сцен (их передают сценам как колбэки) ----------
     def show_menu(self):
-        self._next = lambda: MenuScene(on_play=self.start_game, on_quit=self.quit)
+        self._next = lambda: MenuScene(on_play=self.start_game,
+                                       on_constructor=self.show_constructor,
+                                       on_quit=self.quit)
+
+    def show_constructor(self):
+        self._next = lambda: ConstructorScene(self.session, on_play=self.start_game,
+                                              on_menu=self.show_menu, on_quit=self.quit)
 
     def start_game(self):
-        self._next = lambda: PlayScene(self.seed, self.clock,
+        self._next = lambda: PlayScene(self.seed, self.clock, self.session,
                                        on_menu=self.show_menu, on_quit=self.quit)
 
     def quit(self):

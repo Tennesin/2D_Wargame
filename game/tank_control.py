@@ -1,10 +1,8 @@
-"""game/tank_control.py — танк игрока: команда из ввода, обновление, ползунки конструктора."""
-from vehicles import TankSpec
+"""game/tank_control.py — танк игрока: команда из ввода и обновление."""
 from .modes import Mode
-from .panels import PanelMode
 
 class TankController:
-    def __init__(self, tank, input_handler, camera, modes, walls, terrain, effects, ui):
+    def __init__(self, tank, input_handler, camera, modes, walls, terrain, effects):
         self.tank = tank
         self.input = input_handler
         self.camera = camera
@@ -12,21 +10,6 @@ class TankController:
         self.walls = walls
         self.terrain = terrain
         self.effects = effects
-        self.ui = ui
-
-        ui.set_on_change(PanelMode.TANK, self.on_constructor_change)
-        self.show_stats()
-
-    # ---------- конструктор ----------
-    def on_constructor_change(self, values):
-        """Ползунок сдвинут: пересчитываем танк (доля HP сохраняется внутри set_spec) и обновляем панель."""
-        self.tank.set_spec(TankSpec.from_values(values))
-        self.show_stats()
-
-    def show_stats(self):
-        spec = self.tank.spec
-        for name, text in {**spec.main_stats(), **spec.internal_stats()}.items():
-            self.ui.set_stat(name, text)
 
     # ---------- каждый кадр ----------
     def update(self, dt):
