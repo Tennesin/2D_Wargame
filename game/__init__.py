@@ -1,4 +1,4 @@
-"""game — окно, главный цикл, связывание частей. Снаружи: from game import Game"""
-from .app import Game
+"""game — окно, главный цикл, сцены. Снаружи: from game import App"""
+from .app import App
 
-__all__ = ["Game"]
+__all__ = ["App"]

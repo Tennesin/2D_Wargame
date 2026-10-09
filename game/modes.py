@@ -21,6 +21,7 @@ class Modes:
         self.mode = Mode.DRIVE           # единственный источник правды о режиме
         self.combat = False              # боевое состояние (Alt): огонь по ЛКМ и красная линия прицела
         self.turret_follow = True        # башня следит за мышью (Q)
+        self.on_exit = None              # колбэк «выйти из игры в меню» (его ставит PlayScene)
 
         toolbar.on_create_wall = self.toggle_build
 
@@ -53,11 +54,14 @@ class Modes:
         self.set_mode(Mode.DRIVE if self.mode == Mode.BUILD else Mode.BUILD)
 
     def handle_escape(self):
-        """Esc закрывает по одному слою: стройка или стена, затем боевое состояние."""
+        """Esc закрывает по одному слою: стройка или стена, затем боевое состояние,
+        а когда закрывать больше нечего, выход в меню."""
         if self.mode != Mode.DRIVE:
             self.set_mode(Mode.DRIVE)
         elif self.combat:
             self.set_combat(False)
+        elif self.on_exit is not None:
+            self.on_exit()
 
     # ---------- клавиши ----------
     def handle_hotkeys(self):

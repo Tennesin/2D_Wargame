@@ -1,10 +1,10 @@
 import sys
 import pygame
 
-from game import Game
+from game import App
 
 if __name__ == "__main__":
-    app = Game(seed=12345)
+    app = App(seed=12345)
     app.run()
     pygame.quit()
     sys.exit()
