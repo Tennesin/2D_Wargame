@@ -1,13 +1,16 @@
 """tank/entity.py — состояние и логика танка (без отрисовки)."""
 import math
 
-from engine import (normalize_angle, shortest_angle_diff, obb_hits_obb, obb_segment_hit,
-                    VehicleCommand, Shot, PX_PER_M, heading_vector, find_free_fraction)
+from engine import (
+    normalize_angle, shortest_angle_diff, obb_hits_obb, obb_segment_hit,
+    VehicleCommand, Shot, PX_PER_M, heading_vector, find_free_fraction
+)
 from combat import resolve_hit, Damageable
-from .params import (KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, TANK_ARMOR_K,
-                     TERRAIN_MIN_K, TERRAIN_BRAKE, TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY,
-                     TRACK_LINK_M, TRACK_OFFSET_M, COLLISION_MARGIN_PX,
-                     CONTACT_TURN_STEPS, CONTACT_PUSH_STEPS)
+from .params import (
+    KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, TANK_ARMOR_K, TERRAIN_MIN_K, TERRAIN_BRAKE,
+    TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY, TRACK_LINK_M, TRACK_OFFSET_M, COLLISION_MARGIN_PX,
+    CONTACT_TURN_STEPS, CONTACT_PUSH_STEPS, SLIDE_ANGLES_DEG, SLIDE_MIN_PX, CONTACT_SCRUB, CONTACT_STOP_PROGRESS
+)
 
 # Направления отодвигания корпуса: (вдоль корпуса, поперёк). Назад, вперёд, в стороны и диагонали.
 _NUDGE_DIRS = ((-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0),
@@ -236,21 +239,52 @@ class Tank(Damageable):
         fx, fy = heading_vector(self.hull_angle)
         dx = fx * distance
         dy = fy * distance
-
         new_x, new_y = self.x + dx, self.y + dy
-        # если путь упирается в препятствие, подъезжаем вплотную
+        along = distance  # сколько пути реально пройдено вдоль курса
+
         if (self._has_solids(obstacles)
                 and not self._overlaps(self.x, self.y, self.hull_angle, obstacles)
                 and self._overlaps(new_x, new_y, self.hull_angle, obstacles)):
-            frac = find_free_fraction(
-                lambda f: self._overlaps(self.x + dx * f, self.y + dy * f, self.hull_angle, obstacles))
-            new_x, new_y = self.x + dx * frac, self.y + dy * frac
+            new_x, new_y = self._move_along_obstacle(dx, dy, obstacles)
+            along = (new_x - self.x) * fx + (new_y - self.y) * fy
+            progress = max(0.0, min(1.0, along / distance))
+            self._scrub_speed(progress, dt)
 
-        moved = math.hypot(new_x - self.x, new_y - self.y)
-        if moved < abs(distance) * 0.999:  # путь урезан препятствием: танк встал
-            self.speed_kmh = 0.0
         self.x, self.y = new_x, new_y
-        return math.copysign(moved, distance)  # гусеницы крутятся только на реально пройденный путь
+        return along
+
+    def _move_along_obstacle(self, dx, dy, obstacles):
+        """Прямой путь (dx, dy) упёрся в препятствие. Подъезжаем вплотную, а остаток пути
+        отклоняем на небольшой угол в обе стороны: первый свободный вариант и есть скольжение вдоль стены.
+        Возвращает новую позицию (x, y); угол корпуса не меняется."""
+        x0, y0, ang = self.x, self.y, self.hull_angle
+        frac = find_free_fraction(
+            lambda f: self._overlaps(x0 + dx * f, y0 + dy * f, ang, obstacles))
+        x1, y1 = x0 + dx * frac, y0 + dy * frac
+
+        rest = (1.0 - frac) * math.hypot(dx, dy)  # путь, который не удалось проехать прямо
+        if rest < SLIDE_MIN_PX:
+            return x1, y1
+
+        base = math.atan2(dy, dx)
+        for deg in SLIDE_ANGLES_DEG:
+            rad = math.radians(deg)
+            length = rest * math.cos(rad)  # чем круче отклонение, тем короче скольжение
+            for sign in (1, -1):
+                a = base + rad * sign
+                sx, sy = x1 + math.cos(a) * length, y1 + math.sin(a) * length
+                if not self._overlaps(sx, sy, ang, obstacles):
+                    return sx, sy
+        return x1, y1  # удар почти в лоб: скользить некуда
+
+    def _scrub_speed(self, progress, dt):
+        """Трение о препятствие. progress = какая доля пути вперёд всё-таки пройдена (0..1).
+        Касание вскользь почти не тормозит, а удар в лоб останавливает танк."""
+        if progress < CONTACT_STOP_PROGRESS:
+            self.speed_kmh = 0.0
+            return
+        loss = 1.0 - progress
+        self.speed_kmh *= math.exp(-CONTACT_SCRUB * loss * loss * dt)
 
     def _update_speed(self, throttle, steer, dt):
         """Приближает текущую скорость к целевой с учётом разгона, наката и торможения."""

@@ -95,9 +95,18 @@ def skip_script(root, name):
 
 def copy_files():
     # старый снимок удаляем целиком, чтобы не оставалось файлов от удалённых модулей
-    if os.path.isdir(OUTPUT_DIR):
-        shutil.rmtree(OUTPUT_DIR)
-    os.makedirs(OUTPUT_DIR)
+    # очищаем только содержимое папки, а саму папку не удаляем:
+    # Windows не даёт удалить папку, если она открыта в Проводнике или редакторе
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    for entry in os.listdir(OUTPUT_DIR):
+        path = os.path.join(OUTPUT_DIR, entry)
+        if os.path.isdir(path):
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
 
     for root, _, files in walk_project():
         rel = os.path.relpath(root, MAIN_DIR)
