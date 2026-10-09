@@ -1,4 +1,4 @@
-"""ui_panels.py — состав панелей интерфейса: какие ползунки и характеристики показывать
+"""game/panels.py — состав панелей интерфейса: какие ползунки и характеристики показывать
 для танка и для стены. Единственное место, где интерфейс «знакомится» с танком и стеной."""
 from enum import Enum, auto
 from functools import partial
@@ -34,7 +34,8 @@ def build_tank_panel():
         StatsBlock(list(spec0.internal_stats())),
     ])
 
-def build_wall_panel(on_delete):
+def build_wall_panel():
+    """Колбэк красной кнопки здесь не задаётся: его привязывает WallEditor (bind_wall_delete)."""
     row = partial(make_param_row, WALL_PARAMS)
     return Panel("Настройки стены", [
         SectionHeader("Параметры"),
@@ -49,12 +50,22 @@ def build_wall_panel(on_delete):
                  "Белая точка в центре поворачивает стену; с Shift поворот идёт шагом 15°. "
                  "Delete — удалить выбранную стену."),
 
-        ActionButton("Удалить стену", DELETE_BUTTON_COLORS, on_delete),
+        ActionButton("Удалить стену", DELETE_BUTTON_COLORS),
     ])
 
-def build_panels(on_wall_delete):
+def build_panels():
     """Все панели: {PanelMode: Panel}."""
     return {
         PanelMode.TANK: build_tank_panel(),
-        PanelMode.WALL: build_wall_panel(on_wall_delete),
+        PanelMode.WALL: build_wall_panel(),
     }
+
+def wall_values(wall):
+    """Значения ползунков панели стены для конкретной стены."""
+    return {"wall_hp": wall.max_hp, "wall_width_m": wall.width_m, "wall_length_m": wall.length_m}
+
+def bind_wall_delete(ui, callback):
+    """Привязать действие к красной кнопке «Удалить стену» панели стены."""
+    for item in ui.panels[PanelMode.WALL].items:
+        if isinstance(item, ActionButton):
+            item.callback = callback
