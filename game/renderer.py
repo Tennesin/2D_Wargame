@@ -1,6 +1,6 @@
 """game/renderer.py — порядок слоёв: земля, местность, эффекты, стены, танк, прицел."""
 from engine import PX_PER_M
-from world import GroundRenderer, TerrainRenderer
+from world import GroundRenderer, TerrainRenderer, WorldBoundsRenderer
 from vehicles import TankRenderer
 from structures import WallRenderer
 from combat import AimRenderer
@@ -16,6 +16,7 @@ class Renderer:
         self._ppm = 0.0                     # пикселей экрана на метр эталонного спрайта (= PX_PER_M * zoom)
 
         self.ground_renderer = GroundRenderer(world_generator)
+        self.bounds_renderer = WorldBoundsRenderer()
         self.terrain_renderer = TerrainRenderer()
         self.tank_renderer = TankRenderer()
         self.wall_renderer = WallRenderer()
@@ -33,6 +34,7 @@ class Renderer:
         if aim is not None:                              # линия выстрела под снарядами и вспышкой
             self.aim_renderer.draw(screen, camera, aim)
         self.effects.draw(screen, camera)
+        self.bounds_renderer.draw(screen, camera)        # темнота за краем мира накрывает всё, что туда залетело
 
     def _sync_zoom(self, zoom):
         """При смене зума сбрасываем всё, что зависит от масштаба (базовые чанки земли остаются)."""

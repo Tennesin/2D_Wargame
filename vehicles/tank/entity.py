@@ -111,6 +111,20 @@ class Tank(Damageable):
         barrel = self._barrel_obb(self.x, self.y, self.turret_angle)
         return obb_hits_obb(*hull, *other) or obb_hits_obb(*barrel, *other)
 
+    def footprint_at(self, x, y, hull_angle):
+        """Прямоугольники, которые танк займёт в точке (x, y) при угле корпуса hull_angle:
+        [корпус, ствол]. Корпус ВСЕГДА первый (по нему проверяется грунт). Башня сохраняет относительный угол."""
+        return [self._hull_obb(x, y, hull_angle),
+                self._barrel_obb(x, y, hull_angle + self.turret_rel_angle)]
+
+    def place_at(self, spot):
+        """Поставить танк в найденную точку спавна (любой объект с x, y, angle) и обнулить движение."""
+        self.x, self.y = float(spot.x), float(spot.y)
+        self.hull_angle = spot.angle % 360.0
+        self.speed_kmh = 0.0
+        self.hull_rate = 0.0
+        self.turret_rate = 0.0
+
     # --- попадания снарядов (универсальный интерфейс цели) ---
     @property
     def alive(self):

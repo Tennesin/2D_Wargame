@@ -82,3 +82,12 @@ def obb_segment_hit(obb, x0, y0, x1, y1):
         return t0, None
     nu, nv = normal_local
     return t0, (nu * c - nv * s, nu * s + nv * c)
+
+def obb_outside_rect(cx, cy, half_w, half_l, angle_deg, left, top, right, bottom):
+    """True, если повёрнутый прямоугольник (центр, полуширина, полудлина, угол) хоть частью
+    выходит за осевую рамку left/top/right/bottom. Касание края выходом не считается."""
+    rad = math.radians(angle_deg)
+    c, s = abs(math.cos(rad)), abs(math.sin(rad))
+    ex = half_w * c + half_l * s          # полуразмер описанной осевой рамки по X
+    ey = half_w * s + half_l * c          # и по Y
+    return cx - ex < left or cx + ex > right or cy - ey < top or cy + ey > bottom

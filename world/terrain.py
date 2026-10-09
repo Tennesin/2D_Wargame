@@ -8,8 +8,7 @@ import random
 from dataclasses import dataclass
 
 from combat import resolve_hit
-from engine import PX_PER_M, clamp, obb_hits_convex, LRUCache
-from engine import hash_int
+from engine import hash_int, PX_PER_M, WORLD_HALF_PX, clamp, obb_hits_convex, obb_outside_rect, LRUCache
 
 TAU = 2.0 * math.pi
 
@@ -356,11 +355,13 @@ class TerrainMap:
         kind = cls.kind_in(patches, x, y)
         return 1.0 if kind is None else kind.speed_k
 
-    @staticmethod
-    def blocks_obb_in(patches, obb, barrel=False):
-        """Задевает ли повёрнутый прямоугольник (x, y, half_w, half_l, angle) твёрдое пятно из списка.
-        barrel=True: учитываются только пятна, о которые упирается ствол (камни)."""
+    def blocks_obb_in(self, patches, obb, barrel=False):
+        """Задевает ли повёрнутый прямоугольник (x, y, half_w, half_l, angle) твёрдое пятно из списка
+        или край мира. barrel=True: учитываются только пятна, о которые упирается ствол (камни)."""
         cx, cy, hw, hl, ang = obb
+        if obb_outside_rect(cx, cy, hw, hl, ang,
+                            -WORLD_HALF_PX, -WORLD_HALF_PX, WORLD_HALF_PX, WORLD_HALF_PX):
+            return True                                  # граница мира непроходима для корпуса и ствола
         for p in patches:
             if not p.kind.solid:
                 continue

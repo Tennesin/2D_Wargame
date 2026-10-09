@@ -2,7 +2,7 @@
 import math
 import random
 
-from engine import PX_PER_M, clamp, obb_segment_hit
+from engine import PX_PER_M, clamp, obb_segment_hit, obb_hits_obb
 from combat import resolve_hit, Damageable
 from .params import (
     WALL_PARAMS, WALL_ARMOR_K, WALL_HEIGHT_M, WALL_DENSITY_T_M3,
@@ -167,6 +167,12 @@ class WallManager:
             if dx * dx + dy * dy <= reach * reach:
                 result.append(w.obb())
         return result
+
+    def blocks_obb(self, obb):
+        """Задевает ли повёрнутый прямоугольник (x, y, half_w, half_l, angle) хоть одну стену."""
+        cx, cy, hw, hl, _ = obb
+        return any(obb_hits_obb(*obb, *other)
+                   for other in self.obbs_near(cx, cy, math.hypot(hw, hl)))
 
     def raycast(self, x0, y0, x1, y1):
         """Ближайшая стена на отрезке: (wall, t, normal) или None."""
