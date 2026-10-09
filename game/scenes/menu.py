@@ -6,7 +6,7 @@ from ui import Button, DELETE_BUTTON_COLORS
 from .base import Scene
 
 BG = (28, 31, 36)
-TITLE_TEXT = "Top-Down Танк"
+TITLE_TEXT = "2D Wargame"
 TITLE_COLOR = (230, 230, 230)
 TITLE_SIZE = 48
 TITLE_OFFSET = 110          # насколько заголовок выше центра окна

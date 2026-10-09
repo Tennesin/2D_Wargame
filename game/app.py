@@ -9,7 +9,7 @@ class App:
     def __init__(self, seed=None):
         pygame.init()
         pygame.display.set_mode((1000, 700), pygame.RESIZABLE)
-        pygame.display.set_caption("Top-Down Танк (бесконечный мир)")
+        pygame.display.set_caption("2D Wargame")
         self.clock = pygame.time.Clock()
         self.seed = seed                 # None: у каждой новой игры свой случайный мир
 
