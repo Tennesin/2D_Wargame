@@ -137,20 +137,24 @@ class Tank(Damageable):
         res = obb_segment_hit(hull, x0, y0, x1, y1)
         return None if res is None else (self, res[0], res[1])
 
-    def armor_at(self, normal):
+    def zone_at(self, normal, hull_angle=None):
+        """Какая грань корпуса принимает удар: "front" / "side" / "rear".
+        normal — наружная нормаль грани. hull_angle — гипотетический угол корпуса (по умолчанию текущий)."""
+        if normal is None:                      # выстрел начался внутри корпуса
+            return "side"
+        fx, fy = heading_vector(self.hull_angle if hull_angle is None else hull_angle)
+        along = normal[0] * fx + normal[1] * fy
+        if along > 0.5:
+            return "front"
+        if along < -0.5:
+            return "rear"
+        return "side"
+
+    def armor_at(self, normal, hull_angle=None):
         """Броня грани, в которую попали (мм, с коэффициентом TANK_ARMOR_K).
         normal — наружная нормаль грани: совпадает с направлением «вперёд» у лба, противоположна у кормы."""
         s = self.spec
-        if normal is None:                      # выстрел начался внутри корпуса
-            return s.side * TANK_ARMOR_K
-        fx, fy = heading_vector(self.hull_angle)
-        along = normal[0] * fx + normal[1] * fy
-        if along > 0.5:
-            base = s.front
-        elif along < -0.5:
-            base = s.rear
-        else:
-            base = s.side
+        base = {"front": s.front, "side": s.side, "rear": s.rear}[self.zone_at(normal, hull_angle)]
         return base * TANK_ARMOR_K
 
     def hit_result(self, penetration, cos_impact=1.0, normal=None):

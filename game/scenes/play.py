@@ -22,6 +22,7 @@ from ..fleet import Fleet
 from ..spawner import BotSpawner
 from ..bot_control import BotController
 from ..bot_markers import BotMarkers
+from ..notifications import Notifier
 from .base import Scene
 
 DEBUG_PRINT_SPECS = False     # печатать характеристики танка в консоль при запуске
@@ -49,6 +50,7 @@ class PlayScene(Scene):
         tank = Tank(0.0, 0.0, spec=session.tank_spec(), team="player")
         fleet = Fleet(tank)
         self.fleet = fleet
+        self.notifier = Notifier(tank)
         if DEBUG_PRINT_SPECS:
             tank.spec.print_specs()
 
@@ -56,7 +58,7 @@ class PlayScene(Scene):
         modes = Modes(self.input, walls, self.toolbar, self.ui)
         modes.on_exit = on_menu
         self.camera_ctrl = CameraController(self.camera, self.input)
-        self.combat = CombatController(tank, walls, terrain, modes, fleet)
+        self.combat = CombatController(tank, walls, terrain, modes, fleet, self.notifier)
         self.tank_ctrl = TankController(tank, self.input, self.camera, modes, walls, terrain,
                                         self.combat.effects, fleet)
         self.wall_editor = WallEditor(self.input, self.camera, modes, walls, fleet, terrain, self.ui)
@@ -102,6 +104,7 @@ class PlayScene(Scene):
         self.bot_ctrl.update(dt)
         self.camera_ctrl.follow(self.fleet.player)
         self.combat.update(dt)
+        self.notifier.update(dt)
         self.wall_editor.update_stats()
 
     def draw(self, screen):
@@ -111,3 +114,4 @@ class PlayScene(Scene):
         self.ui.draw(screen, self.input.mouse_pos)
         self.toolbar.draw(screen, self.input.mouse_pos)
         self.hud.draw(screen)
+        self.notifier.draw(screen, self.camera)

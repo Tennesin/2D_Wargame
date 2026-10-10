@@ -278,24 +278,30 @@ class EffectsSystem:
         self.scorches.append(Scorch(shell.x, shell.y, shell.spec, self._rng))
 
     def update(self, dt, targets=None):
-        """Возвращает попадания [(цель, spec, cos_impact, normal, power), ...]:
-        урон применяет Game, а не эффекты."""
+        """Возвращает три списка:
+          попадания [(цель, spec, cos_impact, normal, power, стрелок), ...]: урон применяет Game, а не эффекты;
+          рикошеты  [(стрелок, цель), ...]: снаряд отскочил и летит дальше;
+          промахи   [стрелок, ...]: снаряд долетел до предела дальности, ничего не задев."""
         for shell in self.shells:
             shell.update(dt, targets)
         for group in (self.flashes, self.smoke, self.explosions, self.scorches, self.sparks):
             for obj in group:
                 obj.update(dt)
 
-        hits = []
+        hits, ricochets, misses = [], [], []
         for shell in self.shells:
             if shell.ricochet_at is not None:             # отскок: только искры, без взрыва
                 self.sparks.append(Spark(*shell.ricochet_at, shell.dx, shell.dy, self._rng))
+                ricochets.append((shell.owner, shell.ricochet_target))
                 shell.ricochet_at = None
+                shell.ricochet_target = None
             if shell.exploded:
                 self._spawn_impact(shell)
                 if shell.hit_target is not None:
                     hits.append((shell.hit_target, shell.spec, shell.hit_cos,
-                                 shell.hit_normal, shell.power))
+                                 shell.hit_normal, shell.power, shell.owner))
+                elif shell.bounces == 0:                  # после рикошета «долёт до конца» промахом не считаем
+                    misses.append(shell.owner)
 
         self.shells = [o for o in self.shells if o.alive]
         self.flashes = [o for o in self.flashes if o.alive]
@@ -303,7 +309,7 @@ class EffectsSystem:
         self.explosions = [o for o in self.explosions if o.alive]
         self.scorches = [o for o in self.scorches if o.alive]
         self.sparks = [o for o in self.sparks if o.alive]
-        return hits
+        return hits, ricochets, misses
 
     def _layer(self, name, size):
         """Очищенный прозрачный слой (пересоздаётся только при смене размера окна)."""

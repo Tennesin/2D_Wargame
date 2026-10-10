@@ -38,6 +38,7 @@ class Shell:
         self.power = 1.0                  # доля силы: 1.0 в начале, после каждого рикошета уменьшается
         self.bounces = 0                  # сколько раз уже отскочил
         self.ricochet_at = None           # (x, y), если рикошет случился в этом кадре (читает EffectsSystem)
+        self.ricochet_target = None       # от какой цели отскочили (читает EffectsSystem вместе с ricochet_at)
 
     def update(self, dt, targets=None):
         step = min(self.speed * dt, self.range_left)
@@ -54,7 +55,7 @@ class Shell:
                 if normal is not None:
                     cos_i = abs(self.dx * normal[0] + self.dy * normal[1])
                     if self.bounces < RICOCHET_MAX and is_ricochet(cos_i):
-                        self._ricochet(hx, hy, normal)
+                        self._ricochet(hx, hy, normal, target)
                         return
                     self.hit_cos = cos_i
 
@@ -72,7 +73,7 @@ class Shell:
             self.alive = False
             self.exploded = True
 
-    def _ricochet(self, hx, hy, normal):
+    def _ricochet(self, hx, hy, normal, target):
         """Зеркальный отскок: отражаем направление, режем силу и оставшуюся дальность."""
         # сколько уже пролетел до точки удара (на первом кадре точка может быть позади дульного среза)
         travelled = max(0.0, (hx - self.x) * self.dx + (hy - self.y) * self.dy)
@@ -90,6 +91,7 @@ class Shell:
         self.y = hy + normal[1] * RICOCHET_PUSH_PX
         self._sx, self._sy = self.x, self.y
         self.ricochet_at = (hx, hy)
+        self.ricochet_target = target
 
         if self.range_left <= 0.0:
             self.alive = False
