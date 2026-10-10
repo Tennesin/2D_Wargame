@@ -18,7 +18,7 @@ OUTPUT_DIR = r"d:\Akmal\Personal\AI developed Mini-games\2D_Wargame\temporary"
 
 # Папки верхнего уровня, которые попадают в снимок (вложенные берутся автоматически)
 ALLOWED_SUBDIRS = {"engine", "combat", "world", "vehicles", "structures",
-                   "inputs", "ui", "game", "assets"}
+                   "inputs", "ui", "game", "assets", "ai"}
 
 # Папки, которые пропускаем на любой глубине
 IGNORED_DIRS = {"__pycache__", ".git", ".idea", ".vscode", "venv", ".venv"}

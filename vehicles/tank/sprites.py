@@ -25,6 +25,8 @@ TRACK_LEN = 6.3
 SHADOW_HULL_M = (0.25, 0.35)             # смещение тени корпуса, м
 SHADOW_TURRET_M = (0.40, 0.55)           # башня выше, поэтому тень дальше
 
+PAINT_K = 0.55                           # насколько сильно корпус и башня подкрашиваются цветом команды
+
 OUTLINE = (38, 33, 28)
 TRACK_BODY = (58, 54, 49)
 TRACK_LINK = (118, 111, 100)
@@ -44,6 +46,12 @@ TURRET_DARK = (140, 131, 114)
 GUN = (112, 110, 105)
 GUN_LIGHT = (150, 147, 140)
 GUN_DARK = (62, 60, 56)
+
+def _paint(color, paint):
+    """Подмешивает цвет команды к цвету детали. paint=None: деталь остаётся как есть."""
+    if paint is None:
+        return color
+    return tuple(int(c + (p - c) * PAINT_K) for c, p in zip(color, paint))
 
 # ==========================================
 # 2. «РУЧКА» ДЛЯ РИСОВАНИЯ В МЕТРАХ
@@ -92,19 +100,18 @@ class _Pen:
     def clear_clip(self):
         self.s.set_clip(None)
 
-
 # ==========================================
 # 3. ОТРИСОВЩИК ТАНКА
 # ==========================================
+
 class TankRenderer:
     def __init__(self):
         self._ppm = 0.0
-        self._hull_cache = LRUCache(40)  # (фаза левой, фаза правой) -> Surface
-        self._turret_cache = LRUCache(8)  # цвет -> Surface
+        self._hull_cache = LRUCache(120)  # (фаза левой, фаза правой, подкраска) -> Surface
+        self._turret_cache = LRUCache(16)  # (цвет маски, подкраска) -> Surface
         self._barrel_cache = LRUCache(40)  # (длина, толщина) -> Surface
         self._sil_cache = LRUCache(120)  # ключ -> силуэт для тени
         self._shadow_buf = None
-        self._turret_cache = LRUCache(16)  # цвет -> Surface
 
     def set_zoom(self, ppm):
         """Вызывается при смене зума: запоминает масштаб и сбрасывает кэши спрайтов."""
@@ -123,11 +130,12 @@ class TankRenderer:
         bl = int(round(spec.BARREL_LEN_M / BARREL_LEN_STEP_M))  # длина ствола в шагах
         bt = int(round(spec.BARREL_THICK_M / BARREL_THICK_STEP_M))  # толщина в шагах
         team = tank.team_color
+        paint = None if tank.team == "player" else team          # боты красятся цветом команды
         lp = int(tank.left_track_offset / tank.TRACK_STEP * TRACK_PHASES) % TRACK_PHASES
         rp = int(tank.right_track_offset / tank.TRACK_STEP * TRACK_PHASES) % TRACK_PHASES
 
-        hull = self._get_hull(lp, rp)
-        turret = self._get_turret(team)
+        hull = self._get_hull(lp, rp, paint)
+        turret = self._get_turret(team, paint)
         barrel = self._get_barrel(bl, bt)
 
         hull_rot = pygame.transform.rotozoom(hull, -tank.hull_angle, hs)
@@ -142,12 +150,13 @@ class TankRenderer:
         barrel_rect = barrel_rot.get_rect(center=(round(cx + fx * f), round(cy + fy * f)))
 
         # --- тень: все силуэты в общий буфер непрозрачным чёрным, потом буфер целиком полупрозрачно ---
+        # форма у окрашенных и обычных деталей одинаковая, поэтому силуэты кэшируются без учёта краски
         hox, hoy = (round(v * ppm * hs) for v in SHADOW_HULL_M)
         tox, toy = (round(v * ppm * ts) for v in SHADOW_TURRET_M)
         sil_hull = pygame.transform.rotozoom(
             self._get_sil(("hull", lp, rp), hull), -tank.hull_angle, hs)
         sil_turret = pygame.transform.rotozoom(
-            self._get_sil(("turret", team), turret), -tank.turret_angle, ts)
+            self._get_sil(("turret",), turret), -tank.turret_angle, ts)
         sil_barrel = pygame.transform.rotozoom(
             self._get_sil(("barrel", bl, bt), barrel), -tank.turret_angle, ts)
         parts = (
@@ -185,11 +194,12 @@ class TankRenderer:
     def _get_sil(self, key, surface):
         return self._sil_cache.get_or_build(key, lambda: self._make_silhouette(surface))
 
-    def _get_hull(self, lp, rp):
-        return self._hull_cache.get_or_build((lp, rp), lambda: self._build_hull(lp, rp))
+    def _get_hull(self, lp, rp, paint):
+        return self._hull_cache.get_or_build((lp, rp, paint), lambda: self._build_hull(lp, rp, paint))
 
-    def _get_turret(self, team_color):
-        return self._turret_cache.get_or_build(team_color, lambda: self._build_turret(team_color))
+    def _get_turret(self, team_color, paint):
+        return self._turret_cache.get_or_build((team_color, paint),
+                                               lambda: self._build_turret(team_color, paint))
 
     def _get_barrel(self, bl, bt):
         return self._barrel_cache.get_or_build((bl, bt), lambda: self._build_barrel(bl, bt))
@@ -208,33 +218,38 @@ class TankRenderer:
             y += TRACK_LINK_M
         pen.clear_clip()
 
-    def _build_hull(self, lp, rp):
+    def _build_hull(self, lp, rp, paint):
         ppm = self._ppm
         size = 2 * math.ceil(HULL_HALF_M * ppm)
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
         pen = _Pen(big, ppm * SS, 0.0, HULL_SHIFT_M)     # координаты корпуса: центр корпуса = (0, 0)
+
+        hull_main = _paint(HULL_MAIN, paint)
+        hull_light = _paint(HULL_LIGHT, paint)
+        hull_dark = _paint(HULL_DARK, paint)
+        deck = _paint(DECK, paint)
 
         # 1. Гусеницы (чуть выступают за нос и корму)
         self._draw_track(pen, -TRACK_X, lp)
         self._draw_track(pen, TRACK_X, rp)
 
         # 2. Корпус: короткий клин спереди, скошенные углы сзади
-        pen.poly(HULL_MAIN, [(-1.00, -2.9), (1.00, -2.9), (1.35, -2.1), (1.35, 2.65),
+        pen.poly(hull_main, [(-1.00, -2.9), (1.00, -2.9), (1.35, -2.1), (1.35, 2.65),
                              (1.15, 2.9), (-1.15, 2.9), (-1.35, 2.65), (-1.35, -2.1)])
 
         # 3. Подкрылки (полки над гусеницами)
-        pen.rect(HULL_DARK, 1.35, -2.1, 0.22, 4.75)
-        pen.rect(HULL_DARK, -1.57, -2.1, 0.22, 4.75)
+        pen.rect(hull_dark, 1.35, -2.1, 0.22, 4.75)
+        pen.rect(hull_dark, -1.57, -2.1, 0.22, 4.75)
 
         # 4. Лобовая плита (светлее: обращена к свету) и палуба
-        pen.poly(HULL_LIGHT, [(-1.00, -2.9), (1.00, -2.9), (1.35, -2.1), (-1.35, -2.1)])
-        pen.rect(DECK, -1.25, -2.05, 2.50, 4.40)
+        pen.poly(hull_light, [(-1.00, -2.9), (1.00, -2.9), (1.35, -2.1), (-1.35, -2.1)])
+        pen.rect(deck, -1.25, -2.05, 2.50, 4.40)
 
         # 5. Погон башни: тёмное кольцо вокруг оси (контактная тень под башней)
-        pen.ellipse(RING, 0.0, -HULL_SHIFT_M, 1.35, 1.35, outline=None)
+        pen.ellipse(_paint(RING, paint), 0.0, -HULL_SHIFT_M, 1.35, 1.35, outline=None)
 
         # 6. Люк механика-водителя
-        pen.ellipse(HULL_DARK, 0.65, -1.65, 0.24, 0.24)
+        pen.ellipse(hull_dark, 0.65, -1.65, 0.24, 0.24)
 
         # 7. МТО: решётка и жалюзи
         pen.rect(GRILL, -0.95, 1.00, 1.90, 1.20)
@@ -242,27 +257,31 @@ class TankRenderer:
             pen.line(GRILL_LINE, -0.80, ly, 0.80, ly, 0.05)
 
         # 8. Кормовая плита
-        pen.rect(HULL_DARK, -1.15, 2.40, 2.30, 0.50)
+        pen.rect(hull_dark, -1.15, 2.40, 2.30, 0.50)
 
         return pygame.transform.smoothscale(big, (size, size))
 
-    def _build_turret(self, team_color):
+    def _build_turret(self, team_color, paint):
         ppm = self._ppm
         size = 2 * math.ceil(TURRET_HALF_M * ppm)
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
         pen = _Pen(big, ppm * SS)                        # центр спрайта = ось башни
 
+        turret_main = _paint(TURRET_MAIN, paint)
+        turret_light = _paint(TURRET_LIGHT, paint)
+        turret_dark = _paint(TURRET_DARK, paint)
+
         # 1. Шестиугольный корпус башни + светлая вставка поверх
-        pen.poly(TURRET_MAIN, [(-0.70, -1.55), (0.70, -1.55), (1.30, 0.00),
+        pen.poly(turret_main, [(-0.70, -1.55), (0.70, -1.55), (1.30, 0.00),
                                (0.70, 1.65), (-0.70, 1.65), (-1.30, 0.00)])
-        pen.poly(TURRET_LIGHT, [(-0.48, -1.05), (0.48, -1.05), (0.88, 0.00),
-                                (0.48, 1.12), (-0.48, 1.12), (-0.88, 0.00)], outline=TURRET_DARK)
+        pen.poly(turret_light, [(-0.48, -1.05), (0.48, -1.05), (0.88, 0.00),
+                                (0.48, 1.12), (-0.48, 1.12), (-0.88, 0.00)], outline=turret_dark)
 
         # 2. Маска орудия: выступает вперёд из башни, ствол выходит из её торца
         pen.rect(team_color, -0.55, -TURRET_FRONT_M, 1.10, 0.60, r=0.08)
 
         # 3. Люк командира
-        pen.ellipse(TURRET_DARK, 0.42, 0.30, 0.42, 0.42)
+        pen.ellipse(turret_dark, 0.42, 0.30, 0.42, 0.42)
         pen.ellipse(team_color, 0.42, 0.30, 0.32, 0.32)
 
         return pygame.transform.smoothscale(big, (size, size))

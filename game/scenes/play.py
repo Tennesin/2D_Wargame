@@ -21,6 +21,7 @@ from ..renderer import Renderer
 from ..fleet import Fleet
 from ..spawner import BotSpawner
 from ..bot_control import BotController
+from ..bot_markers import BotMarkers
 from .base import Scene
 
 DEBUG_PRINT_SPECS = False     # печатать характеристики танка в консоль при запуске
@@ -68,6 +69,7 @@ class PlayScene(Scene):
 
         # --- рисование ---
         self.renderer = Renderer(world, terrain, fleet, walls, self.combat.effects)
+        self.markers = BotMarkers(fleet, self.camera)
         self.debug = DebugOverlay(clock=clock, camera=self.camera, camera_ctrl=self.camera_ctrl,
                                   tank=tank, world=world, seed=self.seed, input_handler=self.input,
                                   modes=modes, walls=walls, fleet=fleet, spawner=self.spawner)
@@ -104,6 +106,7 @@ class PlayScene(Scene):
 
     def draw(self, screen):
         self.renderer.draw(screen, self.camera, self.wall_editor.build_preview(), self.combat.aim_info())
+        self.markers.draw(screen)
         self.debug.draw(screen)
         self.ui.draw(screen, self.input.mouse_pos)
         self.toolbar.draw(screen, self.input.mouse_pos)
