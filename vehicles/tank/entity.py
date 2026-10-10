@@ -9,7 +9,8 @@ from combat import resolve_hit, Damageable
 from .params import (
     KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, TANK_ARMOR_K, TERRAIN_MIN_K, TERRAIN_BRAKE,
     TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY, TRACK_LINK_M, TRACK_OFFSET_M, COLLISION_MARGIN_PX,
-    CONTACT_TURN_STEPS, CONTACT_PUSH_STEPS, SLIDE_ANGLES_DEG, SLIDE_MIN_PX, CONTACT_SCRUB, CONTACT_STOP_PROGRESS
+    CONTACT_TURN_STEPS, CONTACT_PUSH_STEPS, SLIDE_ANGLES_DEG, SLIDE_MIN_PX, CONTACT_SCRUB,
+    CONTACT_STOP_PROGRESS, BARREL_SOLID
 )
 
 # Направления отодвигания корпуса: (вдоль корпуса, поперёк). Назад, вперёд, в стороны и диагонали.
@@ -79,6 +80,8 @@ class Tank(Damageable):
         return (x + fx * mid, y + fy * mid, s.BARREL_COLL_HALF_W_PX, half, angle)
 
     def _barrel_hits(self, x, y, turret_abs, obstacles):
+        if not BARREL_SOLID:
+            return False
         obb = self._barrel_obb(x, y, turret_abs)
         if any(obb_hits_obb(*obb, *other) for other in obstacles):
             return True
@@ -107,16 +110,23 @@ class Tank(Damageable):
         return max(hull, barrel) + COLLISION_MARGIN_PX
 
     def hits_obb(self, other):
-        """Задевает ли танк (корпус или ствол) повёрнутый прямоугольник (x, y, half_w, half_l, angle)."""
+        """Задевает ли танк повёрнутый прямоугольник (x, y, half_w, half_l, angle).
+        Ствол учитывается только при BARREL_SOLID."""
         hull = self._hull_obb(self.x, self.y, self.hull_angle)
+        if obb_hits_obb(*hull, *other):
+            return True
+        if not BARREL_SOLID:
+            return False
         barrel = self._barrel_obb(self.x, self.y, self.turret_angle)
-        return obb_hits_obb(*hull, *other) or obb_hits_obb(*barrel, *other)
+        return obb_hits_obb(*barrel, *other)
 
     def footprint_at(self, x, y, hull_angle):
-        """Прямоугольники, которые танк займёт в точке (x, y) при угле корпуса hull_angle:
-        [корпус, ствол]. Корпус ВСЕГДА первый (по нему проверяется грунт). Башня сохраняет относительный угол."""
-        return [self._hull_obb(x, y, hull_angle),
-                self._barrel_obb(x, y, hull_angle + self.turret_rel_angle)]
+        """Прямоугольники, которые танк займёт в точке (x, y): [корпус] или [корпус, ствол].
+        Корпус ВСЕГДА первый (по нему проверяется грунт)."""
+        hull = self._hull_obb(x, y, hull_angle)
+        if not BARREL_SOLID:
+            return [hull]
+        return [hull, self._barrel_obb(x, y, hull_angle + self.turret_rel_angle)]
 
     def place_at(self, spot):
         """Поставить танк в найденную точку спавна (любой объект с x, y, angle) и обнулить движение."""
@@ -234,7 +244,8 @@ class Tank(Damageable):
         """Поворот на delta упёрся в препятствие. Пробуем повернуть на часть угла и чуть сдвинуть корпус
         от препятствия. Возвращает (новый угол, смещение x, смещение y, применённый угол) или None."""
         s = self.spec
-        radius = max(math.hypot(s.COLLISION_HALF_W_PX, s.COLLISION_HALF_L_PX), s.BARREL_COLL_END_PX)
+        hull_r = math.hypot(s.COLLISION_HALF_W_PX, s.COLLISION_HALF_L_PX)
+        radius = max(hull_r, s.BARREL_COLL_END_PX) if BARREL_SOLID else hull_r
         fx, fy = heading_vector(old)
         rx, ry = -fy, fx  # вправо от корпуса
         for k in CONTACT_TURN_STEPS:

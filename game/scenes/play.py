@@ -7,10 +7,10 @@ import pygame
 from world import Camera, WorldGenerator, TerrainMap, SpawnFinder
 from vehicles import Tank
 from structures import WallManager
-from inputs import InputHandler
+from inputs import InputHandler, Action
 from ui import ConstructorUI, ToolBar, TankHud
 from ..panels import PanelMode, build_wall_panel
-from ..modes import Modes
+from ..modes import Modes, Mode
 from ..camera_control import CameraController
 from ..combat_control import CombatController
 from ..tank_control import TankController
@@ -31,6 +31,8 @@ class PlayScene(Scene):
     def __init__(self, seed, clock, session, on_menu, on_quit):
         """session: настройки танка из конструктора."""
         self.on_quit = on_quit
+        self.on_menu = on_menu
+        self._death_handled = False
         size = pygame.display.get_surface().get_size()
 
         self.seed = seed if seed is not None else random.randrange(1, 1_000_000)
@@ -91,15 +93,18 @@ class PlayScene(Scene):
         self.camera_ctrl.update_view(dt, size)
         self.ui.update(size)
 
-        self.debug.handle_hotkeys()
-        self.camera_ctrl.handle_hotkeys()
-        self.wall_editor.handle_hotkeys()
-        self.modes.handle_hotkeys()
-
-        self.clicks.update()
-        self.wall_editor.update_rotation()
         if self.fleet.player.alive:
+            self.debug.handle_hotkeys()
+            self.camera_ctrl.handle_hotkeys()
+            self.wall_editor.handle_hotkeys()
+            self.modes.handle_hotkeys()
+
+            self.clicks.update()
+            self.wall_editor.update_rotation()
             self.tank_ctrl.update(dt)
+        else:
+            self._handle_dead_input()
+
         self.spawner.update(dt)
         self.bot_ctrl.update(dt)
         self.camera_ctrl.follow(self.fleet.player)
@@ -107,11 +112,25 @@ class PlayScene(Scene):
         self.notifier.update(dt)
         self.wall_editor.update_stats()
 
+    def _handle_dead_input(self):
+        """Игрок мёртв: ввод принимается только для Esc (выход в меню)."""
+        if not self._death_handled:
+            self._death_handled = True
+            self.input.release_mouse()              # бросить ползунок, стрельбу, вращение
+            self.input.ui_layers.clear()            # тулбар и панель больше не получают события
+            self.modes.set_mode(Mode.DRIVE)         # закрывает панель, снимает выбор стены
+            self.modes.set_combat(False)
+            self.camera_ctrl.set_free(False)
+        self.input.pop_world_clicks()               # накопившиеся клики выбрасываем
+        if self.input.was_pressed(Action.CANCEL):
+            self.on_menu()
+
     def draw(self, screen):
         self.renderer.draw(screen, self.camera, self.wall_editor.build_preview(), self.combat.aim_info())
         self.markers.draw(screen)
         self.debug.draw(screen)
         self.ui.draw(screen, self.input.mouse_pos)
-        self.toolbar.draw(screen, self.input.mouse_pos)
+        if self.fleet.player.alive:
+            self.toolbar.draw(screen, self.input.mouse_pos)
         self.hud.draw(screen)
         self.notifier.draw(screen, self.camera)

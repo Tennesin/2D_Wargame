@@ -32,3 +32,13 @@ def flank_point(enemy, dist_px, side):
     rx, ry = -fy, fx
     return (enemy.x + (rx * side * 0.8 - fx * 0.6) * dist_px,
             enemy.y + (ry * side * 0.8 - fy * 0.6) * dist_px)
+
+def seconds_to_break(me, wall, cos_impact=1.0, normal=None, min_frac=0.15):
+    """Сколько секунд бот будет ломать стену, или None, если пробить не получится."""
+    if wall.hp <= 0.0:
+        return None
+    frac = wall.hit_result(me.spec.penetration, cos_impact, normal).damage_frac
+    if frac < min_frac:
+        return None
+    shots = math.ceil(wall.hp / (me.spec.damage * frac))
+    return shots * me.spec.reload

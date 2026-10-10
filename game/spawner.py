@@ -6,8 +6,8 @@ from engine import PX_PER_M
 from vehicles import Tank, TankSpec
 from ai import Bot, BotBrain, DEFAULT_SKILL, ARCHETYPES, fit_loadout, BASE_BUDGET
 
-SPAWN_INTERVAL_S = 30.0
-FIRST_SPAWN_S = 30.0         # для проверок ставь 2-3
+SPAWN_INTERVAL_S = 18.0
+FIRST_SPAWN_S = 5.0
 RETRY_S = 0.5                # если места не нашлось, пробуем снова через это время
 BUDGET_PER_SPAWN = 0         # прибавка к бюджету за каждого уже появившегося бота
 MAX_ALIVE = None             # None: без ограничения; число: слот пропускается, ритм не сбивается

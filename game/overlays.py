@@ -78,6 +78,9 @@ class HudOverlay:
 
     def draw(self, screen):
         y = self.hud.draw(screen, self.tank) - 6
+        if not self.tank.alive:
+            self._draw_death(screen)
+            return
 
         rows = []
         if self.modes.combat:
@@ -99,9 +102,6 @@ class HudOverlay:
             y -= label.get_height() + 2
             screen.blit(shadow, (11, y + 1))
             screen.blit(label, (10, y))
-
-        if not self.tank.alive:
-            self._draw_death(screen)
 
     def _draw_death(self, screen):
         cx, cy = screen.get_width() // 2, screen.get_height() // 2
