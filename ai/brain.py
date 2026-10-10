@@ -150,7 +150,7 @@ class BotBrain:
     # ==========================================
     def _decide(self, me, enemy, ctx):
         dist = math.hypot(enemy.x - me.x, enemy.y - me.y)
-        engage = preferred_distance_m(me, enemy, self.arch.engage_dist_m) * PX_PER_M
+        engage = preferred_distance_m(me, enemy, self.arch.engage_dist_m, self.arch.edge_k) * PX_PER_M
         tick = 1.0 / self.skill.think_hz
         futile = self._update_futile(me, enemy, dist, tick)
 
@@ -441,6 +441,7 @@ class BotBrain:
     # ==========================================
     # ОГОНЬ
     # ==========================================
+
     def _gunnery(self, dt, me, enemy, ctx, aim_point):
         err = shortest_angle_diff(bearing_deg(me.x, me.y, *aim_point), me.turret_angle)
         breaching = self.intent is Intent.BREACH

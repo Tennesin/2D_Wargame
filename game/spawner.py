@@ -6,8 +6,8 @@ from engine import PX_PER_M
 from vehicles import Tank, TankSpec
 from ai import Bot, BotBrain, DEFAULT_SKILL, ARCHETYPES, fit_loadout, BASE_BUDGET
 
-SPAWN_INTERVAL_S = 18.0
-FIRST_SPAWN_S = 5.0
+SPAWN_INTERVAL_S = 12.0
+FIRST_SPAWN_S = 3.0
 RETRY_S = 0.5                # если места не нашлось, пробуем снова через это время
 BUDGET_PER_SPAWN = 0         # прибавка к бюджету за каждого уже появившегося бота
 MAX_ALIVE = None             # None: без ограничения; число: слот пропускается, ритм не сбивается
@@ -18,7 +18,7 @@ FIND_RADIUS_M = 20.0         # насколько далеко от точки �
 RING_TRIES = 6
 
 # (с какого по счёту спавна, ключ архетипа): архетип входит в случайный выбор
-UNLOCKS = [(0, "universal")]
+UNLOCKS = [(0, "universal"), (2, "scout"), (4, "destroyer"), (6, "bunker")]
 
 class BotSpawner:
     def __init__(self, fleet, finder, camera, seed):
@@ -51,8 +51,10 @@ class BotSpawner:
             self._retry_at = self._clock + RETRY_S
 
     def _spawn(self):
-        arch = ARCHETYPES[self.rng.choice([k for n, k in UNLOCKS if self.spawned >= n])]
-        budget = BASE_BUDGET + BUDGET_PER_SPAWN * self.spawned
+        pool = [k for n, k in UNLOCKS if self.spawned >= n]
+        weights = [ARCHETYPES[k].spawn_weight for k in pool]
+        arch = ARCHETYPES[self.rng.choices(pool, weights=weights)[0]]
+        budget = round((BASE_BUDGET + BUDGET_PER_SPAWN * self.spawned) * arch.budget_k)
         spec = TankSpec.from_values(fit_loadout(arch, budget, self.rng))
         tank = Tank(0.0, 0.0, spec=spec, team_color=arch.color, team="bots")
 

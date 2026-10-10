@@ -3,6 +3,7 @@ import itertools
 import math
 
 from engine import PX_PER_M, clamp, fmt_num
+from .look import Look, level
 from .params import (
     PARAMS, REF_L_CAL, FIXED_MASS_T, GUN_MASS_T, GUN_MASS_AT_MM, TURRET_MASS_REF_T, ENGINE_T_PER_HP,
     V_CAP_KMH, PW_SCALE, V_MASS_EXP, V_MIN_KMH, V_MAX_CLAMP_KMH, V_AVG_BASE, V_AVG_GAIN,
@@ -18,6 +19,7 @@ from .params import (
     HULL_ALPHA_MIN, HULL_ALPHA_MAX, GUN_ARM_BASE_M, GUN_ARM_BARREL_K,
     TURRET_TURN_REF, TURRET_TURN_MIN, TURRET_TURN_MAX, TURRET_POWER_EXP,
     TURRET_INERTIA_EXP, TURRET_SPINUP_REF, TURRET_RADIUS_M, BARREL_LEN_STEP_M,
+    LOOK_FRONT_RATIO, LOOK_SIDE_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO,
 )
 
 # ==========================================
@@ -229,6 +231,13 @@ class TankSpec:
         self.TURRET_SCALE = self.size_k * clamp(cr ** 0.35, 0.8, 1.15)
         self.BARREL_LEN_M = round(cal * self.l_cal / 1000.0 * BARREL_VISIBLE_K / BARREL_LEN_STEP_M) * BARREL_LEN_STEP_M
         self.BARREL_THICK_M = max(0.18, BARREL_THICK_REF_M * cr ** 0.7)
+
+        self.LOOK = Look(
+            front=level(self.front / _FRONT.default, LOOK_FRONT_RATIO),
+            side=level(self.side / _SIDE.default, LOOK_SIDE_RATIO),
+            gun=level(self.cal / REF_CAL, LOOK_GUN_RATIO),
+            speed=level(self.q_pw, LOOK_SPEED_RATIO),
+        )
 
     def _calc_collision(self):
         """Хитбоксы для столкновений (мировые px): корпус и ствол. Масштабируются вместе со спрайтами."""

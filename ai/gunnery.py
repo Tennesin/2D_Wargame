@@ -88,6 +88,7 @@ def evaluate_matchup(me, enemy):
 # ==========================================
 # МОБИЛЬНОСТЬ И ДИСТАНЦИЯ
 # ==========================================
+
 def outflank_feasibility(me, enemy, dist_px):
     """0..1: успею ли я обойти врага, пока он доворачивает орудие.
     Угловая скорость облёта по окружности радиуса dist равна v / R, но не больше моего поворота корпуса.
@@ -98,12 +99,12 @@ def outflank_feasibility(me, enemy, dist_px):
     track = enemy.spec.turret_turn + 0.5 * enemy.spec.hull_turn
     return clamp(0.35 + 0.65 * omega / max(track, 1.0), 0.0, 1.0)
 
-def preferred_distance_m(me, enemy, base_m):
+def preferred_distance_m(me, enemy, base_m, edge_k=1.0):
     """Желаемая дистанция боя из характеристик. Быстрее и скорострельнее врага: держимся дальше
     (кайтинг). Медленнее и слабее по темпу: сокращаем дистанцию."""
     spd = me.spec.v_avg / max(enemy.spec.v_avg, 1.0)
     rel = enemy.spec.reload / max(me.spec.reload, 0.1)
-    edge = clamp(0.6 * math.log2(spd) + 0.4 * math.log2(rel), -1.0, 1.0)
+    edge = clamp(0.6 * math.log2(spd) + 0.4 * math.log2(rel), -1.0, 1.0) * edge_k
     far_m = me.spec.SHELL_RANGE_PX / PX_PER_M * KITE_RANGE_K
     if edge >= 0.0:
         return base_m + edge * max(0.0, far_m - base_m)
@@ -112,6 +113,7 @@ def preferred_distance_m(me, enemy, base_m):
 # ==========================================
 # УГОЛ КОРПУСА
 # ==========================================
+
 def _frac_from(me, pen, from_deg, hull_deg):
     """Доля урона, если враг стреляет в центр моего корпуса с направления from_deg (азимут от меня к нему),
     а корпус развёрнут на hull_deg. Какая грань принимает удар, определяет геометрия корпуса."""

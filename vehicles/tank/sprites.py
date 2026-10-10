@@ -31,6 +31,8 @@ OUTLINE = (38, 33, 28)
 TRACK_BODY = (58, 54, 49)
 TRACK_LINK = (118, 111, 100)
 
+SKIRT_MAIN = (150, 142, 124)
+APPLIQUE = (138, 129, 112)
 HULL_MAIN = (170, 160, 140)
 HULL_LIGHT = (200, 191, 169)
 HULL_DARK = (126, 117, 101)
@@ -107,10 +109,10 @@ class _Pen:
 class TankRenderer:
     def __init__(self):
         self._ppm = 0.0
-        self._hull_cache = LRUCache(120)  # (фаза левой, фаза правой, подкраска) -> Surface
-        self._turret_cache = LRUCache(16)  # (цвет маски, подкраска) -> Surface
-        self._barrel_cache = LRUCache(40)  # (длина, толщина) -> Surface
-        self._sil_cache = LRUCache(120)  # ключ -> силуэт для тени
+        self._hull_cache = LRUCache(240)
+        self._turret_cache = LRUCache(40)
+        self._barrel_cache = LRUCache(80)
+        self._sil_cache = LRUCache(240)
         self._shadow_buf = None
 
     def set_zoom(self, ppm):
@@ -126,6 +128,7 @@ class TankRenderer:
         cx, cy = int(round(sx)), int(round(sy))
 
         spec = tank.spec
+        look = spec.LOOK
         hs, ts = spec.HULL_SCALE, spec.TURRET_SCALE
         bl = int(round(spec.BARREL_LEN_M / BARREL_LEN_STEP_M))  # длина ствола в шагах
         bt = int(round(spec.BARREL_THICK_M / BARREL_THICK_STEP_M))  # толщина в шагах
@@ -134,9 +137,9 @@ class TankRenderer:
         lp = int(tank.left_track_offset / tank.TRACK_STEP * TRACK_PHASES) % TRACK_PHASES
         rp = int(tank.right_track_offset / tank.TRACK_STEP * TRACK_PHASES) % TRACK_PHASES
 
-        hull = self._get_hull(lp, rp, paint)
-        turret = self._get_turret(team, paint)
-        barrel = self._get_barrel(bl, bt)
+        hull = self._get_hull(lp, rp, paint, look)
+        turret = self._get_turret(team, paint, look)
+        barrel = self._get_barrel(bl, bt, look)
 
         hull_rot = pygame.transform.rotozoom(hull, -tank.hull_angle, hs)
         turret_rot = pygame.transform.rotozoom(turret, -tank.turret_angle, ts)
@@ -154,11 +157,11 @@ class TankRenderer:
         hox, hoy = (round(v * ppm * hs) for v in SHADOW_HULL_M)
         tox, toy = (round(v * ppm * ts) for v in SHADOW_TURRET_M)
         sil_hull = pygame.transform.rotozoom(
-            self._get_sil(("hull", lp, rp), hull), -tank.hull_angle, hs)
+            self._get_sil(("hull", lp, rp, look.hull_key), hull), -tank.hull_angle, hs)
         sil_turret = pygame.transform.rotozoom(
-            self._get_sil(("turret",), turret), -tank.turret_angle, ts)
+            self._get_sil(("turret", look.turret_key), turret), -tank.turret_angle, ts)
         sil_barrel = pygame.transform.rotozoom(
-            self._get_sil(("barrel", bl, bt), barrel), -tank.turret_angle, ts)
+            self._get_sil(("barrel", bl, bt, look.barrel_key), barrel), -tank.turret_angle, ts)
         parts = (
             (sil_hull, sil_hull.get_rect(center=hull_rect.center).move(hox, hoy)),
             (sil_barrel, sil_barrel.get_rect(center=barrel_rect.center).move(tox, toy)),
@@ -194,15 +197,18 @@ class TankRenderer:
     def _get_sil(self, key, surface):
         return self._sil_cache.get_or_build(key, lambda: self._make_silhouette(surface))
 
-    def _get_hull(self, lp, rp, paint):
-        return self._hull_cache.get_or_build((lp, rp, paint), lambda: self._build_hull(lp, rp, paint))
+    def _get_hull(self, lp, rp, paint, look):
+        return self._hull_cache.get_or_build(
+            (lp, rp, paint, look.hull_key), lambda: self._build_hull(lp, rp, paint, look))
 
-    def _get_turret(self, team_color, paint):
-        return self._turret_cache.get_or_build((team_color, paint),
-                                               lambda: self._build_turret(team_color, paint))
+    def _get_turret(self, team_color, paint, look):
+        return self._turret_cache.get_or_build(
+            (team_color, paint, look.turret_key),
+            lambda: self._build_turret(team_color, paint, look))
 
-    def _get_barrel(self, bl, bt):
-        return self._barrel_cache.get_or_build((bl, bt), lambda: self._build_barrel(bl, bt))
+    def _get_barrel(self, bl, bt, look):
+        return self._barrel_cache.get_or_build(
+            (bl, bt, look.barrel_key), lambda: self._build_barrel(bl, bt, look))
 
     # ---------- построение спрайтов ----------
     @staticmethod
@@ -218,7 +224,42 @@ class TankRenderer:
             y += TRACK_LINK_M
         pen.clear_clip()
 
-    def _build_hull(self, lp, rp, paint):
+    @staticmethod
+    def _draw_skirts(pen, level, paint):
+        """Бортовые экраны поверх гусениц. Не выходят за габарит гусениц (x = ±1.95), хитбокс не меняется."""
+        if level <= 0:
+            return
+        color = _paint(SKIRT_MAIN, paint)
+        y0, y1 = (-2.2, 2.4) if level == 1 else (-2.9, 3.0)
+        width = 0.42 if level == 1 else 0.50
+        n = max(1, round((y1 - y0) / 1.15))  # плиты по ~1.15 м с зазором
+        step = (y1 - y0) / n
+        for x in (1.95 - width, -1.95):
+            for i in range(n):
+                pen.rect(color, x, y0 + i * step + 0.03, width, step - 0.06)
+
+    @staticmethod
+    def _draw_front_kit(pen, level, paint):
+        """Накладная броня на лобовой плите."""
+        if level <= 0:
+            return
+        color = _paint(APPLIQUE, paint)
+        pen.poly(color, [(-0.85, -2.82), (0.85, -2.82), (1.18, -2.15), (-1.18, -2.15)])
+        if level >= 2:
+            pen.rect(color, -1.2, -2.08, 2.4, 0.20, r=0.05)
+            for sx in (-1, 1):  # боковые клинья
+                pen.poly(color, [(sx * 1.35, -2.10), (sx * 1.35, -1.20), (sx * 1.05, -2.05)])
+
+    @staticmethod
+    def _draw_exhaust(pen, level):
+        """Выхлопные патрубки на кормовой плите."""
+        if level <= 0:
+            return
+        r = 0.13 if level == 1 else 0.17
+        for x in (-0.7, 0.7):
+            pen.ellipse(GRILL, x, 2.65, r, r)
+
+    def _build_hull(self, lp, rp, paint, look):
         ppm = self._ppm
         size = 2 * math.ceil(HULL_HALF_M * ppm)
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
@@ -241,9 +282,13 @@ class TankRenderer:
         pen.rect(hull_dark, 1.35, -2.1, 0.22, 4.75)
         pen.rect(hull_dark, -1.57, -2.1, 0.22, 4.75)
 
+        self._draw_skirts(pen, look.side, paint)
+
         # 4. Лобовая плита (светлее: обращена к свету) и палуба
         pen.poly(hull_light, [(-1.00, -2.9), (1.00, -2.9), (1.35, -2.1), (-1.35, -2.1)])
         pen.rect(deck, -1.25, -2.05, 2.50, 4.40)
+
+        self._draw_front_kit(pen, look.front, paint)
 
         # 5. Погон башни: тёмное кольцо вокруг оси (контактная тень под башней)
         pen.ellipse(_paint(RING, paint), 0.0, -HULL_SHIFT_M, 1.35, 1.35, outline=None)
@@ -259,9 +304,11 @@ class TankRenderer:
         # 8. Кормовая плита
         pen.rect(hull_dark, -1.15, 2.40, 2.30, 0.50)
 
+        self._draw_exhaust(pen, look.speed)
+
         return pygame.transform.smoothscale(big, (size, size))
 
-    def _build_turret(self, team_color, paint):
+    def _build_turret(self, team_color, paint, look):
         ppm = self._ppm
         size = 2 * math.ceil(TURRET_HALF_M * ppm)
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
@@ -270,6 +317,11 @@ class TankRenderer:
         turret_main = _paint(TURRET_MAIN, paint)
         turret_light = _paint(TURRET_LIGHT, paint)
         turret_dark = _paint(TURRET_DARK, paint)
+
+        hexa = [(-0.70, -1.55), (0.70, -1.55), (1.30, 0.00), (0.70, 1.65), (-0.70, 1.65), (-1.30, 0.00)]
+        if look.front > 0:                  # утолщённая броня башни: тёмный «обод» вокруг
+            k = 1.0 + 0.10 * look.front     # максимум 1.2: помещается в заготовку (полуразмер 2.1 м)
+            pen.poly(turret_dark, [(x * k, y * k) for x, y in hexa])
 
         # 1. Шестиугольный корпус башни + светлая вставка поверх
         pen.poly(turret_main, [(-0.70, -1.55), (0.70, -1.55), (1.30, 0.00),
@@ -284,9 +336,13 @@ class TankRenderer:
         pen.ellipse(turret_dark, 0.42, 0.30, 0.42, 0.42)
         pen.ellipse(team_color, 0.42, 0.30, 0.32, 0.32)
 
+        if look.speed > 0:                  # антенна
+            pen.line(OUTLINE, -0.75, 1.0, -0.95, 1.95, 0.04)
+            pen.ellipse(turret_dark, -0.75, 1.0, 0.10, 0.10)
+
         return pygame.transform.smoothscale(big, (size, size))
 
-    def _build_barrel(self, bl, bt):
+    def _build_barrel(self, bl, bt, look):
         """Ствол: узкая вертикальная картинка (дульный срез сверху). Центр — середина видимой длины."""
         ppm = self._ppm
         length = bl * BARREL_LEN_STEP_M
@@ -301,5 +357,11 @@ class TankRenderer:
         pen.rect(GUN_LIGHT, -(thick + 0.08) / 2, -half + 0.35 * length,
                  thick + 0.08, 0.30, r=0.05)                                      # эжектор
         pen.rect(GUN_DARK, -(thick + 0.06) / 2, -half, thick + 0.06, 0.22)        # дульный срез
+
+        if look.gun > 0:    # дульный тормоз: шире ствола, но в пределах заготовки (запас 0.30 м)
+            bw = thick + (0.14 if look.gun == 1 else 0.22)
+            pen.rect(GUN_DARK, -bw / 2, -half + 0.25, bw, 0.40, r=0.04)
+            for y in (-half + 0.38, -half + 0.52):
+                pen.line(GUN_LIGHT, -bw / 2 + 0.03, y, bw / 2 - 0.03, y, 0.04)
 
         return pygame.transform.smoothscale(big, (w, h))
