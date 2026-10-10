@@ -9,12 +9,12 @@ from .modes import Mode
 from .panels import PanelMode, wall_values, bind_wall_delete
 
 class WallEditor:
-    def __init__(self, input_handler, camera, modes, walls, tank, terrain, ui):
+    def __init__(self, input_handler, camera, modes, walls, fleet, terrain, ui):
         self.input = input_handler
         self.camera = camera
         self.modes = modes
         self.walls = walls
-        self.tank = tank
+        self.fleet = fleet
         self.terrain = terrain
         self.ui = ui
 
@@ -31,8 +31,8 @@ class WallEditor:
 
     # ---------- проверки и призрак ----------
     def is_blocked(self, wall):
-        """Нельзя ли поставить стену здесь: мешает танк, камень или глубокая вода."""
-        return self.tank.hits_obb(wall.obb()) or self.terrain.blocks_obb(wall.obb())
+        """Нельзя ли поставить стену здесь: мешает любой танк, камень или глубокая вода."""
+        return self.fleet.blocks_obb(wall.obb()) or self.terrain.blocks_obb(wall.obb())
 
     def build_preview(self):
         """(призрак, красный ли он) или None, если показывать нечего."""
@@ -90,7 +90,7 @@ class WallEditor:
             return
         old = (wall.max_hp, wall.width_m, wall.length_m)
         wall.apply_params(values["wall_hp"], values["wall_width_m"], values["wall_length_m"])
-        if self.tank.hits_obb(wall.obb()):
+        if self.fleet.blocks_obb(wall.obb()):
             wall.apply_params(*old)
             self.ui.set_values(PanelMode.WALL, wall_values(wall))
 
@@ -124,7 +124,7 @@ class WallEditor:
 
         old = wall.angle
         wall.angle = new_angle
-        if self.tank.hits_obb(wall.obb()):
+        if self.fleet.blocks_obb(wall.obb()):
             wall.angle = old
 
     # ---------- статистика ----------

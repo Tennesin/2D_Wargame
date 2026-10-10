@@ -10,7 +10,8 @@ class DebugOverlay:
     TOP = 52
     LINE_H = 20
 
-    def __init__(self, *, clock, camera, camera_ctrl, tank, world, seed, input_handler, modes, walls):
+    def __init__(self, *, clock, camera, camera_ctrl, tank, world, seed, input_handler, modes, walls,
+                 fleet, spawner):
         self.clock = clock
         self.camera = camera
         self.camera_ctrl = camera_ctrl
@@ -20,6 +21,8 @@ class DebugOverlay:
         self.input = input_handler
         self.modes = modes
         self.walls = walls
+        self.fleet = fleet
+        self.spawner = spawner
 
         self.visible = False
         self._font = pygame.font.Font(None, 22)
@@ -48,6 +51,8 @@ class DebugOverlay:
             f"Combat (Alt): {'ON' if self.modes.combat else 'OFF'}",
             f"Speed: {t.speed_kmh:.1f} km/h",
             f"Terrain speed k: {t.terrain_k:.2f}",
+            f"Bots: {len(self.fleet.bots)}  next in {self.spawner.time_left:.0f}s  "
+            f"spawned {self.spawner.spawned}",
         ]
 
     def draw(self, screen):
@@ -64,11 +69,12 @@ class DebugOverlay:
 class HudOverlay:
     """Левый нижний угол: сводка по танку, а над ней индикаторы боевого состояния и подсказки."""
 
-    def __init__(self, hud, tank, modes, camera_ctrl):
+    def __init__(self, hud, tank, modes, camera_ctrl, combat=None):
         self.hud = hud
         self.tank = tank
         self.modes = modes
         self.camera_ctrl = camera_ctrl
+        self.combat = combat                 # CombatController: берём счётчик убийств
 
     def draw(self, screen):
         y = self.hud.draw(screen, self.tank) - 6
@@ -84,6 +90,8 @@ class HudOverlay:
             rows.append((f"Вязкая местность: скорость ×{self.tank.terrain_k:.2f}", (200, 170, 120)))
         if not self.modes.turret_follow:
             rows.append(("Башня зафиксирована (Q)", (240, 210, 70)))
+        if self.combat is not None:
+            rows.append((f"Уничтожено: {self.combat.kills}", (170, 176, 186)))
 
         for text, color in reversed(rows):
             shadow = get_text(text, FONT_SIZE_LABEL, (0, 0, 0))
@@ -91,3 +99,15 @@ class HudOverlay:
             y -= label.get_height() + 2
             screen.blit(shadow, (11, y + 1))
             screen.blit(label, (10, y))
+
+        if not self.tank.alive:
+            self._draw_death(screen)
+
+    def _draw_death(self, screen):
+        cx, cy = screen.get_width() // 2, screen.get_height() // 2
+        for text, size, color, dy in (("Танк уничтожен", 48, (240, 80, 80), -20),
+                                      ("Esc — в меню", 24, (230, 230, 230), 28)):
+            shadow = get_text(text, size, (0, 0, 0))
+            label = get_text(text, size, color)
+            screen.blit(shadow, shadow.get_rect(center=(cx + 2, cy + dy + 2)))
+            screen.blit(label, label.get_rect(center=(cx, cy + dy)))

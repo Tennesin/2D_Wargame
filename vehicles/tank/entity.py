@@ -21,10 +21,11 @@ class Tank(Damageable):
     TRACK_RADIUS = TRACK_OFFSET_M * PX_PER_M # расстояние от центра до гусеницы, px
     AIM_DEAD_ZONE = 100.0  # если курсор ближе к центру танка (1 м), башня не дёргается
 
-    def __init__(self, x=0.0, y=0.0, *, spec, team_color=(200, 40, 40)):
+    def __init__(self, x=0.0, y=0.0, *, spec, team_color=(200, 40, 40), team="player"):
         # spec — объект TankSpec (обязательный, только по имени: Tank(0, 0, spec=...))
         self.spec = spec
         self.team_color = team_color  # цвет команды (RGB), красный по умолчанию
+        self.team = team
         self.x = float(x)
         self.y = float(y)
         self.hp = float(spec.hp)        # текущее здоровье (максимум задаёт spec.hp)
@@ -403,6 +404,12 @@ class Tank(Damageable):
         fx, fy = heading_vector(self.turret_angle)
         dist = self.spec.MUZZLE_DIST_PX
         return self.x + fx * dist, self.y + fy * dist
+
+    def velocity_px(self):
+        """Скорость корпуса в мировых px/с (нужна ботам для упреждения)."""
+        fx, fy = heading_vector(self.hull_angle)
+        v = self.speed_kmh * KMH_TO_PX
+        return fx * v, fy * v
 
     @property
     def recoil_m(self):

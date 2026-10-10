@@ -104,6 +104,7 @@ class TankRenderer:
         self._barrel_cache = LRUCache(40)  # (длина, толщина) -> Surface
         self._sil_cache = LRUCache(120)  # ключ -> силуэт для тени
         self._shadow_buf = None
+        self._turret_cache = LRUCache(16)  # цвет -> Surface
 
     def set_zoom(self, ppm):
         """Вызывается при смене зума: запоминает масштаб и сбрасывает кэши спрайтов."""

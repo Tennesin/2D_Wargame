@@ -23,6 +23,7 @@ class AimInfo:
     start: tuple                          # дульный срез (мировые px)
     end: tuple                            # точка попадания или конец дальности
     result: Optional[HitResult] = None    # результат попадания (None, если линия свободна)
+    target: object = None                 # цель, в которую упирается линия (None, если свободна)
 
 def compute_aim(tank, targets):
     """Траектория от дульного среза вдоль башни. Отрезок для проверки начинается в центре танка,
@@ -39,7 +40,7 @@ def compute_aim(tank, targets):
     target, t, normal = hit
     point = (tank.x + (end[0] - tank.x) * t, tank.y + (end[1] - tank.y) * t)
     cos_impact = 1.0 if normal is None else abs(dx * normal[0] + dy * normal[1])
-    return AimInfo(start, point, target.hit_result(spec.penetration, cos_impact, normal))
+    return AimInfo(start, point, target.hit_result(spec.penetration, cos_impact, normal), target)
 
 class AimRenderer:
 

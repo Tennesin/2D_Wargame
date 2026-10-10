@@ -74,18 +74,20 @@ class Damageable:
 # ==========================================
 
 class TargetSet:
-    """Объединяет источники целей (WallManager, TerrainMap, танки...). У каждого источника должен быть
-    raycast(x0, y0, x1, y1) -> (цель, t, normal) или None.
+    """Объединяет источники целей (WallManager, TerrainMap, Fleet...). У каждого источника должен быть
+    raycast(x0, y0, x1, y1, ignore=None) -> (цель, t, normal) или None.
     У цели должны быть hit_result(...) и take_hit(...)."""
 
     def __init__(self, *sources):
         self.sources = list(sources)
 
     def raycast(self, x0, y0, x1, y1, ignore=None):
-        """Ближайшая цель на отрезке. ignore — ЦЕЛЬ, которую пропускаем (обычно сам стрелок)."""
+        """Ближайшая цель на отрезке. ignore — ЦЕЛЬ, которую пропускаем (обычно сам стрелок).
+        Он передаётся и источникам: иначе стрелок, чей корпус лежит в начале отрезка (t = 0),
+        заслонил бы собой врага."""
         best = None
         for src in self.sources:
-            res = src.raycast(x0, y0, x1, y1)
+            res = src.raycast(x0, y0, x1, y1, ignore)
             if res is None or res[0] is ignore:
                 continue
             if best is None or res[1] < best[1]:

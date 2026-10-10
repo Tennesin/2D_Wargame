@@ -387,7 +387,7 @@ class TerrainMap:
         cx, cy, hw, hl, _ = obb
         return self.blocks_obb_in(self.patches_near(cx, cy, math.hypot(hw, hl)), obb)
 
-    def raycast(self, x0, y0, x1, y1):
+    def raycast(self, x0, y0, x1, y1, ignore=None):
         """Ближайшее пятно, останавливающее снаряды, на отрезке: (patch, t, normal) или None.
         Тот же формат, что у WallManager.raycast, поэтому карта подключается в TargetSet как есть."""
         mx, my = (x0 + x1) / 2.0, (y0 + y1) / 2.0

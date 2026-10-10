@@ -174,7 +174,7 @@ class WallManager:
         return any(obb_hits_obb(*obb, *other)
                    for other in self.obbs_near(cx, cy, math.hypot(hw, hl)))
 
-    def raycast(self, x0, y0, x1, y1):
+    def raycast(self, x0, y0, x1, y1, ignore=None):
         """Ближайшая стена на отрезке: (wall, t, normal) или None."""
         mx, my = (x0 + x1) / 2.0, (y0 + y1) / 2.0
         seg_r = math.hypot(x1 - x0, y1 - y0) / 2.0

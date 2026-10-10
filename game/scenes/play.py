@@ -4,7 +4,7 @@ import random
 
 import pygame
 
-from world import Camera, WorldGenerator, TerrainMap
+from world import Camera, WorldGenerator, TerrainMap, SpawnFinder
 from vehicles import Tank
 from structures import WallManager
 from inputs import InputHandler
@@ -18,6 +18,9 @@ from ..wall_editor import WallEditor
 from ..clicks import ClickRouter
 from ..overlays import DebugOverlay, HudOverlay
 from ..renderer import Renderer
+from ..fleet import Fleet
+from ..spawner import BotSpawner
+from ..bot_control import BotController
 from .base import Scene
 
 DEBUG_PRINT_SPECS = False     # печатать характеристики танка в консоль при запуске
@@ -42,7 +45,9 @@ class PlayScene(Scene):
                                 has_toggle=False)
         self.toolbar = ToolBar()
         self.input = InputHandler([self.toolbar, self.ui])
-        tank = Tank(0.0, 0.0, spec=session.tank_spec())
+        tank = Tank(0.0, 0.0, spec=session.tank_spec(), team="player")
+        fleet = Fleet(tank)
+        self.fleet = fleet
         if DEBUG_PRINT_SPECS:
             tank.spec.print_specs()
 
@@ -50,18 +55,23 @@ class PlayScene(Scene):
         modes = Modes(self.input, walls, self.toolbar, self.ui)
         modes.on_exit = on_menu
         self.camera_ctrl = CameraController(self.camera, self.input)
-        self.combat = CombatController(tank, walls, terrain, modes)
+        self.combat = CombatController(tank, walls, terrain, modes, fleet)
         self.tank_ctrl = TankController(tank, self.input, self.camera, modes, walls, terrain,
-                                        self.combat.effects)
-        self.wall_editor = WallEditor(self.input, self.camera, modes, walls, tank, terrain, self.ui)
+                                        self.combat.effects, fleet)
+        self.wall_editor = WallEditor(self.input, self.camera, modes, walls, fleet, terrain, self.ui)
         self.clicks = ClickRouter(self.input, self.camera, modes, self.camera_ctrl, self.wall_editor)
 
+        # --- боты ---
+        finder = SpawnFinder(terrain, blockers=[walls.blocks_obb, fleet.blocks_obb])
+        self.spawner = BotSpawner(fleet, finder, self.camera, self.seed)
+        self.bot_ctrl = BotController(fleet, walls, terrain, self.combat.effects, self.combat.targets)
+
         # --- рисование ---
-        self.renderer = Renderer(world, terrain, tank, walls, self.combat.effects)
+        self.renderer = Renderer(world, terrain, fleet, walls, self.combat.effects)
         self.debug = DebugOverlay(clock=clock, camera=self.camera, camera_ctrl=self.camera_ctrl,
                                   tank=tank, world=world, seed=self.seed, input_handler=self.input,
-                                  modes=modes, walls=walls)
-        self.hud = HudOverlay(TankHud(), tank, modes, self.camera_ctrl)
+                                  modes=modes, walls=walls, fleet=fleet, spawner=self.spawner)
+        self.hud = HudOverlay(TankHud(), tank, modes, self.camera_ctrl, self.combat)
         self.modes = modes
 
     def update(self, dt):
@@ -84,8 +94,11 @@ class PlayScene(Scene):
 
         self.clicks.update()
         self.wall_editor.update_rotation()
-        self.tank_ctrl.update(dt)
-        self.camera_ctrl.follow(self.tank_ctrl.tank)
+        if self.fleet.player.alive:
+            self.tank_ctrl.update(dt)
+        self.spawner.update(dt)
+        self.bot_ctrl.update(dt)
+        self.camera_ctrl.follow(self.fleet.player)
         self.combat.update(dt)
         self.wall_editor.update_stats()
 
