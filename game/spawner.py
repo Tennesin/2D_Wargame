@@ -4,9 +4,10 @@ import random
 
 from engine import PX_PER_M
 from vehicles import Tank, TankSpec
-from ai import Bot, BotBrain, DEFAULT_SKILL, ARCHETYPES, fit_loadout, BASE_BUDGET
+from ai import (Bot, BotBrain, DEFAULT_SKILL, ARCHETYPES, fit_loadout, BASE_BUDGET,
+                threat_profile, counter_multipliers)
 
-SPAWN_INTERVAL_S = 12.0
+SPAWN_INTERVAL_S = 15.0
 FIRST_SPAWN_S = 3.0
 RETRY_S = 0.5                # если места не нашлось, пробуем снова через это время
 BUDGET_PER_SPAWN = 0         # прибавка к бюджету за каждого уже появившегося бота
@@ -16,6 +17,9 @@ SPAWN_MARGIN_M = 15.0        # запас за краем экрана
 SPAWN_BAND_M = 30.0          # толщина кольца появления
 FIND_RADIUS_M = 20.0         # насколько далеко от точки кольца искать свободное место
 RING_TRIES = 6
+SMART_SPAWN = True           # False: старое поведение, веса только из spawn_weight
+EARLY_UNLOCK_FROM = 1        # с какого по счёту спавна контр-архетип может появиться раньше UNLOCKS
+EARLY_UNLOCK_MULT = 1.8      # ...если его множитель шанса не ниже этого значения
 
 # (с какого по счёту спавна, ключ архетипа): архетип входит в случайный выбор
 UNLOCKS = [(0, "universal"), (2, "scout"), (4, "destroyer"), (6, "bunker")]
@@ -30,6 +34,8 @@ class BotSpawner:
         self._clock = 0.0
         self._due = FIRST_SPAWN_S          # расписание: абсолютное время следующего спавна
         self._retry_at = 0.0
+        self.profile = {}                  # последний профиль игрока (для отладочных строк)
+        self.multipliers = {}              # последние множители шансов архетипов
 
     @property
     def time_left(self):
@@ -51,9 +57,7 @@ class BotSpawner:
             self._retry_at = self._clock + RETRY_S
 
     def _spawn(self):
-        pool = [k for n, k in UNLOCKS if self.spawned >= n]
-        weights = [ARCHETYPES[k].spawn_weight for k in pool]
-        arch = ARCHETYPES[self.rng.choices(pool, weights=weights)[0]]
+        arch = self._pick_archetype()
         budget = round((BASE_BUDGET + BUDGET_PER_SPAWN * self.spawned) * arch.budget_k)
         spec = TankSpec.from_values(fit_loadout(arch, budget, self.rng))
         tank = Tank(0.0, 0.0, spec=spec, team_color=arch.color, team="bots")
@@ -73,3 +77,19 @@ class BotSpawner:
                 self.fleet.bots.append(Bot(tank, BotBrain(arch, DEFAULT_SKILL, self.rng)))
                 return True
         return False
+
+    def _pick_archetype(self):
+        """Случайный архетип: базовый вес умножается на множитель контр-выбора против текущего игрока."""
+        if SMART_SPAWN:
+            self.profile = threat_profile(self.fleet.player.spec)
+            mult = counter_multipliers(self.profile, ARCHETYPES)
+        else:
+            self.profile = {}
+            mult = {k: 1.0 for k in ARCHETYPES}
+        self.multipliers = mult
+
+        pool = [k for n, k in UNLOCKS
+                if self.spawned >= n
+                or (SMART_SPAWN and self.spawned >= EARLY_UNLOCK_FROM and mult[k] >= EARLY_UNLOCK_MULT)]
+        weights = [ARCHETYPES[k].spawn_weight * mult[k] for k in pool]
+        return ARCHETYPES[self.rng.choices(pool, weights=weights)[0]]
