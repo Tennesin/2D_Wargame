@@ -17,11 +17,14 @@ N = 2 * HALF_CELLS
 HEURISTIC_W = 1.2                 # взвешенный A*: быстрее, путь чуть длиннее оптимального
 MAX_EXPANDED = 1800               # предел раскрытых клеток
 NAV_MARGIN_PX = 0.5 * PX_PER_M    # запас к радиусу танка
+CORE_MARGIN_PX = 0.3 * PX_PER_M   # запас к полуширине корпуса для «жёсткой» зоны
+RELEASE_CELLS = 2                 # вокруг старта «раздутые» клетки освобождаются в этом радиусе
+RELEASE_PENALTY_PX = 150.0        # цена входа в освобождённую клетку (пусть путь выходит из зоны быстрее)
 MIN_SPEED_K = 0.15                # как в TERRAIN_MIN_K у танка: цена клетки не растёт бесконечно
 WALL_EST_COS = 0.85               # при оценке стены берём «средний» угол попадания
 STUCK_RADIUS_PX = 5.0 * PX_PER_M  # радиус штрафа вокруг места, где бот застрял
 STUCK_PENALTY_PX = 1500.0         # штраф клетки, в px пути (15 м)
-ARRIVE_PX = 4.0 * PX_PER_M        # на таком расстоянии от точки пути считаем её пройденной
+ARRIVE_PX = 3.0 * PX_PER_M        # на таком расстоянии от точки пути считаем её пройденной
 
 _D = CELL_PX * 1.4142135
 _NEIGH = ((1, 0, CELL_PX), (-1, 0, CELL_PX), (0, 1, CELL_PX), (0, -1, CELL_PX),
@@ -56,12 +59,14 @@ def _near_polygon(patch, x, y, r):
 # ПУТЬ
 # ==========================================
 class Path:
-    """Список точек (мировые px). breach_wall — первая стена на пути (её придётся ломать) или None."""
+    """Список точек (мировые px). breach_wall — первая стена на пути (её придётся ломать) или None.
+    reached: путь доходит до запрошенной (возможно, обрезанной окном) цели."""
 
-    def __init__(self, points, goal, breach_wall):
+    def __init__(self, points, goal, breach_wall, reached=True):
         self.points = points
         self.goal = goal              # исходная цель запроса (не обрезанная окном)
         self.breach_wall = breach_wall
+        self.reached = reached
         self.idx = 1 if len(points) > 1 else 0
 
     def next_point(self, x, y):
@@ -93,16 +98,19 @@ class Path:
 # СЕТКА
 # ==========================================
 class NavGrid:
-    def __init__(self, cx, cy, radius, terrain, walls, me, forbidden=(), bad_spots=()):
+    def __init__(self, cx, cy, radius, core_radius, terrain, walls, me,
+                 forbidden=(), bad_spots=(), no_breach=False):
         self.x0 = cx - HALF_CELLS * CELL_PX
         self.y0 = cy - HALF_CELLS * CELL_PX
-        self.radius = radius
+        self.radius = radius               # «безопасный» радиус: раздувание препятствий
+        self.core_radius = core_radius     # «жёсткий» радиус: корпус здесь физически не поместится
         self.blocked = bytearray(N * N)
+        self.core = bytearray(N * N)       # подмножество blocked: зона, из которой не выпускаем
         self.slow = [1.0] * (N * N)        # множитель времени: 1 / скорость_местности
         self.extra = [0.0] * (N * N)       # добавка к цене клетки (стены, места застревания), px пути
         self.wall_at = {}                  # индекс клетки -> стена, которую придётся ломать
         self._fill_terrain(terrain, cx, cy)
-        self._fill_walls(walls, me, forbidden)
+        self._fill_walls(walls, me, forbidden, no_breach)
         self._fill_bad_spots(bad_spots)
         self._fill_border(cx, cy)
 
@@ -120,7 +128,7 @@ class NavGrid:
 
     # ---------- заполнение ----------
     def _fill_terrain(self, terrain, cx, cy):
-        R = self.radius
+        R, Rc = self.radius, self.core_radius
         reach = HALF_CELLS * CELL_PX * 1.5
         for p in terrain.patches_near(cx, cy, reach):
             solid = p.kind.solid
@@ -131,19 +139,23 @@ class NavGrid:
                     idx = j * N + i
                     x, y = self.center(i, j)
                     if solid:
-                        if not self.blocked[idx] and _near_polygon(p, x, y, R):
+                        if self.core[idx]:
+                            continue
+                        if _near_polygon(p, x, y, R):
                             self.blocked[idx] = 1
+                            if _near_polygon(p, x, y, Rc):
+                                self.core[idx] = 1
                     elif slow_k > self.slow[idx] and p.contains(x, y):
                         self.slow[idx] = slow_k
 
-    def _fill_walls(self, walls, me, forbidden):
-        R = self.radius
+    def _fill_walls(self, walls, me, forbidden, no_breach):
+        R, Rc = self.radius, self.core_radius
         est_speed = max(me.spec.v_avg, 5.0) / 3.6 * PX_PER_M          # px/с: чтобы перевести секунды в px пути
         for w in walls.items:
             if not w.alive:
                 continue
             per_cell = None                                           # None: непроходима
-            if id(w) not in forbidden:
+            if not no_breach and id(w) not in forbidden:
                 secs = seconds_to_break(me, w, WALL_EST_COS, None, MIN_USEFUL_DAMAGE)
                 if secs is not None and secs <= BREACH_MAX_S:
                     cells_across = max(1, math.ceil((w.thickness_m * PX_PER_M + 2.0 * R) / CELL_PX))
@@ -155,11 +167,14 @@ class NavGrid:
                     u, v = w.to_local(x, y)
                     du = max(abs(u) - w.half_w_px, 0.0)
                     dv = max(abs(v) - w.half_l_px, 0.0)
-                    if du * du + dv * dv >= R * R:
+                    d2 = du * du + dv * dv
+                    if d2 >= R * R:
                         continue
                     idx = j * N + i
                     if per_cell is None:
                         self.blocked[idx] = 1
+                        if d2 < Rc * Rc:
+                            self.core[idx] = 1
                     else:
                         self.extra[idx] += per_cell
                         self.wall_at.setdefault(idx, w)
@@ -184,6 +199,7 @@ class NavGrid:
                 x, y = self.center(i, j)
                 if abs(x) > lim or abs(y) > lim:
                     self.blocked[j * N + i] = 1
+                    self.core[j * N + i] = 1
 
     # ---------- линия видимости и сглаживание ----------
     def _los(self, i0, j0, i1, j1):
@@ -227,15 +243,23 @@ class NavGrid:
         sj = min(N - 1, max(0, int((sy - self.y0) // CELL_PX)))
         gi = min(N - 1, max(0, int((gx - self.x0) // CELL_PX)))
         gj = min(N - 1, max(0, int((gy - self.y0) // CELL_PX)))
-        for dj in (-1, 0, 1):                       # бот мог оказаться в «раздутой» зоне: выпускаем его
-            for di in (-1, 0, 1):
+
+        # Бот мог оказаться в «раздутой» зоне (камень рядом): выпускаем его.
+        # Освобождаем клетки в радиусе RELEASE_CELLS, кроме «жёсткого» ядра (там корпус не поместится);
+        # сама стартовая клетка освобождается всегда.
+        for dj in range(-RELEASE_CELLS, RELEASE_CELLS + 1):
+            for di in range(-RELEASE_CELLS, RELEASE_CELLS + 1):
                 ni, nj = si + di, sj + dj
-                if 0 <= ni < N and 0 <= nj < N:
-                    self.blocked[nj * N + ni] = 0
+                if not (0 <= ni < N and 0 <= nj < N):
+                    continue
+                k = nj * N + ni
+                if self.blocked[k] and (not self.core[k] or (di == 0 and dj == 0)):
+                    self.blocked[k] = 0
+                    self.extra[k] += RELEASE_PENALTY_PX
 
         start, goal = sj * N + si, gj * N + gi
         if start == goal:
-            return Path([(sx, sy), (gx, gy)], goal_req, None)
+            return Path([(sx, sy), (gx, gy)], goal_req, None, True)
 
         blocked, slow, extra = self.blocked, self.slow, self.extra
         inf = float("inf")
@@ -301,12 +325,26 @@ class NavGrid:
         points[0] = (sx, sy)
         if best == goal:
             points[-1] = (gx, gy)
-        return Path(points, goal_req, breach)
+        return Path(points, goal_req, breach, best == goal)
 
-def find_path(me, goal, terrain, walls, forbidden=(), bad_spots=()):
+def find_path(me, goal, terrain, walls, forbidden=(), bad_spots=(), no_breach=False):
     """Путь для танка me к точке goal = (x, y) или None.
-    forbidden — id стен, которые ломать нельзя; bad_spots — [[x, y, ttl], ...] места застревания."""
+    forbidden — id стен, которые ломать нельзя; bad_spots — [[x, y, ttl], ...] места застревания;
+    no_breach — все стены считаются непроходимыми (путь к укрытию).
+    Сначала строим с описанным радиусом корпуса (углы не заденут камни); если пути нет или он не доходит
+    до цели, пробуем узкий радиус."""
     spec = me.spec
-    radius = (spec.COLLISION_HALF_W_PX + spec.COLLISION_HALF_L_PX) / 2.0 + NAV_MARGIN_PX
-    grid = NavGrid(me.x, me.y, radius, terrain, walls, me, forbidden, bad_spots)
-    return grid.search(me.x, me.y, goal[0], goal[1])
+    hw, hl = spec.COLLISION_HALF_W_PX, spec.COLLISION_HALF_L_PX
+    big = math.hypot(hw, hl) + NAV_MARGIN_PX
+    tight = (hw + hl) / 2.0 + NAV_MARGIN_PX
+    core = hw + CORE_MARGIN_PX
+
+    first = None
+    for radius in (big, tight):
+        grid = NavGrid(me.x, me.y, radius, core, terrain, walls, me, forbidden, bad_spots, no_breach)
+        path = grid.search(me.x, me.y, goal[0], goal[1])
+        if path is not None and path.reached:
+            return path
+        if first is None:
+            first = path
+    return first

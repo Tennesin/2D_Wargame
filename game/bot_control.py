@@ -1,7 +1,7 @@
 """game/bot_control.py — кадр ботов: команда от мозга, физика танка, выстрел."""
 from collections import namedtuple
 
-BotContext = namedtuple("BotContext", "targets terrain walls")
+BotContext = namedtuple("BotContext", "targets terrain walls fleet")
 
 class BotController:
     def __init__(self, fleet, walls, terrain, effects, targets):
@@ -9,7 +9,7 @@ class BotController:
         self.walls = walls
         self.terrain = terrain
         self.effects = effects
-        self.ctx = BotContext(targets, terrain, walls)
+        self.ctx = BotContext(targets, terrain, walls, fleet)
 
     def update(self, dt):
         player = self.fleet.player

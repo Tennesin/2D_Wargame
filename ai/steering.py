@@ -15,11 +15,16 @@ def steer_to(tank, heading_deg, go, turn_in_place_deg=60.0):
     throttle = go if abs(err) <= turn_in_place_deg else 0.0
     return throttle, steer
 
-def free_ahead(tank, terrain, walls, angle_deg, dist_px):
-    """Свободен ли корпус, если проехать dist_px по курсу angle_deg."""
+def free_ahead(tank, terrain, walls, angle_deg, dist_px, steps=4):
+    """Свободен ли корпус на всём пути в dist_px по курсу angle_deg
+    (проверяем несколько точек вдоль пути, а не только конец)."""
     fx, fy = heading_vector(angle_deg)
-    hull = tank.footprint_at(tank.x + fx * dist_px, tank.y + fy * dist_px, angle_deg)[0]
-    return not (terrain.blocks_obb(hull) or walls.blocks_obb(hull))
+    for k in range(1, steps + 1):
+        d = dist_px * k / steps
+        hull = tank.footprint_at(tank.x + fx * d, tank.y + fy * d, angle_deg)[0]
+        if terrain.blocks_obb(hull) or walls.blocks_obb(hull):
+            return False
+    return True
 
 _OFFSETS = (0, 25, -25, 50, -50, 80, -80)
 
@@ -32,19 +37,21 @@ def pick_heading(tank, terrain, walls, desired_deg, look_px, side):
     return None
 
 class StuckGuard:
-    """Если бот давит на газ, а почти не двигается, на время включается задний ход с поворотом."""
+    """Бот пытается ехать или поворачиваться, а корпус не двигается и не поворачивается:
+    на время включается задний ход с поворотом."""
     CHECK_S = 2.0
     MIN_MOVE_PX = 60.0          # 0.6 м
+    MIN_TURN_DEG = 10.0
     REVERSE_S = 1.2
 
     def __init__(self):
         self.turn = 1.0
         self._reverse_left = 0.0
         self._timer = 0.0
-        self._ref = None
+        self._ref = None        # (x, y, угол корпуса) в начале окна проверки
 
     def update(self, dt, tank, pushing, rng):
-        """pushing: подан ли реально ненулевой газ. Возвращает True, пока надо ехать назад."""
+        """pushing: подан ли ненулевой газ ИЛИ руль. Возвращает True, пока надо ехать назад."""
         if self._reverse_left > 0.0:
             self._reverse_left -= dt
             return True
@@ -52,12 +59,14 @@ class StuckGuard:
             self._timer, self._ref = 0.0, None
             return False
         if self._ref is None:
-            self._ref = (tank.x, tank.y)
+            self._ref = (tank.x, tank.y, tank.hull_angle)
         self._timer += dt
         if self._timer >= self.CHECK_S:
-            moved = math.hypot(tank.x - self._ref[0], tank.y - self._ref[1])
-            self._timer, self._ref = 0.0, (tank.x, tank.y)
-            if moved < self.MIN_MOVE_PX:
+            rx, ry, ra = self._ref
+            moved = math.hypot(tank.x - rx, tank.y - ry)
+            turned = abs(shortest_angle_diff(tank.hull_angle, ra))
+            self._timer, self._ref = 0.0, (tank.x, tank.y, tank.hull_angle)
+            if moved < self.MIN_MOVE_PX and turned < self.MIN_TURN_DEG:
                 self._reverse_left = self.REVERSE_S
                 self.turn = rng.choice((-1.0, 1.0))
         return False

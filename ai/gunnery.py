@@ -142,3 +142,34 @@ def best_hull_heading(me, enemy, to_enemy_deg):
         if best_key is None or key < best_key:
             best_key, best_h = key, h
     return best_h % 360.0
+
+# ==========================================
+# УРОН ИЗ ТЕКУЩЕЙ ПОЗИЦИИ
+# ==========================================
+AIM_SPREAD_M = 1.2            # боковой разброс пробных точек поперёк корпуса врага, м
+
+def shot_fraction_now(me, enemy):
+    """Максимальная доля урона, которую я нанесу по врагу из текущей позиции (по его реальному положению
+    и повороту корпуса). Три прицельные точки: центр и по бокам. Если даже лучшая даёт меньше NO_DAMAGE,
+    то бить отсюда бесполезно «гарантированно»."""
+    pen = me.spec.penetration
+    ex, ey = enemy.x, enemy.y
+    dx, dy = ex - me.x, ey - me.y
+    ln = math.hypot(dx, dy)
+    if ln < 1.0:
+        return 1.0
+    px, py = -dy / ln, dx / ln
+    spread = AIM_SPREAD_M * PX_PER_M
+    best = 0.0
+    for k in (0.0, -1.0, 1.0):
+        tx, ty = ex + px * spread * k, ey + py * spread * k
+        sx, sy = tx - me.x, ty - me.y
+        sl = math.hypot(sx, sy)
+        ux, uy = sx / sl, sy / sl
+        hit = enemy.raycast(me.x, me.y, tx + ux * 300.0, ty + uy * 300.0)   # отрезок с запасом за корпус
+        if hit is None:
+            continue
+        _, _t, normal = hit
+        cos_i = 1.0 if normal is None else abs(ux * normal[0] + uy * normal[1])
+        best = max(best, enemy.hit_result(pen, cos_i, normal).damage_frac)
+    return best
