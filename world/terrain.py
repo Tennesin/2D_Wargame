@@ -8,7 +8,8 @@ import random
 from dataclasses import dataclass
 
 from combat import resolve_hit
-from engine import hash_int, PX_PER_M, WORLD_HALF_PX, clamp, obb_hits_convex, obb_outside_rect, LRUCache
+from engine import (hash_int, PX_PER_M, WORLD_HALF_PX, clamp, obb_hits_convex, obb_outside_rect,
+                    LRUCache, find_free_fraction, obb_convex_contact)
 
 TAU = 2.0 * math.pi
 
@@ -53,6 +54,11 @@ ROCK_H_K = 0.45
 ROCK_H_MIN, ROCK_H_MAX = 0.5, 4.0
 ROCK_ARMOR_MM = 3000.0       # броня камня: практически непробиваем
 
+# --- движение камней (таран) ---
+GRAVITY_MS2 = 9.81
+ROCK_FRICTION = 0.6          # трение камня о землю: торможение = ROCK_FRICTION * g, м/с²
+ROCK_STOP_PX = 5.0           # px/с: медленнее этого камень стоит
+
 @dataclass(frozen=True)
 class TerrainKind:
     name: str
@@ -63,6 +69,7 @@ class TerrainKind:
     armor_mm: float = 0.0          # броня для снарядов (имеет смысл, если blocks_shells)
     blocks_shells: bool = False    # останавливает снаряды
     blocks_barrel: bool = False
+    pushable: bool = False         # можно сдвинуть тараном (если легче танка)
 
 SHALLOWS = TerrainKind("Мелководье", SHALLOWS_K, False, 0)
 MUD = TerrainKind("Грязь", MUD_K, False, 1)
@@ -70,7 +77,7 @@ MID_WATER = TerrainKind("Вода", MID_WATER_K, False, 2)
 DEEP_WATER = TerrainKind("Глубокая вода", 0.0, True, 3)
 ROCK = TerrainKind("Камень", 0.0, True, 4,
                    density=ROCK_DENSITY, armor_mm=ROCK_ARMOR_MM,
-                   blocks_shells=True, blocks_barrel=True)
+                   blocks_shells=True, blocks_barrel=True, pushable=True)
 
 # ==========================================
 # 2. ПЯТНО
@@ -95,10 +102,28 @@ class Patch:
         self.pts = pts
         self.r_max = max(math.hypot(px - x, py - y) for px, py in pts)
         self.area_m2 = _polygon_area(pts) / (PX_PER_M * PX_PER_M)
-        n = len(pts)
-        # треугольники для столкновений нужны только твёрдым пятнам
-        self.tris = ([((x, y), pts[i], pts[(i + 1) % n]) for i in range(n)]
-                     if kind.solid else ())
+        self.tris = self._make_tris()        # треугольники для столкновений нужны только твёрдым пятнам
+        # --- подвижные камни (таран) ---
+        self.vx = 0.0                        # скорость, px/с
+        self.vy = 0.0
+        self.uid = None                      # (ix, iy, номер): ставит TerrainMap, чтобы узнать камень после перегенерации
+        self.cell = None                     # ячейка, в списке которой камень лежит сейчас
+
+    def _make_tris(self):
+        n = len(self.pts)
+        return ([((self.x, self.y), self.pts[i], self.pts[(i + 1) % n]) for i in range(n)]
+                if self.kind.solid else ())
+
+    def move_by(self, dx, dy):
+        """Сдвинуть пятно на месте (фигура и треугольники столкновений)."""
+        self.x += dx
+        self.y += dy
+        self.pts = [(px + dx, py + dy) for px, py in self.pts]
+        self.tris = self._make_tris()
+
+    def shifted(self, dx, dy):
+        """Копия пятна со сдвигом: для проверок «а если камень будет здесь?»."""
+        return Patch(self.kind, self.x + dx, self.y + dy, [(px + dx, py + dy) for px, py in self.pts])
 
     # ---------- вес (заготовка для тарана) ----------
     @property
@@ -233,6 +258,9 @@ class TerrainMap:
         self._cells = LRUCache(CELL_CACHE_LIMIT)        # (ix, iy) -> [Patch, ...] итоговые пятна
         self._raw_cells = LRUCache(CELL_CACHE_LIMIT)    # (ix, iy) -> (озеро, грязь, [камни]) до проверок
         self._lakes = LRUCache(CELL_CACHE_LIMIT)        # (ix, iy) -> [озеро] или [], прошедшее проверку
+        self._moved = {}         # uid -> камень, который двигали (вместо «свежего» из seed)
+        self._moved_cells = {}   # (ix, iy) -> [камни], чей центр сейчас лежит в этой ячейке
+        self._moving = []        # камни, которые сейчас скользят
 
     # ---------- генерация ----------
     def _make_raw(self, ix, iy):
@@ -256,7 +284,7 @@ class TerrainMap:
         if rng.random() < MUD_CHANCE:
             mud = place(MUD, rng.uniform(*MUD_RADIUS), 16, rng.uniform(1.0, 1.6), 0.28, 0.06)
         if rng.random() < ROCK_CELL_CHANCE:
-            for _ in range(rng.randint(*ROCKS_PER_CELL)):
+            for n in range(rng.randint(*ROCKS_PER_CELL)):
                 roll = rng.random()
                 if roll < ROCK_BIG_P:
                     radius = rng.uniform(*ROCK_BIG)
@@ -266,6 +294,8 @@ class TerrainMap:
                     radius = rng.uniform(*ROCK_SMALL)
                 rock = place(ROCK, radius, rng.randint(7, 11), rng.uniform(1.0, 1.7), 0.15, 0.20)
                 if rock is not None:
+                    rock.uid = (ix, iy, n)
+                    rock.cell = (ix, iy)
                     rocks.append(rock)
         return lake, mud, rocks
 
@@ -307,8 +337,11 @@ class TerrainMap:
         lakes = [lake for jy in range(iy - 1, iy + 2) for jx in range(ix - 1, ix + 2)
                  for lake in self._accepted_lake(jx, jy)]
         for rock in rocks:
+            if rock.uid in self._moved:
+                continue                 # этот камень двигали: он лежит в списке своей новой ячейки
             if not any(lake.contains(rock.x, rock.y) for lake in lakes):
                 patches.append(rock)
+        patches.extend(self._moved_cells.get((ix, iy), ()))   # сдвинутые камни, оказавшиеся здесь
         return patches
 
     def _cell(self, ix, iy):
@@ -400,3 +433,99 @@ class TerrainMap:
             if res is not None and (best is None or res[0] < best[1]):
                 best = (p, res[0], res[1])
         return best
+
+    # ---------- подвижные камни (таран) ----------
+    @staticmethod
+    def _cell_of(x, y):
+        return math.floor(x / FEATURE_CELL), math.floor(y / FEATURE_CELL)
+
+    def pushables_touching(self, obb, pad=0.0):
+        """Подвижные камни, которых касается прямоугольник obb (с запасом pad px):
+        [(камень, nx, ny), ...]. (nx, ny) — нормаль контакта ОТ прямоугольника К камню."""
+        cx, cy, hw, hl, ang = obb
+        result = []
+        for p in self.patches_near(cx, cy, math.hypot(hw, hl) + pad):
+            if not p.kind.pushable:
+                continue
+            best = None
+            for tri in p.tris:                       # камень невыпуклый: берём треугольник с наибольшей глубиной
+                c = obb_convex_contact(cx, cy, hw + pad, hl + pad, ang, tri)
+                if c is not None and (best is None or c[0] > best[0]):
+                    best = c
+            if best is not None:
+                result.append((p, best[1], best[2]))
+        return result
+
+    def push_rock(self, rock, vx, vy):
+        """Придать камню скорость (px/с): дальше он скользит в update_movers()."""
+        rock.vx, rock.vy = vx, vy
+        if rock not in self._moving:
+            self._moving.append(rock)
+
+    def update_movers(self, dt, obbs_near):
+        """Скольжение толкнутых камней: трение гасит скорость, каждый шаг проверяется на препятствия.
+        obbs_near(x, y, radius) -> [obb, ...] — прямоугольники стен и танков (их даёт игра)."""
+        if not self._moving:
+            return
+        still = []
+        for rock in self._moving:
+            speed = math.hypot(rock.vx, rock.vy)
+            drop = ROCK_FRICTION * GRAVITY_MS2 * PX_PER_M * dt
+            if speed <= drop + ROCK_STOP_PX:
+                rock.vx = rock.vy = 0.0
+                continue
+            k = (speed - drop) / speed
+            rock.vx *= k
+            rock.vy *= k
+            dx, dy = rock.vx * dt, rock.vy * dt
+            if self._rock_blocked(rock, dx, dy, obbs_near):
+                frac = 0.0
+                if not self._rock_blocked(rock, 0.0, 0.0, obbs_near):
+                    frac = find_free_fraction(
+                        lambda f: self._rock_blocked(rock, dx * f, dy * f, obbs_near))
+                self._shift_rock(rock, dx * frac, dy * frac)
+                rock.vx = rock.vy = 0.0              # упёрся: стоит
+                continue
+            self._shift_rock(rock, dx, dy)
+            still.append(rock)
+        self._moving = still
+
+    def _rock_blocked(self, rock, dx, dy, obbs_near):
+        """Помешает ли что-то камню оказаться со сдвигом (dx, dy): край мира, другой твёрдый камень
+        или глубокая вода, стена, танк."""
+        moved = rock.shifted(dx, dy)
+        if any(abs(px) > WORLD_HALF_PX or abs(py) > WORLD_HALF_PX for px, py in moved.pts):
+            return True
+        for q in self._near(moved.x, moved.y, moved.r_max):
+            if q is not rock and q.kind.solid and patches_overlap(moved, q):
+                return True
+        for ox, oy, hw, hl, ang in obbs_near(moved.x, moved.y, moved.r_max):
+            if any(obb_hits_convex(ox, oy, hw, hl, ang, tri) for tri in moved.tris):
+                return True
+        return False
+
+    def _shift_rock(self, rock, dx, dy):
+        if dx == 0.0 and dy == 0.0:
+            return
+        rock.move_by(dx, dy)
+        self._register_moved(rock)
+
+    def _register_moved(self, rock):
+        """Запоминает сдвинутый камень и переносит его в список ячейки, где теперь его центр.
+        Списки в кэше правим на месте, поэтому ячейки перегенерировать не нужно."""
+        if rock.uid not in self._moved:
+            self._moved[rock.uid] = rock
+            self._moved_cells.setdefault(rock.cell, []).append(rock)
+        new = self._cell_of(rock.x, rock.y)
+        if new == rock.cell:
+            return
+        old = rock.cell
+        self._moved_cells[old].remove(rock)
+        self._moved_cells.setdefault(new, []).append(rock)
+        old_list = self._cells.get(old)
+        if old_list is not None and rock in old_list:
+            old_list.remove(rock)
+        new_list = self._cells.get(new)
+        if new_list is not None and rock not in new_list:
+            new_list.append(rock)
+        rock.cell = new

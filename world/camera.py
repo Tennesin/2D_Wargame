@@ -1,8 +1,8 @@
 """world/camera.py — камера: центр в мировых координатах и зум."""
 from engine import clamp, CAMERA_LIMIT_PX
 
-ZOOM_LEVELS = [round(0.10 * 6 ** (i / 20), 4) for i in range(21)]   # 0.10 … 0.60, шаг ≈ 9 %
-DEFAULT_ZOOM_LEVEL = 5                                              # ≈ 0.157: танк 7 м ≈ 110 px
+ZOOM_LEVELS = [round(0.10 * 6 ** (i / 20), 4) for i in range(21)]
+DEFAULT_ZOOM_LEVEL = 7
 
 # ==========================================
 # КАМЕРА

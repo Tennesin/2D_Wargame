@@ -10,7 +10,7 @@ from .params import (
     KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, TANK_ARMOR_K, TERRAIN_MIN_K, TERRAIN_BRAKE,
     TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY, TRACK_LINK_M, TRACK_OFFSET_M, COLLISION_MARGIN_PX,
     CONTACT_TURN_STEPS, CONTACT_PUSH_STEPS, SLIDE_ANGLES_DEG, SLIDE_MIN_PX, CONTACT_SCRUB,
-    CONTACT_STOP_PROGRESS, BARREL_SOLID
+    CONTACT_STOP_PROGRESS, BARREL_SOLID, PUSH_FRICTION_MS2, PUSH_STOP_PX
 )
 
 # Направления отодвигания корпуса: (вдоль корпуса, поперёк). Назад, вперёд, в стороны и диагонали.
@@ -42,6 +42,9 @@ class Tank(Damageable):
         self.terrain_k = 1.0            # множитель скорости от местности под корпусом (1.0 = обычная)
         self._terrain = None            # карта препятствий; её передаёт Game в update()
         self._patches = ()              # пятна карты рядом с танком; обновляется в начале update()
+        self.impact_kmh = None          # скорость в момент удара о препятствие в ЭТОМ кадре (None: удара не было)
+        self.push_vx = 0.0              # скорость, полученная от тарана, px/с мира
+        self.push_vy = 0.0
 
     @property
     def turret_angle(self):
@@ -173,6 +176,7 @@ class Tank(Damageable):
     def update(self, command: VehicleCommand, dt, obstacles=(), terrain=None):
         """obstacles — повёрнутые прямоугольники стен (x, y, half_w, half_l, angle).
         terrain — карта естественных препятствий (TerrainMap) или None."""
+        self.impact_kmh = None          # флаг удара живёт ровно один кадр
         self._terrain = terrain
         self._patches = terrain.patches_near(self.x, self.y, self.reach_px()) if terrain is not None else ()
         self._sample_terrain()
@@ -275,6 +279,7 @@ class Tank(Damageable):
         if (self._has_solids(obstacles)
                 and not self._overlaps(self.x, self.y, self.hull_angle, obstacles)
                 and self._overlaps(new_x, new_y, self.hull_angle, obstacles)):
+            self.impact_kmh = self.speed_kmh        # скорость ДО гашения: по ней считается таран
             new_x, new_y = self._move_along_obstacle(dx, dy, obstacles)
             along = (new_x - self.x) * fx + (new_y - self.y) * fy
             progress = max(0.0, min(1.0, along / distance))
@@ -420,11 +425,12 @@ class Tank(Damageable):
         dist = self.spec.MUZZLE_DIST_PX
         return self.x + fx * dist, self.y + fy * dist
 
-    def velocity_px(self):
-        """Скорость корпуса в мировых px/с (нужна ботам для упреждения)."""
+    def velocity_px(self, speed_kmh=None):
+        """Скорость корпуса в мировых px/с (нужна ботам для упреждения и тарану).
+        speed_kmh: подставить другую скорость вдоль корпуса (по умолчанию текущую). Толчок от тарана включён."""
         fx, fy = heading_vector(self.hull_angle)
-        v = self.speed_kmh * KMH_TO_PX
-        return fx * v, fy * v
+        v = (self.speed_kmh if speed_kmh is None else speed_kmh) * KMH_TO_PX
+        return fx * v + self.push_vx, fy * v + self.push_vy
 
     @property
     def recoil_m(self):
@@ -437,3 +443,55 @@ class Tank(Damageable):
         if k < 0.2:                                   # быстрый откат назад (первые 20% времени)
             return depth * (k / 0.2)
         return depth * (1.0 - (k - 0.2) / 0.8) ** 2   # плавный накат обратно
+
+    # --- таран ---
+    def hull_obb(self):
+        """Прямоугольник корпуса в формате столкновений: (x, y, half_w, half_l, angle)."""
+        return self._hull_obb(self.x, self.y, self.hull_angle)
+
+    def take_damage(self, amount):
+        """Прямой урон (таран): без брони и рикошета."""
+        self.hp = max(0.0, self.hp - amount)
+
+    def apply_impulse(self, nx, ny, dv_ms):
+        """Таран: изменить скорость вдоль нормали (nx, ny) на dv_ms м/с (со знаком).
+        Если танк сам врезался (impact_kmh задан), составляющая вдоль корпуса меняет его ход
+        (потеря скорости), а остальное уходит в толчок. Если его ударили, всё уходит в толчок."""
+        k = dv_ms * PX_PER_M
+        dvx, dvy = nx * k, ny * k
+        if self.impact_kmh is not None:
+            fx, fy = heading_vector(self.hull_angle)
+            along = dvx * fx + dvy * fy
+            self.impact_kmh += along / KMH_TO_PX     # база для следующего удара в этом же кадре
+            self.speed_kmh = self.impact_kmh         # «отменяем» гашение скорости от стены/камня
+            dvx -= along * fx
+            dvy -= along * fy
+        self.push_vx += dvx
+        self.push_vy += dvy
+
+    def update_push(self, dt, obstacles, terrain):
+        """Сдвиг по инерции от толчка. Гасится сцеплением гусениц, упирается в препятствия."""
+        if self.push_vx == 0.0 and self.push_vy == 0.0:
+            return
+        speed = math.hypot(self.push_vx, self.push_vy)
+        drop = PUSH_FRICTION_MS2 * PX_PER_M * dt
+        if speed <= drop + PUSH_STOP_PX:
+            self.push_vx = self.push_vy = 0.0
+            return
+        k = (speed - drop) / speed
+        self.push_vx *= k
+        self.push_vy *= k
+
+        self._terrain = terrain
+        self._patches = terrain.patches_near(self.x, self.y, self.reach_px()) if terrain is not None else ()
+        dx, dy = self.push_vx * dt, self.push_vy * dt
+        if self._has_solids(obstacles) and self._overlaps(self.x + dx, self.y + dy, self.hull_angle, obstacles):
+            frac = 0.0
+            if not self._overlaps(self.x, self.y, self.hull_angle, obstacles):
+                frac = find_free_fraction(
+                    lambda f: self._overlaps(self.x + dx * f, self.y + dy * f, self.hull_angle, obstacles))
+            dx *= frac
+            dy *= frac
+            self.push_vx = self.push_vy = 0.0        # упёрся: толчок закончился
+        self.x += dx
+        self.y += dy

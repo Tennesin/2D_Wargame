@@ -7,7 +7,7 @@ from vehicles import Tank, TankSpec
 from ai import (Bot, BotBrain, DEFAULT_SKILL, ARCHETYPES, fit_loadout, BASE_BUDGET,
                 threat_profile, counter_multipliers)
 
-SPAWN_INTERVAL_S = 15.0
+SPAWN_INTERVAL_S = 18.0
 FIRST_SPAWN_S = 3.0
 RETRY_S = 0.5                # если места не нашлось, пробуем снова через это время
 BUDGET_PER_SPAWN = 0         # прибавка к бюджету за каждого уже появившегося бота

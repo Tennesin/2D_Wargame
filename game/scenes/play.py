@@ -21,6 +21,7 @@ from ..renderer import Renderer
 from ..fleet import Fleet
 from ..spawner import BotSpawner
 from ..bot_control import BotController
+from ..ram_control import RamController
 from ..bot_markers import BotMarkers
 from ..notifications import Notifier
 from .base import Scene
@@ -71,6 +72,7 @@ class PlayScene(Scene):
         self.spawner = BotSpawner(fleet, finder, self.camera, self.seed)
         self.bot_ctrl = BotController(fleet, walls, terrain, self.combat.effects, self.combat.targets)
 
+        self.ram = RamController(fleet, walls, terrain, self.combat, self.notifier)
         # --- рисование ---
         self.renderer = Renderer(world, terrain, fleet, walls, self.combat.effects)
         self.markers = BotMarkers(fleet, self.camera)
@@ -107,6 +109,7 @@ class PlayScene(Scene):
 
         self.spawner.update(dt)
         self.bot_ctrl.update(dt)
+        self.ram.update(dt)
         self.camera_ctrl.follow(self.fleet.player)
         self.combat.update(dt)
         self.notifier.update(dt)

@@ -91,3 +91,55 @@ def obb_outside_rect(cx, cy, half_w, half_l, angle_deg, left, top, right, bottom
     ex = half_w * c + half_l * s          # полуразмер описанной осевой рамки по X
     ey = half_w * s + half_l * c          # и по Y
     return cx - ex < left or cx + ex > right or cy - ey < top or cy + ey > bottom
+
+def obb_contact(a, b):
+    """Контакт двух повёрнутых прямоугольников a, b = (x, y, half_w, half_l, angle).
+    Возвращает (глубина, nx, ny) по оси наименьшего проникновения; (nx, ny) — единичная нормаль ОТ a К b.
+    None, если прямоугольники не пересекаются. Чтобы поймать «почти касание», раздуйте a на пару px."""
+    cx1, cy1, hw1, hl1, ang1 = a
+    cx2, cy2, hw2, hl2, ang2 = b
+    r1, f1 = _obb_axes(ang1)
+    r2, f2 = _obb_axes(ang2)
+    dx, dy = cx2 - cx1, cy2 - cy1
+    best = None
+    for ax, ay in (r1, f1, r2, f2):
+        proj = dx * ax + dy * ay
+        reach1 = hw1 * abs(r1[0] * ax + r1[1] * ay) + hl1 * abs(f1[0] * ax + f1[1] * ay)
+        reach2 = hw2 * abs(r2[0] * ax + r2[1] * ay) + hl2 * abs(f2[0] * ax + f2[1] * ay)
+        depth = reach1 + reach2 - abs(proj)
+        if depth <= 0.0:
+            return None
+        if best is None or depth < best[0]:
+            sign = 1.0 if proj >= 0.0 else -1.0
+            best = (depth, ax * sign, ay * sign)
+    return best
+
+def obb_convex_contact(cx, cy, half_w, half_l, angle_deg, poly):
+    """Как obb_hits_convex, но возвращает (глубина, nx, ny): ось наименьшего проникновения
+    и единичную нормаль ОТ прямоугольника К многоугольнику. None, если фигуры не пересекаются."""
+    r, f = _obb_axes(angle_deg)
+    axes = [r, f]
+    n = len(poly)
+    for i in range(n):
+        x0, y0 = poly[i]
+        x1, y1 = poly[(i + 1) % n]
+        ex, ey = x1 - x0, y1 - y0
+        ln = math.hypot(ex, ey)
+        if ln > 1e-9:
+            axes.append((-ey / ln, ex / ln))
+
+    pcx = sum(x for x, _ in poly) / n
+    pcy = sum(y for _, y in poly) / n
+    best = None
+    for ax, ay in axes:
+        mid = cx * ax + cy * ay
+        reach = half_w * abs(r[0] * ax + r[1] * ay) + half_l * abs(f[0] * ax + f[1] * ay)
+        lo = min(px * ax + py * ay for px, py in poly)
+        hi = max(px * ax + py * ay for px, py in poly)
+        depth = min(hi, mid + reach) - max(lo, mid - reach)
+        if depth <= 0.0:
+            return None
+        if best is None or depth < best[0]:
+            sign = 1.0 if (pcx - cx) * ax + (pcy - cy) * ay >= 0.0 else -1.0
+            best = (depth, ax * sign, ay * sign)
+    return best

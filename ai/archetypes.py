@@ -26,6 +26,9 @@ class Archetype:
     budget_k: float = 1.0               # множитель бюджета (Бункер дороже, Разведчик дешевле)
     spawn_weight: float = 1.0           # относительная частота появления
     edge_k: float = 1.0                 # насколько характеристики сдвигают дистанцию боя (0: ровно engage_dist_m)
+    aspect_deg: float = 90.0        # куда стремится: 0 лоб, 90 борт, 180 корма
+    aspect_tol_deg: float = 30.0    # допуск: в этих пределах бот считается «на позиции»
+    aspect_drive: float = 0.0       # постоянная тяга к позиции (балл намерения FLANK)
 
 @dataclass(frozen=True)
 class Skill:
@@ -36,9 +39,12 @@ class Skill:
 DEFAULT_SKILL = Skill()
 
 _w, _t = _reference_weights()
-UNIVERSAL = Archetype("Универсал", _w, (70, 120, 210),
-                      engage_dist_m=22.0, flank_bias=0.3, face_threat=0.6,
-                      jitter=0.0, t_anchor=_t, retreat_hp=0.35, cover_bias=0.3)
+
+UNIVERSAL = Archetype(
+    "Универсал", _w, (70, 120, 210),
+    engage_dist_m=22.0, flank_bias=0.3, face_threat=0.6,
+    jitter=0.0, t_anchor=_t, retreat_hp=0.35, cover_bias=0.3,
+    aspect_deg=150.0, aspect_tol_deg=30.0, aspect_drive=1.6)
 
 BUNKER = Archetype(
     "Бункер",
@@ -47,7 +53,8 @@ BUNKER = Archetype(
     (36, 66, 150),
     engage_dist_m=16.0, flank_bias=0.0, face_threat=1.0,
     retreat_hp=0.0, cover_bias=0.0,
-    budget_k=1.4, spawn_weight=0.5, edge_k=0.3)
+    budget_k=1.4, spawn_weight=0.5, edge_k=0.3,
+    aspect_deg=0.0, aspect_tol_deg=35.0, aspect_drive=3.0)
 
 DESTROYER = Archetype(
     "Уничтожитель",
@@ -56,7 +63,8 @@ DESTROYER = Archetype(
     (60, 90, 225),
     engage_dist_m=28.0, flank_bias=0.2, face_threat=0.3,
     retreat_hp=0.5, cover_bias=0.8,
-    budget_k=1.0, spawn_weight=0.8, edge_k=0.3)
+    budget_k=1.0, spawn_weight=0.8, edge_k=0.3,
+    aspect_deg=120.0, aspect_tol_deg=60.0, aspect_drive=0.8)
 
 SCOUT = Archetype(
     "Разведчик",
@@ -65,7 +73,8 @@ SCOUT = Archetype(
     (110, 175, 235),
     engage_dist_m=26.0, flank_bias=0.8, face_threat=0.2,
     retreat_hp=0.3, cover_bias=0.2,
-    budget_k=0.6, spawn_weight=1.2, edge_k=1.0)
+    budget_k=0.6, spawn_weight=1.2, edge_k=1.0,
+    aspect_deg=165.0, aspect_tol_deg=25.0, aspect_drive=2.5)
 
 ARCHETYPES = {"universal": UNIVERSAL, "bunker": BUNKER,
               "destroyer": DESTROYER, "scout": SCOUT}

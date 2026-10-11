@@ -99,6 +99,27 @@ class Notifier:
         if owner is self.player:
             self.say("Промах", C_DIM)
 
+    def on_ram(self, a, b, dmg_a, dmg_b, zone_a, zone_b):
+        """Танки a и b столкнулись. dmg_* — урон каждому, zone_* — грань, принявшая удар.
+        Показываем только столкновения с участием игрока."""
+        me = self.player
+        if me is a:
+            foe, mine, theirs, my_zone, their_zone = b, dmg_a, dmg_b, zone_a, zone_b
+        elif me is b:
+            foe, mine, theirs, my_zone, their_zone = a, dmg_b, dmg_a, zone_b, zone_a
+        else:
+            return
+        if mine <= 0.0 and theirs <= 0.0:
+            return
+        self.say(f"Таран! Врагу -{theirs:.0f} HP ({ZONE_RU[their_zone]}), "
+                 f"вам -{mine:.0f} HP ({ZONE_RU[my_zone]})", C_WARN)
+        if theirs > 0.0:
+            self.float_at(foe.x, foe.y, f"-{theirs:.0f}", C_GOOD)
+        if mine > 0.0:
+            self.float_at(me.x, me.y, f"-{mine:.0f}", C_BAD)
+        if foe.hp <= 0.0:
+            self.say("ЦЕЛЬ УНИЧТОЖЕНА!", C_GOOD)
+
     # ---------- разбор попаданий ----------
     def _hit_on_player(self, normal, res, dealt):
         me = self.player

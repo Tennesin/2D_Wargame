@@ -36,6 +36,11 @@ REPLAN_OFFPATH_M = 6.0       # бот ушёл с пути дальше этог
 FORBID_WALL_S = 15.0         # сколько секунд «непробиваемой» считается стена, с которой не вышло
 STUCK_SPOT_S = 12.0          # сколько секунд помним место, где застряли
 
+# --- позиция относительно цели (обход к корме / удержание лба) ---
+ORBIT_STEP_DEG = 40.0        # на сколько градусов вперёд по орбите ставим путевую точку
+FLANK_GIVEUP_S = 14.0        # дольше этого к позиции не пробиваемся
+FLANK_COOLDOWN_S = 8.0       # пауза в обходах после неудачи
+
 # --- бить нечем: пора обходить ---
 FUTILE_REACT_S = 0.6         # сколько секунд урон должен быть «гарантированно» ниже NO_DAMAGE
 
@@ -64,6 +69,8 @@ class BotBrain:
         self._hold = 0.0                                          # сколько ещё держим намерение
         self._think_in = rng.uniform(0.0, 1.0 / skill.think_hz)   # сдвиг фаз между ботами
         self._heading, self._go = 0.0, 0.0                        # результат последнего «размышления»
+        self._flank_t = 0.0                                       # сколько секунд подряд идёт обход
+        self._flank_block_until = 0.0                             # до этого момента обход запрещён
         self._flank_side = rng.choice((-1, 1))
         self._avoid_side = rng.choice((-1, 1))
         self._react_left = None                                   # None: чистой линии огня нет
@@ -166,8 +173,16 @@ class BotBrain:
             if self._cover_step(me, enemy, ctx, dist, tick):
                 return                                            # продолжаем прятаться; иначе вышли и выбираем заново
 
+        seen = self._seen_from(me, enemy)
+        arrived = self.intent is Intent.FLANK and self._in_position(seen)
+        if self.intent is Intent.FLANK:
+            self._flank_t += tick
+            if self._flank_t > FLANK_GIVEUP_S:                    # не получается добраться
+                self._flank_block_until = self._clock + FLANK_COOLDOWN_S
+                self._hold = 0.0
+
         # бить нечем: не ждём конца гистерезиса, сразу пересматриваем
-        if self._hold <= 0.0 or (futile and self.intent in (Intent.ENGAGE, Intent.ADVANCE)):
+        if self._hold <= 0.0 or arrived or (futile and self.intent in (Intent.ENGAGE, Intent.ADVANCE)):
             intent = self._choose(me, enemy, dist, engage, futile)
             if intent is Intent.COVER and not self._begin_cover(me, enemy, ctx):
                 self._cover_block_until = self._clock + COVER_RETRY_S    # укрытия нет: выбираем без него
@@ -175,14 +190,15 @@ class BotBrain:
             if intent is not self.intent:
                 self._invalidate()
                 if intent is Intent.FLANK:
-                    self._flank_side = self._nearer_flank(me, enemy)
+                    self._flank_side = self._pick_flank_side(me, enemy, ctx)
+                    self._flank_t = 0.0
             self.intent = intent
             self._hold = 1.5 + self.rng.random()                  # гистерезис
             if intent is Intent.COVER and self._cover_step(me, enemy, ctx, dist, 0.0):
                 return
 
         if self.intent is Intent.FLANK:
-            goal = flank_point(enemy, engage, self._flank_side)
+            goal = self._aspect_goal(me, enemy, engage)
             go = 1.0
         else:
             goal = (enemy.x, enemy.y)
@@ -210,6 +226,43 @@ class BotBrain:
         rx, ry = -fy, fx
         return 1 if (me.x - enemy.x) * rx + (me.y - enemy.y) * ry >= 0.0 else -1
 
+    def _pick_flank_side(self, me, enemy, ctx):
+        """Ближний борт, но если по нему уже кто-то обходит, берём противоположный."""
+        near = self._nearer_flank(me, enemy)
+        load = 0
+        for b in ctx.fleet.bots:
+            brain = b.brain
+            if brain is not self and brain.intent is Intent.FLANK:
+                load += brain._flank_side                         # +1 справа, -1 слева
+        return -near if near * load >= 1 else near
+
+    @staticmethod
+    def _seen_from(me, enemy):
+        """Под каким углом к лбу цели я нахожусь: 0 лоб, 90 борт, 180 корма."""
+        return abs(shortest_angle_diff(
+            bearing_deg(enemy.x, enemy.y, me.x, me.y), enemy.hull_angle))
+
+    def _in_position(self, seen_from):
+        """Я уже там, где хочет быть мой архетип?"""
+        return abs(seen_from - self.arch.aspect_deg) <= self.arch.aspect_tol_deg
+
+    def _aspect_goal(self, me, enemy, dist_px):
+        """Путевая точка на орбите вокруг цели: на пути от моего текущего угла к желаемому.
+        Едем по спирали, а не напрямую, чтобы не проезжать через лоб цели."""
+        fx, fy = heading_vector(enemy.hull_angle)
+        rx, ry = -fy, fx                                          # вправо от корпуса цели
+        dx, dy = me.x - enemy.x, me.y - enemy.y
+        theta = math.degrees(math.atan2(dx * rx + dy * ry, dx * fx + dy * fy))   # со знаком: + справа
+        goal = self._flank_side * self.arch.aspect_deg
+        diff = shortest_angle_diff(goal, theta)
+        if abs(diff) > 150.0:                                     # почти противоположная сторона: берём свою
+            diff = math.copysign(abs(diff), self._flank_side)
+        step = clamp(diff, -ORBIT_STEP_DEG, ORBIT_STEP_DEG)
+        t = math.radians(theta + step)
+        c, s = math.cos(t), math.sin(t)
+        return (enemy.x + (fx * c + rx * s) * dist_px,
+                enemy.y + (fy * c + ry * s) * dist_px)
+
     def _update_futile(self, me, enemy, dist, tick):
         """True, если из текущей позиции урон «гарантированно» меньше NO_DAMAGE уже FUTILE_REACT_S секунд."""
         if dist > me.spec.SHELL_RANGE_PX:
@@ -232,9 +285,9 @@ class BotBrain:
 
     def _choose(self, me, enemy, dist, engage, futile):
         m = self._matchup(me, enemy)
-        seen_from = abs(shortest_angle_diff(
-            bearing_deg(enemy.x, enemy.y, me.x, me.y), enemy.hull_angle))
-        flanked = seen_from > 60.0                                # я уже у него сбоку или сзади
+        seen_from = self._seen_from(me, enemy)
+        flanked = seen_from > 60.0                                # геометрически уже сбоку или сзади (для укрытий)
+        in_position = self._in_position(seen_from)
         in_range = dist <= engage * 1.3
 
         duel = clamp(math.log2(m.front_ratio), -2.0, 2.0)         # >0: в лоб драться выгодно
@@ -244,13 +297,14 @@ class BotBrain:
         scores = {
             Intent.ENGAGE: 1.0 + 0.5 * duel + (0.8 if in_range else -0.6),
             Intent.ADVANCE: 0.8 + (-0.4 if in_range else 0.6),
-            Intent.FLANK: (-9.0 if flanked else
-                           self.arch.flank_bias + 1.2 * gain * mobility - 0.5 * duel - 0.6),
+            Intent.FLANK: (-9.0 if in_position or self._clock < self._flank_block_until else
+                           self.arch.flank_bias + self.arch.aspect_drive
+                           + 1.2 * gain * mobility - 0.5 * duel - 0.6),
         }
         if futile:                                                # отсюда бить нечем: нужен обход
             scores[Intent.ENGAGE] -= 3.0
             scores[Intent.ADVANCE] -= 1.5
-            if not flanked:
+            if not in_position:
                 scores[Intent.FLANK] += 2.5
 
         # укрытие: только когда игрок достаёт и пауза после прошлого укрытия прошла
