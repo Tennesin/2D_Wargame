@@ -15,6 +15,8 @@ def hash_float(ix, iy, seed):
 
 def value_noise(x, y, seed):
     """Плавный шум 0..1: хеши в углах клетки, сглаженная интерполяция."""
+    x0 = math.floor(x)
+    y0 = math.floor(y)
     fx = x - x0
     fy = y - y0
     fx = fx * fx * (3.0 - 2.0 * fx)

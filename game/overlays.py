@@ -10,12 +10,11 @@ class DebugOverlay:
     TOP = 52
     LINE_H = 20
 
-    def __init__(self, hud, tank, modes, camera_ctrl, fleet=None):
-        self.hud = hud
-        self.tank = tank
-        self.modes = modes
+    def __init__(self, *, clock, camera, camera_ctrl, tank, world, seed, input_handler, modes, walls,
+                 fleet, spawner):
+        self.clock = clock
+        self.camera = camera
         self.camera_ctrl = camera_ctrl
-        self.fleet = fleet
         self.tank = tank
         self.world = world
         self.seed = seed
@@ -72,12 +71,12 @@ class DebugOverlay:
 class HudOverlay:
     """Левый нижний угол: сводка по танку, а над ней индикаторы боевого состояния и подсказки."""
 
-    def __init__(self, hud, tank, modes, camera_ctrl, combat=None):
+    def __init__(self, hud, tank, modes, camera_ctrl, fleet=None):
         self.hud = hud
         self.tank = tank
         self.modes = modes
         self.camera_ctrl = camera_ctrl
-        self.combat = combat                 # CombatController: берём счётчик убийств
+        self.fleet = fleet                   # Fleet: берём счётчик убийств
 
     def draw(self, screen):
         y = self.hud.draw(screen, self.tank) - 6
