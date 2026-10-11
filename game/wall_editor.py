@@ -90,7 +90,7 @@ class WallEditor:
             return
         old = (wall.max_hp, wall.width_m, wall.length_m)
         wall.apply_params(values["wall_hp"], values["wall_width_m"], values["wall_length_m"])
-        if self.fleet.blocks_obb(wall.obb()):
+        if self.is_blocked(wall):
             wall.apply_params(*old)
             self.ui.set_values(PanelMode.WALL, wall_values(wall))
 
@@ -124,7 +124,7 @@ class WallEditor:
 
         old = wall.angle
         wall.angle = new_angle
-        if self.fleet.blocks_obb(wall.obb()):
+        if self.is_blocked(wall):
             wall.angle = old
 
     # ---------- статистика ----------
@@ -137,8 +137,8 @@ class WallEditor:
         if key == self._stats_key:
             return
         self._stats_key = key
-        self.ui.set_stat("Текущее HP", f"{fmt_num(wall.hp)} / {fmt_num(wall.max_hp)}")
-        self.ui.set_stat("Масса стены", f"{fmt_num(wall.mass_t, 1)} т")
-        self.ui.set_stat("Толщина", f"{wall.thickness_m:.2f} м")
-        self.ui.set_stat("Эквивалент брони", f"{wall.armor_mm:.0f} мм")
-        self.ui.set_stat("Угол", f"{wall.angle:.0f} °")
+        self.ui.set_stat(PanelMode.WALL, "Текущее HP", f"{fmt_num(wall.hp)} / {fmt_num(wall.max_hp)}")
+        self.ui.set_stat(PanelMode.WALL, "Масса стены", f"{fmt_num(wall.mass_t, 1)} т")
+        self.ui.set_stat(PanelMode.WALL, "Толщина", f"{wall.thickness_m:.2f} м")
+        self.ui.set_stat(PanelMode.WALL, "Эквивалент брони", f"{wall.armor_mm:.0f} мм")
+        self.ui.set_stat(PanelMode.WALL, "Угол", f"{wall.angle:.0f} °")

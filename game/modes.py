@@ -38,7 +38,7 @@ class Modes:
         self.walls.selected = wall if mode == Mode.WALL_EDIT else None
         self.toolbar.set_active(mode == Mode.BUILD)
         if mode == Mode.WALL_EDIT:
-            self.ui.show(PanelMode.WALL, wall_values(wall), auto_open=True)
+            self.ui.show(PanelMode.WALL, wall_values(wall))
         else:
             self.ui.close()
 

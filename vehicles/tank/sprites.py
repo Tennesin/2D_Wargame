@@ -157,7 +157,7 @@ class TankRenderer:
         hox, hoy = (round(v * ppm * hs) for v in SHADOW_HULL_M)
         tox, toy = (round(v * ppm * ts) for v in SHADOW_TURRET_M)
         sil_hull = pygame.transform.rotozoom(
-            self._get_sil(("hull", lp, rp, look.hull_key), hull), -tank.hull_angle, hs)
+            self._get_sil(("hull", look.hull_key), hull), -tank.hull_angle, hs)
         sil_turret = pygame.transform.rotozoom(
             self._get_sil(("turret", look.turret_key), turret), -tank.turret_angle, ts)
         sil_barrel = pygame.transform.rotozoom(

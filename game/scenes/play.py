@@ -27,8 +27,6 @@ from ..inspector import HoverInspector
 from ..notifications import Notifier
 from .base import Scene
 
-DEBUG_PRINT_SPECS = False     # печатать характеристики танка в консоль при запуске
-
 class PlayScene(Scene):
     def __init__(self, seed, clock, session, on_menu, on_quit):
         """session: настройки танка из конструктора."""
@@ -47,16 +45,13 @@ class PlayScene(Scene):
         self.camera = Camera(*size)
 
         # --- интерфейс, ввод, танк ---
-        self.ui = ConstructorUI(size, {PanelMode.WALL: build_wall_panel()}, PanelMode.WALL,
-                                has_toggle=False)
+        self.ui = ConstructorUI(size, {PanelMode.WALL: build_wall_panel()}, PanelMode.WALL)
         self.toolbar = ToolBar()
         self.input = InputHandler([self.toolbar, self.ui])
         tank = Tank(0.0, 0.0, spec=session.tank_spec(), team="player")
         fleet = Fleet(tank)
         self.fleet = fleet
         self.notifier = Notifier(tank)
-        if DEBUG_PRINT_SPECS:
-            tank.spec.print_specs()
 
         # --- контроллеры ---
         modes = Modes(self.input, walls, self.toolbar, self.ui)
@@ -73,14 +68,14 @@ class PlayScene(Scene):
         self.spawner = BotSpawner(fleet, finder, self.camera, self.seed)
         self.bot_ctrl = BotController(fleet, walls, terrain, self.combat.effects, self.combat.targets)
 
-        self.ram = RamController(fleet, walls, terrain, self.combat, self.notifier)
+        self.ram = RamController(fleet, walls, terrain, self.notifier)
         # --- рисование ---
         self.renderer = Renderer(world, terrain, fleet, walls, self.combat.effects)
         self.markers = BotMarkers(fleet, self.camera)
         self.debug = DebugOverlay(clock=clock, camera=self.camera, camera_ctrl=self.camera_ctrl,
                                   tank=tank, world=world, seed=self.seed, input_handler=self.input,
                                   modes=modes, walls=walls, fleet=fleet, spawner=self.spawner)
-        self.hud = HudOverlay(TankHud(), tank, modes, self.camera_ctrl, self.combat)
+        self.hud = HudOverlay(TankHud(), tank, modes, self.camera_ctrl, fleet)
         self.modes = modes
         self.inspector = HoverInspector(self.input, self.camera, modes, fleet, walls, terrain)
 

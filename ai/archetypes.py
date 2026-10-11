@@ -17,8 +17,6 @@ class Archetype:
     color: tuple                        # цвет башни и маски
     engage_dist_m: float                # желаемая дистанция боя
     flank_bias: float                   # 0..1: охота обходить, если лоб не пробивается
-    face_threat: float                  # 0..1: держать лоб к врагу (пока не используется)
-    strafe: bool = False                # пока не используется
     retreat_hp: float = 0.0             # доля HP, ниже которой бот ищет укрытие (0: никогда)
     jitter: float = 0.06                # разброс весов у каждого экземпляра
     t_anchor: Optional[float] = None    # уровень, на котором архетип равен эталону
@@ -42,7 +40,7 @@ _w, _t = _reference_weights()
 
 UNIVERSAL = Archetype(
     "Универсал", _w, (70, 120, 210),
-    engage_dist_m=22.0, flank_bias=0.3, face_threat=0.6,
+    engage_dist_m=22.0, flank_bias=0.3,
     jitter=0.0, t_anchor=_t, retreat_hp=0.35, cover_bias=0.3,
     aspect_deg=150.0, aspect_tol_deg=30.0, aspect_drive=1.6)
 
@@ -51,7 +49,7 @@ BUNKER = Archetype(
     {"gun_caliber_mm": 0.45, "front_armor_mm": 1.0, "side_armor_mm": 0.9,
      "rear_armor_mm": 0.7, "engine_power_hp": 0.8},
     (36, 66, 150),
-    engage_dist_m=16.0, flank_bias=0.0, face_threat=1.0,
+    engage_dist_m=16.0, flank_bias=0.0,
     retreat_hp=0.0, cover_bias=0.0,
     budget_k=1.4, spawn_weight=0.5, edge_k=0.3,
     aspect_deg=0.0, aspect_tol_deg=35.0, aspect_drive=3.0)
@@ -61,7 +59,7 @@ DESTROYER = Archetype(
     {"gun_caliber_mm": 1.0, "front_armor_mm": 0.30, "side_armor_mm": 0.10,
      "rear_armor_mm": 0.08, "engine_power_hp": 0.7},
     (60, 90, 225),
-    engage_dist_m=28.0, flank_bias=0.2, face_threat=0.3,
+    engage_dist_m=28.0, flank_bias=0.2,
     retreat_hp=0.5, cover_bias=0.8,
     budget_k=1.0, spawn_weight=0.8, edge_k=0.3,
     aspect_deg=120.0, aspect_tol_deg=60.0, aspect_drive=0.8)
@@ -71,7 +69,7 @@ SCOUT = Archetype(
     {"gun_caliber_mm": 0.35, "front_armor_mm": 0.15, "side_armor_mm": 0.10,
      "rear_armor_mm": 0.08, "engine_power_hp": 1.0},
     (110, 175, 235),
-    engage_dist_m=26.0, flank_bias=0.8, face_threat=0.2,
+    engage_dist_m=26.0, flank_bias=0.8,
     retreat_hp=0.3, cover_bias=0.2,
     budget_k=0.6, spawn_weight=1.2, edge_k=1.0,
     aspect_deg=165.0, aspect_tol_deg=25.0, aspect_drive=2.5)

@@ -1,8 +1,8 @@
 """ai/loadout.py — подбор значений ползунков архетипа под бюджет."""
 from engine import clamp
-from vehicles import TankSpec, TANK_PARAMS
+from vehicles import TANK_PARAMS, COST_REF, cost_for
 
-BASE_BUDGET = 15000     # = COST_REF в vehicles/tank/params.py
+BASE_BUDGET = COST_REF
 
 def _values_at(arch, jitter, t):
     out = {}
@@ -13,7 +13,8 @@ def _values_at(arch, jitter, t):
     return out
 
 def _cost(values):
-    return TankSpec.from_values(values).cost
+    return cost_for(values["gun_caliber_mm"], values["front_armor_mm"], values["side_armor_mm"],
+                    values["rear_armor_mm"], values["engine_power_hp"])
 
 def fit_loadout(arch, budget, rng):
     """Значения ползунков архетипа под бюджет. Разброс фиксируется ДО бисекции,
@@ -34,17 +35,3 @@ def fit_loadout(arch, budget, rng):
         else:
             hi = mid
     return _values_at(arch, jitter, lo)
-
-def print_loadout_table(budgets=(5000, 15000, 25000, 35000)):
-    """Проверка архетипов. Запуск из корня проекта:
-    python -c "from ai.loadout import print_loadout_table; print_loadout_table()" """
-    import random
-    from .archetypes import ARCHETYPES
-    rng = random.Random(1)
-    print(f"{'архетип':<12}{'бюджет':>7}{'калибр':>8}{'лоб':>6}{'борт':>6}{'корма':>7}{'л.с.':>7}{'цена':>8}")
-    for arch in ARCHETYPES.values():
-        for b in budgets:
-            v = fit_loadout(arch, b, rng)
-            print(f"{arch.name:<12}{b:>7}{v['gun_caliber_mm']:>8.0f}{v['front_armor_mm']:>6.0f}"
-                  f"{v['side_armor_mm']:>6.0f}{v['rear_armor_mm']:>7.0f}"
-                  f"{v['engine_power_hp']:>7.0f}{_cost(v):>8}")

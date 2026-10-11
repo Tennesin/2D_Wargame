@@ -8,7 +8,7 @@ from engine import (
 from combat import resolve_hit, Damageable
 from .params import (
     KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, TANK_ARMOR_K, TERRAIN_MIN_K, TERRAIN_BRAKE,
-    TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY, TRACK_LINK_M, TRACK_OFFSET_M, COLLISION_MARGIN_PX,
+    TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY, TRACK_LINK_M, TRACK_OFFSET_M,
     CONTACT_TURN_STEPS, CONTACT_PUSH_STEPS, SLIDE_ANGLES_DEG, SLIDE_MIN_PX, CONTACT_SCRUB,
     CONTACT_STOP_PROGRESS, BARREL_SOLID, PUSH_FRICTION_MS2, PUSH_STOP_PX
 )
@@ -106,11 +106,8 @@ class Tank(Damageable):
         return bool(obstacles) or self._terrain is not None
 
     def reach_px(self):
-        """Радиус, в который попадает всё, что танк может задеть за один кадр (корпус, ствол + запас на сдвиг)."""
-        s = self.spec
-        hull = math.hypot(s.COLLISION_HALF_W_PX, s.COLLISION_HALF_L_PX) + abs(s.COLLISION_SHIFT_PX)
-        barrel = math.hypot(s.BARREL_COLL_END_PX, s.BARREL_COLL_HALF_W_PX)
-        return max(hull, barrel) + COLLISION_MARGIN_PX
+        """Радиус, в который попадает всё, что танк может задеть за один кадр (считается в TankSpec)."""
+        return self.spec.REACH_PX
 
     def hits_obb(self, other):
         """Задевает ли танк повёрнутый прямоугольник (x, y, half_w, half_l, angle).

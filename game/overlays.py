@@ -10,11 +10,12 @@ class DebugOverlay:
     TOP = 52
     LINE_H = 20
 
-    def __init__(self, *, clock, camera, camera_ctrl, tank, world, seed, input_handler, modes, walls,
-                 fleet, spawner):
-        self.clock = clock
-        self.camera = camera
+    def __init__(self, hud, tank, modes, camera_ctrl, fleet=None):
+        self.hud = hud
+        self.tank = tank
+        self.modes = modes
         self.camera_ctrl = camera_ctrl
+        self.fleet = fleet
         self.tank = tank
         self.world = world
         self.seed = seed
@@ -95,8 +96,8 @@ class HudOverlay:
             rows.append((f"Вязкая местность: скорость ×{self.tank.terrain_k:.2f}", (200, 170, 120)))
         if not self.modes.turret_follow:
             rows.append(("Башня зафиксирована (Q)", (240, 210, 70)))
-        if self.combat is not None:
-            rows.append((f"Уничтожено: {self.combat.kills}", (170, 176, 186)))
+        if self.fleet is not None:
+            rows.append((f"Уничтожено: {self.fleet.kills}", (170, 176, 186)))
 
         for text, color in reversed(rows):
             shadow = get_text(text, FONT_SIZE_LABEL, (0, 0, 0))

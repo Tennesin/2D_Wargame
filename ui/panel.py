@@ -2,9 +2,9 @@
 import pygame
 
 from engine import FONT_SIZE_TITLE, get_text
-from .theme import (PANEL_WIDTH, PANEL_PADDING, HEADER_HEIGHT, SCROLLBAR_GAP, TOGGLE_SIZE,
-                    TOGGLE_MARGIN, PANEL_BG, PANEL_BORDER, TEXT_COLOR, TOGGLE_COLORS)
-from .widgets import Button, ScrollArea, ParamRow, StatsBlock, ActionButton
+from .theme import (PANEL_WIDTH, PANEL_PADDING, HEADER_HEIGHT, SCROLLBAR_GAP,
+                    PANEL_BG, PANEL_BORDER, TEXT_COLOR)
+from .widgets import ScrollArea, ParamRow, StatsBlock, ActionButton
 
 class Panel:
     """Содержимое одной панели: заголовок, элементы и колбэк «ползунок сдвинут»."""
@@ -25,22 +25,19 @@ class Panel:
                 it.set_value(values[it.key])
 
 class ConstructorUI:
-    def __init__(self, screen_size, panels, start_mode, *, has_toggle=True, start_open=False):
+    def __init__(self, screen_size, panels, start_mode, *, start_open=False):
         self.screen_size = screen_size
-        self.has_toggle = has_toggle
         self.is_open = start_open
-        self._auto_opened = False
         self.panels = panels
         self.mode = start_mode
 
-        self.toggle_button = Button((0, 0, TOGGLE_SIZE, TOGGLE_SIZE), ">" if start_open else "<")
         self.scroll = ScrollArea()
         self.panel_rect = pygame.Rect(0, 0, PANEL_WIDTH, 0)
         self.content_rect = pygame.Rect(0, 0, 0, 0)
         self._bg_surface = None
         self._active_row = None          # строка, ползунок которой сейчас тянут
 
-        self._stat_blocks = {}           # название характеристики -> StatsBlock, где она показана
+        self._stat_blocks = {}           # (режим, название) -> StatsBlock
         self._index_stats()
         self._layout()
 
@@ -62,34 +59,25 @@ class ConstructorUI:
         self.panels[mode].set_values(values)
 
     def _index_stats(self):
-        """Один раз связывает названия характеристик с блоками, чтобы не искать их при каждой записи."""
-        for panel in self.panels.values():
+        """Один раз связывает (режим, название характеристики) с блоком, где она показана."""
+        for mode, panel in self.panels.items():
             for it in panel.items:
                 if isinstance(it, StatsBlock):
                     for name in it.values:
-                        self._stat_blocks[name] = it
+                        self._stat_blocks[(mode, name)] = it
 
-    def set_stat(self, name, value):
-        """Записать рассчитанную характеристику в блок статистики."""
-        block = self._stat_blocks.get(name)
+    def set_stat(self, mode, name, value):
+        """Записать рассчитанную характеристику в блок статистики панели mode."""
+        block = self._stat_blocks.get((mode, name))
         if block is not None:
             block.values[name] = value
 
-    def show(self, mode, values=None, auto_open=False):
-        """Показать панель mode."""
+    def show(self, mode, values=None):
+        """Показать панель mode и открыть её."""
         if values is not None:
             self.set_values(mode, values)
-        if auto_open:
-            was_closed = not self.is_open
-            self._switch(mode)
-            if was_closed:
-                self.toggle()
-                self._auto_opened = True         # после toggle(), иначе он сбросит флаг
-        elif self.mode != mode:
-            auto = self._auto_opened
-            self._switch(mode)
-            if auto and self.is_open:            # панель раскрыла сама игра, а не игрок
-                self.toggle()
+        self._switch(mode)
+        self.open()
 
     def _switch(self, mode):
         self.mode = mode
@@ -97,16 +85,15 @@ class ConstructorUI:
         self.scroll.offset = 0
         self._layout()
 
-    def close(self):
-        """Закрыть панель, если она открыта."""
-        if self.is_open:
-            self.toggle()
+    def open(self):
+        if not self.is_open:
+            self.is_open = True
+            self._active_row = None
 
-    def toggle(self):
-        self.is_open = not self.is_open
-        self.toggle_button.label = ">" if self.is_open else "<"
-        self._active_row = None
-        self._auto_opened = False            # ручное переключение отменяет «автозакрытие»
+    def close(self):
+        if self.is_open:
+            self.is_open = False
+            self._active_row = None
 
     def update(self, screen_size):
         """Вызывать каждый кадр, но раскладка пересчитывается только при смене размера окна.
@@ -116,9 +103,7 @@ class ConstructorUI:
             self._layout()
 
     def covers(self, pos):
-        """Лежит ли точка экрана на красной кнопке (если она есть) или на открытой панели."""
-        if self.has_toggle and self.toggle_button.rect.collidepoint(pos):
-            return True
+        """Лежит ли точка экрана на открытой панели."""
         return self.is_open and self.panel_rect.collidepoint(pos)
 
     def cancel_drag(self):
@@ -128,7 +113,6 @@ class ConstructorUI:
     # ---------- раскладка ----------
     def _layout(self):
         w, h = self.screen_size
-        self.toggle_button.rect.topright = (w - TOGGLE_MARGIN, TOGGLE_MARGIN)
         self.panel_rect = pygame.Rect(w - PANEL_WIDTH, 0, PANEL_WIDTH, h)
         self.content_rect = pygame.Rect(
             self.panel_rect.x + PANEL_PADDING,
@@ -156,10 +140,6 @@ class ConstructorUI:
     def handle_event(self, event, mouse_pos):
         """Возвращает True, если событие поглощено интерфейсом."""
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if self.has_toggle and self.toggle_button.collidepoint(event.pos):
-                if event.button == 1:
-                    self.toggle()
-                return True
             if self.is_open and self.panel_rect.collidepoint(event.pos):
                 if event.button == 1 and self.content_rect.collidepoint(event.pos):
                     for it in self.items:
@@ -200,8 +180,6 @@ class ConstructorUI:
     def draw(self, screen, mouse_pos):
         if self.is_open:
             self._draw_panel(screen, mouse_pos)
-        if self.has_toggle:
-            self.toggle_button.draw(screen, mouse_pos, font_size=20, colors=TOGGLE_COLORS)
 
     def _draw_panel(self, screen, mouse_pos):
         rect = self.panel_rect

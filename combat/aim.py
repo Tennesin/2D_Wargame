@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Optional
 import pygame
 
-from engine import heading_vector, AlphaLayer, get_font, FONT_SIZE_LABEL
+from engine import heading_vector, AlphaLayer, get_text, FONT_SIZE_LABEL
 from .armor import HitResult
 
 LINE_COLOR = (255, 40, 40, 110)      # красный, полупрозрачный
@@ -84,8 +84,7 @@ class AimRenderer:
                 result, color = f"Урон: {pct}% (ослаблен)", C_CHANCE
 
         rows = [(f"Исходная броня: {res.armor_mm:.0f} мм", C_TEXT), (eff_text, C_TEXT), (result, color)]
-        font = get_font(FONT_SIZE_LABEL)
-        surfaces = [font.render(text, True, col) for text, col in rows]
+        surfaces = [get_text(text, FONT_SIZE_LABEL, col) for text, col in rows]
 
         w = max(s.get_width() for s in surfaces) + 2 * LABEL_PAD
         h = sum(s.get_height() for s in surfaces) + 2 * LABEL_PAD

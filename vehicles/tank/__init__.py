@@ -1,9 +1,10 @@
 """tank — всё, что относится к танку.
 Снаружи импортируем через пакет vehicles: from vehicles import Tank, TankSpec, ...
 Внутренности (spec.py, sprites.py, ...) снаружи не трогаем."""
-from .params import PARAMS
-from .spec import TankSpec
+from .params import PARAMS, COST_REF, LOOK_FRONT_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO
+from .spec import TankSpec, cost_for
 from .entity import Tank
 from .sprites import TankRenderer
 
-__all__ = ["PARAMS", "TankSpec", "Tank", "TankRenderer"]
+__all__ = ["PARAMS", "COST_REF", "LOOK_FRONT_RATIO", "LOOK_GUN_RATIO", "LOOK_SPEED_RATIO",
+           "TankSpec", "Tank", "TankRenderer", "cost_for"]

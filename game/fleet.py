@@ -4,6 +4,16 @@ class Fleet:
     def __init__(self, player):
         self.player = player
         self.bots = []                      # список ai.Bot
+        self.kills = 0                      # сколько ботов уничтожено за партию
+
+    def remove_dead(self):
+        """Убирает уничтоженных ботов, учитывает их в kills и возвращает сколько убрано.
+        Игрок остаётся всегда."""
+        before = len(self.bots)
+        self.bots = [b for b in self.bots if b.tank.alive]
+        removed = before - len(self.bots)
+        self.kills += removed
+        return removed
 
     @property
     def tanks(self):

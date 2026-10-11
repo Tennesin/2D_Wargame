@@ -9,7 +9,6 @@ class CombatController:
         self.modes = modes
         self.fleet = fleet
         self.notifier = notifier
-        self.kills = 0
         self.effects = EffectsSystem()
         self.targets = TargetSet(walls, terrain, fleet)
 
@@ -31,9 +30,7 @@ class CombatController:
             dealt = target.take_hit(pen, spec.damage * power, cos_impact, normal)
             self.notifier.on_hit(owner, target, normal, res, dealt)
         self.walls.remove_dead()
-        self.kills += self.fleet.remove_dead()
-        if self.modes.mode == Mode.WALL_EDIT and self.walls.selected is None:
-            self.modes.set_mode(Mode.DRIVE)
+        self.fleet.remove_dead()
 
     def aim_info(self):
         """Траектория выстрела. Только в боевом состоянии, не в режиме стройки и пока танк жив."""

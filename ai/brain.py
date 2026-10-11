@@ -11,9 +11,6 @@ from .gunnery import (lead_point, flank_point, seconds_to_break, evaluate_matchu
 from .pathfinding import find_path
 from .cover import find_cover, shield_between, attention
 
-# Флаги для поэтапной проверки
-AI_MOVE_ENABLED = True
-AI_FIRE_ENABLED = True
 USE_ASTAR = True              # False: старые «щупальца» (удобно сравнивать поведение)
 
 class Intent(Enum):
@@ -30,6 +27,7 @@ BREACH_LOOK_M = 30.0         # (запасной режим без A*) как д
 BREACH_DETOUR_DEG = 50.0     # (запасной режим) объезд круче этого считается плохим
 
 # --- перепланирование пути ---
+MIN_REPLAN_S = 0.5           # быстрее этого путь не перестраивается даже при смене цели
 REPLAN_S = 1.5               # период перепланирования (с разбросом ±20%)
 REPLAN_GOAL_M = 10.0         # цель сместилась больше чем на это
 REPLAN_OFFPATH_M = 6.0       # бот ушёл с пути дальше этого
@@ -59,6 +57,7 @@ COVER_HP_DROP = 0.05         # потеряли столько HP (доля ма
 
 INTENT_STICKY = 0.4          # бонус к баллу текущего намерения (против дрожания решений)
 FIRE_TOLERANCE_DEG = 2.0
+REVERSE_CHECK_M = 5.0        # на сколько метров назад смотрим, прежде чем сдавать задом
 
 class BotBrain:
     def __init__(self, arch, skill, rng):
@@ -94,6 +93,7 @@ class BotBrain:
         self._forbidden = {}                                      # id стены -> секунд до снятия запрета
         self._bad_spots = []                                      # [[x, y, ttl], ...] места застревания
         self._was_reversing = False
+        self._plan_age = 0.0                                      # сколько секунд текущему пути
         # матчап
         self._m_key = None
         self._m = None
@@ -110,6 +110,7 @@ class BotBrain:
         self._hold -= dt
         self._think_in -= dt
         self._replan_in -= dt
+        self._plan_age += dt
         self._tick_memory(dt)
         if self.intent is Intent.BREACH:
             self._breach_left -= dt
@@ -130,10 +131,8 @@ class BotBrain:
                 self._remember_stuck(me)
             throttle, steer = -1.0, self.stuck.turn
         self._was_reversing = reversing
-        if not AI_MOVE_ENABLED:
-            throttle, steer = 0.0, 0.0
 
-        fire = self._gunnery(dt, me, enemy, ctx, aim) and AI_FIRE_ENABLED
+        fire = self._gunnery(dt, me, enemy, ctx, aim)
         return VehicleCommand(throttle=throttle, steer=steer, aim_point=aim, fire=fire)
 
     def _tick_memory(self, dt):
@@ -217,7 +216,20 @@ class BotBrain:
             if self._try_breach(me, ctx, want, dist):             # линию огня закрыла стена
                 return
             want = best_hull_heading(me, enemy, want)             # выгодный угол корпуса
+        if go < 0.0 and self._rear_blocked(me, ctx):
+            go = 0.0                                              # сзади занято: стоим, а не упираемся
         self._heading, self._go = want, go
+
+    @staticmethod
+    def _rear_blocked(me, ctx):
+        """Занято ли место позади корпуса (камень, глубокая вода, стена, край мира) на пути заднего хода."""
+        fx, fy = heading_vector(me.hull_angle)
+        dist = REVERSE_CHECK_M * PX_PER_M
+        for k in (0.5, 1.0):
+            hull = me.footprint_at(me.x - fx * dist * k, me.y - fy * dist * k, me.hull_angle)[0]
+            if ctx.terrain.blocks_obb(hull) or ctx.walls.blocks_obb(hull):
+                return True
+        return False
 
     @staticmethod
     def _nearer_flank(me, enemy):
@@ -406,7 +418,7 @@ class BotBrain:
         """Текущий путь; перестраивается по таймеру, при смене цели, при уходе с пути и по прибытии."""
         p = self._path
         need = self._replan_in <= 0.0
-        if p is not None and not need:
+        if p is not None and not need and self._plan_age >= MIN_REPLAN_S:
             need = (math.hypot(goal[0] - p.goal[0], goal[1] - p.goal[1]) > REPLAN_GOAL_M * PX_PER_M
                     or p.deviation_px(me.x, me.y) > REPLAN_OFFPATH_M * PX_PER_M
                     or p.done(me.x, me.y))
@@ -414,6 +426,7 @@ class BotBrain:
             self._path = find_path(me, goal, ctx.terrain, ctx.walls,
                                    self._forbidden, self._bad_spots, no_breach)
             self._replan_in = REPLAN_S * self.rng.uniform(0.8, 1.2)
+            self._plan_age = 0.0
         return self._path
 
     def _drive_to(self, me, ctx, goal, want, dist, no_breach=False):

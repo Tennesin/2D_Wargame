@@ -1,12 +1,11 @@
 """ai/counter.py — «умный» спавн: профиль игрока -> множители шансов архетипов."""
 from engine import clamp
-from vehicles import TANK_PARAMS
+from vehicles import TANK_PARAMS, LOOK_FRONT_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO
 
-# При каком отношении к эталону уровень «угрозы» становится максимальным (1.0).
-# Значения совпадают с верхними порогами LOOK_*_RATIO в vehicles/tank/params.py.
-FULL_ARMOR_RATIO = 1.40     # лоб относительно эталона
-FULL_GUN_RATIO = 1.35       # калибр относительно эталона
-FULL_SPEED_RATIO = 2.2      # удельная мощность относительно эталона
+# Уровень «угрозы» максимален на верхних порогах оформления танка (vehicles/tank/params.py)
+FULL_ARMOR_RATIO = LOOK_FRONT_RATIO[1]
+FULL_GUN_RATIO = LOOK_GUN_RATIO[1]
+FULL_SPEED_RATIO = LOOK_SPEED_RATIO[1]
 
 _REF_FRONT = TANK_PARAMS["front_armor_mm"].default
 _REF_CAL = TANK_PARAMS["gun_caliber_mm"].default
@@ -22,11 +21,9 @@ COUNTERS = {
 MIN_MULT = 0.15     # шанс архетипа не падает ниже 15% от обычного
 MAX_MULT = 4.0      # и не растёт больше чем в 4 раза
 
-
 def _level(ratio, full):
     """0 на эталоне и ниже, 1 при ratio >= full, между ними линейно."""
     return clamp((ratio - 1.0) / (full - 1.0), 0.0, 1.0)
-
 
 def threat_profile(spec):
     """Насколько игрок «выкручен» по каждой оси: {"armor": 0..1, "gun": 0..1, "speed": 0..1}."""
@@ -35,7 +32,6 @@ def threat_profile(spec):
         "gun": _level(spec.cal / _REF_CAL, FULL_GUN_RATIO),
         "speed": _level(spec.q_pw, FULL_SPEED_RATIO),
     }
-
 
 def counter_multipliers(profile, archetypes):
     """Множитель шанса для каждого ключа архетипа. У игрока на эталоне все множители равны 1.0."""

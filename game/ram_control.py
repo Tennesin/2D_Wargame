@@ -9,11 +9,10 @@ DAMAGE_COOLDOWN_S = 0.5      # пока не прошло, та же пара т
 ROCK_HURTS_TANK = False      # True: при таране камня страдает и сам танк
 
 class RamController:
-    def __init__(self, fleet, walls, terrain, combat, notifier):
+    def __init__(self, fleet, walls, terrain, notifier):
         self.fleet = fleet
         self.walls = walls
         self.terrain = terrain
-        self.combat = combat
         self.notifier = notifier
         self._cooldown = {}              # frozenset(id, id) -> секунд до следующего урона
 
@@ -35,7 +34,7 @@ class RamController:
                 obstacles += self.fleet.obbs_near(tank, reach)
                 tank.update_push(dt, obstacles, self.terrain)
 
-        self.combat.kills += self.fleet.remove_dead()        # кто погиб от тарана
+        self.fleet.remove_dead()                             # кто погиб от тарана
 
     # ---------- камни ----------
     def _ram_rocks(self, tank):

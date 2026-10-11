@@ -29,7 +29,7 @@ class ConstructorScene(Scene):
 
         # --- интерфейс: одна панель, всегда открыта, без красной кнопки ---
         self.ui = ConstructorUI(size, {PanelMode.TANK: build_tank_panel()}, PanelMode.TANK,
-                                has_toggle=False, start_open=True)
+                                start_open=True)
         self.ui.set_values(PanelMode.TANK, session.tank_values)   # вернуть прошлые настройки
         self.ui.set_on_change(PanelMode.TANK, self._on_change)
         self.input = InputHandler([self.ui])
@@ -55,7 +55,7 @@ class ConstructorScene(Scene):
     def _show_stats(self):
         spec = self.tank.spec
         for name, text in {**spec.main_stats(), **spec.internal_stats()}.items():
-            self.ui.set_stat(name, text)
+            self.ui.set_stat(PanelMode.TANK, name, text)
 
     # ---------- кадр ----------
     def update(self, dt):

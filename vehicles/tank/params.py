@@ -10,11 +10,11 @@ from engine import PX_PER_M, Param
 
 # Порядок ключей = порядок ползунков в панели (внутри своих секций)
 PARAMS = {
-    "gun_caliber_mm":  Param("Калибр орудия",       "мм",   45,  175, 120,  1),
-    "front_armor_mm":  Param("Лоб",                 "мм",   15,  500, 300,  5),
-    "side_armor_mm":   Param("Борт",                "мм",   15,  375,  75,  5),
-    "rear_armor_mm":   Param("Корма",               "мм",   15,  250,  50,  5),
-    "engine_power_hp": Param("Мощность двигателя",  "л.с.", 600, 2000, 1500, 25),
+    "gun_caliber_mm":  Param("Калибр орудия",       "мм",   45,  175, 125,  1),
+    "front_armor_mm":  Param("Лоб",                 "мм",   15,  500, 375,  5),
+    "side_armor_mm":   Param("Борт",                "мм",   15,  375,  85,  5),
+    "rear_armor_mm":   Param("Корма",               "мм",   15,  250,  55,  5),
+    "engine_power_hp": Param("Мощность двигателя",  "л.с.", 600, 2000, 1650, 25),
 }
 
 FRONT_AREA_M2 = 5.0

@@ -9,7 +9,7 @@ from .params import (
     V_CAP_KMH, PW_SCALE, V_MASS_EXP, V_MIN_KMH, V_MAX_CLAMP_KMH, V_AVG_BASE, V_AVG_GAIN,
     BACK_SPEED_K, V_BACK_CAP_KMH,
     GUN_DAMAGE_REF, GUN_PEN_REF, GUN_RELOAD_REF, GUN_RELOAD_MIN, GUN_OVERLOAD_Q, GUN_OVERLOAD_K,
-    HP_REF, HP_EXP, HP_STEP,
+    HP_REF, HP_EXP, HP_STEP, COLLISION_MARGIN_PX,
     COST_REF, COST_MIN, COST_MAX, COST_STEP, BUILD_TIME_REF, COST_ARMOR_ZONES, COST_PARTS,
     TURRET_FRONT_M, BARREL_VISIBLE_K, BARREL_THICK_REF_M,
     SHELL_LEN_K, FRONT_AREA_M2, SIDE_AREA_M2, REAR_AREA_M2, STEEL_T_PER_M3,
@@ -94,6 +94,10 @@ COST_EXP_HIGH = math.log(COST_MAX / COST_REF) / math.log(INDEX_MAX)
 def _price(index):
     """Цена до округления."""
     return COST_REF * index ** (COST_EXP_LOW if index < 1.0 else COST_EXP_HIGH)
+
+def cost_for(cal, front, side, rear, power):
+    """Цена машины по входным параметрам без полного расчёта TankSpec (для подбора билдов ботов)."""
+    return clamp(round_to(_price(_cost_index(cal, front, side, rear, power)), COST_STEP), COST_MIN, COST_MAX)
 
 # ==========================================
 # 3. ТАНК
@@ -249,8 +253,12 @@ class TankSpec:
         # ствол: прямоугольник вдоль оси башни, от торца маски орудия до дульного среза
         t = self.TURRET_SCALE * PX_PER_M
         self.BARREL_COLL_START_PX = TURRET_FRONT_M * t
-        self.BARREL_COLL_END_PX = (TURRET_FRONT_M + self.BARREL_LEN_M) * t   # = MUZZLE_DIST_PX
-        self.BARREL_COLL_HALF_W_PX = (self.BARREL_THICK_M + 0.08) * t / 2.0  # +8 см на эжектор
+        self.BARREL_COLL_END_PX = (TURRET_FRONT_M + self.BARREL_LEN_M) * t
+        self.BARREL_COLL_HALF_W_PX = (self.BARREL_THICK_M + 0.08) * t / 2.0
+
+        hull_reach = math.hypot(self.COLLISION_HALF_W_PX, self.COLLISION_HALF_L_PX) + abs(self.COLLISION_SHIFT_PX)
+        barrel_reach = math.hypot(self.BARREL_COLL_END_PX, self.BARREL_COLL_HALF_W_PX)
+        self.REACH_PX = max(hull_reach, barrel_reach) + COLLISION_MARGIN_PX
 
     def _calc_shot(self):
         """Всё, что зависит от калибра (размеры в мировых px, 100 px = 1 м)."""
@@ -318,11 +326,3 @@ class TankSpec:
             "Угл. разгон корпуса": f"{self.hull_alpha:.0f} °/с²",
             "Угл. разгон башни": f"{self.turret_alpha:.0f} °/с²",
         }
-
-    def print_specs(self):
-        print("=" * 50)
-        print("        ХАРАКТЕРИСТИКИ ТАНКА (TankSpec)")
-        print("=" * 50)
-        for name, text in {**self.main_stats(), **self.internal_stats()}.items():
-            print(f"{name + ':':<24}{text}")
-        print("=" * 50)
