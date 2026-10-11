@@ -40,6 +40,7 @@ ROCK_MEDIUM = (250.0, 450.0)
 ROCK_BIG = (600.0, 1000.0)   # скальные гряды
 ROCK_MEDIUM_P = 0.23         # доля средних
 ROCK_BIG_P = 0.07            # доля больших
+THICKNESS_SAMPLES = 72       # сколько направлений проверяем, когда считаем толщину камня
 
 # --- множители скорости ---
 SHALLOWS_K = 0.60            # мелководье: замедление 40%
@@ -141,6 +142,16 @@ class Patch:
     def mass_t(self):
         """Масса, т (0 для воды и грязи)."""
         return self.volume_m3 * self.kind.density
+
+    def thickness_stats(self):
+        """(средняя, наименьшая) толщина в метрах."""
+        widths = []
+        for k in range(THICKNESS_SAMPLES):
+            a = math.pi * k / THICKNESS_SAMPLES
+            ax, ay = math.cos(a), math.sin(a)
+            proj = [px * ax + py * ay for px, py in self.pts]
+            widths.append(max(proj) - min(proj))
+        return sum(widths) / len(widths) / PX_PER_M, min(widths) / PX_PER_M
 
     # ---------- геометрия ----------
     def contains(self, x, y):

@@ -23,6 +23,7 @@ from ..spawner import BotSpawner
 from ..bot_control import BotController
 from ..ram_control import RamController
 from ..bot_markers import BotMarkers
+from ..inspector import HoverInspector
 from ..notifications import Notifier
 from .base import Scene
 
@@ -81,6 +82,7 @@ class PlayScene(Scene):
                                   modes=modes, walls=walls, fleet=fleet, spawner=self.spawner)
         self.hud = HudOverlay(TankHud(), tank, modes, self.camera_ctrl, self.combat)
         self.modes = modes
+        self.inspector = HoverInspector(self.input, self.camera, modes, fleet, walls, terrain)
 
     def update(self, dt):
         self.input.process_events()
@@ -136,4 +138,5 @@ class PlayScene(Scene):
         if self.fleet.player.alive:
             self.toolbar.draw(screen, self.input.mouse_pos)
         self.hud.draw(screen)
+        self.inspector.draw(screen)
         self.notifier.draw(screen, self.camera)
