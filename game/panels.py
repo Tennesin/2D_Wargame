@@ -3,7 +3,7 @@
 from enum import Enum, auto
 from functools import partial
 
-from vehicles import TankSpec, TANK_PARAMS
+from vehicles import TankSpec, TANK_PARAMS, GUN_TUNE_PARAMS
 from structures import WALL_PARAMS
 from ui import (Panel, SectionHeader, StatsBlock, InfoText, ActionButton,
                 make_param_row, DELETE_BUTTON_COLORS)
@@ -15,9 +15,12 @@ class PanelMode(Enum):
 def build_tank_panel():
     spec0 = TankSpec.from_config()      # нужен только ради списка названий характеристик
     row = partial(make_param_row, TANK_PARAMS)
+    tune_row = partial(make_param_row, GUN_TUNE_PARAMS)
     return Panel("Конструктор техники", [
         SectionHeader("Вооружение"),
         row("gun_caliber_mm"),
+        tune_row("gun_damage"),
+        tune_row("gun_penetration"),
 
         SectionHeader("Броня"),
         row("front_armor_mm"),

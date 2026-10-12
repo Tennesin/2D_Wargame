@@ -24,6 +24,13 @@ class Panel:
             if isinstance(it, ParamRow) and it.key in values:
                 it.set_value(values[it.key])
 
+    def set_range(self, key, lo, hi):
+        """Сменить границы ползунка с ключом key (без вызова on_change)."""
+        for it in self.items:
+            if isinstance(it, ParamRow) and it.key == key:
+                it.set_range(lo, hi)
+                return
+
 class SidePanel:
     def __init__(self, screen_size, panels, start_mode, *, start_open=False):
         self.screen_size = screen_size
@@ -57,6 +64,10 @@ class SidePanel:
 
     def set_values(self, mode, values):
         self.panels[mode].set_values(values)
+
+    def set_range(self, mode, key, lo, hi):
+        """Границы ползунка key на панели mode. Высота строки не меняется, перекладывать панель не нужно."""
+        self.panels[mode].set_range(key, lo, hi)
 
     def _index_stats(self):
         """Один раз связывает (режим, название характеристики) с блоком, где она показана."""

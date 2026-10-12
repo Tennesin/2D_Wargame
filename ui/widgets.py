@@ -127,6 +127,13 @@ class ParamRow:
         """Поставить значение ползунка извне (без вызова on_change)."""
         self.slider.value = max(self.slider.min_value, min(self.slider.max_value, v))
 
+    def set_range(self, min_v, max_v):
+        """Сменить границы ползунка (например, коридор урона при смене калибра).
+        Текущее значение подрезается под новые границы, on_change не вызывается."""
+        self.slider.min_value = min_v
+        self.slider.max_value = max_v
+        self.set_value(self.slider.value)
+
     def layout(self, x, y, w):
         self.rect = pygame.Rect(x, y, w, self.height)
         self.slider.rect = pygame.Rect(x, y + 28, w, 12)

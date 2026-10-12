@@ -3,10 +3,12 @@
 import math
 
 from engine import PX_PER_M, clamp
+from .gun_tuning import resolve_tuning, reload_factor
 from .params import (
     PARAMS, REF_L_CAL, GUN_MASS_T, GUN_MASS_AT_MM, TURRET_MASS_REF_T,
     BARREL_VISIBLE_K, BARREL_THICK_REF_M, BARREL_LEN_STEP_M, TURRET_FRONT_M,
-    GUN_DAMAGE_REF, GUN_PEN_REF, GUN_RELOAD_REF, GUN_RELOAD_MIN, GUN_OVERLOAD_Q, GUN_OVERLOAD_K,
+    GUN_RELOAD_REF, GUN_RELOAD_MIN, GUN_OVERLOAD_Q, GUN_OVERLOAD_K,
+    GUN_TUNE_RELOAD_MIN,
     TURRET_TURN_REF, TURRET_TURN_MIN, TURRET_TURN_MAX, TURRET_POWER_EXP,
     TURRET_INERTIA_EXP, TURRET_SPINUP_REF, TURRET_RADIUS_M, GUN_ARM_BASE_M, GUN_ARM_BARREL_K,
     SHELL_LEN_K,
@@ -36,12 +38,13 @@ class GunSpec:
     """arc_deg — полный сектор наводки башни относительно корпуса: 360 = круговая башня,
     меньше (например 40) = казематная установка (ПТ-САУ), которой надо доворачивать корпус."""
 
-    def __init__(self, cal, size_k, power, m_gun, m_turret, arc_deg=360.0):
+    def __init__(self, cal, size_k, power, m_gun, m_turret, arc_deg=360.0,
+                 damage=None, penetration=None):
         self.cal = cal
         self.TURRET_ARC_DEG = arc_deg
         self._calc_basics(size_k)
         self._calc_turret(size_k, power, m_gun, m_turret)
-        self._calc_gun()
+        self._calc_gun(damage, penetration)
         self._calc_visual(size_k)
         self._calc_shot()
 
@@ -58,14 +61,21 @@ class GunSpec:
             TURRET_TURN_MIN, TURRET_TURN_MAX)
         self.turret_alpha = self.turret_turn / (TURRET_SPINUP_REF * i_rel ** 0.5)   # °/с²
 
-    def _calc_gun(self):
+    def _calc_gun(self, damage, penetration):
         cr = self.cal / REF_CAL
-        lr = self.l_cal / REF_L_CAL
-        self.damage = GUN_DAMAGE_REF * cr ** 2 * lr ** 0.3
-        self.penetration = GUN_PEN_REF * cr ** 0.8 * lr ** 0.5
-        self.reload = max(GUN_RELOAD_MIN, GUN_RELOAD_REF * cr * self.q_gun ** 0.5)
+        # урон и пробитие: номинал калибра + выбор игрока (длина ствола на них больше не влияет)
+        self.damage, self.penetration, self.damage_k, self.pen_k = resolve_tuning(
+            self.cal, damage, penetration)
+
+        # базовая перезарядка: ровно как раньше (пол GUN_RELOAD_MIN действует ДО тюнинга)
+        reload = max(GUN_RELOAD_MIN, GUN_RELOAD_REF * cr * self.q_gun ** 0.5)
         overload = max(0.0, self.q_gun - GUN_OVERLOAD_Q)
-        self.reload *= 1.0 + GUN_OVERLOAD_K * overload
+        reload *= 1.0 + GUN_OVERLOAD_K * overload
+
+        # тюнинг: больше урон или пробитие = дольше перезарядка
+        reload *= reload_factor(self.damage_k, self.pen_k)
+        self.reload = max(GUN_TUNE_RELOAD_MIN, reload)
+        self.dps = self.damage / self.reload
 
     def _calc_visual(self, size_k):
         cal = self.cal

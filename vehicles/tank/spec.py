@@ -5,12 +5,14 @@ import math
 from engine import clamp, fmt_num, PX_PER_M
 from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses, round_to
 from .gun_spec import GunSpec, turret_masses, REF_CAL, REF_POWER
+from .gun_tuning import tuning_k_bounds
 from .look import Look, level
 from .params import (
     PARAMS, FIXED_MASS_T, ENGINE_T_PER_HP, FRONT_AREA_M2, SIDE_AREA_M2, REAR_AREA_M2,
     HP_REF, HULL_COLL_HALF_W_M, HULL_COLL_HALF_L_M, HULL_COLL_SHIFT_M,
     COST_REF, COST_MIN, COST_MAX, COST_STEP, BUILD_TIME_REF, COST_ARMOR_ZONES, COST_PARTS,
     TURRET_FRONT_M, LOOK_FRONT_RATIO, LOOK_SIDE_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO,
+    GUN_TUNE_COST_D, GUN_TUNE_COST_P
 )
 from ..chassis_params import COLLISION_MARGIN_PX
 
@@ -43,8 +45,10 @@ TANK_BODY = ChassisBody(
 # ==========================================
 # 2. СТОИМОСТЬ: индекс ценности -> цена
 # ==========================================
-def _cost_index(cal, front, side, rear, power):
-    """Ценность машины относительно эталона (у эталона 1.0). Зависит только от входных параметров."""
+
+def _cost_index(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0):
+    """Ценность машины относительно эталона (у эталона 1.0). Зависит только от входных параметров.
+    dmg_k и pen_k: выбранные урон и пробитие относительно номинала калибра (1.0 = номинал)."""
     turret = turret_masses(cal)[1]
     zf, zs, zr = COST_ARMOR_ZONES
     levels = {
@@ -52,13 +56,14 @@ def _cost_index(cal, front, side, rear, power):
                    + zr * rear / _REAR.default) / (zf + zs + zr),
         "hull":   (FIXED_MASS_T + turret) / REF_HULL_MASS,
         "engine": power / REF_POWER,
-        "gun":    cal / REF_CAL,
+        "gun":    cal / REF_CAL * dmg_k ** GUN_TUNE_COST_D * pen_k ** GUN_TUNE_COST_P,
     }
     return sum(weight * levels[name] ** power_k for name, (weight, power_k) in COST_PARTS.items())
 
-# Самая дешёвая и самая дорогая возможные машины (все ползунки в минимуме или в максимуме).
+# Самая дешёвая и самая дорогая возможные машины (все ползунки в минимуме или в максимуме)
+_DK, _PK = tuning_k_bounds()
 _indexes = [_cost_index(*corner) for corner in itertools.product(
-    *((p.min, p.max) for p in (_CAL, _FRONT, _SIDE, _REAR, _POWER)))]
+    *((p.min, p.max) for p in (_CAL, _FRONT, _SIDE, _REAR, _POWER)), _DK, _PK)]
 INDEX_MIN, INDEX_MAX = min(_indexes), max(_indexes)
 # Степени подобраны так, чтобы эталон стоил COST_REF, самая дешёвая машина COST_MIN, самая дорогая COST_MAX.
 COST_EXP_LOW = math.log(COST_MIN / COST_REF) / math.log(INDEX_MIN)
@@ -67,17 +72,17 @@ COST_EXP_HIGH = math.log(COST_MAX / COST_REF) / math.log(INDEX_MAX)
 def _price(index):
     return COST_REF * index ** (COST_EXP_LOW if index < 1.0 else COST_EXP_HIGH)
 
-def _raw_cost(cal, front, side, rear, power):
+def _raw_cost(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0):
     """Цена до округления."""
-    return _price(_cost_index(cal, front, side, rear, power))
+    return _price(_cost_index(cal, front, side, rear, power, dmg_k, pen_k))
 
 def _round_cost(raw):
     """Округление цены до шага и в допустимых границах."""
     return clamp(round_to(raw, COST_STEP), COST_MIN, COST_MAX)
 
-def cost_for(cal, front, side, rear, power):
+def cost_for(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0):
     """Цена машины по входным параметрам без полного расчёта TankSpec (для подбора билдов ботов)."""
-    return _round_cost(_raw_cost(cal, front, side, rear, power))
+    return _round_cost(_raw_cost(cal, front, side, rear, power, dmg_k, pen_k))
 
 # ==========================================
 # 3. ТАНК
@@ -87,7 +92,7 @@ class TankSpec(ChassisSpec):
     Атрибуты орудия копируются в сам объект, поэтому снаружи всё читается как раньше:
     spec.v_max (шасси), spec.damage (орудие). Имена в ЗАГЛАВНЫХ буквах читают Tank и Renderer."""
 
-    def __init__(self, cal, front, side, rear, power):
+    def __init__(self, cal, front, side, rear, power, damage=None, penetration=None):
         # входные параметры (с защитой от выхода за границы)
         cal = clamp(float(cal), _CAL.min, _CAL.max)
         front = clamp(float(front), _FRONT.min, _FRONT.max)
@@ -100,7 +105,8 @@ class TankSpec(ChassisSpec):
         super().__init__(TANK_BODY, front, side, rear, power, payload_t=self.m_gun + self.m_turret)
 
         # arc_deg=360: круговая башня. У будущей ПТ-САУ здесь будет маленький сектор.
-        self.gun = GunSpec(cal, self.size_k, power, self.m_gun, self.m_turret, arc_deg=360.0)
+        self.gun = GunSpec(cal, self.size_k, power, self.m_gun, self.m_turret, arc_deg=360.0,
+                           damage=damage, penetration=penetration)
         self.__dict__.update(vars(self.gun))
 
         self._calc_reach()
@@ -110,9 +116,11 @@ class TankSpec(ChassisSpec):
     # ---------- фабрики ----------
     @classmethod
     def from_values(cls, v):
-        """v — словарь значений ползунков."""
+        """v — словарь значений ползунков. Ключи тюнинга необязательны: нет ключа = номинал калибра
+        (так работают боты, у которых этих значений нет)."""
         return cls(v["gun_caliber_mm"], v["front_armor_mm"], v["side_armor_mm"],
-                   v["rear_armor_mm"], v["engine_power_hp"])
+                   v["rear_armor_mm"], v["engine_power_hp"],
+                   damage=v.get("gun_damage"), penetration=v.get("gun_penetration"))
 
     @classmethod
     def from_config(cls):
@@ -130,7 +138,8 @@ class TankSpec(ChassisSpec):
         self.REACH_PX = max(self.HULL_REACH_PX, barrel_reach) + COLLISION_MARGIN_PX
 
     def _calc_economy(self):
-        raw = _raw_cost(self.cal, self.front, self.side, self.rear, self.power)
+        raw = _raw_cost(self.cal, self.front, self.side, self.rear, self.power,
+                        self.damage_k, self.pen_k)
         self.cost = _round_cost(raw)
         self.build_time = BUILD_TIME_REF * raw / COST_REF
 
@@ -160,6 +169,7 @@ class TankSpec(ChassisSpec):
             "Урон": f"{self.damage:.0f}",
             "Пробитие": f"{self.penetration:.0f} мм",
             "Перезарядка": f"{self.reload:.2f} с",
+            "Темп огня (DPS)": f"{self.dps:.0f}",
         }
 
     def internal_stats(self):
@@ -172,4 +182,6 @@ class TankSpec(ChassisSpec):
             "Инерция башни": f"{self.i_turret:.1f} т·м²",
             "Угл. разгон корпуса": f"{self.hull_alpha:.0f} °/с²",
             "Угл. разгон башни": f"{self.turret_alpha:.0f} °/с²",
+            "Множитель урона": f"{self.damage_k:.2f}",
+            "Множитель пробития": f"{self.pen_k:.2f}",
         }
