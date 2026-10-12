@@ -18,7 +18,7 @@ class Renderer:
         self.ground_renderer = GroundRenderer(world_generator)
         self.bounds_renderer = WorldBoundsRenderer()
         self.terrain_renderer = TerrainRenderer()
-        self.tank_renderer = TankRenderer()
+        self.vehicle_renderers = {"tank": TankRenderer()}
         self.wall_renderer = WallRenderer()
         self.aim_renderer = AimRenderer()
 
@@ -28,9 +28,9 @@ class Renderer:
         self.terrain_renderer.draw(screen, camera, self.terrain)
         self.effects.draw_ground(screen, camera)         # пятна от взрывов лежат под танками и стенами
         self.wall_renderer.draw_all(screen, camera, self.walls)
-        for tank in self.fleet.tanks:                    # боты, затем игрок сверху
-            if tank.alive and self._on_screen(screen, camera, tank):
-                self.tank_renderer.draw(screen, camera, tank)
+        for vehicle in self.fleet.vehicles:
+            if vehicle.alive and self._on_screen(screen, camera, vehicle):
+                self.vehicle_renderers[vehicle.renderer_key].draw(screen, camera, vehicle)
         if build_preview is not None:                    # призрак стены поверх танков, чтобы красное было видно
             self.wall_renderer.draw_preview(screen, camera, *build_preview)
         if aim is not None:                              # линия выстрела под снарядами и вспышкой
@@ -52,4 +52,5 @@ class Renderer:
         self._zoom = zoom
         self._ppm = PX_PER_M * zoom
         self.ground_renderer.set_zoom()
-        self.tank_renderer.set_zoom(self._ppm)
+        for renderer in self.vehicle_renderers.values():
+            renderer.set_zoom(self._ppm)

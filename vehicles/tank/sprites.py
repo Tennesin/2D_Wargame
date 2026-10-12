@@ -4,8 +4,8 @@ import math
 
 import pygame
 
-from .params import (TURRET_FRONT_M, TRACK_LINK_M, TRACK_OFFSET_M,
-                     BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M)
+from .params import (TURRET_FRONT_M, BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M)
+from ..chassis_params import TRACK_LINK_M, TRACK_OFFSET_M
 from engine import LRUCache, SHADOW_ALPHA, heading_vector, clamp, Team
 
 # ==========================================
