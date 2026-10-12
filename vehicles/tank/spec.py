@@ -95,9 +95,17 @@ def _price(index):
     """Цена до округления."""
     return COST_REF * index ** (COST_EXP_LOW if index < 1.0 else COST_EXP_HIGH)
 
+def _raw_cost(cal, front, side, rear, power):
+    """Цена до округления."""
+    return _price(_cost_index(cal, front, side, rear, power))
+
+def _round_cost(raw):
+    """Округление цены до шага и в допустимых границах."""
+    return clamp(round_to(raw, COST_STEP), COST_MIN, COST_MAX)
+
 def cost_for(cal, front, side, rear, power):
     """Цена машины по входным параметрам без полного расчёта TankSpec (для подбора билдов ботов)."""
-    return clamp(round_to(_price(_cost_index(cal, front, side, rear, power)), COST_STEP), COST_MIN, COST_MAX)
+    return _round_cost(_raw_cost(cal, front, side, rear, power))
 
 # ==========================================
 # 3. ТАНК
@@ -223,8 +231,8 @@ class TankSpec:
         self.hp = max(HP_STEP, round_to(raw, HP_STEP))
 
     def _calc_economy(self):
-        raw = _price(_cost_index(self.cal, self.front, self.side, self.rear, self.power))
-        self.cost = clamp(round_to(raw, COST_STEP), COST_MIN, COST_MAX)
+        raw = _raw_cost(self.cal, self.front, self.side, self.rear, self.power)
+        self.cost = _round_cost(raw)
         self.build_time = BUILD_TIME_REF * raw / COST_REF
 
     def _calc_visual(self):

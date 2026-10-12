@@ -24,7 +24,7 @@ class Panel:
             if isinstance(it, ParamRow) and it.key in values:
                 it.set_value(values[it.key])
 
-class ConstructorUI:
+class SidePanel:
     def __init__(self, screen_size, panels, start_mode, *, start_open=False):
         self.screen_size = screen_size
         self.is_open = start_open

@@ -387,7 +387,7 @@ class NavGrid:
             points[-1] = (gx, gy)
         return Path(points, goal_req, breach, best == goal)
 
-def find_path(me, goal, terrain, walls, nav, forbidden=(), bad_spots=(), no_breach=False):
+def find_path(me, goal, walls, nav, forbidden=(), bad_spots=(), no_breach=False):
     """Путь для танка me к точке goal = (x, y) или None."""
     spec = me.spec
     hw, hl = spec.COLLISION_HALF_W_PX, spec.COLLISION_HALF_L_PX

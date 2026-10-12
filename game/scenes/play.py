@@ -8,7 +8,7 @@ from world import Camera, WorldGenerator, TerrainMap, SpawnFinder
 from vehicles import Tank
 from structures import WallManager
 from inputs import InputHandler, Action
-from ui import ConstructorUI, ToolBar, TankHud
+from ui import SidePanel, ToolBar, TankHud
 from ..panels import PanelMode, build_wall_panel
 from ..modes import Modes, Mode
 from ..camera_control import CameraController
@@ -45,7 +45,7 @@ class PlayScene(Scene):
         self.camera = Camera(*size)
 
         # --- интерфейс, ввод, танк ---
-        self.ui = ConstructorUI(size, {PanelMode.WALL: build_wall_panel()}, PanelMode.WALL)
+        self.ui = SidePanel(size, {PanelMode.WALL: build_wall_panel()}, PanelMode.WALL)
         self.toolbar = ToolBar()
         self.input = InputHandler([self.toolbar, self.ui])
         tank = Tank(0.0, 0.0, spec=session.tank_spec(), team="player")

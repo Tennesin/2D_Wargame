@@ -21,8 +21,6 @@ def value_noise(x, y, seed):
     fy = y - y0
     fx = fx * fx * (3.0 - 2.0 * fx)
     fy = fy * fy * (3.0 - 2.0 * fy)
-    x0 = int(x0)
-    y0 = int(y0)
     v00 = hash_float(x0, y0, seed)
     v10 = hash_float(x0 + 1, y0, seed)
     v01 = hash_float(x0, y0 + 1, seed)

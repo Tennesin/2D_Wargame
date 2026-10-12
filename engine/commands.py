@@ -11,7 +11,7 @@ class VehicleCommand:
     throttle: float = 0.0                              # -1..1 (назад / вперёд)
     steer: float = 0.0                                 # -1..1 (влево / вправо)
     aim_point: Optional[Tuple[float, float]] = None    # куда целиться (МИРОВЫЕ координаты)
-    fire: bool = False                                 # задел под стрельбу
+    fire: bool = False                                 # огонь в этом кадре
 
 @dataclass
 class Shot:

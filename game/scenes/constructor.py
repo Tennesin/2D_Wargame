@@ -3,7 +3,7 @@ import pygame
 
 from engine import PX_PER_M, VehicleCommand
 from inputs import InputHandler, Action
-from ui import ConstructorUI, Button, ACTIVE_BUTTON_COLORS
+from ui import SidePanel, Button, ACTIVE_BUTTON_COLORS
 from ui.theme import PANEL_WIDTH
 from vehicles import Tank, TankRenderer
 from world import Camera
@@ -28,8 +28,8 @@ class ConstructorScene(Scene):
         self.camera.center_on(PANEL_WIDTH / 2 / self.camera.zoom, 0.0)
 
         # --- интерфейс: одна панель, всегда открыта, без красной кнопки ---
-        self.ui = ConstructorUI(size, {PanelMode.TANK: build_tank_panel()}, PanelMode.TANK,
-                                start_open=True)
+        self.ui = SidePanel(size, {PanelMode.TANK: build_tank_panel()}, PanelMode.TANK,
+                            start_open=True)
         self.ui.set_values(PanelMode.TANK, session.tank_values)   # вернуть прошлые настройки
         self.ui.set_on_change(PanelMode.TANK, self._on_change)
         self.input = InputHandler([self.ui])

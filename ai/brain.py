@@ -421,7 +421,7 @@ class BotBrain:
         if need:
             if not ctx.budget.try_take():
                 return p                                          # повторим при следующем «размышлении»
-            self._path = find_path(me, goal, ctx.terrain, ctx.walls, ctx.nav,
+            self._path = find_path(me, goal, ctx.walls, ctx.nav,
                                    self._forbidden, self._bad_spots, no_breach)
             self._replan_in = REPLAN_S * self.rng.uniform(0.8, 1.2)
             self._plan_age = 0.0
