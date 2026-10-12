@@ -1,7 +1,11 @@
 """game/bot_control.py — кадр ботов: команда от мозга, физика танка, выстрел."""
 from collections import namedtuple
 
-BotContext = namedtuple("BotContext", "targets terrain walls fleet")
+from ai import PlanBudget, TerrainNavCache
+
+PLANS_PER_FRAME = 1          # сколько путей A* можно построить за кадр на всех ботов
+
+BotContext = namedtuple("BotContext", "targets terrain walls fleet budget nav")
 
 class BotController:
     def __init__(self, fleet, walls, terrain, effects, targets):
@@ -9,11 +13,19 @@ class BotController:
         self.walls = walls
         self.terrain = terrain
         self.effects = effects
-        self.ctx = BotContext(targets, terrain, walls, fleet)
+        self.budget = PlanBudget(PLANS_PER_FRAME)
+        self.nav = TerrainNavCache(terrain)
+        self.ctx = BotContext(targets, terrain, walls, fleet, self.budget, self.nav)
+        self._rr = 0                                  # сдвиг очереди, чтобы бот в начале списка не был «любимчиком»
 
     def update(self, dt):
+        self.budget.new_frame()
         player = self.fleet.player
-        for bot in list(self.fleet.bots):
+        bots = list(self.fleet.bots)
+        if bots:
+            self._rr = (self._rr + 1) % len(bots)
+            bots = bots[self._rr:] + bots[:self._rr]
+        for bot in bots:
             tank = bot.tank
             if not tank.alive:
                 continue

@@ -4,14 +4,12 @@ from enum import Enum, auto
 
 from engine import VehicleCommand, shortest_angle_diff, clamp, PX_PER_M, heading_vector
 from combat import compute_aim
-from .steering import bearing_deg, steer_to, pick_heading, StuckGuard
+from .steering import bearing_deg, steer_to, StuckGuard
 from .gunnery import (lead_point, flank_point, seconds_to_break, evaluate_matchup,
                       outflank_feasibility, preferred_distance_m, best_hull_heading,
                       shot_fraction_now, BREACH_MAX_S, MIN_USEFUL_DAMAGE, NO_DAMAGE)
 from .pathfinding import find_path
 from .cover import find_cover, shield_between, attention
-
-USE_ASTAR = True              # False: старые «щупальца» (удобно сравнивать поведение)
 
 class Intent(Enum):
     ADVANCE = auto()
@@ -23,8 +21,6 @@ class Intent(Enum):
 # --- прорыв стен ---
 BREACH_RANGE_M = 14.0        # с какого расстояния стреляем по стене
 BREACH_TRIGGER_M = 25.0      # стена на пути ближе этого: пора решать, ломать ли её
-BREACH_LOOK_M = 30.0         # (запасной режим без A*) как далеко вперёд ищем мешающую стену
-BREACH_DETOUR_DEG = 50.0     # (запасной режим) объезд круче этого считается плохим
 
 # --- перепланирование пути ---
 MIN_REPLAN_S = 0.5           # быстрее этого путь не перестраивается даже при смене цели
@@ -71,7 +67,6 @@ class BotBrain:
         self._flank_t = 0.0                                       # сколько секунд подряд идёт обход
         self._flank_block_until = 0.0                             # до этого момента обход запрещён
         self._flank_side = rng.choice((-1, 1))
-        self._avoid_side = rng.choice((-1, 1))
         self._react_left = None                                   # None: чистой линии огня нет
         self._futile_t = 0.0                                      # сколько секунд подряд бить нечем
         # прорыв
@@ -102,7 +97,7 @@ class BotBrain:
     # КАДР
     # ==========================================
     def think(self, dt, me, enemy, ctx):
-        """ctx — объект с полями targets (TargetSet), terrain, walls, fleet."""
+        """ctx — объект с полями targets, terrain, walls, fleet, budget, nav"""
         if not enemy.alive:
             return VehicleCommand()
 
@@ -208,7 +203,7 @@ class BotBrain:
         want = bearing_deg(me.x, me.y, *goal)
 
         if go > 0.0:
-            res = self._drive_to(me, ctx, goal, want, dist)
+            res = self._drive_to(me, ctx, goal, want)
             if res is None:                                       # начался прорыв
                 return
             want, go = res
@@ -369,7 +364,7 @@ class BotBrain:
             elif d_pt <= COVER_ARRIVE_M * PX_PER_M:
                 return self._cover_retry(me, enemy, ctx)              # приехали, а тут не прикрыто
             else:
-                res = self._drive_to(me, ctx, (cx, cy), bearing_deg(me.x, me.y, cx, cy), d_pt,
+                res = self._drive_to(me, ctx, (cx, cy), bearing_deg(me.x, me.y, cx, cy),
                                      no_breach=True)
                 self._heading, self._go = res
                 return True
@@ -415,7 +410,8 @@ class BotBrain:
         self._replan_in = 0.0
 
     def _plan(self, me, ctx, goal, no_breach=False):
-        """Текущий путь; перестраивается по таймеру, при смене цели, при уходе с пути и по прибытии."""
+        """Текущий путь; перестраивается по таймеру, при смене цели, при уходе с пути и по прибытии.
+        Если лимит построений на этот кадр выбран, возвращается прежний путь (или None)."""
         p = self._path
         need = self._replan_in <= 0.0
         if p is not None and not need and self._plan_age >= MIN_REPLAN_S:
@@ -423,53 +419,54 @@ class BotBrain:
                     or p.deviation_px(me.x, me.y) > REPLAN_OFFPATH_M * PX_PER_M
                     or p.done(me.x, me.y))
         if need:
-            self._path = find_path(me, goal, ctx.terrain, ctx.walls,
+            if not ctx.budget.try_take():
+                return p                                          # повторим при следующем «размышлении»
+            self._path = find_path(me, goal, ctx.terrain, ctx.walls, ctx.nav,
                                    self._forbidden, self._bad_spots, no_breach)
             self._replan_in = REPLAN_S * self.rng.uniform(0.8, 1.2)
             self._plan_age = 0.0
         return self._path
 
-    def _drive_to(self, me, ctx, goal, want, dist, no_breach=False):
-        """Курс и газ при езде к точке goal. None: бот перешёл в BREACH (при no_breach не бывает)."""
-        if USE_ASTAR:
-            for _ in range(2):          # второй проход нужен после запрета непробиваемой стены
-                path = self._plan(me, ctx, goal, no_breach)
-                if path is None:
-                    break
-                wall = path.breach_wall
-                to_wall = (math.hypot(wall.x - me.x, wall.y - me.y) - wall.radius_px
-                           if wall is not None else None)
-                if wall is None or to_wall > BREACH_TRIGGER_M * PX_PER_M:
-                    return bearing_deg(me.x, me.y, *path.next_point(me.x, me.y)), 1.0
-                if self._breach_path_wall(me, wall):
-                    return None
-                self._forbidden[id(wall)] = FORBID_WALL_S         # с этого угла не выходит: считаем стену глухой
-                self._invalidate()
-        # запасной режим: пути нет (или A* выключен), работают «щупальца»
-        heading = pick_heading(me, ctx.terrain, ctx.walls, want, 1000.0, self._avoid_side)
-        detour = 180.0 if heading is None else abs(shortest_angle_diff(heading, want))
-        look = min(dist, BREACH_LOOK_M * PX_PER_M)
-        if not no_breach and detour >= BREACH_DETOUR_DEG and self._try_breach(me, ctx, want, look):
-            return None
-        if heading is None:                                       # всё занято: разворот на месте
-            self._avoid_side = -self._avoid_side
-            return want + 90.0 * self._avoid_side, 0.0
-        return heading, 1.0
+    def _drive_to(self, me, ctx, goal, want, no_breach=False):
+        """Курс и газ при езде к точке goal. None: бот перешёл в BREACH (при no_breach не бывает).
+        Нет пути: стоим и поворачиваемся к цели, а следующая попытка будет на следующем «размышлении»."""
+        for _ in range(2):              # второй проход нужен после запрета непробиваемой стены
+            path = self._plan(me, ctx, goal, no_breach)
+            if path is None:
+                break
+            wall = path.breach_wall
+            to_wall = (math.hypot(wall.x - me.x, wall.y - me.y) - wall.radius_px
+                       if wall is not None else None)
+            if wall is None or to_wall > BREACH_TRIGGER_M * PX_PER_M:
+                return bearing_deg(me.x, me.y, *path.next_point(me.x, me.y)), 1.0
+            if self._breach_path_wall(me, ctx, wall):
+                return None
+            self._forbidden[id(wall)] = FORBID_WALL_S             # с этого угла не выходит: считаем стену глухой
+            self._invalidate()
+        return want, 0.0
 
     # ---------- прорыв стены ----------
     def _try_breach(self, me, ctx, bearing, look_px):
-        """Есть ли по курсу bearing стена, которую выгодно ломать (проверка лучом)."""
+        """Есть ли по курсу bearing стена, которую выгодно ломать (проверка лучом).
+        Стена должна быть ПЕРВОЙ целью на линии: камень или танк впереди означают «ломать нечего»."""
         fx, fy = heading_vector(bearing)
         tx, ty = me.x + fx * look_px, me.y + fy * look_px
+        first = ctx.targets.raycast(me.x, me.y, tx, ty, ignore=me)
+        if first is None:
+            return False
         hit = ctx.walls.raycast(me.x, me.y, tx, ty)
-        if hit is None:
+        if hit is None or hit[0] is not first[0]:
             return False
         wall, t, normal = hit
         point = (me.x + (tx - me.x) * t, me.y + (ty - me.y) * t)
         return self._start_breach(me, wall, point, normal, bearing)
 
-    def _breach_path_wall(self, me, wall):
-        """Стена из пути A*: целимся в ближайшую к боту точку её поверхности по линии на центр стены."""
+    def _breach_path_wall(self, me, ctx, wall):
+        """Стена из пути A*: целимся в ближайшую к боту точку её поверхности по линии на центр стены.
+        Если на этой линии первой стоит что-то другое (камень, танк), ломать отсюда нельзя."""
+        first = ctx.targets.raycast(me.x, me.y, wall.x, wall.y, ignore=me)
+        if first is None or first[0] is not wall:
+            return False
         res = wall.segment_hit(me.x, me.y, wall.x, wall.y)
         if res is None:
             return False

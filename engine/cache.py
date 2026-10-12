@@ -41,6 +41,10 @@ class LRUCache:
     def clear(self):
         self._data.clear()
 
+    def discard(self, key):
+        """Убрать запись, если она есть."""
+        self._data.pop(key, None)
+
     def __len__(self):
         return len(self._data)
 

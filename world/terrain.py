@@ -272,6 +272,7 @@ class TerrainMap:
         self._moved = {}         # uid -> камень, который двигали (вместо «свежего» из seed)
         self._moved_cells = {}   # (ix, iy) -> [камни], чей центр сейчас лежит в этой ячейке
         self._moving = []        # камни, которые сейчас скользят
+        self._move_listeners = []   # функции (x, y, r): камень сдвинули, зона круга изменилась
 
     # ---------- генерация ----------
     def _make_raw(self, ix, iy):
@@ -473,6 +474,10 @@ class TerrainMap:
         if rock not in self._moving:
             self._moving.append(rock)
 
+    def add_move_listener(self, fn):
+        """fn(x, y, r) вызывается при каждом сдвиге камня: для старого и нового положения."""
+        self._move_listeners.append(fn)
+
     def update_movers(self, dt, obbs_near):
         """Скольжение толкнутых камней: трение гасит скорость, каждый шаг проверяется на препятствия.
         obbs_near(x, y, radius) -> [obb, ...] — прямоугольники стен и танков (их даёт игра)."""
@@ -518,8 +523,12 @@ class TerrainMap:
     def _shift_rock(self, rock, dx, dy):
         if dx == 0.0 and dy == 0.0:
             return
+        old = (rock.x, rock.y, rock.r_max)
         rock.move_by(dx, dy)
         self._register_moved(rock)
+        for fn in self._move_listeners:
+            fn(*old)
+            fn(rock.x, rock.y, rock.r_max)
 
     def _register_moved(self, rock):
         """Запоминает сдвинутый камень и переносит его в список ячейки, где теперь его центр.
