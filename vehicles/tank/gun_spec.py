@@ -11,7 +11,7 @@ from .params import (
     GUN_TUNE_RELOAD_MIN,
     TURRET_TURN_REF, TURRET_TURN_MIN, TURRET_TURN_MAX, TURRET_POWER_EXP,
     TURRET_INERTIA_EXP, TURRET_SPINUP_REF, TURRET_RADIUS_M, GUN_ARM_BASE_M, GUN_ARM_BARREL_K,
-    SHELL_LEN_K,
+    SHELL_LEN_K, BARREL_VIS_REF_M, BARREL_VIS_EXP, BARREL_VIS_K_RANGE,
 )
 
 _CAL = PARAMS["gun_caliber_mm"]
@@ -81,8 +81,14 @@ class GunSpec:
         cal = self.cal
         cr = cal / REF_CAL
         self.TURRET_SCALE = size_k * clamp(cr ** 0.35, 0.8, 1.15)
-        self.BARREL_LEN_M = round(cal * self.l_cal / 1000.0 * BARREL_VISIBLE_K / BARREL_LEN_STEP_M) * BARREL_LEN_STEP_M
-        self.BARREL_THICK_M = max(0.18, BARREL_THICK_REF_M * cr ** 0.7)
+
+        world_len = BARREL_VIS_REF_M * size_k * clamp(cr ** BARREL_VIS_EXP, *BARREL_VIS_K_RANGE)
+        raw = world_len / self.TURRET_SCALE
+        self.BARREL_LEN_M = max(4 * BARREL_LEN_STEP_M,
+                                round(raw / BARREL_LEN_STEP_M) * BARREL_LEN_STEP_M)
+
+        # тонкий ствол плохо читается: пол толщины выше, рост с калибром мягче
+        self.BARREL_THICK_M = max(0.22, BARREL_THICK_REF_M * cr ** 0.5)
 
     def _calc_shot(self):
         """Всё, что зависит от калибра (размеры в мировых px, 100 px = 1 м)."""

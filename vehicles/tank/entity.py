@@ -10,8 +10,9 @@ class Tank(Vehicle):
     ARC_MARGIN_DEG = 3.0    # корпус доворачивают так, чтобы цель была не на самом краю сектора
 
     def __init__(self, x=0.0, y=0.0, *, spec, team_color=(200, 40, 40),
-                 team=Team.PLAYER, label="танк"):
-        super().__init__(x, y, spec=spec, team_color=team_color, team=team, label=label)
+                 team=Team.PLAYER, label="танк", emblem=""):
+        super().__init__(x, y, spec=spec, team_color=team_color, team=team,
+                         label=label, emblem=emblem)
         self.turret_rel_angle = 0.0     # угол башни ОТНОСИТЕЛЬНО корпуса
         self.turret_rate = 0.0          # текущая угловая скорость башни относительно корпуса, °/с
         self.reload_left = 0.0          # сколько секунд осталось до следующего выстрела

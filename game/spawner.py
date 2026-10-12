@@ -54,7 +54,8 @@ class BotSpawner:
         arch = self._pick_archetype()
         budget = round(BASE_BUDGET * arch.budget_k)
         spec = TankSpec.from_values(fit_loadout(arch, budget, self.rng))
-        tank = Tank(0.0, 0.0, spec=spec, team_color=arch.color, team=Team.BOTS, label=arch.name)
+        tank = Tank(0.0, 0.0, spec=spec, team_color=arch.color, team=Team.BOTS,
+                    label=arch.name, emblem=arch.emblem)
 
         player = self.fleet.player
         cam = self.camera

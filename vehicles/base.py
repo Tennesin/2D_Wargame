@@ -30,11 +30,12 @@ class Vehicle(Damageable):
     TRACK_RADIUS = TRACK_OFFSET_M * PX_PER_M    # расстояние от центра до гусеницы, px
 
     def __init__(self, x=0.0, y=0.0, *, spec, team_color=(200, 40, 40),
-                 team=Team.PLAYER, label="техника"):
+                 team=Team.PLAYER, label="техника", emblem=""):
         self.spec = spec
         self.team_color = team_color
         self.team = team
         self.label = label              # название архетипа для сводки (у игрока не используется)
+        self.emblem = emblem
         self.x = float(x)
         self.y = float(y)
         self.hp = float(spec.hp)        # текущее здоровье (максимум задаёт spec.hp)

@@ -48,6 +48,7 @@ TURRET_DARK = (140, 131, 114)
 GUN = (112, 110, 105)
 GUN_LIGHT = (150, 147, 140)
 GUN_DARK = (62, 60, 56)
+EMBLEM_COLOR = (245, 215, 80)
 
 ANGLE_STEPS = 720
 ANGLE_STEP = 360.0 / ANGLE_STEPS
@@ -144,12 +145,13 @@ class TankRenderer:
         bt = int(round(spec.BARREL_THICK_M / BARREL_THICK_STEP_M))  # толщина в шагах
         team = tank.team_color
         paint = None if tank.team is Team.PLAYER else team
+        emblem = tank.emblem
         lp = int(tank.left_track_offset / tank.TRACK_STEP * TRACK_PHASES) % TRACK_PHASES
         rp = int(tank.right_track_offset / tank.TRACK_STEP * TRACK_PHASES) % TRACK_PHASES
 
         hull_k = self._bucket(tank.hull_angle)
         turret_k = self._bucket(tank.turret_angle)
-        turret_key = (team, paint, look.turret_key)
+        turret_key = (team, paint, look.turret_key, emblem)
         barrel_key = (bl, bt, look.barrel_key)
 
         # корпус: фазы гусениц делают кэш бесполезным, поэтому поворот по точному углу каждый кадр
@@ -157,7 +159,7 @@ class TankRenderer:
         hull_rot = pygame.transform.rotozoom(hull, -tank.hull_angle, hs)
         # башня и ствол: из кэша, угол квантован
         turret_rot = self._rotated("turret", turret_key,
-                                   lambda: self._get_turret(team, paint, look), turret_k, ts)
+                                   lambda: self._get_turret(team, paint, look, emblem), turret_k, ts)
         barrel_rot = self._rotated("barrel", barrel_key,
                                    lambda: self._get_barrel(bl, bt, look), turret_k, ts)
 
@@ -177,7 +179,8 @@ class TankRenderer:
             lambda: self._get_sil(("hull", look.hull_key), hull), hull_k, hs)
         sil_turret = self._rotated(
             "sil_turret", look.turret_key,
-            lambda: self._get_sil(("turret", look.turret_key), self._get_turret(team, paint, look)),
+            lambda: self._get_sil(("turret", look.turret_key),
+                                  self._get_turret(team, paint, look, emblem)),
             turret_k, ts)
         sil_barrel = self._rotated(
             "sil_barrel", barrel_key,
@@ -233,10 +236,10 @@ class TankRenderer:
         return self._hull_cache.get_or_build(
             (lp, rp, paint, look.hull_key), lambda: self._build_hull(lp, rp, paint, look))
 
-    def _get_turret(self, team_color, paint, look):
+    def _get_turret(self, team_color, paint, look, emblem=""):
         return self._turret_cache.get_or_build(
-            (team_color, paint, look.turret_key),
-            lambda: self._build_turret(team_color, paint, look))
+            (team_color, paint, look.turret_key, emblem),
+            lambda: self._build_turret(team_color, paint, look, emblem))
 
     def _get_barrel(self, bl, bt, look):
         return self._barrel_cache.get_or_build(
@@ -340,7 +343,7 @@ class TankRenderer:
 
         return pygame.transform.smoothscale(big, (size, size))
 
-    def _build_turret(self, team_color, paint, look):
+    def _build_turret(self, team_color, paint, look, emblem=""):
         ppm = self._ppm
         size = 2 * math.ceil(TURRET_HALF_M * ppm)
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
@@ -360,6 +363,12 @@ class TankRenderer:
                                (0.70, 1.65), (-0.70, 1.65), (-1.30, 0.00)])
         pen.poly(turret_light, [(-0.48, -1.05), (0.48, -1.05), (0.88, 0.00),
                                 (0.48, 1.12), (-0.48, 1.12), (-0.88, 0.00)], outline=turret_dark)
+        if emblem == "chevron":            # двойной шеврон острием вперёд (Уничтожитель)
+            for k in (0.0, 0.25):
+                pen.poly(EMBLEM_COLOR,
+                         [(0.00, -0.95 + k), (0.40, -0.55 + k), (0.40, -0.38 + k),
+                          (0.00, -0.78 + k), (-0.40, -0.38 + k), (-0.40, -0.55 + k)],
+                         outline=None)
 
         # 2. Маска орудия: выступает вперёд из башни, ствол выходит из её торца
         pen.rect(team_color, -0.55, -TURRET_FRONT_M, 1.10, 0.60, r=0.08)
