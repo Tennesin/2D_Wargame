@@ -6,7 +6,7 @@ import pygame
 
 from .params import (TURRET_FRONT_M, TRACK_LINK_M, TRACK_OFFSET_M,
                      BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M)
-from engine import LRUCache, SHADOW_ALPHA, heading_vector
+from engine import LRUCache, SHADOW_ALPHA, heading_vector, clamp
 
 # ==========================================
 # 1. КОНСТАНТЫ РИСОВКИ
@@ -48,6 +48,10 @@ TURRET_DARK = (140, 131, 114)
 GUN = (112, 110, 105)
 GUN_LIGHT = (150, 147, 140)
 GUN_DARK = (62, 60, 56)
+
+ANGLE_STEPS = 120                        # на сколько положений квантуется угол башни и силуэтов (шаг 3°)
+ANGLE_STEP = 360.0 / ANGLE_STEPS
+ROT_CACHE_BYTES = 48 * 1024 * 1024       # бюджет памяти под кэш повёрнутых поверхностей
 
 def _paint(color, paint):
     """Подмешивает цвет команды к цвету детали. paint=None: деталь остаётся как есть."""
@@ -113,13 +117,19 @@ class TankRenderer:
         self._turret_cache = LRUCache(40)
         self._barrel_cache = LRUCache(80)
         self._sil_cache = LRUCache(240)
+        self._rot_cache = LRUCache(400)
         self._shadow_buf = None
 
     def set_zoom(self, ppm):
         """Вызывается при смене зума: запоминает масштаб и сбрасывает кэши спрайтов."""
         self._ppm = ppm
-        for cache in (self._hull_cache, self._turret_cache, self._barrel_cache, self._sil_cache):
+        for cache in (self._hull_cache, self._turret_cache, self._barrel_cache,
+                      self._sil_cache, self._rot_cache):
             cache.clear()
+        # размер повёрнутой поверхности растёт с зумом, поэтому лимит записей считаем от бюджета памяти
+        side = 2.0 * HULL_HALF_M * ppm * 1.42
+        per_surface = max(1.0, side * side * 4.0)
+        self._rot_cache.limit = int(clamp(ROT_CACHE_BYTES / per_surface, 40, 800))
 
     # ---------- главный метод ----------
     def draw(self, screen, camera, tank):
@@ -137,16 +147,22 @@ class TankRenderer:
         lp = int(tank.left_track_offset / tank.TRACK_STEP * TRACK_PHASES) % TRACK_PHASES
         rp = int(tank.right_track_offset / tank.TRACK_STEP * TRACK_PHASES) % TRACK_PHASES
 
+        hull_k = self._bucket(tank.hull_angle)
+        turret_k = self._bucket(tank.turret_angle)
+        turret_key = (team, paint, look.turret_key)
+        barrel_key = (bl, bt, look.barrel_key)
+
+        # корпус: фазы гусениц делают кэш бесполезным, поэтому поворот по точному углу каждый кадр
         hull = self._get_hull(lp, rp, paint, look)
-        turret = self._get_turret(team, paint, look)
-        barrel = self._get_barrel(bl, bt, look)
-
         hull_rot = pygame.transform.rotozoom(hull, -tank.hull_angle, hs)
-        turret_rot = pygame.transform.rotozoom(turret, -tank.turret_angle, ts)
-        barrel_rot = pygame.transform.rotozoom(barrel, -tank.turret_angle, ts)
+        # башня и ствол: из кэша, угол квантован
+        turret_rot = self._rotated("turret", turret_key,
+                                   lambda: self._get_turret(team, paint, look), turret_k, ts)
+        barrel_rot = self._rotated("barrel", barrel_key,
+                                   lambda: self._get_barrel(bl, bt, look), turret_k, ts)
 
-        # ствол — отдельный спрайт
-        fx, fy = heading_vector(tank.turret_angle)
+        # ствол — отдельный спрайт; положение считаем по тому же квантованному углу, что и башню
+        fx, fy = heading_vector(turret_k * ANGLE_STEP)
         f = (TURRET_FRONT_M + bl * BARREL_LEN_STEP_M / 2.0 - BARREL_HIDDEN_M / 2.0 - tank.recoil_m) * ppm * ts
         hull_rect = hull_rot.get_rect(center=(cx, cy))
         turret_rect = turret_rot.get_rect(center=(cx, cy))
@@ -156,12 +172,17 @@ class TankRenderer:
         # форма у окрашенных и обычных деталей одинаковая, поэтому силуэты кэшируются без учёта краски
         hox, hoy = (round(v * ppm * hs) for v in SHADOW_HULL_M)
         tox, toy = (round(v * ppm * ts) for v in SHADOW_TURRET_M)
-        sil_hull = pygame.transform.rotozoom(
-            self._get_sil(("hull", look.hull_key), hull), -tank.hull_angle, hs)
-        sil_turret = pygame.transform.rotozoom(
-            self._get_sil(("turret", look.turret_key), turret), -tank.turret_angle, ts)
-        sil_barrel = pygame.transform.rotozoom(
-            self._get_sil(("barrel", bl, bt, look.barrel_key), barrel), -tank.turret_angle, ts)
+        sil_hull = self._rotated(
+            "sil_hull", look.hull_key,
+            lambda: self._get_sil(("hull", look.hull_key), hull), hull_k, hs)
+        sil_turret = self._rotated(
+            "sil_turret", look.turret_key,
+            lambda: self._get_sil(("turret", look.turret_key), self._get_turret(team, paint, look)),
+            turret_k, ts)
+        sil_barrel = self._rotated(
+            "sil_barrel", barrel_key,
+            lambda: self._get_sil(("barrel", bl, bt, look.barrel_key), self._get_barrel(bl, bt, look)),
+            turret_k, ts)
         parts = (
             (sil_hull, sil_hull.get_rect(center=hull_rect.center).move(hox, hoy)),
             (sil_barrel, sil_barrel.get_rect(center=barrel_rect.center).move(tox, toy)),
@@ -184,6 +205,17 @@ class TankRenderer:
     def _make_silhouette(surface):
         mask = pygame.mask.from_surface(surface)
         return mask.to_surface(setcolor=(0, 0, 0, 255), unsetcolor=(0, 0, 0, 0))
+
+    @staticmethod
+    def _bucket(angle):
+        """Номер положения угла (0..ANGLE_STEPS-1)."""
+        return round(angle / ANGLE_STEP) % ANGLE_STEPS
+
+    def _rotated(self, kind, base_key, get_base, bucket, scale):
+        """Повёрнутая копия спрайта из кэша."""
+        key = (kind, base_key, bucket, round(scale, 3))
+        return self._rot_cache.get_or_build(
+            key, lambda: pygame.transform.rotozoom(get_base(), -bucket * ANGLE_STEP, scale))
 
     def _ensure_shadow_buf(self, w, h):
         """Буфер тени: пересоздаётся только если нужен больший размер."""

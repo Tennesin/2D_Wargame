@@ -5,7 +5,7 @@ import random
 
 import pygame
 
-from engine import heading_vector
+from engine import heading_vector, AlphaLayer
 from .projectile import Shell
 
 FLASH_LAYERS = (                     # (масштаб, цвет): от внешнего слоя к внутреннему
@@ -116,13 +116,15 @@ class SmokeStreak:
             self._set_pose(*self.anchor.muzzle_point(), self.anchor.turret_angle)
         self.age += dt
 
-    def draw(self, overlay, camera):
+    def prepare(self, camera):
+        """Точки, цвет и толщина полоски в экранных координатах; None, если рисовать нечего.
+        Рисует полоски EffectsSystem: ему нужна общая рамка всех полосок."""
         u = self.age / self.life
         head = self.dist * (1.0 - (1.0 - u) ** 2)         # голова: быстро вылетает, потом замедляется
         tu = max(0.0, (u - 0.25) / 0.75)
         tail = self.dist * tu ** 1.5                      # хвост догоняет голову, полоска исчезает
         if head - tail < 1.0:
-            return
+            return None
 
         pts = []
         for i in range(SMOKE_POINTS + 1):
@@ -135,8 +137,7 @@ class SmokeStreak:
         alpha = int(SMOKE_MAX_ALPHA * (1.0 - u) ** 1.2)
         width = max(1, int(round(self.width * (1.0 - 0.5 * u) * camera.zoom)))
         c = self.shade
-        pygame.draw.lines(overlay, (c, c, c, alpha), False, pts, width)
-
+        return pts, (c, c, c, alpha), width
 
 # ==========================================
 # ВЗРЫВ СНАРЯДА: огненный шар + комья земли
@@ -192,6 +193,7 @@ class Scorch:
         self.age = 0.0
         r = spec.SCORCH_RADIUS_PX
         self.lumps = []                   # неровное пятно из нескольких кругов: (смещение x, y, радиус)
+        self.reach = r * 1.25             # дальше этого радиуса от центра пятно не рисуется
         for _ in range(7):
             ang = rng.uniform(0.0, 2.0 * math.pi)
             off = r * rng.uniform(0.0, 0.45)
@@ -204,10 +206,19 @@ class Scorch:
     def update(self, dt):
         self.age += dt
 
-    def draw(self, overlay, camera):
+    def bounds(self, camera):
+        """Рамка пятна на экране (pygame.Rect)."""
+        cx, cy = camera.world_to_screen(self.x, self.y)
+        r = math.ceil(self.reach * camera.zoom) + 2
+        return pygame.Rect(math.floor(cx) - r, math.floor(cy) - r, 2 * r + 1, 2 * r + 1)
+
+    def draw(self, overlay, camera, origin=(0, 0)):
+        """origin — экранные координаты левого верхнего угла слоя overlay."""
         z = camera.zoom
         u = self.age / self.life
         cx, cy = camera.world_to_screen(self.x, self.y)
+        cx -= origin[0]
+        cy -= origin[1]
         # быстро проявляется (0.05 с), затем плавно тает
         alpha = SCORCH_MAX_ALPHA * min(1.0, self.age / 0.05) * (1.0 - u) ** 1.3
         # три слоя: внешний бледный, внутренний тёмный (на слое рисунок заменяет пиксели, а не смешивается)
@@ -261,7 +272,7 @@ class EffectsSystem:
         self.explosions = []
         self.scorches = []
         self.sparks = []
-        self._layers = {}                 # прозрачные слои во весь экран (для полупрозрачности)
+        self._alpha = AlphaLayer()
         self._rng = random.Random()
 
     def spawn_shot(self, shot, spec, tank=None):
@@ -311,30 +322,44 @@ class EffectsSystem:
         self.sparks = [o for o in self.sparks if o.alive]
         return hits, ricochets, misses
 
-    def _layer(self, name, size):
-        """Очищенный прозрачный слой (пересоздаётся только при смене размера окна)."""
-        layer = self._layers.get(name)
-        if layer is None or layer.get_size() != size:
-            layer = pygame.Surface(size, pygame.SRCALPHA)
-            self._layers[name] = layer
-        layer.fill((0, 0, 0, 0))
-        return layer
-
     def draw_ground(self, screen, camera):
         """Всё, что лежит на земле (рисуется ДО танка, чтобы пятна были под ним)."""
-        if self.scorches:
-            layer = self._layer("scorch", screen.get_size())
-            for s in self.scorches:
-                s.draw(layer, camera)
-            screen.blit(layer, (0, 0))
+        if not self.scorches:
+            return
+        view = screen.get_rect()
+        items = [(s, s.bounds(camera)) for s in self.scorches]
+        items = [(s, r) for s, r in items if r.colliderect(view)]
+        if not items:
+            return
+        area = items[0][1].unionall([r for _, r in items[1:]]).clip(view)
+        if area.w <= 0 or area.h <= 0:
+            return
+        layer = self._alpha.begin(area.size)
+        for s, _ in items:
+            s.draw(layer, camera, area.topleft)
+        screen.blit(layer, area.topleft)
+
+    def _draw_smoke(self, screen, camera):
+        lines = [p for p in (s.prepare(camera) for s in self.smoke) if p is not None]
+        if not lines:
+            return
+        xs = [x for pts, _, _ in lines for x, _ in pts]
+        ys = [y for pts, _, _ in lines for _, y in pts]
+        pad = max(w for _, _, w in lines) + 2
+        x0, y0 = math.floor(min(xs)) - pad, math.floor(min(ys)) - pad
+        w, h = math.ceil(max(xs)) - x0 + pad + 1, math.ceil(max(ys)) - y0 + pad + 1
+        area = pygame.Rect(x0, y0, w, h).clip(screen.get_rect())
+        if area.w <= 0 or area.h <= 0:
+            return
+        layer = self._alpha.begin(area.size)
+        for pts, color, width in lines:
+            shifted = [(x - area.x, y - area.y) for x, y in pts]
+            pygame.draw.lines(layer, color, False, shifted, width)
+        screen.blit(layer, area.topleft)
 
     def draw(self, screen, camera):
         """Всё, что летит и горит (рисуется ПОСЛЕ танка)."""
-        if self.smoke:
-            layer = self._layer("smoke", screen.get_size())
-            for s in self.smoke:
-                s.draw(layer, camera)
-            screen.blit(layer, (0, 0))
+        self._draw_smoke(screen, camera)
         for shell in self.shells:
             shell.draw(screen, camera)
         for boom in self.explosions:

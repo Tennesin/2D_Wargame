@@ -7,6 +7,8 @@ from engine import LRUCache
 from .generator import CHUNK_SIZE, CELL_SIZE
 
 MIN_CACHED_CHUNKS = 40
+# Сколько новых базовых чанков можно построить за кадр, по LOD (чем крупнее клетка, тем дешевле чанк)
+BUILD_BUDGET = {1: 1, 2: 2, 4: 6, 8: 16}
 
 def ground_lod(zoom):
     """Чем дальше камера, тем крупнее клетка земли (меньше расчётов шума): 1, 2, 4, 8."""
@@ -27,6 +29,7 @@ class GroundRenderer:
         self.world = world_generator
         self._chunk_cache = LRUCache()    # (cx, cy, lod) -> Surface, как построено (без масштаба)
         self._scaled_cache = LRUCache()   # (cx, cy) -> Surface, уже под текущий зум
+        self._builds_left = 0             # сколько чанков ещё можно построить в этом кадре
 
     def set_zoom(self):
         """Зум сменился: масштабированные чанки устарели, базовые остаются."""
@@ -35,6 +38,7 @@ class GroundRenderer:
     def draw(self, screen, camera):
         z = camera.zoom
         lod = ground_lod(z)
+        self._builds_left = 10 ** 9 if len(self._chunk_cache) == 0 else BUILD_BUDGET[lod]
         left, top = camera.origin_px()
         width, height = screen.get_size()
 
@@ -67,10 +71,27 @@ class GroundRenderer:
         if tile is not None:
             self._chunk_cache.get((cx, cy, lod))  # освежаем базовый чанк, чтобы его не вытеснило
             return tile
-        base = self._get_chunk(cx, cy, lod)
+
+        base = self._chunk_cache.get((cx, cy, lod))
+        if base is None:
+            if self._builds_left <= 0:
+                return self._placeholder(cx, cy, size)   # не кэшируем: достроим в следующих кадрах
+            self._builds_left -= 1
+            base = self._get_chunk(cx, cy, lod)
         tile = base if base.get_width() == size else pygame.transform.smoothscale(base, (size, size))
         self._scaled_cache.put(key, tile)
         return tile
+
+    def _placeholder(self, cx, cy, size):
+        """Временная картинка чанка, пока настоящий ещё не построен: версия другого LOD из кэша,
+        иначе плоский цвет земли в центре чанка."""
+        for other in (8, 4, 2, 1):
+            base = self._chunk_cache.get((cx, cy, other))
+            if base is not None:
+                return base if base.get_width() == size else pygame.transform.smoothscale(base, (size, size))
+        surf = pygame.Surface((size, size))
+        surf.fill(self.world.ground_color(cx, cy, CHUNK_SIZE))   # индексы «клеток» размером в чанк
+        return surf
 
     def _get_chunk(self, cx, cy, lod):
         return self._chunk_cache.get_or_build((cx, cy, lod), lambda: self._build_chunk(cx, cy, lod))
