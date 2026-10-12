@@ -1,7 +1,5 @@
 """game/notifications.py — сообщения о попаданиях: лента сверху и всплывающие числа над целью."""
-from engine import get_text, FONT_SIZE_HEADER
-from vehicles import Tank
-from structures import Wall
+from engine import get_text, FONT_SIZE_HEADER, TargetType
 
 FEED_MAX = 5                 # сколько строк в ленте одновременно
 FEED_LIFE = 3.5              # сколько секунд живёт строка
@@ -77,9 +75,9 @@ class Notifier:
         me = self.player
         if target is me:
             self._hit_on_player(normal, res, dealt)
-        elif owner is me and isinstance(target, Tank):
+        elif owner is me and target.target_type is TargetType.VEHICLE:
             self._hit_on_enemy(target, normal, res, dealt)
-        elif owner is me and isinstance(target, Wall):
+        elif owner is me and target.target_type is TargetType.WALL:
             self._hit_on_wall(target, res, dealt)
 
     def on_ricochet(self, owner, target):
@@ -88,10 +86,10 @@ class Notifier:
         if target is me:
             self.say("Рикошет! Снаряд отскочил от брони", C_GOOD)
             self.float_at(me.x, me.y, "рикошет", C_GOOD)
-        elif owner is me and isinstance(target, Tank):
+        elif owner is me and target.target_type is TargetType.VEHICLE:
             self.say("Рикошет! Цель цела", C_WARN)
             self.float_at(target.x, target.y, "рикошет", C_WARN)
-        elif owner is me and isinstance(target, Wall):
+        elif owner is me and target.target_type is TargetType.WALL:
             self.say("Рикошет от стены", C_DIM)
 
     def on_miss(self, owner):

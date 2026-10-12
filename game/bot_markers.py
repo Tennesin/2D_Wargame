@@ -1,11 +1,9 @@
 """game/bot_markers.py — синие треугольники-указатели на ботов (на экране и у края экрана)."""
 import math
-
 import pygame
 
+from .settings import BOT_MARKERS_ENABLED
 from engine import PX_PER_M, get_text, FONT_SIZE_LABEL
-
-ENABLED = True
 
 EDGE_INSET = 24              # отступ указателя от края экрана, px
 EDGE_SIZE = 13               # размер треугольника у края
@@ -20,7 +18,7 @@ class BotMarkers:
         self.camera = camera
 
     def draw(self, screen):
-        if not ENABLED:
+        if not BOT_MARKERS_ENABLED:
             return
         w, h = screen.get_size()
         cx, cy = w / 2.0, h / 2.0

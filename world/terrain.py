@@ -98,6 +98,7 @@ class Patch:
     """Одно препятствие: звёздчатый многоугольник вокруг центра (мировые px)."""
 
     def __init__(self, kind, x, y, pts):
+        target_type = TargetType.TERRAIN
         self.kind = kind
         self.x, self.y = x, y
         self.pts = pts
@@ -152,6 +153,14 @@ class Patch:
             proj = [px * ax + py * ay for px, py in self.pts]
             widths.append(max(proj) - min(proj))
         return sum(widths) / len(widths) / PX_PER_M, min(widths) / PX_PER_M
+
+    def describe(self):
+        avg, low = self.thickness_stats()
+        return self.kind.name, [
+            ("Средняя толщина", f"{avg:.2f} м"),
+            ("Наименьшая толщина", f"{low:.2f} м"),
+            ("Масса", f"{fmt_num(self.mass_t, 1)} т"),
+        ]
 
     # ---------- геометрия ----------
     def contains(self, x, y):

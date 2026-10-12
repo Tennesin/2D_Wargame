@@ -3,19 +3,19 @@ import math
 
 from engine import shortest_angle_diff, fmt_num
 from inputs import Action, MouseOwner
-from structures import (Wall, PLACE_REPEAT,
-                        ROTATE_HANDLE_HIT_PX, ROTATE_DEAD_ZONE_PX, ROTATE_SNAP_DEG)
+from structures import (Wall, ROTATE_HANDLE_HIT_PX, ROTATE_DEAD_ZONE_PX, ROTATE_SNAP_DEG)
+from .settings import PLACE_REPEAT
 from .modes import Mode
 from .panels import PanelMode, wall_values, bind_wall_delete
 
 class WallEditor:
-    def __init__(self, input_handler, camera, modes, walls, fleet, terrain, ui):
+    def __init__(self, ctx, input_handler, modes, ui):
         self.input = input_handler
-        self.camera = camera
+        self.camera = ctx.camera
         self.modes = modes
-        self.walls = walls
-        self.fleet = fleet
-        self.terrain = terrain
+        self.walls = ctx.walls
+        self.fleet = ctx.fleet
+        self.terrain = ctx.terrain
         self.ui = ui
 
         self._rot_state = None           # при вращении: [последний угол мыши, накопленный угол стены]

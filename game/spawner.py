@@ -2,7 +2,7 @@
 import math
 import random
 
-from engine import PX_PER_M
+from engine import PX_PER_M, Team, bearing_deg
 from vehicles import Tank, TankSpec
 from ai import (Bot, BotBrain, DEFAULT_SKILL, ARCHETYPES, fit_loadout, BASE_BUDGET,
                 threat_profile, counter_multipliers)
@@ -54,7 +54,7 @@ class BotSpawner:
         arch = self._pick_archetype()
         budget = round(BASE_BUDGET * arch.budget_k)
         spec = TankSpec.from_values(fit_loadout(arch, budget, self.rng))
-        tank = Tank(0.0, 0.0, spec=spec, team_color=arch.color, team="bots")
+        tank = Tank(0.0, 0.0, spec=spec, team_color=arch.color, team=Team.BOTS, label=arch.name)
 
         player = self.fleet.player
         cam = self.camera
@@ -64,7 +64,7 @@ class BotSpawner:
             a = self.rng.uniform(0.0, 2.0 * math.pi)
             r = self.rng.uniform(inner, outer)
             px, py = player.x + math.cos(a) * r, player.y + math.sin(a) * r
-            heading = math.degrees(math.atan2(player.y - py, player.x - px)) + 90.0
+            heading = bearing_deg(px, py, player.x, player.y)
             spot = self.finder.find_near(tank, px, py, FIND_RADIUS_M, heading=heading, rng=self.rng)
             if spot is not None:
                 tank.place_at(spot)

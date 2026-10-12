@@ -3,7 +3,8 @@
 панель, захват мыши), приводится в порядок в set_mode."""
 from enum import Enum, auto
 
-from inputs import Action, MouseOwner, COMBAT_HOLD
+from inputs import Action, MouseOwner
+from .settings import COMBAT_HOLD
 from .panels import PanelMode, wall_values
 
 class Mode(Enum):

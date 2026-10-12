@@ -8,15 +8,14 @@ PLANS_PER_FRAME = 1          # сколько путей A* можно пост�
 BotContext = namedtuple("BotContext", "targets terrain walls fleet budget nav")
 
 class BotController:
-    def __init__(self, fleet, walls, terrain, effects, targets):
-        self.fleet = fleet
-        self.walls = walls
-        self.terrain = terrain
-        self.effects = effects
+    def __init__(self, game_ctx):
+        self.game_ctx = game_ctx
+        self.fleet = game_ctx.fleet
         self.budget = PlanBudget(PLANS_PER_FRAME)
-        self.nav = TerrainNavCache(terrain)
-        self.ctx = BotContext(targets, terrain, walls, fleet, self.budget, self.nav)
-        self._rr = 0                                  # сдвиг очереди, чтобы бот в начале списка не был «любимчиком»
+        self.nav = TerrainNavCache(game_ctx.terrain)
+        self.ctx = BotContext(game_ctx.targets, game_ctx.terrain, game_ctx.walls,
+                              game_ctx.fleet, self.budget, self.nav)
+        self._rr = 0
 
     def update(self, dt):
         self.budget.new_frame()
@@ -30,9 +29,4 @@ class BotController:
             if not tank.alive:
                 continue
             command = bot.brain.think(dt, tank, player, self.ctx)
-            reach = tank.reach_px()
-            obstacles = self.walls.obbs_near(tank.x, tank.y, reach)
-            obstacles += self.fleet.obbs_near(tank, reach)
-            shot = tank.update(command, dt, obstacles, self.terrain)
-            if shot is not None:
-                self.effects.spawn_shot(shot, tank.spec, tank)
+            self.game_ctx.step_vehicle(tank, command, dt)

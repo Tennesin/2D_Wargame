@@ -2,7 +2,7 @@
 import math
 import random
 
-from engine import PX_PER_M, clamp, obb_segment_hit, obb_hits_obb
+from engine import PX_PER_M, clamp, obb_segment_hit, obb_hits_obb, TargetType, fmt_num
 from combat import resolve_hit, Damageable
 from .params import (
     WALL_PARAMS, WALL_ARMOR_K, WALL_HEIGHT_M, WALL_DENSITY_T_M3,
@@ -14,6 +14,7 @@ class Wall(Damageable):
     """Осевой прямоугольник на земле. x, y — центр (мировые px). Ширина по X, длина по Y."""
 
     def __init__(self, x, y, hp, width_m, length_m, angle=0.0):
+        target_type = TargetType.WALL
         self.x = float(x)
         self.y = float(y)
         self.max_hp = float(hp)
@@ -100,6 +101,14 @@ class Wall(Damageable):
         """Результат попадания (универсальный интерфейс цели). normal стене не нужна:
         броня одинакова со всех сторон."""
         return resolve_hit(penetration, self.armor_mm, cos_impact)
+
+    def describe(self):
+        t = self.thickness_m          # у прямоугольной стены толщина одна на всю стену
+        return "Стена", [
+            ("Средняя толщина", f"{t:.2f} м"),
+            ("Наименьшая толщина", f"{t:.2f} м"),
+            ("Масса", f"{fmt_num(self.mass_t, 1)} т"),
+        ]
 
     # ---------- геометрия ----------
     def contains_point(self, x, y):

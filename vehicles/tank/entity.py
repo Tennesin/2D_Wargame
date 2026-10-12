@@ -3,14 +3,15 @@ import math
 
 from engine import (
     normalize_angle, shortest_angle_diff, obb_hits_obb, obb_segment_hit,
-    VehicleCommand, Shot, PX_PER_M, heading_vector, find_free_fraction
+    VehicleCommand, Shot, PX_PER_M, heading_vector, find_free_fraction,
+    Team, TargetType, fmt_num, bearing_deg
 )
 from combat import resolve_hit, Damageable
 from .params import (
     KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, TANK_ARMOR_K, TERRAIN_MIN_K, TERRAIN_BRAKE,
     TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY, TRACK_LINK_M, TRACK_OFFSET_M,
     CONTACT_TURN_STEPS, CONTACT_PUSH_STEPS, SLIDE_ANGLES_DEG, SLIDE_MIN_PX, CONTACT_SCRUB,
-    CONTACT_STOP_PROGRESS, BARREL_SOLID, PUSH_FRICTION_MS2, PUSH_STOP_PX
+    CONTACT_STOP_PROGRESS, PUSH_FRICTION_MS2, PUSH_STOP_PX
 )
 
 # Направления отодвигания корпуса: (вдоль корпуса, поперёк). Назад, вперёд, в стороны и диагонали.
@@ -18,15 +19,17 @@ _NUDGE_DIRS = ((-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0),
                (-0.7, -0.7), (-0.7, 0.7), (0.7, -0.7), (0.7, 0.7))
 
 class Tank(Damageable):
+    target_type = TargetType.VEHICLE
     TRACK_STEP = TRACK_LINK_M * PX_PER_M     # шаг между траками, px эталонного мира
     TRACK_RADIUS = TRACK_OFFSET_M * PX_PER_M # расстояние от центра до гусеницы, px
     AIM_DEAD_ZONE = 100.0  # если курсор ближе к центру танка (1 м), башня не дёргается
 
-    def __init__(self, x=0.0, y=0.0, *, spec, team_color=(200, 40, 40), team="player"):
-        # spec — объект TankSpec (обязательный, только по имени: Tank(0, 0, spec=...))
+    def __init__(self, x=0.0, y=0.0, *, spec, team_color=(200, 40, 40),
+                 team=Team.PLAYER, label="танк"):
         self.spec = spec
-        self.team_color = team_color  # цвет команды (RGB), красный по умолчанию
+        self.team_color = team_color
         self.team = team
+        self.label = label  # название архетипа для сводки (у игрока не используется)
         self.x = float(x)
         self.y = float(y)
         self.hp = float(spec.hp)        # текущее здоровье (максимум задаёт spec.hp)
@@ -74,32 +77,12 @@ class Tank(Damageable):
         return (x - fx * s.COLLISION_SHIFT_PX, y - fy * s.COLLISION_SHIFT_PX,
                 s.COLLISION_HALF_W_PX, s.COLLISION_HALF_L_PX, angle)
 
-    def _barrel_obb(self, x, y, angle):
-        """Прямоугольник ствола. angle — АБСОЛЮТНЫЙ угол башни. Центр лежит на оси башни."""
-        s = self.spec
-        fx, fy = heading_vector(angle)
-        mid = (s.BARREL_COLL_START_PX + s.BARREL_COLL_END_PX) / 2.0
-        half = (s.BARREL_COLL_END_PX - s.BARREL_COLL_START_PX) / 2.0
-        return (x + fx * mid, y + fy * mid, s.BARREL_COLL_HALF_W_PX, half, angle)
-
-    def _barrel_hits(self, x, y, turret_abs, obstacles):
-        if not BARREL_SOLID:
-            return False
-        obb = self._barrel_obb(x, y, turret_abs)
-        if any(obb_hits_obb(*obb, *other) for other in obstacles):
-            return True
-        return (self._terrain is not None
-                and self._terrain.blocks_obb_in(self._patches, obb, barrel=True))
-
     def _overlaps(self, x, y, angle, obstacles):
-        """angle — угол КОРПУСА. Задевает ли препятствие корпус или ствол
-        (башня при этом сохраняет свой относительный угол)."""
+        """angle — угол КОРПУСА. Задевает ли препятствие корпус."""
         hull = self._hull_obb(x, y, angle)
         if any(obb_hits_obb(*hull, *other) for other in obstacles):
             return True
-        if self._terrain is not None and self._terrain.blocks_obb_in(self._patches, hull):
-            return True
-        return self._barrel_hits(x, y, angle + self.turret_rel_angle, obstacles)
+        return self._terrain is not None and self._terrain.blocks_obb_in(self._patches, hull)
 
     def _has_solids(self, obstacles):
         """Есть ли вообще что проверять на столкновение (стены или карта местности)."""
@@ -110,23 +93,13 @@ class Tank(Damageable):
         return self.spec.REACH_PX
 
     def hits_obb(self, other):
-        """Задевает ли танк повёрнутый прямоугольник (x, y, half_w, half_l, angle).
-        Ствол учитывается только при BARREL_SOLID."""
-        hull = self._hull_obb(self.x, self.y, self.hull_angle)
-        if obb_hits_obb(*hull, *other):
-            return True
-        if not BARREL_SOLID:
-            return False
-        barrel = self._barrel_obb(self.x, self.y, self.turret_angle)
-        return obb_hits_obb(*barrel, *other)
+        """Задевает ли корпус танка повёрнутый прямоугольник (x, y, half_w, half_l, angle)."""
+        return obb_hits_obb(*self._hull_obb(self.x, self.y, self.hull_angle), *other)
 
     def footprint_at(self, x, y, hull_angle):
-        """Прямоугольники, которые танк займёт в точке (x, y): [корпус] или [корпус, ствол].
-        Корпус ВСЕГДА первый (по нему проверяется грунт)."""
-        hull = self._hull_obb(x, y, hull_angle)
-        if not BARREL_SOLID:
-            return [hull]
-        return [hull, self._barrel_obb(x, y, hull_angle + self.turret_rel_angle)]
+        """Прямоугольники, которые танк займёт в точке (x, y). Сейчас только корпус,
+        но корпус всегда первый: по нему проверяется грунт."""
+        return [self._hull_obb(x, y, hull_angle)]
 
     def place_at(self, spot):
         """Поставить танк в найденную точку спавна (любой объект с x, y, angle) и обнулить движение."""
@@ -170,6 +143,18 @@ class Tank(Damageable):
     def hit_result(self, penetration, cos_impact=1.0, normal=None):
         return resolve_hit(penetration, self.armor_at(normal), cos_impact)
 
+    def describe(self):
+        """(заголовок, [(название, значение), ...]) для краткой сводки."""
+        s = self.spec
+        title = "Ваш танк" if self.team is Team.PLAYER else f"Враг: {self.label}"
+        return title, [
+            ("Калибр", f"{s.cal:.0f} мм"),
+            ("Броня: лоб", f"{s.front:.0f} мм"),
+            ("Броня: борт", f"{s.side:.0f} мм"),
+            ("Броня: корма", f"{s.rear:.0f} мм"),
+            ("Масса", f"{fmt_num(s.mass, 1)} т"),
+        ]
+
     def update(self, command: VehicleCommand, dt, obstacles=(), terrain=None):
         """obstacles — повёрнутые прямоугольники стен (x, y, half_w, half_l, angle).
         terrain — карта естественных препятствий (TerrainMap) или None."""
@@ -180,7 +165,7 @@ class Tank(Damageable):
         delta_hull = self._rotate_hull(command.steer, dt, obstacles)
         distance = self._drive(command.throttle, command.steer, dt, obstacles)
         self._animate_tracks(distance, delta_hull)
-        self._aim_turret(command.aim_point, dt, obstacles)
+        self._aim_turret(command.aim_point, dt)
         return self._update_gun(command.fire, dt)      # Shot или None
 
     def _sample_terrain(self):
@@ -245,8 +230,7 @@ class Tank(Damageable):
         """Поворот на delta упёрся в препятствие. Пробуем повернуть на часть угла и чуть сдвинуть корпус
         от препятствия. Возвращает (новый угол, смещение x, смещение y, применённый угол) или None."""
         s = self.spec
-        hull_r = math.hypot(s.COLLISION_HALF_W_PX, s.COLLISION_HALF_L_PX)
-        radius = max(hull_r, s.BARREL_COLL_END_PX) if BARREL_SOLID else hull_r
+        radius = math.hypot(s.COLLISION_HALF_W_PX, s.COLLISION_HALF_L_PX)
         fx, fy = heading_vector(old)
         rx, ry = -fy, fx  # вправо от корпуса
         for k in CONTACT_TURN_STEPS:
@@ -372,7 +356,7 @@ class Tank(Damageable):
         self.left_track_offset = (self.left_track_offset - distance / scale - rot_dist) % self.TRACK_STEP
         self.right_track_offset = (self.right_track_offset - distance / scale + rot_dist) % self.TRACK_STEP
 
-    def _aim_turret(self, aim_point, dt, obstacles=()):
+    def _aim_turret(self, aim_point, dt):
         s = self.spec
         target_rate = 0.0
         diff = 0.0
@@ -380,7 +364,7 @@ class Tank(Damageable):
             dx = aim_point[0] - self.x
             dy = aim_point[1] - self.y
             if math.hypot(dx, dy) >= self.AIM_DEAD_ZONE:
-                target_abs = math.degrees(math.atan2(dy, dx)) + 90.0
+                target_abs = bearing_deg(self.x, self.y, *aim_point)
                 diff = shortest_angle_diff(target_abs, self.turret_angle)
                 # скорость, с которой ещё успеем затормозить к цели: v = sqrt(2·α·путь)
                 allowed = math.sqrt(2.0 * s.turret_alpha * abs(diff))
@@ -394,15 +378,7 @@ class Tank(Damageable):
             delta = diff                                  # не перелетаем цель
             self.turret_rate = 0.0
 
-        old = self.turret_rel_angle
-        if (self._has_solids(obstacles) and delta != 0
-                and not self._barrel_hits(self.x, self.y, self.hull_angle + old, obstacles)
-                and self._barrel_hits(self.x, self.y, self.hull_angle + old + delta, obstacles)):
-            frac = find_free_fraction(
-                lambda f: self._barrel_hits(self.x, self.y, self.hull_angle + old + delta * f, obstacles))
-            delta *= frac
-            self.turret_rate = 0.0
-        self.turret_rel_angle = (old + delta) % 360.0
+        self.turret_rel_angle = (self.turret_rel_angle + delta) % 360.0
 
     def _update_gun(self, fire, dt):
         """Перезарядка и выстрел. Возвращает Shot, если выстрел произошёл в этом кадре."""

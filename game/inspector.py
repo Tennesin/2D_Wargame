@@ -1,13 +1,10 @@
-"""game/inspector.py — «Краткая сводка»: что под курсором и какие данные о нём показать.
+"""game/inspector.py — «Краткая сводка»: что под курсором. Данные о цели она берёт у самой цели.
 Окно появляется при простой наводке мыши (без кликов)."""
-from engine import fmt_num, heading_vector
-from structures import Wall
+from engine import heading_vector
 from ui import InfoCard
-from vehicles import Tank
 from world import ROCK
 from .modes import Mode
-
-HIDE_IN_BUILD = True     # в режиме стройки сводку не показываем (мешает целиться призраком стены)
+from .settings import HIDE_IN_BUILD
 
 def _in_obb(obb, x, y):
     """Лежит ли точка (x, y) внутри повёрнутого прямоугольника (x, y, half_w, half_l, angle)."""
@@ -17,16 +14,15 @@ def _in_obb(obb, x, y):
     return abs(-dx * fy + dy * fx) <= hw and abs(dx * fx + dy * fy) <= hl
 
 class HoverInspector:
-    def __init__(self, input_handler, camera, modes, fleet, walls, terrain):
+    def __init__(self, ctx, input_handler, modes):
         self.input = input_handler
-        self.camera = camera
+        self.camera = ctx.camera
         self.modes = modes
-        self.fleet = fleet
-        self.walls = walls
-        self.terrain = terrain
+        self.fleet = ctx.fleet
+        self.walls = ctx.walls
+        self.terrain = ctx.terrain
         self.card = InfoCard()
 
-    # ---------- что под курсором ----------
     def _target(self):
         """Танк, стена, камень или None. Сводка скрыта, если игрок мёртв, включён боевой режим
         (или стройка), либо курсор сейчас занят интерфейсом / вращением стены / перетаскиванием камеры."""
@@ -53,43 +49,9 @@ class HoverInspector:
                 return patch
         return None                                    # вода и грязь не «объекты»: сводки нет
 
-    # ---------- содержимое окна ----------
-    def _archetype_name(self, tank):
-        for bot in self.fleet.bots:
-            if bot.tank is tank:
-                return bot.brain.arch.name
-        return "танк"
-
-    def _describe(self, target):
-        """(заголовок, [(название, значение), ...])."""
-        if isinstance(target, Tank):
-            s = target.spec
-            title = "Ваш танк" if target.team == "player" else f"Враг: {self._archetype_name(target)}"
-            return title, [
-                ("Калибр", f"{s.cal:.0f} мм"),
-                ("Броня: лоб", f"{s.front:.0f} мм"),
-                ("Броня: борт", f"{s.side:.0f} мм"),
-                ("Броня: корма", f"{s.rear:.0f} мм"),
-                ("Масса", f"{fmt_num(s.mass, 1)} т"),
-            ]
-        if isinstance(target, Wall):
-            t = target.thickness_m                     # у прямоугольной стены толщина одна на всю стену
-            return "Стена", [
-                ("Средняя толщина", f"{t:.2f} м"),
-                ("Наименьшая толщина", f"{t:.2f} м"),
-                ("Масса", f"{fmt_num(target.mass_t, 1)} т"),
-            ]
-        avg, low = target.thickness_stats()            # иначе это камень (Patch)
-        return "Камень", [
-            ("Средняя толщина", f"{avg:.2f} м"),
-            ("Наименьшая толщина", f"{low:.2f} м"),
-            ("Масса", f"{fmt_num(target.mass_t, 1)} т"),
-        ]
-
-    # ---------- кадр ----------
     def draw(self, screen):
         target = self._target()
         if target is None:
             return
-        title, rows = self._describe(target)
+        title, rows = target.describe()
         self.card.draw(screen, self.input.mouse_pos, title, rows)

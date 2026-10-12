@@ -11,7 +11,6 @@ WALL_PARAMS = {
 # 0.5: стена толщиной 0.6 м = 300 мм эквивалента.
 WALL_ARMOR_K = 0.5
 
-PLACE_REPEAT = True
 # Поворот стены (экранные пиксели)
 ROTATE_HANDLE_RADIUS_PX = 6     # радиус белой точки
 ROTATE_HANDLE_HIT_PX = 12       # радиус, в котором точку можно «схватить»

@@ -26,6 +26,9 @@ from ..bot_markers import BotMarkers
 from ..inspector import HoverInspector
 from ..notifications import Notifier
 from .base import Scene
+from combat import EffectsSystem, TargetSet
+from engine import Team
+from ..context import GameContext
 
 class PlayScene(Scene):
     def __init__(self, seed, clock, session, on_menu, on_quit):
@@ -48,36 +51,40 @@ class PlayScene(Scene):
         self.ui = SidePanel(size, {PanelMode.WALL: build_wall_panel()}, PanelMode.WALL)
         self.toolbar = ToolBar()
         self.input = InputHandler([self.toolbar, self.ui])
-        tank = Tank(0.0, 0.0, spec=session.tank_spec(), team="player")
+        tank = Tank(0.0, 0.0, spec=session.tank_spec(), team=Team.PLAYER)
         fleet = Fleet(tank)
         self.fleet = fleet
         self.notifier = Notifier(tank)
+
+        # --- общий контекст партии ---
+        ctx = GameContext(camera=self.camera, terrain=terrain, walls=walls, fleet=fleet,
+                          effects=EffectsSystem(), targets=TargetSet(walls, terrain, fleet),
+                          notifier=self.notifier)
 
         # --- контроллеры ---
         modes = Modes(self.input, walls, self.toolbar, self.ui)
         modes.on_exit = on_menu
         self.camera_ctrl = CameraController(self.camera, self.input)
-        self.combat = CombatController(tank, walls, terrain, modes, fleet, self.notifier)
-        self.tank_ctrl = TankController(tank, self.input, self.camera, modes, walls, terrain,
-                                        self.combat.effects, fleet)
-        self.wall_editor = WallEditor(self.input, self.camera, modes, walls, fleet, terrain, self.ui)
+        self.combat = CombatController(ctx, modes)
+        self.tank_ctrl = TankController(ctx, self.input, modes)
+        self.wall_editor = WallEditor(ctx, self.input, modes, self.ui)
         self.clicks = ClickRouter(self.input, self.camera, modes, self.camera_ctrl, self.wall_editor)
 
         # --- боты ---
         finder = SpawnFinder(terrain, blockers=[walls.blocks_obb, fleet.blocks_obb])
         self.spawner = BotSpawner(fleet, finder, self.camera, self.seed)
-        self.bot_ctrl = BotController(fleet, walls, terrain, self.combat.effects, self.combat.targets)
+        self.bot_ctrl = BotController(ctx)
+        self.ram = RamController(ctx)
 
-        self.ram = RamController(fleet, walls, terrain, self.notifier)
         # --- рисование ---
-        self.renderer = Renderer(world, terrain, fleet, walls, self.combat.effects)
+        self.renderer = Renderer(world, ctx)
         self.markers = BotMarkers(fleet, self.camera)
-        self.debug = DebugOverlay(clock=clock, camera=self.camera, camera_ctrl=self.camera_ctrl,
-                                  tank=tank, world=world, seed=self.seed, input_handler=self.input,
-                                  modes=modes, walls=walls, fleet=fleet, spawner=self.spawner)
+        self.debug = DebugOverlay(clock=clock, ctx=ctx, camera_ctrl=self.camera_ctrl, tank=tank,
+                                  world=world, seed=self.seed, input_handler=self.input,
+                                  modes=modes, spawner=self.spawner)
         self.hud = HudOverlay(TankHud(), tank, modes, self.camera_ctrl, fleet)
         self.modes = modes
-        self.inspector = HoverInspector(self.input, self.camera, modes, fleet, walls, terrain)
+        self.inspector = HoverInspector(ctx, self.input, modes)
 
     def update(self, dt):
         self.input.process_events()

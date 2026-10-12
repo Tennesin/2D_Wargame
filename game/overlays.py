@@ -10,20 +10,18 @@ class DebugOverlay:
     TOP = 52
     LINE_H = 20
 
-    def __init__(self, *, clock, camera, camera_ctrl, tank, world, seed, input_handler, modes, walls,
-                 fleet, spawner):
+    def __init__(self, *, clock, ctx, camera_ctrl, tank, world, seed, input_handler, modes, spawner):
         self.clock = clock
-        self.camera = camera
+        self.camera = ctx.camera
         self.camera_ctrl = camera_ctrl
         self.tank = tank
         self.world = world
         self.seed = seed
         self.input = input_handler
         self.modes = modes
-        self.walls = walls
-        self.fleet = fleet
+        self.walls = ctx.walls
+        self.fleet = ctx.fleet
         self.spawner = spawner
-
         self.visible = False
         self._font = pygame.font.Font(None, 22)
 

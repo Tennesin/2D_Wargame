@@ -1,16 +1,16 @@
-"""game/combat_control.py — эффекты, попадания снарядов, линия прицела, уведомления о боях."""
-from combat import EffectsSystem, TargetSet, compute_aim
+"""game/combat_control.py — попадания снарядов, линия прицела, уведомления о боях."""
+from combat import compute_aim
 from .modes import Mode
 
 class CombatController:
-    def __init__(self, tank, walls, terrain, modes, fleet, notifier):
-        self.tank = tank
-        self.walls = walls
+    def __init__(self, ctx, modes):
+        self.tank = ctx.fleet.player
+        self.walls = ctx.walls
         self.modes = modes
-        self.fleet = fleet
-        self.notifier = notifier
-        self.effects = EffectsSystem()
-        self.targets = TargetSet(walls, terrain, fleet)
+        self.fleet = ctx.fleet
+        self.notifier = ctx.notifier
+        self.effects = ctx.effects
+        self.targets = ctx.targets
 
     def update(self, dt):
         hits, ricochets, misses = self.effects.update(dt, self.targets)

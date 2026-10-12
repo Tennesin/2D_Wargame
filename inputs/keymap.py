@@ -18,9 +18,7 @@ class Action(Enum):
     TOGGLE_BUILD = auto()
     TOGGLE_FREE_CAM = auto()
     DELETE_WALL = auto()
-    # боевое состояние: есть и в HELD_KEYMAP, и в PRESS_KEYMAP, Game выбирает по COMBAT_HOLD
     COMBAT = auto()
-
 
 class MouseOwner(Enum):
     """Кому сейчас принадлежит нажатая кнопка мыши (до её отпускания)."""
@@ -28,9 +26,6 @@ class MouseOwner(Enum):
     ROTATE = auto()   # вращение выбранной стены за белую точку
     FIRE = auto()     # удержание ЛКМ в мире при включённом боевом состоянии
     PAN = auto()      # перетаскивание камеры зажатой ПКМ (свободная камера)
-
-# False: Alt переключает боевое состояние нажатием. True: боевое состояние, пока Alt зажат.
-COMBAT_HOLD = False
 
 # Удерживаемые действия: действие -> клавиши, любая из которых его включает
 HELD_KEYMAP = {

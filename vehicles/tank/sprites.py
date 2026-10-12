@@ -6,7 +6,7 @@ import pygame
 
 from .params import (TURRET_FRONT_M, TRACK_LINK_M, TRACK_OFFSET_M,
                      BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M)
-from engine import LRUCache, SHADOW_ALPHA, heading_vector, clamp
+from engine import LRUCache, SHADOW_ALPHA, heading_vector, clamp, Team
 
 # ==========================================
 # 1. КОНСТАНТЫ РИСОВКИ
@@ -49,7 +49,7 @@ GUN = (112, 110, 105)
 GUN_LIGHT = (150, 147, 140)
 GUN_DARK = (62, 60, 56)
 
-ANGLE_STEPS = 120                        # на сколько положений квантуется угол башни и силуэтов (шаг 3°)
+ANGLE_STEPS = 720
 ANGLE_STEP = 360.0 / ANGLE_STEPS
 ROT_CACHE_BYTES = 48 * 1024 * 1024       # бюджет памяти под кэш повёрнутых поверхностей
 
@@ -143,7 +143,7 @@ class TankRenderer:
         bl = int(round(spec.BARREL_LEN_M / BARREL_LEN_STEP_M))  # длина ствола в шагах
         bt = int(round(spec.BARREL_THICK_M / BARREL_THICK_STEP_M))  # толщина в шагах
         team = tank.team_color
-        paint = None if tank.team == "player" else team          # боты красятся цветом команды
+        paint = None if tank.team is Team.PLAYER else team
         lp = int(tank.left_track_offset / tank.TRACK_STEP * TRACK_PHASES) % TRACK_PHASES
         rp = int(tank.right_track_offset / tank.TRACK_STEP * TRACK_PHASES) % TRACK_PHASES
 

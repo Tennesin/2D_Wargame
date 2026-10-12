@@ -252,7 +252,7 @@ class TankSpec:
         )
 
     def _calc_collision(self):
-        """Хитбоксы для столкновений (мировые px): корпус и ствол. Масштабируются вместе со спрайтами."""
+        """Хитбоксы для столкновений. Cтвол в столкновениях не участвует, но его размеры входят в REACH_PX"""
         k = self.HULL_SCALE * PX_PER_M
         self.COLLISION_HALF_W_PX = HULL_COLL_HALF_W_M * k
         self.COLLISION_HALF_L_PX = HULL_COLL_HALF_L_M * k

@@ -2,19 +2,20 @@
 Танк только отмечает «я врезался» (impact_kmh); что именно он задел и что из этого вышло, решаем здесь."""
 from combat import (resolve_ram, can_push, ram_damage,
                     RESTITUTION_ROCK, RESTITUTION_TANK, MIN_CLOSING_MS)
+from .settings import ROCK_HURTS_TANK
 from engine import PX_PER_M, obb_contact
 
 CONTACT_PAD_PX = 8.0         # на сколько px раздуваем корпус, чтобы поймать касание (физика останавливает танк вплотную)
 DAMAGE_COOLDOWN_S = 0.5      # пока не прошло, та же пара танков повторно урон не получает
-ROCK_HURTS_TANK = False      # True: при таране камня страдает и сам танк
 
 class RamController:
-    def __init__(self, fleet, walls, terrain, notifier):
-        self.fleet = fleet
-        self.walls = walls
-        self.terrain = terrain
-        self.notifier = notifier
-        self._cooldown = {}              # frozenset(id, id) -> секунд до следующего урона
+    def __init__(self, ctx):
+        self.ctx = ctx
+        self.fleet = ctx.fleet
+        self.walls = ctx.walls
+        self.terrain = ctx.terrain
+        self.notifier = ctx.notifier
+        self._cooldown = {}
 
     # ---------- каждый кадр (после обновления всех танков) ----------
     def update(self, dt):
@@ -27,12 +28,9 @@ class RamController:
                 self._ram_tanks(tank, done)
 
         self.terrain.update_movers(dt, self._obbs_near)      # камни скользят
-        for tank in self.fleet.tanks:                        # толкнутые танки едут по инерции
+        for tank in self.fleet.tanks:
             if tank.alive:
-                reach = tank.reach_px()
-                obstacles = self.walls.obbs_near(tank.x, tank.y, reach)
-                obstacles += self.fleet.obbs_near(tank, reach)
-                tank.update_push(dt, obstacles, self.terrain)
+                tank.update_push(dt, self.ctx.obstacles_for(tank), self.terrain)
 
         self.fleet.remove_dead()                             # кто погиб от тарана
 

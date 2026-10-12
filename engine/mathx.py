@@ -25,6 +25,10 @@ def heading_vector(angle_deg):
     rad = math.radians(angle_deg)
     return math.sin(rad), -math.cos(rad)
 
+def bearing_deg(x0, y0, x1, y1):
+    """Угол от точки 0 к точке 1 в системе игры (0 = вверх, по часовой)."""
+    return math.degrees(math.atan2(y1 - y0, x1 - x0)) + 90.0
+
 def find_free_fraction(is_blocked, iterations=8):
     """Бисекция: наибольшая доля пути 0..1, при которой is_blocked(доля) ещё False.
     Вызывать, когда известно, что при 0 свободно, а при 1 занято."""
