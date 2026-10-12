@@ -101,16 +101,15 @@ class GroundRenderer:
         key = (cx, cy)
         tile = self._scaled_cache.get(key)
         if tile is not None:
-            self._chunk_cache.get((cx, cy, lod))  # освежаем базовый чанк, чтобы его не вытеснило
+            self._chunk_cache.get((cx, cy, lod))
             return tile
 
-        base = self._chunk_cache.get((cx, cy, lod))
-        if base is None:
-            if not self._can_build():
-                return self._placeholder(cx, cy, size)   # не кэшируем: достроим в следующих кадрах
-            self._built_now += 1
-            base = self._get_chunk(cx, cy, lod)
-        tile = base if base.get_width() == size else pygame.transform.smoothscale(base, (size, size))
+        base = self._get_chunk(cx, cy, lod)
+        tile = (
+            base
+            if base.get_width() == size
+            else pygame.transform.smoothscale(base, (size, size))
+        )
         self._scaled_cache.put(key, tile)
         return tile
 
