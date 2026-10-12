@@ -8,8 +8,9 @@ import random
 from dataclasses import dataclass
 
 from combat import resolve_hit
-from engine import (hash_int, PX_PER_M, WORLD_HALF_PX, clamp, obb_hits_convex, obb_outside_rect,
-                    LRUCache, find_free_fraction, obb_convex_contact)
+from engine import (hash_int, PX_PER_M, WORLD_HALF_PX, clamp, obb_hits_obb, obb_hits_convex,
+                    obb_outside_rect, LRUCache, find_free_fraction, obb_convex_contact,
+                    TargetType, fmt_num)
 
 TAU = 2.0 * math.pi
 
@@ -97,8 +98,9 @@ def _polygon_area(pts):
 class Patch:
     """Одно препятствие: звёздчатый многоугольник вокруг центра (мировые px)."""
 
+    target_type = TargetType.TERRAIN
+
     def __init__(self, kind, x, y, pts):
-        target_type = TargetType.TERRAIN
         self.kind = kind
         self.x, self.y = x, y
         self.pts = pts

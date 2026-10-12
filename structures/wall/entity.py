@@ -13,8 +13,9 @@ CRACK_COUNT_MIN, CRACK_COUNT_MAX = 8, 40
 class Wall(Damageable):
     """Осевой прямоугольник на земле. x, y — центр (мировые px). Ширина по X, длина по Y."""
 
+    target_type = TargetType.WALL
+
     def __init__(self, x, y, hp, width_m, length_m, angle=0.0):
-        target_type = TargetType.WALL
         self.x = float(x)
         self.y = float(y)
         self.max_hp = float(hp)
@@ -148,7 +149,6 @@ class Wall(Damageable):
                 pts.append((x, y))
             result.append((threshold, pts))
         return result
-
 
 class WallManager:
     """Все стены на карте и выбранная."""
