@@ -1,8 +1,7 @@
 """ai/cover.py — укрытия: поиск места, закрытого от врага камнем или стеной, и «куда смотрит игрок»."""
 import math
 
-from engine import PX_PER_M, shortest_angle_diff
-from .steering import bearing_deg
+from engine import PX_PER_M, shortest_angle_diff, bearing_deg
 
 # --- поиск ---
 RINGS_M = (10.0, 18.0, 26.0)      # кольца вокруг бота, на которых пробуем точки

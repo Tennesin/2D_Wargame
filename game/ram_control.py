@@ -22,13 +22,13 @@ class RamController:
         self._cooldown = {k: t - dt for k, t in self._cooldown.items() if t - dt > 0.0}
 
         done = set()                     # пары, уже разобранные в этом кадре
-        for tank in self.fleet.tanks:
+        for tank in self.fleet.vehicles:
             if tank.alive and tank.impact_kmh is not None:
                 self._ram_rocks(tank)
                 self._ram_tanks(tank, done)
 
-        self.terrain.update_movers(dt, self._obbs_near)      # камни скользят
-        for tank in self.fleet.tanks:
+        self.terrain.rocks.update(dt, self._obbs_near)
+        for tank in self.fleet.vehicles:
             if tank.alive:
                 tank.update_push(dt, self.ctx.obstacles_for(tank), self.terrain)
 
@@ -36,7 +36,7 @@ class RamController:
 
     # ---------- камни ----------
     def _ram_rocks(self, tank):
-        for rock, nx, ny in self.terrain.pushables_touching(tank.hull_obb(), CONTACT_PAD_PX):
+        for rock, nx, ny in self.terrain.rocks.pushables_touching(tank.hull_obb(), CONTACT_PAD_PX):
             if not can_push(tank.mass_t, rock.mass_t):
                 continue                                     # слишком тяжёлый: остаётся глухим препятствием
             vx, vy = tank.velocity_px(tank.impact_kmh)
@@ -47,7 +47,7 @@ class RamController:
             res = resolve_ram(tank.mass_t, u1, rock.mass_t, u2, RESTITUTION_ROCK)
             tank.apply_impulse(nx, ny, res.u1 - u1)
             k = (res.u2 - u2) * PX_PER_M
-            self.terrain.push_rock(rock, rock.vx + nx * k, rock.vy + ny * k)
+            self.terrain.rocks.push(rock, rock.vx + nx * k, rock.vy + ny * k)
             if ROCK_HURTS_TANK:
                 tank.take_damage(ram_damage(abs(res.u1 - u1), tank.zone_at((nx, ny))))
 
@@ -55,7 +55,7 @@ class RamController:
     def _ram_tanks(self, a, done):
         hx, hy, hw, hl, ang = a.hull_obb()
         padded = (hx, hy, hw + CONTACT_PAD_PX, hl + CONTACT_PAD_PX, ang)
-        for b in self.fleet.tanks:
+        for b in self.fleet.vehicles:
             if b is a or not b.alive:
                 continue
             key = frozenset((id(a), id(b)))
@@ -96,7 +96,7 @@ class RamController:
     def _obbs_near(self, x, y, radius):
         """Стены и корпуса танков рядом с точкой: всё, что может остановить скользящий камень."""
         result = self.walls.obbs_near(x, y, radius)
-        for t in self.fleet.tanks:
+        for t in self.fleet.vehicles:
             if t.alive:
                 reach = radius + t.reach_px()
                 if (t.x - x) ** 2 + (t.y - y) ** 2 <= reach * reach:

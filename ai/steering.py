@@ -1,7 +1,7 @@
 """ai/steering.py — курс, «щупальца» вперёд, анти-застревание."""
 import math
 
-from engine import shortest_angle_diff, clamp, bearing_deg
+from engine import shortest_angle_diff, clamp
 
 def steer_to(tank, heading_deg, go, turn_in_place_deg=60.0):
     """Курс корпуса -> (throttle, steer). go: +1 вперёд, -1 назад, 0 стоять.

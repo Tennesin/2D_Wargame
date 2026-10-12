@@ -79,6 +79,8 @@ class Notifier:
             self._hit_on_enemy(target, normal, res, dealt)
         elif owner is me and target.target_type is TargetType.WALL:
             self._hit_on_wall(target, res, dealt)
+        elif owner is me and target.target_type is TargetType.TERRAIN:
+            self.say("Камень: снаряд не пробил", C_DIM)
 
     def on_ricochet(self, owner, target):
         """Снаряд отскочил от target и летит дальше."""

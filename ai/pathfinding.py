@@ -66,7 +66,7 @@ class TerrainNavCache:
     def __init__(self, terrain):
         self.terrain = terrain
         self._chunks = LRUCache(CACHE_CHUNKS)
-        terrain.add_move_listener(self.invalidate_circle)
+        terrain.rocks.add_move_listener(self.invalidate_circle)
 
     def chunk(self, ci, cj):
         """(dist, slow): два списка по CHUNK_CELLS² значений, строки подряд."""

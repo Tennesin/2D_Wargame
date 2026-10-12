@@ -38,7 +38,7 @@ class HoverInspector:
         wx, wy = self.camera.screen_to_world(*self.input.mouse_pos)
 
         # порядок как при рисовании: сверху танки (игрок самый верхний), потом стены, потом камни
-        for tank in reversed(self.fleet.tanks):
+        for tank in reversed(self.fleet.vehicles):
             if tank.alive and _in_obb(tank.hull_obb(), wx, wy):
                 return tank
         wall = self.walls.pick(wx, wy)

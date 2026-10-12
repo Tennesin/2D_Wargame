@@ -1,5 +1,5 @@
 """inputs — клавиши, привязки, снимок ввода и владелец мыши.
-Снаружи: from inputs import InputHandler, Action, MouseOwner, COMBAT_HOLD"""
+Снаружи: from inputs import InputHandler, Action, MouseOwner"""
 from .keymap import Action, MouseOwner
 from .handler import InputHandler
 

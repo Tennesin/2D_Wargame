@@ -1,15 +1,17 @@
-"""ai/brain.py — мозг бота: намерение (по баллам), путь A*, прорыв стен, укрытия, решение о выстреле."""
+"""ai/brain.py — мозг бота: выбор намерения по баллам и диспетчеризация планировщиков
+(Navigator, CoverPlanner, BreachPlanner), фланг, решение о выстреле."""
 import math
 from enum import Enum, auto
 
-from engine import VehicleCommand, shortest_angle_diff, clamp, PX_PER_M, heading_vector
+from engine import VehicleCommand, shortest_angle_diff, clamp, PX_PER_M, heading_vector, bearing_deg
 from combat import compute_aim
-from .steering import bearing_deg, steer_to, StuckGuard
-from .gunnery import (lead_point, flank_point, seconds_to_break, evaluate_matchup,
+from .steering import steer_to, StuckGuard
+from .gunnery import (lead_point, flank_point, evaluate_matchup,
                       outflank_feasibility, preferred_distance_m, best_hull_heading,
-                      shot_fraction_now, BREACH_MAX_S, MIN_USEFUL_DAMAGE, NO_DAMAGE)
-from .pathfinding import find_path
-from .cover import find_cover, shield_between, attention
+                      shot_fraction_now, MIN_USEFUL_DAMAGE, NO_DAMAGE)
+from .navigator import Navigator
+from .breach import BreachPlanner
+from .cover_planner import CoverPlanner, COVER_RETRY_S
 
 class Intent(Enum):
     ADVANCE = auto()
@@ -17,18 +19,6 @@ class Intent(Enum):
     FLANK = auto()
     BREACH = auto()      # ломать стену, которая мешает
     COVER = auto()       # спрятаться и ждать
-
-# --- прорыв стен ---
-BREACH_RANGE_M = 14.0        # с какого расстояния стреляем по стене
-BREACH_TRIGGER_M = 25.0      # стена на пути ближе этого: пора решать, ломать ли её
-
-# --- перепланирование пути ---
-MIN_REPLAN_S = 0.5           # быстрее этого путь не перестраивается даже при смене цели
-REPLAN_S = 1.5               # период перепланирования (с разбросом ±20%)
-REPLAN_GOAL_M = 10.0         # цель сместилась больше чем на это
-REPLAN_OFFPATH_M = 6.0       # бот ушёл с пути дальше этого
-FORBID_WALL_S = 15.0         # сколько секунд «непробиваемой» считается стена, с которой не вышло
-STUCK_SPOT_S = 12.0          # сколько секунд помним место, где застряли
 
 # --- позиция относительно цели (обход к корме / удержание лба) ---
 ORBIT_STEP_DEG = 40.0        # на сколько градусов вперёд по орбите ставим путевую точку
@@ -38,29 +28,43 @@ FLANK_COOLDOWN_S = 8.0       # пауза в обходах после неуд�
 # --- бить нечем: пора обходить ---
 FUTILE_REACT_S = 0.6         # сколько секунд урон должен быть «гарантированно» ниже NO_DAMAGE
 
-# --- укрытия ---
-COVER_ARRIVE_M = 4.5         # приехали к точке укрытия
-COVER_HOLD_M = 7.0           # уже спрятан и ближе этого к точке: можно ждать
-COVER_CALM_S = 2.0           # сколько игрок должен «смотреть мимо», чтобы мы вышли (на другого бота вдвое быстрее)
-COVER_PANIC_M = 12.0         # игрок смотрит на нас и ближе этого: укрытие не спасёт, выходим драться
-COVER_MAX_S = 25.0           # дольше не прячемся
-COVER_COOLDOWN_S = 7.0       # пауза до следующего укрытия после «игрок отвернулся»
-COVER_FIGHT_S = 10.0         # пауза после «прижали» или неудачи
-COVER_RETRY_S = 3.0          # пауза, если подходящего укрытия не нашлось
-COVER_MAX_TRIES = 3          # сколько раз подряд меняем укрытие
-COVER_BAD_S = 12.0           # сколько секунд помним негодное укрытие
-COVER_HP_DROP = 0.05         # потеряли столько HP (доля максимума) в укрытии: оно не работает
-
+# --- баллы намерений (_choose) ---
 INTENT_STICKY = 0.4          # бонус к баллу текущего намерения (против дрожания решений)
+IN_RANGE_K = 1.3             # «в зоне боя»: дистанция не больше engage * этого
+FLANKED_ANGLE_DEG = 60.0     # геометрически уже сбоку или сзади (нужно для укрытий)
+DUEL_CLAMP = 2.0             # потолок оценки дуэли в лоб (log2)
+GAIN_CLAMP = 3.0             # потолок выигрыша от фланга (log2)
+ENGAGE_BASE, ENGAGE_DUEL_K = 1.0, 0.5
+ENGAGE_IN_RANGE, ENGAGE_OUT_RANGE = 0.8, -0.6
+ADVANCE_BASE = 0.8
+ADVANCE_IN_RANGE, ADVANCE_OUT_RANGE = -0.4, 0.6
+FLANK_BLOCKED = -9.0         # фланг запрещён (уже на позиции или пауза после неудачи)
+FLANK_GAIN_K, FLANK_DUEL_K, FLANK_BASE = 1.2, 0.5, -0.6
+FUTILE_ENGAGE_PENALTY = 3.0
+FUTILE_ADVANCE_PENALTY = 1.5
+FUTILE_FLANK_BONUS = 2.5
+COVER_REACH_K = 1.1          # укрытие рассматриваем, если враг достаёт: дистанция <= дальность * этого
+COVER_FEAR_DUEL_K = 0.8      # страх от проигрышного матчапа
+COVER_FEAR_LOW_HP = 3.0      # базовый страх при HP ниже порога архетипа
+COVER_FEAR_LOW_HP_K = 2.5    # плюс растёт по мере падения HP
+COVER_FEAR_TRAPPED = 2.5     # бить нечем, а обходить уже некуда
+COVER_BASE = -1.0
+
+# --- движение на дистанции боя ---
+ENGAGE_FAR_K = 1.15          # дальше engage * этого: подъезжаем
+ENGAGE_NEAR_K = 0.6          # ближе engage * этого: сдаём назад
+
 FIRE_TOLERANCE_DEG = 2.0
-REVERSE_CHECK_M = 5.0        # на сколько метров назад смотрим, прежде чем сдавать задом
 
 class BotBrain:
     def __init__(self, arch, skill, rng):
         self.arch, self.skill, self.rng = arch, skill, rng
         self.intent = Intent.ADVANCE
         self.stuck = StuckGuard()
-        self._clock = 0.0                                         # время жизни мозга, с
+        self.nav = Navigator(rng)
+        self.cover = CoverPlanner(self.nav)
+        self.breach = BreachPlanner()
+        self._clock = 0.0                                         # время жизни мозга, с (нужно обходу)
         self._hold = 0.0                                          # сколько ещё держим намерение
         self._think_in = rng.uniform(0.0, 1.0 / skill.think_hz)   # сдвиг фаз между ботами
         self._heading, self._go = 0.0, 0.0                        # результат последнего «размышления»
@@ -69,27 +73,7 @@ class BotBrain:
         self._flank_side = rng.choice((-1, 1))
         self._react_left = None                                   # None: чистой линии огня нет
         self._futile_t = 0.0                                      # сколько секунд подряд бить нечем
-        # прорыв
-        self._breach_wall = None
-        self._breach_point = (0.0, 0.0)
-        self._breach_left = 0.0
-        # укрытие
-        self._cover_pt = None
-        self._cover_state = "move"                                # "move" едем, "hold" ждём
-        self._cover_t = 0.0
-        self._calm_t = 0.0
-        self._cover_hp0 = 0.0
-        self._cover_tries = 0
-        self._cover_block_until = 0.0                             # до этого момента в укрытие не идём
-        self._bad_cover = []                                      # [[x, y, ttl], ...]
-        # путь
-        self._path = None
-        self._replan_in = 0.0
-        self._forbidden = {}                                      # id стены -> секунд до снятия запрета
-        self._bad_spots = []                                      # [[x, y, ttl], ...] места застревания
         self._was_reversing = False
-        self._plan_age = 0.0                                      # сколько секунд текущему пути
-        # матчап
         self._m_key = None
         self._m = None
 
@@ -104,47 +88,36 @@ class BotBrain:
         self._clock += dt
         self._hold -= dt
         self._think_in -= dt
-        self._replan_in -= dt
-        self._plan_age += dt
-        self._tick_memory(dt)
-        if self.intent is Intent.BREACH:
-            self._breach_left -= dt
+        self.nav.tick(dt)
+        self.cover.tick(dt)
+        self.breach.tick(dt)
         if self._think_in <= 0.0:                                 # редко: решения и проверки местности
             self._think_in += 1.0 / self.skill.think_hz
             self._decide(me, enemy, ctx)
 
         if self.intent is Intent.BREACH:
-            aim = self._breach_point
+            aim = self.breach.point
         else:
             aim = lead_point(me, enemy, self.skill.lead_k)        # каждый кадр: дёшево
 
-        throttle, steer = steer_to(me, self._heading, self._go)
+        # Стоим на месте, а цель вне сектора наводки орудия: доворачиваем КОРПУС (для круговой башни offset = 0)
+        heading = self._heading
+        if self._go == 0.0:
+            off = me.hull_offset_to(*aim)
+            if off != 0.0:
+                heading = me.hull_angle + off
+
+        throttle, steer = steer_to(me, heading, self._go)
         # «давит» = пытается ехать ИЛИ поворачиваться (иначе заклинивший поворот на месте не виден)
         reversing = self.stuck.update(dt, me, throttle != 0.0 or steer != 0.0, self.rng)
         if reversing:
             if not self._was_reversing:
-                self._remember_stuck(me)
+                self.nav.remember_stuck(me)
             throttle, steer = -1.0, self.stuck.turn
         self._was_reversing = reversing
 
         fire = self._gunnery(dt, me, enemy, ctx, aim)
         return VehicleCommand(throttle=throttle, steer=steer, aim_point=aim, fire=fire)
-
-    def _tick_memory(self, dt):
-        """Запреты на стены, «плохие места» и негодные укрытия со временем забываются."""
-        if self._forbidden:
-            self._forbidden = {k: t - dt for k, t in self._forbidden.items() if t - dt > 0.0}
-        for spots in (self._bad_spots, self._bad_cover):
-            if spots:
-                for s in spots:
-                    s[2] -= dt
-                spots[:] = [s for s in spots if s[2] > 0.0]
-
-    def _remember_stuck(self, me):
-        """Бот застрял: помечаем место впереди штрафом и перестраиваем путь."""
-        fx, fy = heading_vector(me.hull_angle)
-        self._bad_spots.append([me.x + fx * 400.0, me.y + fy * 400.0, STUCK_SPOT_S])
-        self._invalidate()
 
     # ==========================================
     # РЕШЕНИЕ
@@ -156,16 +129,14 @@ class BotBrain:
         futile = self._update_futile(me, enemy, dist, tick)
 
         if self.intent is Intent.BREACH:                          # идёт прорыв
-            wall = self._breach_wall
-            if wall is None or not wall.alive or self._breach_left <= 0.0:
+            if self.breach.finished():
                 self._stop_breach()                               # стена рухнула или время вышло
             else:
-                self._heading, self._go = self._breach_move(me)
+                self._heading, self._go = self.breach.move(me)
                 return
 
-        if self.intent is Intent.COVER:                           # прячемся
-            if self._cover_step(me, enemy, ctx, dist, tick):
-                return                                            # продолжаем прятаться; иначе вышли и выбираем заново
+        if self.intent is Intent.COVER and self._run_cover(me, enemy, ctx, dist, tick):
+            return                                                # продолжаем прятаться; иначе вышли и выбираем заново
 
         seen = self._seen_from(me, enemy)
         arrived = self.intent is Intent.FLANK and self._in_position(seen)
@@ -178,17 +149,17 @@ class BotBrain:
         # бить нечем: не ждём конца гистерезиса, сразу пересматриваем
         if self._hold <= 0.0 or arrived or (futile and self.intent in (Intent.ENGAGE, Intent.ADVANCE)):
             intent = self._choose(me, enemy, dist, engage, futile)
-            if intent is Intent.COVER and not self._begin_cover(me, enemy, ctx):
-                self._cover_block_until = self._clock + COVER_RETRY_S    # укрытия нет: выбираем без него
+            if intent is Intent.COVER and not self.cover.begin(me, enemy, ctx):
+                self.cover.block(COVER_RETRY_S)                   # укрытия нет: выбираем без него
                 intent = self._choose(me, enemy, dist, engage, futile)
             if intent is not self.intent:
-                self._invalidate()
+                self.nav.invalidate()
                 if intent is Intent.FLANK:
                     self._flank_side = self._pick_flank_side(me, enemy, ctx)
                     self._flank_t = 0.0
             self.intent = intent
             self._hold = 1.5 + self.rng.random()                  # гистерезис
-            if intent is Intent.COVER and self._cover_step(me, enemy, ctx, dist, 0.0):
+            if intent is Intent.COVER and self._run_cover(me, enemy, ctx, dist, 0.0):
                 return
 
         if self.intent is Intent.FLANK:
@@ -197,35 +168,66 @@ class BotBrain:
         else:
             goal = (enemy.x, enemy.y)
             if self.intent is Intent.ENGAGE:
-                go = 1.0 if dist > engage * 1.15 else (-1.0 if dist < engage * 0.6 else 0.0)
+                go = (1.0 if dist > engage * ENGAGE_FAR_K
+                      else (-1.0 if dist < engage * ENGAGE_NEAR_K else 0.0))
             else:
                 go = 1.0
         want = bearing_deg(me.x, me.y, *goal)
 
         if go > 0.0:
-            res = self._drive_to(me, ctx, goal, want)
+            res = self._drive(me, ctx, goal, want)
             if res is None:                                       # начался прорыв
                 return
             want, go = res
         elif go == 0.0 and self.intent is Intent.ENGAGE:          # стоим на позиции
             if self._try_breach(me, ctx, want, dist):             # линию огня закрыла стена
                 return
-            want = best_hull_heading(me, enemy, want)             # выгодный угол корпуса
-        if go < 0.0 and self._rear_blocked(me, ctx):
+            if me.spec.TURRET_ARC_DEG >= 360.0:                   # круговая башня: можно подставлять выгодный угол,
+                want = best_hull_heading(me, enemy, want)         # ограниченный сектор требует смотреть прямо на цель
+        if go < 0.0 and Navigator.rear_blocked(me, ctx):
             go = 0.0                                              # сзади занято: стоим, а не упираемся
         self._heading, self._go = want, go
 
-    @staticmethod
-    def _rear_blocked(me, ctx):
-        """Занято ли место позади корпуса (камень, глубокая вода, стена, край мира) на пути заднего хода."""
-        fx, fy = heading_vector(me.hull_angle)
-        dist = REVERSE_CHECK_M * PX_PER_M
-        for k in (0.5, 1.0):
-            hull = me.footprint_at(me.x - fx * dist * k, me.y - fy * dist * k, me.hull_angle)[0]
-            if ctx.terrain.blocks_obb(hull) or ctx.walls.blocks_obb(hull):
-                return True
+    # ---------- связки с планировщиками ----------
+    def _drive(self, me, ctx, goal, want):
+        """Езда к цели по пути A*. None: началось прорыв стены."""
+        return self.nav.drive_to(me, ctx, goal, want,
+                                 on_wall=lambda wall: self._breach_via_path(me, ctx, wall))
+
+    def _breach_via_path(self, me, ctx, wall):
+        if self.breach.begin_from_path(me, ctx, wall):
+            self._enter_breach(me)
+            return True
         return False
 
+    def _try_breach(self, me, ctx, bearing, look_px):
+        if self.breach.begin_ahead(me, ctx, bearing, look_px):
+            self._enter_breach(me)
+            return True
+        return False
+
+    def _enter_breach(self, me):
+        self.intent = Intent.BREACH
+        self._hold = 0.0
+        self._heading, self._go = self.breach.move(me)
+
+    def _stop_breach(self):
+        self.breach.stop()
+        self.intent = Intent.ADVANCE
+        self._hold = 0.0
+        self.nav.invalidate()                                     # стены уже нет: путь строим заново
+
+    def _run_cover(self, me, enemy, ctx, dist, tick):
+        """Шаг укрытия. True: прячемся дальше. False: вышли, намерение сброшено на ADVANCE."""
+        self.cover.heading, self.cover.go = self._heading, self._go   # на случай, если step не выставит команду
+        if self.cover.step(me, enemy, ctx, dist, tick):
+            self._heading, self._go = self.cover.heading, self.cover.go
+            return True
+        self.intent = Intent.ADVANCE
+        self._hold = 0.0
+        return False
+
+    # ---------- фланг и позиция ----------
     @staticmethod
     def _nearer_flank(me, enemy):
         """Какой борт врага ближе ко мне: +1 правый, -1 левый (как в flank_point)."""
@@ -293,223 +295,51 @@ class BotBrain:
     def _choose(self, me, enemy, dist, engage, futile):
         m = self._matchup(me, enemy)
         seen_from = self._seen_from(me, enemy)
-        flanked = seen_from > 60.0                                # геометрически уже сбоку или сзади (для укрытий)
+        flanked = seen_from > FLANKED_ANGLE_DEG                   # геометрически уже сбоку или сзади (для укрытий)
         in_position = self._in_position(seen_from)
-        in_range = dist <= engage * 1.3
+        in_range = dist <= engage * IN_RANGE_K
 
-        duel = clamp(math.log2(m.front_ratio), -2.0, 2.0)         # >0: в лоб драться выгодно
-        gain = clamp(math.log2(m.flank_ratio / m.front_ratio), 0.0, 3.0)   # насколько фланг лучше лба
+        duel = clamp(math.log2(m.front_ratio), -DUEL_CLAMP, DUEL_CLAMP)    # >0: в лоб драться выгодно
+        gain = clamp(math.log2(m.flank_ratio / m.front_ratio), 0.0, GAIN_CLAMP)   # насколько фланг лучше лба
         mobility = outflank_feasibility(me, enemy, dist)          # 0..1: успею ли обойти
 
+        flank_blocked = in_position or self._clock < self._flank_block_until
         scores = {
-            Intent.ENGAGE: 1.0 + 0.5 * duel + (0.8 if in_range else -0.6),
-            Intent.ADVANCE: 0.8 + (-0.4 if in_range else 0.6),
-            Intent.FLANK: (-9.0 if in_position or self._clock < self._flank_block_until else
+            Intent.ENGAGE: (ENGAGE_BASE + ENGAGE_DUEL_K * duel
+                            + (ENGAGE_IN_RANGE if in_range else ENGAGE_OUT_RANGE)),
+            Intent.ADVANCE: ADVANCE_BASE + (ADVANCE_IN_RANGE if in_range else ADVANCE_OUT_RANGE),
+            Intent.FLANK: (FLANK_BLOCKED if flank_blocked else
                            self.arch.flank_bias + self.arch.aspect_drive
-                           + 1.2 * gain * mobility - 0.5 * duel - 0.6),
+                           + FLANK_GAIN_K * gain * mobility - FLANK_DUEL_K * duel + FLANK_BASE),
         }
         if futile:                                                # отсюда бить нечем: нужен обход
-            scores[Intent.ENGAGE] -= 3.0
-            scores[Intent.ADVANCE] -= 1.5
+            scores[Intent.ENGAGE] -= FUTILE_ENGAGE_PENALTY
+            scores[Intent.ADVANCE] -= FUTILE_ADVANCE_PENALTY
             if not in_position:
-                scores[Intent.FLANK] += 2.5
+                scores[Intent.FLANK] += FUTILE_FLANK_BONUS
 
         # укрытие: только когда игрок достаёт и пауза после прошлого укрытия прошла
-        if self._clock >= self._cover_block_until and dist <= enemy.spec.SHELL_RANGE_PX * 1.1:
-            fear = 0.8 * max(0.0, -duel)                          # проигрышный матчап
+        if self.cover.available and dist <= enemy.spec.SHELL_RANGE_PX * COVER_REACH_K:
+            fear = COVER_FEAR_DUEL_K * max(0.0, -duel)            # проигрышный матчап
             low = self.arch.retreat_hp
             hp_frac = me.hp / me.max_hp if me.max_hp > 0 else 1.0
             if low > 0.0 and hp_frac < low:                       # мало здоровья
-                fear += 3.0 + 2.5 * (1.0 - hp_frac / low)
+                fear += COVER_FEAR_LOW_HP + COVER_FEAR_LOW_HP_K * (1.0 - hp_frac / low)
             if futile and flanked:                                # бить нечем, а обходить уже некуда
-                fear += 2.5
-            scores[Intent.COVER] = self.arch.cover_bias + fear - 1.0
+                fear += COVER_FEAR_TRAPPED
+            scores[Intent.COVER] = self.arch.cover_bias + fear + COVER_BASE
 
         if self.intent in scores:
             scores[self.intent] += INTENT_STICKY
         return max(scores, key=scores.get)
 
-    # ---------- укрытие ----------
-    def _begin_cover(self, me, enemy, ctx):
-        """Начать прятаться: ищем точку. False, если подходящей нет."""
-        self._cover_t = 0.0
-        self._cover_tries = 0
-        self._calm_t = 0.0
-        return self._pick_cover(me, enemy, ctx)
-
-    def _pick_cover(self, me, enemy, ctx):
-        spot = find_cover(me, enemy, ctx, self._bad_cover)
-        if spot is None:
-            return False
-        self._cover_pt = spot
-        self._cover_state = "move"
-        self._invalidate()
-        return True
-
-    def _cover_step(self, me, enemy, ctx, dist, tick):
-        """Один шаг укрытия. True: продолжаем прятаться (курс и газ выставлены). False: вышли из укрытия."""
-        self._cover_t += tick
-        if self._cover_t > COVER_MAX_S:
-            return self._leave_cover(COVER_COOLDOWN_S)
-
-        cx, cy = self._cover_pt
-        d_pt = math.hypot(cx - me.x, cy - me.y)
-        hidden = shield_between(ctx, enemy, me.x, me.y) is not None   # закрыт ли я прямо сейчас
-
-        if self._cover_state == "move":
-            if hidden and d_pt <= COVER_HOLD_M * PX_PER_M:
-                self._cover_state = "hold"
-                self._calm_t = 0.0
-                self._cover_hp0 = me.hp
-            elif d_pt <= COVER_ARRIVE_M * PX_PER_M:
-                return self._cover_retry(me, enemy, ctx)              # приехали, а тут не прикрыто
-            else:
-                res = self._drive_to(me, ctx, (cx, cy), bearing_deg(me.x, me.y, cx, cy),
-                                     no_breach=True)
-                self._heading, self._go = res
-                return True
-
-        # состояние "hold"
-        if not hidden or me.hp < self._cover_hp0 - COVER_HP_DROP * me.max_hp:
-            return self._cover_retry(me, enemy, ctx)                  # игрок сместился, стена рухнула или бьют
-        att = attention(enemy, me, [b.tank for b in ctx.fleet.bots])
-        if att == "me":
-            self._calm_t = 0.0
-            if dist < COVER_PANIC_M * PX_PER_M:
-                return self._leave_cover(COVER_FIGHT_S)               # прижали: драться
-        else:
-            self._calm_t += tick * (2.0 if att == "other" else 1.0)  # игрок занят другим
-            if self._calm_t >= COVER_CALM_S:
-                return self._leave_cover(COVER_COOLDOWN_S)
-        self._heading = best_hull_heading(me, enemy, bearing_deg(me.x, me.y, enemy.x, enemy.y))
-        self._go = 0.0
-        return True
-
-    def _cover_retry(self, me, enemy, ctx):
-        """Это укрытие не работает: запоминаем его и текущую точку как плохие и ищем другое."""
-        cx, cy = self._cover_pt
-        self._bad_cover.append([cx, cy, COVER_BAD_S])
-        self._bad_cover.append([me.x, me.y, COVER_BAD_S])
-        self._cover_tries += 1
-        if self._cover_tries >= COVER_MAX_TRIES or not self._pick_cover(me, enemy, ctx):
-            return self._leave_cover(COVER_FIGHT_S)
-        return True
-
-    def _leave_cover(self, cooldown):
-        """Выход из укрытия. Всегда возвращает False (удобно для _cover_step)."""
-        self._cover_pt = None
-        self.intent = Intent.ADVANCE
-        self._hold = 0.0
-        self._cover_block_until = self._clock + cooldown
-        self._invalidate()
-        return False
-
-    # ---------- движение ----------
-    def _invalidate(self):
-        self._path = None
-        self._replan_in = 0.0
-
-    def _plan(self, me, ctx, goal, no_breach=False):
-        """Текущий путь; перестраивается по таймеру, при смене цели, при уходе с пути и по прибытии.
-        Если лимит построений на этот кадр выбран, возвращается прежний путь (или None)."""
-        p = self._path
-        need = self._replan_in <= 0.0
-        if p is not None and not need and self._plan_age >= MIN_REPLAN_S:
-            need = (math.hypot(goal[0] - p.goal[0], goal[1] - p.goal[1]) > REPLAN_GOAL_M * PX_PER_M
-                    or p.deviation_px(me.x, me.y) > REPLAN_OFFPATH_M * PX_PER_M
-                    or p.done(me.x, me.y))
-        if need:
-            if not ctx.budget.try_take():
-                return p                                          # повторим при следующем «размышлении»
-            self._path = find_path(me, goal, ctx.walls, ctx.nav,
-                                   self._forbidden, self._bad_spots, no_breach)
-            self._replan_in = REPLAN_S * self.rng.uniform(0.8, 1.2)
-            self._plan_age = 0.0
-        return self._path
-
-    def _drive_to(self, me, ctx, goal, want, no_breach=False):
-        """Курс и газ при езде к точке goal. None: бот перешёл в BREACH (при no_breach не бывает).
-        Нет пути: стоим и поворачиваемся к цели, а следующая попытка будет на следующем «размышлении»."""
-        for _ in range(2):              # второй проход нужен после запрета непробиваемой стены
-            path = self._plan(me, ctx, goal, no_breach)
-            if path is None:
-                break
-            wall = path.breach_wall
-            to_wall = (math.hypot(wall.x - me.x, wall.y - me.y) - wall.radius_px
-                       if wall is not None else None)
-            if wall is None or to_wall > BREACH_TRIGGER_M * PX_PER_M:
-                return bearing_deg(me.x, me.y, *path.next_point(me.x, me.y)), 1.0
-            if self._breach_path_wall(me, ctx, wall):
-                return None
-            self._forbidden[id(wall)] = FORBID_WALL_S             # с этого угла не выходит: считаем стену глухой
-            self._invalidate()
-        return want, 0.0
-
-    # ---------- прорыв стены ----------
-    def _try_breach(self, me, ctx, bearing, look_px):
-        """Есть ли по курсу bearing стена, которую выгодно ломать (проверка лучом).
-        Стена должна быть ПЕРВОЙ целью на линии: камень или танк впереди означают «ломать нечего»."""
-        fx, fy = heading_vector(bearing)
-        tx, ty = me.x + fx * look_px, me.y + fy * look_px
-        first = ctx.targets.raycast(me.x, me.y, tx, ty, ignore=me)
-        if first is None:
-            return False
-        hit = ctx.walls.raycast(me.x, me.y, tx, ty)
-        if hit is None or hit[0] is not first[0]:
-            return False
-        wall, t, normal = hit
-        point = (me.x + (tx - me.x) * t, me.y + (ty - me.y) * t)
-        return self._start_breach(me, wall, point, normal, bearing)
-
-    def _breach_path_wall(self, me, ctx, wall):
-        """Стена из пути A*: целимся в ближайшую к боту точку её поверхности по линии на центр стены.
-        Если на этой линии первой стоит что-то другое (камень, танк), ломать отсюда нельзя."""
-        first = ctx.targets.raycast(me.x, me.y, wall.x, wall.y, ignore=me)
-        if first is None or first[0] is not wall:
-            return False
-        res = wall.segment_hit(me.x, me.y, wall.x, wall.y)
-        if res is None:
-            return False
-        t, normal = res
-        point = (me.x + (wall.x - me.x) * t, me.y + (wall.y - me.y) * t)
-        return self._start_breach(me, wall, point, normal, bearing_deg(me.x, me.y, wall.x, wall.y))
-
-    def _start_breach(self, me, wall, point, normal, bearing):
-        """Проверка по реальному углу попадания; при успехе переходим в BREACH."""
-        fx, fy = heading_vector(bearing)
-        cos_i = 1.0 if normal is None else abs(fx * normal[0] + fy * normal[1])
-        secs = seconds_to_break(me, wall, cos_i, normal, MIN_USEFUL_DAMAGE)
-        if secs is None or secs > BREACH_MAX_S:
-            return False                                          # не пробить или слишком долго
-        self.intent = Intent.BREACH
-        self._breach_wall = wall
-        self._breach_point = point
-        self._breach_left = secs + 6.0                            # запас на доводку и рикошеты
-        self._hold = 0.0
-        self._heading, self._go = self._breach_move(me)
-        return True
-
-    def _breach_move(self, me):
-        """Курс на стену; подъезжаем до BREACH_RANGE_M, дальше стоим и стреляем."""
-        px, py = self._breach_point
-        heading = bearing_deg(me.x, me.y, px, py)
-        far = math.hypot(px - me.x, py - me.y) > BREACH_RANGE_M * PX_PER_M
-        return heading, (1.0 if far else 0.0)
-
-    def _stop_breach(self):
-        self._breach_wall = None
-        self.intent = Intent.ADVANCE
-        self._hold = 0.0
-        self._invalidate()                                        # стены уже нет: путь строим заново
-
     # ==========================================
     # ОГОНЬ
     # ==========================================
-
     def _gunnery(self, dt, me, enemy, ctx, aim_point):
         err = shortest_angle_diff(bearing_deg(me.x, me.y, *aim_point), me.turret_angle)
         breaching = self.intent is Intent.BREACH
-        target = self._breach_wall if breaching else enemy
+        target = self.breach.wall if breaching else enemy
         # по врагу стреляем уже от 5% урона, по стене только от 15% (по этому порогу считалось время прорыва)
         min_frac = MIN_USEFUL_DAMAGE if breaching else NO_DAMAGE
         if abs(err) > 6.0:

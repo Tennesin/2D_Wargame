@@ -11,11 +11,6 @@ class Fleet:
         """Сначала боты, потом игрок (игрок рисуется сверху)."""
         return [b.tank for b in self.bots] + [self.player]
 
-    @property
-    def tanks(self):
-        """Старое имя vehicles: оставлено, чтобы не править все места сразу."""
-        return self.vehicles
-
     def remove_dead(self):
         """Убирает уничтоженных ботов, учитывает их в kills и возвращает сколько убрано.
         Игрок остаётся всегда."""

@@ -1,12 +1,13 @@
 """tank/entity.py — танк: башня и орудие поверх общего шасси Vehicle (vehicles/base.py)."""
 import math
 
-from engine import shortest_angle_diff, Shot, heading_vector, bearing_deg, fmt_num, Team
+from engine import shortest_angle_diff, Shot, heading_vector, bearing_deg, fmt_num, Team, clamp
 from ..base import Vehicle
 
 class Tank(Vehicle):
     renderer_key = "tank"
     AIM_DEAD_ZONE = 100.0  # если курсор ближе к центру танка (1 м), башня не дёргается
+    ARC_MARGIN_DEG = 3.0    # корпус доворачивают так, чтобы цель была не на самом краю сектора
 
     def __init__(self, x=0.0, y=0.0, *, spec, team_color=(200, 40, 40),
                  team=Team.PLAYER, label="танк"):
@@ -44,14 +45,21 @@ class Tank(Vehicle):
 
     def _aim_turret(self, aim_point, dt):
         s = self.spec
+        half = s.TURRET_ARC_DEG / 2.0
+        limited = half < 180.0                             # круговая башня или ограниченный сектор
+        rel = shortest_angle_diff(self.turret_rel_angle, 0.0)   # угол башни к корпусу: -180..180
+
         target_rate = 0.0
         diff = 0.0
         if aim_point is not None:
             dx = aim_point[0] - self.x
             dy = aim_point[1] - self.y
             if math.hypot(dx, dy) >= self.AIM_DEAD_ZONE:
-                target_abs = bearing_deg(self.x, self.y, *aim_point)
-                diff = shortest_angle_diff(target_abs, self.turret_angle)
+                want = shortest_angle_diff(bearing_deg(self.x, self.y, *aim_point), self.hull_angle)
+                if limited:
+                    diff = clamp(want, -half, half) - rel      # без «короткого пути» через запретный сектор
+                else:
+                    diff = shortest_angle_diff(want, rel)
                 # скорость, с которой ещё успеем затормозить к цели: v = sqrt(2·α·путь)
                 allowed = math.sqrt(2.0 * s.turret_alpha * abs(diff))
                 target_rate = math.copysign(min(s.turret_turn, allowed), diff)
@@ -64,7 +72,13 @@ class Tank(Vehicle):
             delta = diff                                  # не перелетаем цель
             self.turret_rate = 0.0
 
-        self.turret_rel_angle = (self.turret_rel_angle + delta) % 360.0
+        new_rel = rel + delta
+        if limited:
+            clamped = clamp(new_rel, -half, half)
+            if clamped != new_rel:                        # упёрлись в границу сектора
+                self.turret_rate = 0.0
+            new_rel = clamped
+        self.turret_rel_angle = new_rel % 360.0
 
     def _update_gun(self, fire, dt):
         """Перезарядка и выстрел. Возвращает Shot, если выстрел произошёл в этом кадре."""
@@ -83,6 +97,18 @@ class Tank(Vehicle):
         fx, fy = heading_vector(self.turret_angle)
         dist = self.spec.MUZZLE_DIST_PX
         return self.x + fx * dist, self.y + fy * dist
+
+    def hull_offset_to(self, x, y):
+        """Сколько градусов довернуть КОРПУС (+ по часовой), чтобы точка (x, y) попала в сектор башни.
+        0, если башня круговая или точка уже в секторе (с запасом ARC_MARGIN_DEG)."""
+        half = self.spec.TURRET_ARC_DEG / 2.0
+        if half >= 180.0:
+            return 0.0
+        want = shortest_angle_diff(bearing_deg(self.x, self.y, x, y), self.hull_angle)
+        margin = max(0.0, half - self.ARC_MARGIN_DEG)
+        if abs(want) <= margin:
+            return 0.0
+        return want - math.copysign(margin, want)
 
     @property
     def recoil_m(self):

@@ -152,6 +152,11 @@ class Vehicle(Damageable):
             ("Масса", f"{fmt_num(s.mass, 1)} т"),
         ]
 
+    def hull_offset_to(self, x, y):
+        """Сколько градусов надо довернуть корпус (+ по часовой), чтобы точка (x, y) стала досягаема
+        орудием. Базовая техника: 0 (вопрос не стоит)."""
+        return 0.0
+
     # ---------- кадр ----------
     def update(self, command: VehicleCommand, dt, obstacles=(), terrain=None):
         """obstacles — повёрнутые прямоугольники стен и чужой техники (x, y, half_w, half_l, angle).
