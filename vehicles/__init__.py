@@ -4,8 +4,10 @@
 from .base import Vehicle
 from .tank import (Tank, TankSpec, TankRenderer, PARAMS as TANK_PARAMS, COST_REF, cost_for,
                    LOOK_FRONT_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO,
-                   GUN_TUNE_PARAMS, damage_range, pen_range, remap)
+                   GUN_TUNE_PARAMS, damage_range, pen_range, remap,
+                   nominal_damage, nominal_pen)
 
 __all__ = ["Vehicle", "Tank", "TankSpec", "TankRenderer", "TANK_PARAMS", "COST_REF",
            "LOOK_FRONT_RATIO", "LOOK_GUN_RATIO", "LOOK_SPEED_RATIO", "cost_for",
-           "GUN_TUNE_PARAMS", "damage_range", "pen_range", "remap"]
+           "GUN_TUNE_PARAMS", "damage_range", "pen_range", "remap",
+           "nominal_damage", "nominal_pen"]

@@ -1,5 +1,6 @@
 """world/ground_renderer.py — отрисовка земли: чанки с зумом и декор."""
 import math
+import time
 
 import pygame
 
@@ -7,8 +8,9 @@ from engine import LRUCache
 from .generator import CHUNK_SIZE, CELL_SIZE
 
 MIN_CACHED_CHUNKS = 40
-# Сколько новых базовых чанков можно построить за кадр, по LOD (чем крупнее клетка, тем дешевле чанк)
-BUILD_BUDGET = {1: 1, 2: 2, 4: 6, 8: 16}
+VISIBLE_BUILD_MS = 14.0     # сколько мс за кадр можно тратить на построение ВИДИМЫХ чанков (один строится всегда)
+PREFETCH_MS = 3.0           # сколько мс за кадр уходит на предзагрузку чанков за краем экрана
+PREFETCH_RING = 1           # на сколько чанков за экраном готовим запас
 
 def ground_lod(zoom):
     """Чем дальше камера, тем крупнее клетка земли (меньше расчётов шума): 1, 2, 4, 8."""
@@ -29,7 +31,8 @@ class GroundRenderer:
         self.world = world_generator
         self._chunk_cache = LRUCache()    # (cx, cy, lod) -> Surface, как построено (без масштаба)
         self._scaled_cache = LRUCache()   # (cx, cy) -> Surface, уже под текущий зум
-        self._builds_left = 0             # сколько чанков ещё можно построить в этом кадре
+        self._built_now = 0               # сколько видимых чанков построено в этом кадре
+        self._deadline = 0.0              # до какого момента (perf_counter) можно строить видимые чанки
 
     def set_zoom(self):
         """Зум сменился: масштабированные чанки устарели, базовые остаются."""
@@ -38,7 +41,11 @@ class GroundRenderer:
     def draw(self, screen, camera):
         z = camera.zoom
         lod = ground_lod(z)
-        self._builds_left = 10 ** 9 if len(self._chunk_cache) == 0 else BUILD_BUDGET[lod]
+        self._built_now = 0
+        if len(self._chunk_cache) == 0:
+            self._deadline = float("inf")          # самый первый кадр: строим всё сразу
+        else:
+            self._deadline = time.perf_counter() + VISIBLE_BUILD_MS / 1000.0
         left, top = camera.origin_px()
         width, height = screen.get_size()
 
@@ -57,13 +64,38 @@ class GroundRenderer:
                 screen.blit(tile, (round(cx * span) - left, round(cy * span) - top))
                 visible += 1
 
-        limit = max(MIN_CACHED_CHUNKS, visible + 12)
+        ring = self._prefetch(cx0, cx1, cy0, cy1, lod)
+
+        limit = max(MIN_CACHED_CHUNKS, visible + ring + 12)
         self._chunk_cache.trim(limit)
         self._scaled_cache.trim(limit)
 
     # ==========================================
     # ЗЕМЛЯ И ЧАНКИ
     # ==========================================
+
+    def _can_build(self):
+        """Хотя бы один видимый чанк за кадр строим всегда, дальше пока не вышло время."""
+        return self._built_now == 0 or time.perf_counter() < self._deadline
+
+    def _prefetch(self, cx0, cx1, cy0, cy1, lod):
+        """Готовит базовые чанки в кольце за краем экрана, чтобы при движении они уже были построены.
+        Возвращает, сколько чанков в кольце (нужно для лимита кэша)."""
+        deadline = time.perf_counter() + PREFETCH_MS / 1000.0
+        out_of_time = False
+        count = 0
+        for cy in range(cy0 - PREFETCH_RING, cy1 + PREFETCH_RING + 1):
+            for cx in range(cx0 - PREFETCH_RING, cx1 + PREFETCH_RING + 1):
+                if cx0 <= cx <= cx1 and cy0 <= cy <= cy1:
+                    continue                                   # видимые уже обработаны
+                count += 1
+                if self._chunk_cache.get((cx, cy, lod)) is not None:
+                    continue                                   # get освежил запись: не вытеснят
+                if out_of_time or time.perf_counter() >= deadline:
+                    out_of_time = True
+                    continue
+                self._get_chunk(cx, cy, lod)
+        return count
 
     def _get_scaled_chunk(self, cx, cy, lod, size):
         key = (cx, cy)
@@ -74,24 +106,13 @@ class GroundRenderer:
 
         base = self._chunk_cache.get((cx, cy, lod))
         if base is None:
-            if self._builds_left <= 0:
+            if not self._can_build():
                 return self._placeholder(cx, cy, size)   # не кэшируем: достроим в следующих кадрах
-            self._builds_left -= 1
+            self._built_now += 1
             base = self._get_chunk(cx, cy, lod)
         tile = base if base.get_width() == size else pygame.transform.smoothscale(base, (size, size))
         self._scaled_cache.put(key, tile)
         return tile
-
-    def _placeholder(self, cx, cy, size):
-        """Временная картинка чанка, пока настоящий ещё не построен: версия другого LOD из кэша,
-        иначе плоский цвет земли в центре чанка."""
-        for other in (8, 4, 2, 1):
-            base = self._chunk_cache.get((cx, cy, other))
-            if base is not None:
-                return base if base.get_width() == size else pygame.transform.smoothscale(base, (size, size))
-        surf = pygame.Surface((size, size))
-        surf.fill(self.world.ground_color(cx, cy, CHUNK_SIZE))   # индексы «клеток» размером в чанк
-        return surf
 
     def _get_chunk(self, cx, cy, lod):
         return self._chunk_cache.get_or_build((cx, cy, lod), lambda: self._build_chunk(cx, cy, lod))

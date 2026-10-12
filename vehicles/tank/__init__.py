@@ -6,8 +6,8 @@ from .params import (PARAMS, COST_REF, LOOK_FRONT_RATIO, LOOK_GUN_RATIO, LOOK_SP
 from .spec import TankSpec, cost_for
 from .entity import Tank
 from .sprites import TankRenderer
-from .gun_tuning import damage_range, pen_range, remap
+from .gun_tuning import damage_range, pen_range, remap, nominal_damage, nominal_pen
 
 __all__ = ["PARAMS", "COST_REF", "LOOK_FRONT_RATIO", "LOOK_GUN_RATIO", "LOOK_SPEED_RATIO",
-           "TankSpec", "Tank", "TankRenderer", "cost_for",
-           "GUN_TUNE_PARAMS", "damage_range", "pen_range", "remap"]
+           "TankSpec", "Tank", "TankRenderer", "cost_for", "GUN_TUNE_PARAMS", "damage_range",
+           "pen_range", "remap", "nominal_damage", "nominal_pen"]

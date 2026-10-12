@@ -3,7 +3,7 @@ import math
 import pygame
 
 from .settings import BOT_MARKERS_ENABLED
-from engine import PX_PER_M, get_text, FONT_SIZE_LABEL
+from engine import PX_PER_M, get_text, clamp, FONT_SIZE_LABEL
 
 EDGE_INSET = 24              # отступ указателя от края экрана, px
 EDGE_SIZE = 13               # размер треугольника у края
@@ -11,6 +11,15 @@ ON_SIZE = 9                  # размер треугольника над ви
 FILL = (70, 150, 255)
 OUTLINE = (10, 20, 50)
 TEXT = (150, 195, 255)
+
+BAR_W = 36                   # ширина полоски HP, px
+BAR_H = 5                    # высота полоски HP, px
+BAR_GAP = 4                  # зазор между остриём треугольника и полоской
+BAR_BG = (30, 33, 40)
+BAR_BORDER = (10, 20, 50)
+HP_OK = (90, 200, 90)
+HP_MID = (230, 200, 70)
+HP_LOW = (230, 80, 70)
 
 class BotMarkers:
     def __init__(self, fleet, camera):
@@ -35,7 +44,9 @@ class BotMarkers:
             if abs(sx - cx) <= hx and abs(sy - cy) <= hy:
                 # бот на экране: треугольник над танком, остриём вниз
                 lift = (t.spec.COLLISION_HALF_L_PX + 60.0) * zoom + 10.0
-                self._triangle(screen, sx, sy - lift, math.pi / 2.0, ON_SIZE)
+                mx, my = sx, sy - lift
+                self._triangle(screen, mx, my, math.pi / 2.0, ON_SIZE)
+                self._hp_bar(screen, mx, my + ON_SIZE + BAR_GAP, t)   # полоска под остриём
                 continue
 
             # бот за экраном: ставим указатель на край, остриё смотрит на бота
@@ -67,3 +78,17 @@ class BotMarkers:
         b2 = (x - ux * size * 0.6 - vx * size * 0.7, y - uy * size * 0.6 - vy * size * 0.7)
         pygame.draw.polygon(screen, FILL, (tip, b1, b2))
         pygame.draw.polygon(screen, OUTLINE, (tip, b1, b2), 2)
+
+    @staticmethod
+    def _hp_bar(screen, cx, top, tank):
+        """Полоска здоровья: центр по cx, верхний край на top. Без цифр, только заполнение."""
+        frac = clamp(tank.hp / tank.max_hp, 0.0, 1.0) if tank.max_hp > 0 else 0.0
+        color = HP_OK if frac > 0.6 else HP_MID if frac > 0.3 else HP_LOW
+
+        bar = pygame.Rect(0, 0, BAR_W, BAR_H)
+        bar.midtop = (round(cx), round(top))
+        pygame.draw.rect(screen, BAR_BG, bar)
+        if frac > 0.0:
+            fill = pygame.Rect(bar.x, bar.y, max(1, round(BAR_W * frac)), BAR_H)
+            pygame.draw.rect(screen, color, fill)
+        pygame.draw.rect(screen, BAR_BORDER, bar.inflate(2, 2), 1)

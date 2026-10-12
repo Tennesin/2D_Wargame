@@ -27,6 +27,8 @@ class Archetype:
     aspect_deg: float = 90.0        # куда стремится: 0 лоб, 90 борт, 180 корма
     aspect_tol_deg: float = 30.0    # допуск: в этих пределах бот считается «на позиции»
     aspect_drive: float = 0.0       # постоянная тяга к позиции (балл намерения FLANK)
+    damage_band: tuple = (0.5, 0.5)   # где на ползунке урона (0..1 внутри коридора калибра) выбирается значение
+    pen_band: tuple = (0.5, 0.5)      # то же для пробития
 
 @dataclass(frozen=True)
 class Skill:
@@ -42,7 +44,8 @@ UNIVERSAL = Archetype(
     "Универсал", _w, (70, 120, 210),
     engage_dist_m=22.0, flank_bias=0.3,
     jitter=0.0, t_anchor=_t, retreat_hp=0.35, cover_bias=0.3,
-    aspect_deg=150.0, aspect_tol_deg=30.0, aspect_drive=1.6)
+    aspect_deg=150.0, aspect_tol_deg=30.0, aspect_drive=1.6,
+    damage_band=(0.60, 0.80), pen_band=(0.60, 0.80))
 
 BUNKER = Archetype(
     "Бункер",
@@ -52,7 +55,8 @@ BUNKER = Archetype(
     engage_dist_m=16.0, flank_bias=0.0,
     retreat_hp=0.0, cover_bias=0.0,
     budget_k=1.4, spawn_weight=0.5, edge_k=0.3,
-    aspect_deg=0.0, aspect_tol_deg=35.0, aspect_drive=3.0)
+    aspect_deg=0.0, aspect_tol_deg=35.0, aspect_drive=3.0,
+    damage_band=(0.40, 0.60), pen_band=(0.40, 0.60))
 
 DESTROYER = Archetype(
     "Уничтожитель",
@@ -62,7 +66,8 @@ DESTROYER = Archetype(
     engage_dist_m=28.0, flank_bias=0.2,
     retreat_hp=0.5, cover_bias=0.8,
     budget_k=1.0, spawn_weight=0.8, edge_k=0.3,
-    aspect_deg=120.0, aspect_tol_deg=60.0, aspect_drive=0.8)
+    aspect_deg=120.0, aspect_tol_deg=60.0, aspect_drive=0.8,
+    damage_band=(0.80, 1.00), pen_band=(0.80, 1.00))
 
 SCOUT = Archetype(
     "Разведчик",
@@ -72,7 +77,8 @@ SCOUT = Archetype(
     engage_dist_m=26.0, flank_bias=0.8,
     retreat_hp=0.3, cover_bias=0.2,
     budget_k=0.6, spawn_weight=1.2, edge_k=1.0,
-    aspect_deg=165.0, aspect_tol_deg=25.0, aspect_drive=2.5)
+    aspect_deg=165.0, aspect_tol_deg=25.0, aspect_drive=2.5,
+    damage_band=(0.00, 0.25), pen_band=(0.40, 0.60))
 
 ARCHETYPES = {"universal": UNIVERSAL, "bunker": BUNKER,
               "destroyer": DESTROYER, "scout": SCOUT}
