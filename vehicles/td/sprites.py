@@ -23,6 +23,7 @@ def _tint(color, k):
 # Рубка/опора: сколько метров корпуса лежит ПОЗАДИ оси орудия, по уровням опоры
 CASEMATE_REACH = (1.9, 2.3, 2.8)
 CASEMATE_AHEAD = 0.45            # передняя грань рубки впереди оси орудия
+DECK_TOP = -2.25         # начало палубы сразу за лобовой плитой (в координатах корпуса)
 HULL_FRONT_LIMIT = -2.55
 HULL_REAR_LIMIT = 2.8
 
@@ -90,10 +91,7 @@ class TDRenderer(TankRenderer):
         pen.rect(deck, -1.25, -2.25, 2.50, 4.60)
         self._draw_front_kit(pen, look.front, paint)
 
-        # 3а. Детали лба: фары, перископ и люк механика-водителя
-        for sx in (-1, 1):
-            pen.ellipse(LAMP, sx * 1.0, -2.68, 0.11, 0.11)
-        pen.rect(hull_dark, -0.95, -2.58, 0.50, 0.14, r=0.03)
+        # 3а. Детали лба: только люк механика-водителя
         pen.ellipse(hull_dark, 0.78, -2.52, 0.20, 0.20)
 
         # 4. Моторная часть позади рубки (только когда орудие на лбу)
@@ -111,6 +109,7 @@ class TDRenderer(TankRenderer):
                 pen.line(GRILL_LINE, -0.80, ly, 0.80, ly, 0.05)
                 ly += 0.25
             pen.rect(hull_dark, -0.95, 2.50, 1.90, 0.25)  # кормовая планка
+        self._draw_deck(pen, front, hull_dark)
 
         # 5. Опора (уровни 1 и 2): цоколь под рубкой; на уровне 2 ещё гладкий кормовой короб
         if support >= 1:
@@ -168,6 +167,23 @@ class TDRenderer(TankRenderer):
 
         self._draw_exhaust(pen, look.speed)
         return pygame.transform.smoothscale(big, (size, size))
+
+    @staticmethod
+    def _draw_deck(pen, y_end, hull_dark):
+        """Моторная крышка на палубе между лобовой плитой и рубкой.
+        y_end: передний край рубки. Если места мало (орудие на лбу), палуба остаётся гладкой."""
+        y0 = DECK_TOP + 0.45
+        free = y_end - 0.15 - y0
+        if free < 0.9:
+            return
+        pen.rect(hull_dark, -1.05, y0, 2.10, free, r=0.05)             # рама крышки
+        pen.rect(GRILL, -0.90, y0 + 0.12, 1.80, free - 0.24)           # решётка
+        ly = y0 + 0.32
+        while ly < y0 + free - 0.2:                                    # жалюзи
+            pen.line(GRILL_LINE, -0.76, ly, 0.76, ly, 0.05)
+            ly += 0.26
+        if free >= 2.2:                                                # длинная палуба: делим на два люка
+            pen.rect(hull_dark, -0.90, y0 + free / 2.0 - 0.05, 1.80, 0.10, outline=None)
 
     # ==========================================
     # ЛАФЕТ ОРУДИЯ

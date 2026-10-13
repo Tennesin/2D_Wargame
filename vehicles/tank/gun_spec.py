@@ -38,6 +38,8 @@ class GunSpec:
     """arc_deg — полный сектор наводки башни относительно корпуса: 360 = круговая башня,
     меньше (например 40) = казематная установка (ПТ-САУ), которой надо доворачивать корпус."""
 
+    TURRET_SCALE_RANGE = (0.8, 1.15)   # границы поправки масштаба башни на калибр
+
     def __init__(self, cal, size_k, power, m_gun, m_turret, arc_deg=360.0,
                  damage=None, penetration=None, profile=MBT_GUN,
                  front_m=TURRET_FRONT_M, barrel_ref_m=BARREL_VIS_REF_M):
@@ -86,7 +88,7 @@ class GunSpec:
     def _calc_visual(self, size_k):
         cal = self.cal
         cr = cal / REF_CAL
-        self.TURRET_SCALE = size_k * clamp(cr ** 0.35, 0.8, 1.15)
+        self.TURRET_SCALE = size_k * clamp(cr ** 0.35, *self.TURRET_SCALE_RANGE)
 
         world_len = self.BARREL_REF_M * size_k * clamp(cr ** BARREL_VIS_EXP, *BARREL_VIS_K_RANGE)
         raw = world_len / self.TURRET_SCALE

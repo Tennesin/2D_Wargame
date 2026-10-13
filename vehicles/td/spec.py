@@ -83,6 +83,8 @@ class TDGunSpec(GunSpec):
     """Вращается только орудие, а не башня: инерция меньше, наводка медленнее и в узком секторе.
     Имена turret_turn / turret_alpha сохранены: их читает GunVehicle._aim_turret."""
 
+    TURRET_SCALE_RANGE = (1.0, 1.0)    # у ПТ-САУ маска принадлежит корпусу, поэтому масштаб орудия = масштаб корпуса
+
     def _calc_turret(self, size_k, power, m_gun, m_turret):
         barrel_len = self.cal * self.l_cal / 1000.0 * BARREL_VISIBLE_K
         arm = GUN_ARM_BASE_M * size_k + GUN_ARM_BARREL_K * barrel_len
