@@ -3,7 +3,8 @@
 from enum import Enum, auto
 from functools import partial
 
-from vehicles import TankSpec, TANK_PARAMS, GUN_TUNE_PARAMS
+from engine import VehicleKind
+from vehicles import TankSpec, TDSpec, TANK_PARAMS, TD_PARAMS, GUN_TUNE_PARAMS
 from structures import WALL_PARAMS
 from ui import (Panel, SectionHeader, StatsBlock, InfoText, ActionButton,
                 make_param_row, DELETE_BUTTON_COLORS)
@@ -11,12 +12,15 @@ from ui import (Panel, SectionHeader, StatsBlock, InfoText, ActionButton,
 class PanelMode(Enum):
     TANK = auto()
     WALL = auto()
+    TD = auto()
 
-def build_tank_panel():
-    spec0 = TankSpec.from_config()      # нужен только ради списка названий характеристик
-    row = partial(make_param_row, TANK_PARAMS)
+PANEL_OF = {VehicleKind.MBT: PanelMode.TANK, VehicleKind.TD: PanelMode.TD}
+
+def _build_vehicle_panel(title, params, spec0, note=None):
+    """Общая панель конструктора: ползунки типа техники + блоки характеристик."""
+    row = partial(make_param_row, params)
     tune_row = partial(make_param_row, GUN_TUNE_PARAMS)
-    return Panel("Конструктор техники", [
+    items = [
         SectionHeader("Вооружение"),
         row("gun_caliber_mm"),
         tune_row("gun_damage"),
@@ -29,13 +33,28 @@ def build_tank_panel():
 
         SectionHeader("Силовая установка"),
         row("engine_power_hp"),
-
+    ]
+    if note:
+        items.append(InfoText(note))
+    items += [
         SectionHeader("Расчётные характеристики"),
         StatsBlock(list(spec0.main_stats())),
 
         SectionHeader("Внутренние показатели"),
         StatsBlock(list(spec0.internal_stats())),
-    ])
+    ]
+    return Panel(title, items)
+
+def build_tank_panel():
+    return _build_vehicle_panel("Конструктор: ОБТ", TANK_PARAMS, TankSpec.from_config())
+
+def build_td_panel():
+    return _build_vehicle_panel(
+        "Конструктор: ПТ-САУ", TD_PARAMS, TDSpec.from_config(),
+        note="Орудие без башни: наводка только в пределах УГН (±15° от оси корпуса), "
+             "дальше нужно доворачивать корпус. Чем крупнее калибр, тем дальше назад "
+             "уезжает орудие и появляется задняя опора. Урон и пробитие выше, чем у ОБТ "
+             "того же калибра, при той же перезарядке.")
 
 def build_wall_panel():
     """Колбэк красной кнопки здесь не задаётся: его привязывает WallEditor (bind_wall_delete)."""

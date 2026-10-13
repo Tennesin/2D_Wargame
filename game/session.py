@@ -1,12 +1,22 @@
-"""game/session.py — данные, которые переживают смену сцен (сейчас: настройки танка)."""
-from vehicles import TankSpec, TANK_PARAMS, GUN_TUNE_PARAMS
+"""game/session.py — данные, которые переживают смену сцен: выбранный тип техники и настройки каждого типа."""
+from engine import VehicleKind
+from vehicles import VEHICLE_TYPES, default_tuning
 
 class Session:
     def __init__(self):
-        # значения ползунков конструктора: {ключ: число}; стартуем со значений по умолчанию
-        self.tank_values = {key: p.default for key, p in TANK_PARAMS.items()}
-        self.tank_values.update({key: p.default for key, p in GUN_TUNE_PARAMS.items()})
+        self.kind = VehicleKind.MBT
+        # значения ползунков для КАЖДОГО типа отдельно: при переключении кнопок настройки не теряются
+        self.values = {kind: self._defaults(t) for kind, t in VEHICLE_TYPES.items()}
 
-    def tank_spec(self):
-        """Спецификация танка по текущим значениям."""
-        return TankSpec.from_values(self.tank_values)
+    @staticmethod
+    def _defaults(vtype):
+        values = {key: p.default for key, p in vtype.params.items()}
+        dmg, pen = default_tuning(values["gun_caliber_mm"], vtype.gun_profile)
+        values["gun_damage"] = dmg
+        values["gun_penetration"] = pen
+        return values
+
+    def spec(self):
+        """Спецификация выбранной техники по текущим значениям."""
+        t = VEHICLE_TYPES[self.kind]
+        return t.spec_cls.from_values(self.values[self.kind])

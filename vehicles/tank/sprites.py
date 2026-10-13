@@ -112,6 +112,9 @@ class _Pen:
 # ==========================================
 
 class TankRenderer:
+
+    HULL_HALF_M = HULL_HALF_M        # половина стороны заготовки корпуса; ПТ-САУ переопределяет
+
     def __init__(self):
         self._ppm = 0.0
         self._hull_cache = LRUCache(240)
@@ -128,7 +131,7 @@ class TankRenderer:
                       self._sil_cache, self._rot_cache):
             cache.clear()
         # размер повёрнутой поверхности растёт с зумом, поэтому лимит записей считаем от бюджета памяти
-        side = 2.0 * HULL_HALF_M * ppm * 1.42
+        side = 2.0 * self.HULL_HALF_M * ppm * 1.42
         per_surface = max(1.0, side * side * 4.0)
         self._rot_cache.limit = int(clamp(ROT_CACHE_BYTES / per_surface, 40, 800))
 
@@ -140,9 +143,10 @@ class TankRenderer:
 
         spec = tank.spec
         look = spec.LOOK
+        var = spec.HULL_VARIANT
         hs, ts = spec.HULL_SCALE, spec.TURRET_SCALE
-        bl = int(round(spec.BARREL_LEN_M / BARREL_LEN_STEP_M))  # длина ствола в шагах
-        bt = int(round(spec.BARREL_THICK_M / BARREL_THICK_STEP_M))  # толщина в шагах
+        bl = int(round(spec.BARREL_LEN_M / BARREL_LEN_STEP_M))
+        bt = int(round(spec.BARREL_THICK_M / BARREL_THICK_STEP_M))
         team = tank.team_color
         paint = None if tank.team is Team.PLAYER else team
         emblem = tank.emblem
@@ -154,33 +158,29 @@ class TankRenderer:
         turret_key = (team, paint, look.turret_key, emblem)
         barrel_key = (bl, bt, look.barrel_key)
 
-        # корпус: фазы гусениц делают кэш бесполезным, поэтому поворот по точному углу каждый кадр
-        hull = self._get_hull(lp, rp, paint, look)
+        hull = self._get_hull(lp, rp, paint, look, spec)
         hull_rot = pygame.transform.rotozoom(hull, -tank.hull_angle, hs)
-        # башня и ствол: из кэша, угол квантован
         turret_rot = self._rotated("turret", turret_key,
-                                   lambda: self._get_turret(team, paint, look, emblem), turret_k, ts)
+                                   lambda: self._get_turret(team, paint, look, emblem, spec), turret_k, ts)
         barrel_rot = self._rotated("barrel", barrel_key,
                                    lambda: self._get_barrel(bl, bt, look), turret_k, ts)
 
-        # ствол — отдельный спрайт; положение считаем по тому же квантованному углу, что и башню
         fx, fy = heading_vector(turret_k * ANGLE_STEP)
-        f = (TURRET_FRONT_M + bl * BARREL_LEN_STEP_M / 2.0 - BARREL_HIDDEN_M / 2.0 - tank.recoil_m) * ppm * ts
+        f = (spec.GUN_FRONT_M + bl * BARREL_LEN_STEP_M / 2.0 - BARREL_HIDDEN_M / 2.0
+             - tank.recoil_m) * ppm * ts
         hull_rect = hull_rot.get_rect(center=(cx, cy))
         turret_rect = turret_rot.get_rect(center=(cx, cy))
         barrel_rect = barrel_rot.get_rect(center=(round(cx + fx * f), round(cy + fy * f)))
 
-        # --- тень: все силуэты в общий буфер непрозрачным чёрным, потом буфер целиком полупрозрачно ---
-        # форма у окрашенных и обычных деталей одинаковая, поэтому силуэты кэшируются без учёта краски
         hox, hoy = (round(v * ppm * hs) for v in SHADOW_HULL_M)
         tox, toy = (round(v * ppm * ts) for v in SHADOW_TURRET_M)
         sil_hull = self._rotated(
-            "sil_hull", look.hull_key,
-            lambda: self._get_sil(("hull", look.hull_key), hull), hull_k, hs)
+            "sil_hull", (look.hull_key, var),
+            lambda: self._get_sil(("hull", look.hull_key, var), hull), hull_k, hs)
         sil_turret = self._rotated(
             "sil_turret", look.turret_key,
             lambda: self._get_sil(("turret", look.turret_key),
-                                  self._get_turret(team, paint, look, emblem)),
+                                  self._get_turret(team, paint, look, emblem, spec)),
             turret_k, ts)
         sil_barrel = self._rotated(
             "sil_barrel", barrel_key,
@@ -198,7 +198,6 @@ class TankRenderer:
             buf.blit(surf, (rect.x - union.x, rect.y - union.y))
         screen.blit(buf, union.topleft, area=(0, 0, union.w, union.h))
 
-        # --- сам танк: корпус, ствол (под башней), башня ---
         screen.blit(hull_rot, hull_rect)
         screen.blit(barrel_rot, barrel_rect)
         screen.blit(turret_rot, turret_rect)
@@ -232,14 +231,15 @@ class TankRenderer:
     def _get_sil(self, key, surface):
         return self._sil_cache.get_or_build(key, lambda: self._make_silhouette(surface))
 
-    def _get_hull(self, lp, rp, paint, look):
+    def _get_hull(self, lp, rp, paint, look, spec):
         return self._hull_cache.get_or_build(
-            (lp, rp, paint, look.hull_key), lambda: self._build_hull(lp, rp, paint, look))
+            (lp, rp, paint, look.hull_key, spec.HULL_VARIANT),
+            lambda: self._build_hull(lp, rp, paint, look, spec))
 
-    def _get_turret(self, team_color, paint, look, emblem=""):
+    def _get_turret(self, team_color, paint, look, emblem, spec):
         return self._turret_cache.get_or_build(
             (team_color, paint, look.turret_key, emblem),
-            lambda: self._build_turret(team_color, paint, look, emblem))
+            lambda: self._build_turret(team_color, paint, look, emblem, spec))
 
     def _get_barrel(self, bl, bt, look):
         return self._barrel_cache.get_or_build(
@@ -294,7 +294,7 @@ class TankRenderer:
         for x in (-0.7, 0.7):
             pen.ellipse(GRILL, x, 2.65, r, r)
 
-    def _build_hull(self, lp, rp, paint, look):
+    def _build_hull(self, lp, rp, paint, look, spec):
         ppm = self._ppm
         size = 2 * math.ceil(HULL_HALF_M * ppm)
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
@@ -343,7 +343,7 @@ class TankRenderer:
 
         return pygame.transform.smoothscale(big, (size, size))
 
-    def _build_turret(self, team_color, paint, look, emblem=""):
+    def _build_turret(self, team_color, paint, look, emblem, spec):
         ppm = self._ppm
         size = 2 * math.ceil(TURRET_HALF_M * ppm)
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)

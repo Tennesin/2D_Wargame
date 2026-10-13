@@ -108,6 +108,7 @@ class TankSpec(ChassisSpec):
         self.gun = GunSpec(cal, self.size_k, power, self.m_gun, self.m_turret, arc_deg=360.0,
                            damage=damage, penetration=penetration)
         self.__dict__.update(vars(self.gun))
+        self.HULL_VARIANT = ()      # у ОБТ единственный вариант корпуса (ключ кэша спрайтов)
 
         self._calc_reach()
         self._calc_economy()
@@ -132,7 +133,7 @@ class TankSpec(ChassisSpec):
         """Радиус, в который попадает всё, что машина может задеть за кадр, и который нужен для
         отсечения по экрану. Ствол в столкновениях не участвует, но на экране его надо дорисовать."""
         t = self.TURRET_SCALE * PX_PER_M
-        barrel_end = (TURRET_FRONT_M + self.BARREL_LEN_M) * t
+        barrel_end = (self.GUN_FRONT_M + self.BARREL_LEN_M) * t
         barrel_half_w = (self.BARREL_THICK_M + 0.08) * t / 2.0
         barrel_reach = math.hypot(barrel_end, barrel_half_w)
         self.REACH_PX = max(self.HULL_REACH_PX, barrel_reach) + COLLISION_MARGIN_PX

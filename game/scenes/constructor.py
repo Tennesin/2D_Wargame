@@ -1,13 +1,14 @@
-"""game/scenes/constructor.py — конструктор: настройка танка без езды, стрельбы и стен."""
+"""game/scenes/constructor.py — конструктор: настройка техники (ОБТ или ПТ-САУ) без езды, стрельбы и стен."""
 import pygame
 
-from engine import PX_PER_M, VehicleCommand
+from engine import PX_PER_M, VehicleCommand, VehicleKind
 from inputs import InputHandler, Action
 from ui import SidePanel, Button, ACTIVE_BUTTON_COLORS
 from ui.theme import PANEL_WIDTH
-from vehicles import Tank, TankRenderer, GUN_TUNE_PARAMS, damage_range, pen_range, remap
+from vehicles import (GUN_TUNE_PARAMS, damage_range, pen_range, remap,
+                      VEHICLE_TYPES, RENDERERS, make_vehicle)
 from world import Camera
-from ..panels import PanelMode, build_tank_panel
+from ..panels import PanelMode, PANEL_OF, build_tank_panel, build_td_panel
 from .base import Scene
 
 BG = (36, 40, 46)
@@ -15,56 +16,98 @@ PREVIEW_ZOOM_STEPS = 8          # на сколько ступеней приб�
 DMG_STEP = GUN_TUNE_PARAMS["gun_damage"].step
 PEN_STEP = GUN_TUNE_PARAMS["gun_penetration"].step
 
+KIND_BTN_W, KIND_BTN_H = 100, 36    # кнопки выбора типа техники (левый нижний угол)
+KIND_GAP = 8
+KIND_MARGIN = 10
+
 class ConstructorScene(Scene):
     def __init__(self, session, on_play, on_menu, on_quit):
         self.session = session
-        self.on_play = on_play           # начать игру
-        self.on_menu = on_menu           # вернуться в меню
+        self.on_play = on_play
+        self.on_menu = on_menu
         self.on_quit = on_quit
 
         size = pygame.display.get_surface().get_size()
 
-        # --- камера: танк по центру свободной (левой) части экрана ---
+        # --- камера: техника по центру свободной (левой) части экрана ---
         self.camera = Camera(*size)
         self.camera.zoom_by(PREVIEW_ZOOM_STEPS)
         self.camera.center_on(PANEL_WIDTH / 2 / self.camera.zoom, 0.0)
 
-        # --- интерфейс: одна панель, всегда открыта, без красной кнопки ---
-        self.ui = SidePanel(size, {PanelMode.TANK: build_tank_panel()}, PanelMode.TANK,
-                            start_open=True)
+        # --- интерфейс: панель каждого типа техники, показана панель выбранного ---
+        kind = session.kind
+        self._mode = PANEL_OF[kind]
+        self._profile = VEHICLE_TYPES[kind].gun_profile
+        self.ui = SidePanel(size, {PanelMode.TANK: build_tank_panel(), PanelMode.TD: build_td_panel()},
+                            self._mode, start_open=True)
 
-        # коридоры урона и пробития зависят от калибра: СНАЧАЛА границы, ПОТОМ значения
-        self._cal = session.tank_values["gun_caliber_mm"]
-        self._ranges = (damage_range(self._cal), pen_range(self._cal))
-        self.ui.set_range(PanelMode.TANK, "gun_damage", *self._ranges[0])
-        self.ui.set_range(PanelMode.TANK, "gun_penetration", *self._ranges[1])
-        self.ui.set_values(PanelMode.TANK, session.tank_values)   # вернуть прошлые настройки
-        self._sync_tune_t(session.tank_values)
-        self.ui.set_on_change(PanelMode.TANK, self._on_change)
+        # коридоры урона и пробития зависят от калибра и профиля: СНАЧАЛА границы, ПОТОМ значения
+        values = session.values[kind]
+        self._cal = values["gun_caliber_mm"]
+        self._ranges = (damage_range(self._cal, self._profile), pen_range(self._cal, self._profile))
+        self.ui.set_range(self._mode, "gun_damage", *self._ranges[0])
+        self.ui.set_range(self._mode, "gun_penetration", *self._ranges[1])
+        self.ui.set_values(self._mode, values)
+        self._sync_tune_t(values)
+        for mode in (PanelMode.TANK, PanelMode.TD):
+            self.ui.set_on_change(mode, self._on_change)
         self.input = InputHandler([self.ui])
 
-        # --- танк-превью ---
-        self.tank = Tank(0.0, 0.0, spec=session.tank_spec())
-        self.renderer = TankRenderer()
-        self.renderer.set_zoom(PX_PER_M * self.camera.zoom)
+        # --- машина-превью ---
+        self.vehicle = make_vehicle(kind, session.spec())
+        self.renderer = self._make_renderer(kind)
 
         # --- кнопки ---
         self.play_button = Button((10, 10, 150, 36), "В бой")
         self.menu_button = Button((10, 52, 150, 36), "В меню")
+        self.mbt_button = Button((KIND_MARGIN, 0, KIND_BTN_W, KIND_BTN_H), VEHICLE_TYPES[VehicleKind.MBT].label)
+        self.td_button = Button((KIND_MARGIN + KIND_BTN_W + KIND_GAP, 0, KIND_BTN_W, KIND_BTN_H),
+                                VEHICLE_TYPES[VehicleKind.TD].label)
+        self._place_kind_buttons(size)
 
+        self._show_stats()
+
+    # ---------- тип техники ----------
+    def _make_renderer(self, kind):
+        renderer = RENDERERS[VEHICLE_TYPES[kind].renderer_key]()
+        renderer.set_zoom(PX_PER_M * self.camera.zoom)
+        return renderer
+
+    def _place_kind_buttons(self, size):
+        y = size[1] - KIND_MARGIN - KIND_BTN_H
+        self.mbt_button.rect.y = y
+        self.td_button.rect.y = y
+
+    def _set_kind(self, kind):
+        """Переключение ОБТ / ПТ-САУ. Порядок важен: сначала границы ползунков, потом значения,
+        иначе set_value обрежет их по старому диапазону."""
+        if kind is self.session.kind:
+            return
+        self.session.kind = kind
+        self._mode = PANEL_OF[kind]
+        self._profile = VEHICLE_TYPES[kind].gun_profile
+        values = self.session.values[kind]
+        self._cal = values["gun_caliber_mm"]
+        self._ranges = (damage_range(self._cal, self._profile), pen_range(self._cal, self._profile))
+        self.ui.set_range(self._mode, "gun_damage", *self._ranges[0])
+        self.ui.set_range(self._mode, "gun_penetration", *self._ranges[1])
+        self.ui.show(self._mode, values)              # значения + смена панели + открыть
+        self._sync_tune_t(values)
+        self.vehicle = make_vehicle(kind, self.session.spec())
+        self.renderer = self._make_renderer(kind)
         self._show_stats()
 
     # ---------- конструктор ----------
     def _on_change(self, values):
         """Ползунок сдвинут: при смене калибра пересчитываем коридоры, затем запоминаем значения
-        в сессии и пересчитываем танк."""
+        в сессии (для текущего типа) и пересчитываем машину."""
         cal = values["gun_caliber_mm"]
         if cal != self._cal:
             values = self._change_caliber(cal, values)
         else:
-            self._sync_tune_t(values)               # игрок двигал урон/пробитие сам: запоминаем уровень
-        self.session.tank_values = dict(values)
-        self.tank.set_spec(self.session.tank_spec())
+            self._sync_tune_t(values)
+        self.session.values[self.session.kind] = dict(values)
+        self.vehicle.set_spec(self.session.spec())
         self._show_stats()
 
     def _sync_tune_t(self, values):
@@ -74,10 +117,9 @@ class ConstructorScene(Scene):
                         remap(values["gun_penetration"], p_rng, (0.0, 1.0)))
 
     def _change_caliber(self, cal, values):
-        """Калибр изменился: новые границы урона и пробития, значения по сохранённому уровню.
-        Возвращает обновлённый словарь значений."""
+        """Калибр изменился: новые границы урона и пробития (с учётом профиля), значения по сохранённому уровню."""
         self._cal = cal
-        d_rng, p_rng = damage_range(cal), pen_range(cal)
+        d_rng, p_rng = damage_range(cal, self._profile), pen_range(cal, self._profile)
         self._ranges = (d_rng, p_rng)
         t_d, t_p = self._tune_t
 
@@ -85,15 +127,15 @@ class ConstructorScene(Scene):
         values["gun_damage"] = remap(t_d, (0.0, 1.0), d_rng, DMG_STEP)
         values["gun_penetration"] = remap(t_p, (0.0, 1.0), p_rng, PEN_STEP)
 
-        self.ui.set_range(PanelMode.TANK, "gun_damage", *d_rng)          # сначала границы
-        self.ui.set_range(PanelMode.TANK, "gun_penetration", *p_rng)
-        self.ui.set_values(PanelMode.TANK, values)                      # потом значения
+        self.ui.set_range(self._mode, "gun_damage", *d_rng)
+        self.ui.set_range(self._mode, "gun_penetration", *p_rng)
+        self.ui.set_values(self._mode, values)
         return values
 
     def _show_stats(self):
-        spec = self.tank.spec
+        spec = self.vehicle.spec
         for name, text in {**spec.main_stats(), **spec.internal_stats()}.items():
-            self.ui.set_stat(PanelMode.TANK, name, text)
+            self.ui.set_stat(self._mode, name, text)
 
     # ---------- кадр ----------
     def update(self, dt):
@@ -107,9 +149,10 @@ class ConstructorScene(Scene):
             return
         self.camera.resize(*size)
         self.ui.update(size)
-        self.input.pop_zoom_steps()          # зум здесь не нужен: выбрасываем накопленное
+        self._place_kind_buttons(size)
+        self.input.pop_zoom_steps()
 
-        for button, pos in self.input.pop_world_clicks():   # клики, которые не забрала панель
+        for button, pos in self.input.pop_world_clicks():
             if button == 1:
                 if self.play_button.collidepoint(pos):
                     self.on_play()
@@ -117,20 +160,27 @@ class ConstructorScene(Scene):
                 if self.menu_button.collidepoint(pos):
                     self.on_menu()
                     return
+                if self.mbt_button.collidepoint(pos):
+                    self._set_kind(VehicleKind.MBT)
+                elif self.td_button.collidepoint(pos):
+                    self._set_kind(VehicleKind.TD)
         if self.input.was_pressed(Action.CANCEL):
             self.on_menu()
             return
 
-        # башня превью следит за мышью; ездить и стрелять нельзя
+        # орудие превью следит за мышью (у ПТ-САУ в пределах УГН); ездить и стрелять нельзя
         aim = None
         if self.input.pointer_in_world:
             aim = self.camera.screen_to_world(*self.input.mouse_pos)
-        self.tank.update(VehicleCommand(aim_point=aim), dt)
+        self.vehicle.update(VehicleCommand(aim_point=aim), dt)
 
     def draw(self, screen):
         screen.fill(BG)
-        self.renderer.draw(screen, self.camera, self.tank)
+        self.renderer.draw(screen, self.camera, self.vehicle)
         mouse = self.input.mouse_pos
         self.ui.draw(screen, mouse)
         self.play_button.draw(screen, mouse, colors=ACTIVE_BUTTON_COLORS)
         self.menu_button.draw(screen, mouse)
+        is_mbt = self.session.kind is VehicleKind.MBT
+        self.mbt_button.draw(screen, mouse, colors=ACTIVE_BUTTON_COLORS if is_mbt else None)
+        self.td_button.draw(screen, mouse, colors=None if is_mbt else ACTIVE_BUTTON_COLORS)

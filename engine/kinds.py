@@ -5,6 +5,10 @@ class Team(Enum):
     PLAYER = auto()
     BOTS = auto()
 
+class VehicleKind(Enum):
+    MBT = auto()
+    TD = auto()
+
 class TargetType(Enum):
     """Что именно задел снаряд. Нужен уведомлениям и сводке, чтобы не проверять isinstance."""
     VEHICLE = auto()

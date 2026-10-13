@@ -6,7 +6,7 @@ from .palette import CONCRETE_SIDE, OUTLINE_DARK, SHADOW_ALPHA
 from .param import Param
 from .mathx import (normalize_angle, shortest_angle_diff, clamp, lerp, lerp_color,
                     heading_vector, find_free_fraction, fmt_num, bearing_deg)
-from .kinds import Team, TargetType
+from .kinds import Team, VehicleKind, TargetType
 from .geometry import (obb_hits_obb, obb_hits_convex, obb_segment_hit, obb_outside_rect,
                        obb_contact, obb_convex_contact)
 from .cache import LRUCache
@@ -24,5 +24,5 @@ __all__ = [
     "FONT_SIZE_TITLE", "FONT_SIZE_HEADER", "FONT_SIZE_LABEL",
     "get_font", "get_text", "wrap_text", "AlphaLayer",
     "VehicleCommand", "Shot", "WORLD_HALF_PX", "CAMERA_LIMIT_PX", "obb_outside_rect",
-    "obb_contact", "obb_convex_contact", "bearing_deg", "Team", "TargetType"
+    "obb_contact", "obb_convex_contact", "bearing_deg", "Team", "VehicleKind", "TargetType"
 ]

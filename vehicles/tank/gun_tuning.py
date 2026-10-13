@@ -1,28 +1,51 @@
-"""tank/gun_tuning.py — тюнинг орудия: номиналы по калибру, коридоры выбора, множитель перезарядки.
-Чистые функции без pygame и без знания о танке: их же сможет взять любая будущая техника с орудием."""
+"""tank/gun_tuning.py — тюнинг орудия: номиналы по калибру, профили орудий, коридоры выбора, множитель перезарядки.
+Чистые функции без pygame и без знания о танке: их берёт любая техника с орудием."""
 import math
+from dataclasses import dataclass
 
-from engine import clamp
+from engine import clamp, lerp
 from .params import (
     PARAMS, GUN_DAMAGE_REF, GUN_PEN_REF,
     GUN_DAMAGE_RANGE, GUN_PEN_RANGE, GUN_DAMAGE_STEP, GUN_PEN_STEP,
     GUN_TUNE_RELOAD_A, GUN_TUNE_RELOAD_B,
 )
 
-_REF_CAL = PARAMS["gun_caliber_mm"].default
+_CAL = PARAMS["gun_caliber_mm"]
+_REF_CAL = _CAL.default
 
 def _round_to(value, step):
     """Округление до ближайшего кратного step (половина вверх)."""
     return math.floor(value / step + 0.5) * step
 
-# ---------- номиналы: зависят ТОЛЬКО от калибра ----------
-def nominal_damage(cal):
-    """Урон «по умолчанию» для калибра cal (центр коридора)."""
-    return GUN_DAMAGE_REF * (cal / _REF_CAL) ** 2
+# ---------- профиль орудия ----------
+def _cal_t(cal):
+    """Положение калибра в диапазоне 0..1 (диапазон калибров у ОБТ и ПТ-САУ общий)."""
+    return clamp((cal - _CAL.min) / (_CAL.max - _CAL.min), 0.0, 1.0)
 
-def nominal_pen(cal):
+@dataclass(frozen=True)
+class GunProfile:
+    """Во сколько раз орудие этого типа мощнее «базового» при минимальном и максимальном калибре.
+    Между ними множитель растёт линейно: чем крупнее калибр, тем заметнее разница."""
+    dmg_bonus: tuple = (1.0, 1.0)
+    pen_bonus: tuple = (1.0, 1.0)
+
+    def dmg_mult(self, cal):
+        return lerp(self.dmg_bonus[0], self.dmg_bonus[1], _cal_t(cal))
+
+    def pen_mult(self, cal):
+        return lerp(self.pen_bonus[0], self.pen_bonus[1], _cal_t(cal))
+
+MBT_GUN = GunProfile()
+TD_GUN = GunProfile(dmg_bonus=(1.05, 1.30), pen_bonus=(1.03, 1.20))
+
+# ---------- номиналы: зависят от калибра и профиля ----------
+def nominal_damage(cal, profile=MBT_GUN):
+    """Урон «по умолчанию» для калибра cal (центр коридора)."""
+    return GUN_DAMAGE_REF * (cal / _REF_CAL) ** 2 * profile.dmg_mult(cal)
+
+def nominal_pen(cal, profile=MBT_GUN):
     """Пробитие «по умолчанию» для калибра cal, мм (центр коридора)."""
-    return GUN_PEN_REF * (cal / _REF_CAL) ** 0.8
+    return GUN_PEN_REF * (cal / _REF_CAL) ** 0.8 * profile.pen_mult(cal)
 
 # ---------- коридоры выбора ----------
 def _corridor(nominal, ratios, step):
@@ -31,17 +54,22 @@ def _corridor(nominal, ratios, step):
     hi = _round_to(nominal * ratios[1], step)
     return lo, max(hi, lo + step)
 
-def damage_range(cal):
+def damage_range(cal, profile=MBT_GUN):
     """Границы ползунка урона для калибра cal: (min, max)."""
-    return _corridor(nominal_damage(cal), GUN_DAMAGE_RANGE, GUN_DAMAGE_STEP)
+    return _corridor(nominal_damage(cal, profile), GUN_DAMAGE_RANGE, GUN_DAMAGE_STEP)
 
-def pen_range(cal):
+def pen_range(cal, profile=MBT_GUN):
     """Границы ползунка пробития для калибра cal: (min, max)."""
-    return _corridor(nominal_pen(cal), GUN_PEN_RANGE, GUN_PEN_STEP)
+    return _corridor(nominal_pen(cal, profile), GUN_PEN_RANGE, GUN_PEN_STEP)
+
+def default_tuning(cal, profile=MBT_GUN):
+    """Стартовые (урон, пробитие): номинал профиля, округлённый до шага ползунка."""
+    d = clamp(_round_to(nominal_damage(cal, profile), GUN_DAMAGE_STEP), *damage_range(cal, profile))
+    p = clamp(_round_to(nominal_pen(cal, profile), GUN_PEN_STEP), *pen_range(cal, profile))
+    return d, p
 
 def remap(value, old_range, new_range, step=None):
-    """Переносит значение из старого коридора в новый, сохраняя относительную позицию ползунка.
-    step: если задан, результат округляется до него (границы коридоров уже кратны шагу)."""
+    """Переносит значение из старого коридора в новый, сохраняя относительную позицию ползунка."""
     old_lo, old_hi = old_range
     new_lo, new_hi = new_range
     t = 0.5 if old_hi <= old_lo else clamp((value - old_lo) / (old_hi - old_lo), 0.0, 1.0)
@@ -56,24 +84,26 @@ def reload_factor(dmg_k, pen_k):
     return dmg_k ** GUN_TUNE_RELOAD_A * pen_k ** GUN_TUNE_RELOAD_B
 
 # ---------- итог для GunSpec ----------
-def resolve_tuning(cal, damage=None, penetration=None):
-    """Приводит выбор игрока к рабочим значениям."""
-    nom_d, nom_p = nominal_damage(cal), nominal_pen(cal)
+def resolve_tuning(cal, damage=None, penetration=None, profile=MBT_GUN):
+    """Приводит выбор игрока к рабочим значениям.
+    dmg_k и pen_k считаются от номинала СВОЕГО профиля, поэтому бонус ПТ-САУ
+    на перезарядку не влияет (reload_factor его «не видит»)."""
+    nom_d, nom_p = nominal_damage(cal, profile), nominal_pen(cal, profile)
     if damage is None:
         damage = nom_d
     else:
-        lo, hi = damage_range(cal)
+        lo, hi = damage_range(cal, profile)
         damage = clamp(float(damage), lo, hi)
     if penetration is None:
         penetration = nom_p
     else:
-        lo, hi = pen_range(cal)
+        lo, hi = pen_range(cal, profile)
         penetration = clamp(float(penetration), lo, hi)
     return damage, penetration, damage / nom_d, penetration / nom_p
 
 def tuning_k_bounds():
-    """Реальные крайние множители урона и пробития среди ВСЕХ калибров: ((dmg_min, dmg_max), (pen_min, pen_max)).
-    Из-за округления до шага у мелких калибров они чуть шире номинальных коридоров 0.62..1.38 и 0.71..1.29."""
+    """Реальные крайние множители урона и пробития среди ВСЕХ калибров (для профиля ОБТ):
+    ((dmg_min, dmg_max), (pen_min, pen_max)). Нужны модели цены танка."""
     cal = PARAMS["gun_caliber_mm"]
     dk, pk = [], []
     for c in range(int(cal.min), int(cal.max) + 1):

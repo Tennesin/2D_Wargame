@@ -3,7 +3,7 @@
 import math
 
 from engine import PX_PER_M, clamp
-from .gun_tuning import resolve_tuning, reload_factor
+from .gun_tuning import resolve_tuning, reload_factor, MBT_GUN
 from .params import (
     PARAMS, REF_L_CAL, GUN_MASS_T, GUN_MASS_AT_MM, TURRET_MASS_REF_T,
     BARREL_VISIBLE_K, BARREL_THICK_REF_M, BARREL_LEN_STEP_M, TURRET_FRONT_M,
@@ -39,9 +39,15 @@ class GunSpec:
     меньше (например 40) = казематная установка (ПТ-САУ), которой надо доворачивать корпус."""
 
     def __init__(self, cal, size_k, power, m_gun, m_turret, arc_deg=360.0,
-                 damage=None, penetration=None):
+                 damage=None, penetration=None, profile=MBT_GUN,
+                 front_m=TURRET_FRONT_M, barrel_ref_m=BARREL_VIS_REF_M):
+        """profile — профиль орудия (бонус урона и пробития); front_m — на сколько метров вперёд
+        от оси выступает маска орудия; barrel_ref_m — визуальная длина ствола эталона."""
         self.cal = cal
         self.TURRET_ARC_DEG = arc_deg
+        self.profile = profile
+        self.GUN_FRONT_M = front_m
+        self.BARREL_REF_M = barrel_ref_m
         self._calc_basics(size_k)
         self._calc_turret(size_k, power, m_gun, m_turret)
         self._calc_gun(damage, penetration)
@@ -65,7 +71,7 @@ class GunSpec:
         cr = self.cal / REF_CAL
         # урон и пробитие: номинал калибра + выбор игрока (длина ствола на них больше не влияет)
         self.damage, self.penetration, self.damage_k, self.pen_k = resolve_tuning(
-            self.cal, damage, penetration)
+            self.cal, damage, penetration, self.profile)
 
         # базовая перезарядка: ровно как раньше (пол GUN_RELOAD_MIN действует ДО тюнинга)
         reload = max(GUN_RELOAD_MIN, GUN_RELOAD_REF * cr * self.q_gun ** 0.5)
@@ -82,7 +88,7 @@ class GunSpec:
         cr = cal / REF_CAL
         self.TURRET_SCALE = size_k * clamp(cr ** 0.35, 0.8, 1.15)
 
-        world_len = BARREL_VIS_REF_M * size_k * clamp(cr ** BARREL_VIS_EXP, *BARREL_VIS_K_RANGE)
+        world_len = self.BARREL_REF_M * size_k * clamp(cr ** BARREL_VIS_EXP, *BARREL_VIS_K_RANGE)
         raw = world_len / self.TURRET_SCALE
         self.BARREL_LEN_M = max(4 * BARREL_LEN_STEP_M,
                                 round(raw / BARREL_LEN_STEP_M) * BARREL_LEN_STEP_M)
@@ -96,7 +102,7 @@ class GunSpec:
         cal_k = clamp((cal - _CAL.min) / (_CAL.max - _CAL.min), 0.0, 1.0)   # 0..1 по диапазону калибров
 
         # где находится дульный срез от центра машины (px мира, с учётом масштаба башни)
-        self.MUZZLE_DIST_PX = (TURRET_FRONT_M + self.BARREL_LEN_M) * self.TURRET_SCALE * PX_PER_M
+        self.MUZZLE_DIST_PX = (self.GUN_FRONT_M + self.BARREL_LEN_M) * self.TURRET_SCALE * PX_PER_M
 
         # снаряд
         self.SHELL_LEN_PX = SHELL_LEN_K * cal

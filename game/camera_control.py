@@ -34,7 +34,8 @@ class CameraController:
 
     def follow(self, tank):
         if not self.free_camera:
-            self.camera.center_on(tank.x, tank.y)
+            hx, hy = tank.hull_obb()[:2]
+            self.camera.center_on(hx, hy)
 
     # ---------- перетаскивание ПКМ ----------
     def begin_pan(self, pos):

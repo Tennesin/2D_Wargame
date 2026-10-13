@@ -5,7 +5,7 @@ import random
 import pygame
 
 from world import Camera, WorldGenerator, TerrainMap, SpawnFinder
-from vehicles import Tank
+from vehicles import make_vehicle
 from structures import WallManager
 from inputs import InputHandler, Action
 from ui import SidePanel, ToolBar, TankHud
@@ -51,7 +51,7 @@ class PlayScene(Scene):
         self.ui = SidePanel(size, {PanelMode.WALL: build_wall_panel()}, PanelMode.WALL)
         self.toolbar = ToolBar()
         self.input = InputHandler([self.toolbar, self.ui])
-        tank = Tank(0.0, 0.0, spec=session.tank_spec(), team=Team.PLAYER)
+        tank = make_vehicle(session.kind, session.spec(), team=Team.PLAYER)
         fleet = Fleet(tank)
         self.fleet = fleet
         self.notifier = Notifier(tank)

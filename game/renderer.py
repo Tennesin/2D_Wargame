@@ -1,7 +1,7 @@
 """game/renderer.py — порядок слоёв: земля, местность, эффекты, стены, танки, прицел."""
 from engine import PX_PER_M
 from world import GroundRenderer, TerrainRenderer, WorldBoundsRenderer
-from vehicles import TankRenderer
+from vehicles import RENDERERS
 from structures import WallRenderer
 from combat import AimRenderer
 
@@ -18,7 +18,7 @@ class Renderer:
         self.ground_renderer = GroundRenderer(world_generator)
         self.bounds_renderer = WorldBoundsRenderer()
         self.terrain_renderer = TerrainRenderer()
-        self.vehicle_renderers = {"tank": TankRenderer()}
+        self.vehicle_renderers = {key: cls() for key, cls in RENDERERS.items()}
         self.wall_renderer = WallRenderer()
         self.aim_renderer = AimRenderer()
 
