@@ -201,6 +201,12 @@ class TankRenderer:
         screen.blit(hull_rot, hull_rect)
         screen.blit(barrel_rot, barrel_rect)
         screen.blit(turret_rot, turret_rect)
+        self._draw_front_layer(screen, tank, cx, cy, hull_k, hs, team, paint, look)
+
+    def _draw_front_layer(self, screen, tank, cx, cy, hull_k, hull_scale, team, paint, look):
+        """Хук: детали, которые вращаются вместе с КОРПУСОМ, но рисуются ПОВЕРХ ствола.
+        У ОБТ их нет."""
+        return
 
     # ---------- тень и кэши ----------
     @staticmethod

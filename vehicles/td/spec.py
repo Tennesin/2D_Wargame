@@ -108,6 +108,7 @@ class TDSpec(ChassisSpec):
         self.m_gun, self.m_casemate = td_masses(cal)
         self.MOUNT_FWD_M = mount_fwd_m(cal)
         self.SUPPORT = support_level(cal)
+        self.CASE_K = round(clamp((cal / _REF_CAL) ** 0.5, 0.7, 1.2), 1)   # размер рубки и маски
         # положение орудия = сдвиг хитбокса корпуса относительно оси (x, y) машины
         body = dataclasses.replace(TD_BODY, coll_shift_m=self.MOUNT_FWD_M)
         super().__init__(body, front, side, rear, power, payload_t=self.m_gun + self.m_casemate)
@@ -117,7 +118,7 @@ class TDSpec(ChassisSpec):
                              profile=TD_GUN, front_m=TD_GUN_FRONT_M,
                              barrel_ref_m=TD_BARREL_VIS_REF_M)
         self.__dict__.update(vars(self.gun))
-        self.HULL_VARIANT = (round(self.MOUNT_FWD_M / MOUNT_STEP_M), self.SUPPORT)
+        self.HULL_VARIANT = (round(self.MOUNT_FWD_M / MOUNT_STEP_M), self.SUPPORT, self.CASE_K)
 
         self._calc_reach()
         self._calc_economy()

@@ -16,6 +16,10 @@ LAMP = (236, 222, 160)
 CABLE = (66, 60, 52)
 TOOLBOX = (132, 124, 106)
 
+def _tint(color, k):
+    """Осветлить (k > 1) или затемнить (k < 1) цвет."""
+    return tuple(max(0, min(255, int(c * k))) for c in color)
+
 # Рубка/опора: сколько метров корпуса лежит ПОЗАДИ оси орудия, по уровням опоры
 CASEMATE_REACH = (1.9, 2.3, 2.8)
 CASEMATE_AHEAD = 0.45            # передняя грань рубки впереди оси орудия
@@ -40,6 +44,7 @@ class TDRenderer(TankRenderer):
         mount = spec.MOUNT_FWD_M
         axis = -mount                                  # ось орудия в координатах корпуса (перед = -y)
         support = spec.SUPPORT
+        g = spec.CASE_K
         pen = _Pen(big, ppm * SS, 0.0, mount)          # центр спрайта = ось орудия
 
         hull_main = _paint(HULL_MAIN, paint)
@@ -55,10 +60,10 @@ class TDRenderer(TankRenderer):
 
         # --- границы рубки: передняя грань чуть впереди оси, всё остальное позади неё ---
         front = max(axis - CASEMATE_AHEAD, HULL_FRONT_LIMIT)
-        rear = min(axis + CASEMATE_REACH[support], HULL_REAR_LIMIT)
+        rear = min(axis + CASEMATE_REACH[support] * g, HULL_REAR_LIMIT)
         rear = max(rear, front + 1.3)
-        wf = 0.95                                       # полуширина передней грани
-        wr = 1.15 + (0.10 if support >= 2 else 0.0)     # полуширина основной части
+        wf = 0.65 + 0.30 * g                                   # полуширина передней грани (g=1 даёт прежние 0.95)
+        wr = 0.80 + 0.35 * g + (0.10 if support >= 2 else 0.0)  # полуширина основной части
 
         # 1. Гусеницы
         self._draw_track(pen, -TRACK_X, lp)
@@ -107,24 +112,14 @@ class TDRenderer(TankRenderer):
                 ly += 0.25
             pen.rect(hull_dark, -0.95, 2.50, 1.90, 0.25)  # кормовая планка
 
-        # 5. Опора (уровни 1 и 2): цоколь шире рубки + косынки перед амбразурой
+        # 5. Опора (уровни 1 и 2): цоколь под рубкой; на уровне 2 ещё гладкий кормовой короб
         if support >= 1:
             slab_w = min(wr + 0.10, 1.34)
-            pen.poly(sup_dark, [(-wf - 0.10, front - 0.10), (wf + 0.10, front - 0.10),
-                                (slab_w, front + 0.55), (slab_w, rear + 0.08),
-                                (-slab_w, rear + 0.08), (-slab_w, front + 0.55)])
-            for sx in (-1, 1):                          # раскосы перед передней гранью
-                pen.poly(sup_main, [(sx * (wf - 0.40), front), (sx * (wf + 0.05), front),
-                                    (sx * (wf + 0.05), front - 0.55)])
-            if support >= 2:                            # кормовой короб с жалюзи
+            pen.poly(sup_dark, [(-slab_w, front + 0.20), (slab_w, front + 0.20),
+                                (slab_w, rear + 0.08), (-slab_w, rear + 0.08)])
+            if support >= 2:
                 by0 = max(front + 1.0, rear - 0.80)
                 pen.rect(sup_main, -1.05, by0, 2.10, rear + 0.08 - by0, r=0.05)
-                ry = by0 + 0.18
-                while ry < rear - 0.05:
-                    pen.line(GRILL_LINE, -0.90, ry, 0.90, ry, 0.05)
-                    ry += 0.22
-            # упор для ствола в походном положении (ствол лежит на носу над корпусом)
-            pen.rect(GRILL, -0.50, -2.55, 1.00, 0.20, r=0.05)
 
         # 6. Рубка: передняя грань чуть впереди оси, тело уходит назад
         pen.poly(case_main, [(-wf, front), (wf, front), (wr, front + 0.55), (wr, rear - 0.35),
@@ -140,8 +135,20 @@ class TDRenderer(TankRenderer):
                               (-wr + inset, front + 0.55 + inset * 0.4)],
                  outline=case_dark)
 
+        # 6а. Крыша: швы между листами и «лоток» хода казённика
+        seam_in = wr - inset
+        for sy in (front + 1.15, rear - 1.05):
+            if front + 0.9 < sy < rear - 0.5:
+                pen.line(case_dark, -seam_in, sy, seam_in, sy, 0.04)
+        half = math.radians(spec.TURRET_ARC_DEG / 2.0)
+        lb = min(1.0, rear - 0.25 - axis)                       # длина лотка назад от оси
+        t = lb * math.tan(half)                                 # на сколько он расширяется к корме
+        pen.poly(case_dark, [(-0.32, axis), (0.32, axis),
+                             (0.32 + t, axis + lb), (-0.32 - t, axis + lb)], outline=None)
+
         # 7. Амбразура: орудие смотрит из передней грани, а не стоит на круглой основе
-        pen.poly(case_dark, [(-0.70, front), (0.70, front), (0.50, front + 0.55), (-0.50, front + 0.55)],
+        ew = 0.55 + 0.15 * g
+        pen.poly(case_dark, [(-ew, front), (ew, front), (ew - 0.20, front + 0.55), (-(ew - 0.20), front + 0.55)],
                  outline=None)
 
         # 8. Детали крыши рубки (позади орудия, чтобы не пересекаться с казёнником)
@@ -166,8 +173,8 @@ class TDRenderer(TankRenderer):
     # ЛАФЕТ ОРУДИЯ
     # ==========================================
     def _build_turret(self, team_color, paint, look, emblem, spec):
-        """Лафет вращается вокруг оси орудия: прямоугольный блок цапф, трапециевидная маска спереди,
-        казённик сзади. Никаких кругов: орудие качается в амбразуре, а не на поворотном кольце."""
+        """Вращается вокруг оси орудия ТОЛЬКО качающаяся часть: казённик и узкая люлька.
+        Маска лежит в отдельном слое (_build_mantlet) и неподвижна относительно корпуса."""
         ppm = self._ppm
         size = 2 * math.ceil(TD_TURRET_HALF_M * ppm)
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
@@ -176,20 +183,49 @@ class TDRenderer(TankRenderer):
         dark = _paint(TURRET_DARK, paint)
         main = _paint(TURRET_MAIN, paint)
         light = _paint(TURRET_LIGHT, paint)
-        k = 1.0 + 0.12 * look.front                     # накладная броня расширяет маску
-        front = spec.GUN_FRONT_M
 
-        # казённик (сзади оси)
-        pen.rect(dark, -0.30, 0.14, 0.60, 0.80, r=0.08)
-        pen.rect(main, -0.20, 0.30, 0.40, 0.14, outline=None)
-        pen.rect(light, -0.14, 0.58, 0.28, 0.10, outline=None)
-        # блок цапф (прямоугольный)
-        pen.rect(main, -0.66 * k, -0.28, 1.32 * k, 0.44, r=0.06)
-        pen.rect(light, -0.40 * k, -0.20, 0.80 * k, 0.12, outline=None)
-        # маска: трапеция, сужается к дульному срезу
-        pen.poly(team_color, [(-0.40 * k, -front), (0.40 * k, -front),
-                              (0.62 * k, -0.25), (-0.62 * k, -0.25)])
+        # казённик (позади оси)
+        pen.rect(dark, -0.30, 0.12, 0.60, 0.85, r=0.08)
+        pen.rect(main, -0.20, 0.28, 0.40, 0.14, outline=None)
+        pen.rect(light, -0.14, 0.60, 0.28, 0.10, outline=None)
+        # люлька (узкая, уходит под маску)
+        pen.rect(main, -0.26, -0.40, 0.52, 0.56, r=0.05)
+        pen.rect(light, -0.14, -0.34, 0.28, 0.10, outline=None)
         return pygame.transform.smoothscale(big, (size, size))
 
+    def _build_mantlet(self, team_color, paint, look, spec):
+        """Маска орудия: часть корпуса. Центр спрайта = ось орудия, перед = -y."""
+        ppm = self._ppm
+        size = 2 * math.ceil(TD_TURRET_HALF_M * ppm)
+        big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
+        pen = _Pen(big, ppm * SS)
+
+        g = spec.CASE_K
+        k = 1.0 + 0.12 * look.front                  # накладная броня расширяет маску
+        front = spec.GUN_FRONT_M                     # передний край, м вперёд от оси
+        back = 0.25                                  # задний край, м вперёд от оси
+        wf = (0.50 * g + 0.10) * k                   # полуширина переднего края
+        wb = wf + 0.22 * g                           # полуширина у корпуса
+
+        pen.poly(team_color, [(-(wf - 0.12), -front), (wf - 0.12, -front), (wf, -front + 0.12),
+                              (wb, -back), (-wb, -back), (-wf, -front + 0.12)])
+        pen.poly(_tint(team_color, 1.2),
+                 [(-(wf - 0.24), -front + 0.10), (wf - 0.24, -front + 0.10), (wf - 0.12, -front + 0.22),
+                  (wb - 0.14, -back - 0.08), (-(wb - 0.14), -back - 0.08), (-(wf - 0.12), -front + 0.22)],
+                 outline=None)
+        sw = wf - 0.20                               # тёмная щель, из которой выходит ствол
+        pen.rect(_tint(team_color, 0.45), -sw, -front + 0.04, 2 * sw, 0.09, outline=None)
+        return pygame.transform.smoothscale(big, (size, size))
+
+    def _draw_front_layer(self, screen, tank, cx, cy, hull_k, hull_scale, team, paint, look):
+        """Маска вращается вместе с корпусом (hull_k), а не с орудием, и лежит поверх ствола."""
+        spec = tank.spec
+        base_key = ("mantlet", team, paint, look.front, spec.CASE_K, spec.GUN_FRONT_M)
+        sprite = self._rotated(
+            "mantlet", base_key,
+            lambda: self._turret_cache.get_or_build(
+                base_key, lambda: self._build_mantlet(team, paint, look, spec)),
+            hull_k, hull_scale)
+        screen.blit(sprite, sprite.get_rect(center=(cx, cy)))
 
 OUTLINE_ANT = (38, 33, 28)
