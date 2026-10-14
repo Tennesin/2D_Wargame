@@ -31,6 +31,7 @@ class DebugOverlay:
             self.visible = not self.visible
 
     def _lines(self):
+        k = self._k
         t = self.tank
         owner = self.input.mouse_owner.name if self.input.mouse_owner else "-"
         return [
@@ -52,8 +53,8 @@ class DebugOverlay:
             f"Terrain speed k: {t.terrain_k:.2f}",
             f"Bots: {len(self.fleet.bots)}  next in {self.spawner.time_left:.0f}s  "
             f"spawned {self.spawner.spawned}",
-            f"Threat: " + "  ".join(f"{k} {v:.2f}" for k, v in self.spawner.profile.items()),
-            f"Spawn mult: " + "  ".join(f"{k} x{v:.1f}" for k, v in self.spawner.multipliers.items()),
+            f"Threat: " + "  ".join(f"{name} {v:.2f}" for name, v in self.spawner.profile.items()),
+            f"Spawn mult: " + "  ".join(f"{name} x{v:.1f}" for name, v in self.spawner.multipliers.items()),
         ]
 
     def draw(self, screen):

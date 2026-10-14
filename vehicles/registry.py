@@ -1,6 +1,6 @@
 """vehicles/registry.py — реестр типов техники: всё, что нужно конструктору и игре, чтобы создать машину."""
 from dataclasses import dataclass
-вв
+
 from engine import VehicleKind
 from .gun_tuning import MBT_GUN, TD_GUN, GunProfile
 from .tank import Tank, TankSpec, TankRenderer, PARAMS as TANK_PARAMS

@@ -1,4 +1,4 @@
-"""tank/look.py — «уровни оформления» танка: что дорисовывать поверх базового спрайта."""
+"""vehicles/look.py — «уровни оформления» танка: что дорисовывать поверх базового спрайта."""
 from typing import NamedTuple
 
 def level(value, thresholds):

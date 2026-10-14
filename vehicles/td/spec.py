@@ -95,6 +95,10 @@ class TDGunSpec(GunSpec):
             TD_TRAVERSE_MIN, TD_TRAVERSE_MAX)
         self.turret_alpha = self.turret_turn / (TD_SPINUP_REF * i_rel ** 0.5)
 
+    def _calc_shot(self):
+        super()._calc_shot()
+        self.RECOIL_DEPTH_M *= TD_RECOIL_K
+
 # ==========================================
 # 4. ПТ-САУ
 # ==========================================
@@ -164,10 +168,6 @@ class TDSpec(ChassisSpec):
             gun=level(self.cal / _REF_CAL, TD_LOOK_GUN_RATIO),
             speed=level(self.q_pw, TD_LOOK_SPEED_RATIO),
         )
-
-    def _calc_shot(self):
-        super()._calc_shot()
-        self.RECOIL_DEPTH_M *= TD_RECOIL_K       # откат короче, чтобы корень ствола не вылезал из-под маски
 
     # ---------- вывод в интерфейс ----------
     def mount_name(self):

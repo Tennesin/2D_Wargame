@@ -232,5 +232,3 @@ class TDRenderer(GunVehicleRenderer):
                 base_key, lambda: self._build_mantlet(team, paint, look, spec)),
             hull_k, hull_scale)
         screen.blit(sprite, sprite.get_rect(center=(cx, cy)))
-
-OUTLINE_ANT = (38, 33, 28)
