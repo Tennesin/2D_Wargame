@@ -5,10 +5,10 @@ import random
 import pygame
 
 from world import Camera, WorldGenerator, TerrainMap, SpawnFinder
-from vehicles import make_vehicle
+from vehicles import make_vehicle, AMMO_TYPES, AMMO_ORDER
 from structures import WallManager
-from inputs import InputHandler, Action
-from ui import SidePanel, ToolBar, TankHud
+from inputs import InputHandler, Action, AMMO_HOTKEYS, key_label
+from ui import SidePanel, ToolBar, TankHud, AmmoBar
 from ..panels import PanelMode, build_wall_panel
 from ..modes import Modes, Mode
 from ..camera_control import CameraController
@@ -50,8 +50,11 @@ class PlayScene(Scene):
         # --- интерфейс, ввод, танк ---
         self.ui = SidePanel(size, {PanelMode.WALL: build_wall_panel()}, PanelMode.WALL)
         self.toolbar = ToolBar()
-        self.input = InputHandler([self.toolbar, self.ui])
         tank = make_vehicle(session.kind, session.spec(), team=Team.PLAYER)
+        self.ammo_bar = AmmoBar([(kind, AMMO_TYPES[kind].code, key_label(action))
+                                 for kind, action in zip(AMMO_ORDER, AMMO_HOTKEYS)],
+                                tank.select_ammo)
+        self.input = InputHandler([self.toolbar, self.ui, self.ammo_bar])
         fleet = Fleet(tank)
         self.fleet = fleet
         self.notifier = Notifier(tank)
@@ -98,12 +101,14 @@ class PlayScene(Scene):
 
         self.camera_ctrl.update_view(dt, size)
         self.ui.update(size)
+        self.ammo_bar.update(size)
 
         if self.fleet.player.alive:
             self.debug.handle_hotkeys()
             self.camera_ctrl.handle_hotkeys()
             self.wall_editor.handle_hotkeys()
             self.modes.handle_hotkeys()
+            self.tank_ctrl.handle_hotkeys()
 
             self.clicks.update()
             self.wall_editor.update_rotation()
@@ -139,6 +144,7 @@ class PlayScene(Scene):
         self.ui.draw(screen, self.input.mouse_pos)
         if self.fleet.player.alive:
             self.toolbar.draw(screen, self.input.mouse_pos)
+            self.ammo_bar.draw(screen, self.input.mouse_pos, self.fleet.player.ammo)
         self.hud.draw(screen)
         self.inspector.draw(screen)
         self.notifier.draw(screen, self.camera)

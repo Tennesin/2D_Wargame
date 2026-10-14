@@ -1,5 +1,7 @@
 """game/fleet.py — вся техника на карте: игрок и боты."""
 
+from engine import obb_distance_to_point
+
 class Fleet:
     def __init__(self, player):
         self.player = player                # любая Vehicle
@@ -47,3 +49,16 @@ class Fleet:
             if res is not None and (best is None or res[1] < best[1]):
                 best = res
         return best
+
+    def in_circle(self, x, y, r, ignore=None):
+        """Живая техника, чей корпус задевает круг: [(машина, расстояние), ...].
+        ignore — стрелок: его самого и его команду взрыв не задевает."""
+        team = getattr(ignore, "team", None)
+        result = []
+        for t in self.vehicles:
+            if not t.alive or t is ignore or (team is not None and t.team == team):
+                continue
+            d = obb_distance_to_point(t.hull_obb(), x, y)
+            if d < r:
+                result.append((t, d))
+        return result

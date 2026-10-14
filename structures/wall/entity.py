@@ -2,7 +2,10 @@
 import math
 import random
 
-from engine import PX_PER_M, clamp, obb_segment_hit, obb_hits_obb, TargetType, fmt_num
+from engine import (
+    PX_PER_M, clamp, obb_segment_hit, obb_hits_obb,
+    TargetType, fmt_num, obb_distance_to_point
+)
 from combat import resolve_hit, Damageable
 from .params import (
     WALL_PARAMS, WALL_ARMOR_K, WALL_HEIGHT_M, WALL_DENSITY_T_M3,
@@ -197,6 +200,22 @@ class WallManager:
             if res is not None and (best is None or res[0] < best[1]):
                 best = (wall, res[0], res[1])
         return best
+
+    def in_circle(self, x, y, r, ignore=None):
+        """Живые стены, чей прямоугольник задевает круг (x, y, r): [(стена, расстояние), ...].
+        ignore не используется: взрыв ломает стены любому стрелку."""
+        result = []
+        for wall in self.items:
+            if not wall.alive:
+                continue
+            reach = r + wall.radius_px
+            dx, dy = wall.x - x, wall.y - y
+            if dx * dx + dy * dy > reach * reach:
+                continue                                  # заведомо далеко
+            d = obb_distance_to_point(wall.obb(), x, y)
+            if d < r:
+                result.append((wall, d))
+        return result
 
     def remove(self, wall):
         """Убрать конкретную стену (и снять выбор, если выбрана именно она)."""

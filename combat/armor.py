@@ -57,17 +57,29 @@ def resolve_hit(penetration, armor_mm, cos_impact=1.0):
     eff = effective_armor(armor_mm, cos_impact)
     return HitResult(armor_mm, eff, damage_fraction(penetration, eff))
 
+def impact_cos(stats, cos_impact):
+    """Косинус угла, который идёт в расчёт урона. Снаряды без рикошета (КС, ФГ) не отскакивают:
+    слишком косой удар считается ровно на границе рикошета. Броня при этом растёт
+    (броня / cos 70°, примерно x2,9), но пробить её по-прежнему можно."""
+    return cos_impact if stats.ricochet else max(cos_impact, RICOCHET_COS)
+
 class Damageable:
     """Миксин для целей: объект задаёт hit_result(...) и поле hp, а take_hit общий."""
 
     def hit_result(self, penetration, cos_impact=1.0, normal=None):
         raise NotImplementedError
 
-    def take_hit(self, penetration, damage, cos_impact=1.0, normal=None):
-        """Попадание снаряда: урон умножается на смягчённую долю. Возвращает нанесённый урон."""
-        dealt = damage * self.hit_result(penetration, cos_impact, normal).damage_frac
+    def take_hit(self, penetration, damage, cos_impact=1.0, normal=None, min_frac=0.0):
+        """Попадание снаряда: урон умножается на смягчённую долю, но не меньше min_frac
+        (гарантированный минимум фугаса). Возвращает нанесённый урон."""
+        frac = self.hit_result(penetration, cos_impact, normal).damage_frac
+        dealt = damage * max(frac, min_frac)
         self.hp = max(0.0, self.hp - dealt)
         return dealt
+
+    def take_damage(self, amount):
+        """Прямой урон без брони и рикошета (осколки, таран)."""
+        self.hp = max(0.0, self.hp - amount)
 
 # ==========================================
 # 4. НАБОР ЦЕЛЕЙ ДЛЯ СНАРЯДОВ И ПРИЦЕЛА
@@ -93,3 +105,13 @@ class TargetSet:
             if best is None or res[1] < best[1]:
                 best = res
         return best
+
+    def in_circle(self, x, y, r, ignore=None):
+        """Все цели в круге: [(цель, расстояние), ...]. Источники без метода in_circle
+        (карта препятствий: камни неразрушимы) пропускаются."""
+        found = []
+        for src in self.sources:
+            fn = getattr(src, "in_circle", None)
+            if fn is not None:
+                found.extend(fn(x, y, r, ignore))
+        return found

@@ -143,3 +143,14 @@ def obb_convex_contact(cx, cy, half_w, half_l, angle_deg, poly):
             sign = 1.0 if (pcx - cx) * ax + (pcy - cy) * ay >= 0.0 else -1.0
             best = (depth, ax * sign, ay * sign)
     return best
+
+def obb_distance_to_point(obb, x, y):
+    """Расстояние от точки до ближайшей точки повёрнутого прямоугольника obb = (x, y, half_w, half_l, angle).
+    0, если точка внутри. Система координат та же, что в obb_segment_hit."""
+    cx, cy, half_w, half_l, angle = obb
+    rad = math.radians(angle)
+    c, s = math.cos(rad), math.sin(rad)
+    dx, dy = x - cx, y - cy
+    u = dx * c + dy * s
+    v = -dx * s + dy * c
+    return math.hypot(max(abs(u) - half_w, 0.0), max(abs(v) - half_l, 0.0))

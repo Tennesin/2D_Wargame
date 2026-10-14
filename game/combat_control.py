@@ -1,5 +1,5 @@
 """game/combat_control.py — попадания снарядов, линия прицела, уведомления о боях."""
-from combat import compute_aim
+from combat import compute_aim, splash_damage
 from .modes import Mode
 
 class CombatController:
@@ -20,17 +20,38 @@ class CombatController:
             self.notifier.on_miss(owner)
         self._apply_hits(hits)
 
-    def _apply_hits(self, hits):
-        """Снаряд попал в цель: урон = заявленный × доля по правилам armor.py (стена и танк одинаково)."""
-        if not hits:
+    def _apply_hits(self, impacts):
+        """Попадание: прямой урон по правилам armor.py (стена и танк одинаково), затем взрыв, если он есть."""
+        if not impacts:
             return
-        for target, stats, cos_impact, normal, power, owner in hits:
-            pen = stats.penetration * power
-            res = target.hit_result(pen, cos_impact, normal)          # для сообщения: до изменения hp
-            dealt = target.take_hit(pen, stats.damage * power, cos_impact, normal)
-            self.notifier.on_hit(owner, target, normal, res, dealt)
+        for im in impacts:
+            if im.target is not None:
+                self._direct_hit(im)
+            if im.stats.aoe_radius_px > 0.0:
+                self._splash(im)
         self.walls.remove_dead()
         self.fleet.remove_dead()
+
+    def _direct_hit(self, im):
+        stats, target = im.stats, im.target
+        pen = stats.penetration * im.power
+        res = target.hit_result(pen, im.cos, im.normal)               # для сообщения: до изменения hp
+        dealt = target.take_hit(pen, stats.damage * im.power, im.cos, im.normal, stats.min_frac)
+        self.notifier.on_hit(im.owner, target, im.normal, res, dealt, stats.min_frac)
+
+    def _splash(self, im):
+        """Осколки по всем целям в радиусе. Прямая цель пропускается: она уже получила
+        max(доля по броне, минимум), поэтому двойного урона нет."""
+        stats = im.stats
+        base = stats.damage * im.power
+        for target, dist in self.targets.in_circle(im.x, im.y, stats.aoe_radius_px, ignore=im.owner):
+            if target is im.target:
+                continue
+            dealt = splash_damage(base, stats.min_frac, dist, stats.aoe_radius_px)
+            if dealt <= 0.0:
+                continue
+            target.take_damage(dealt)
+            self.notifier.on_splash(im.owner, target, dealt)
 
     def aim_info(self):
         """Траектория выстрела. Только в боевом состоянии, не в режиме стройки и пока танк жив."""

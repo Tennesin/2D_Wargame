@@ -97,6 +97,18 @@ class GunVehicle(Vehicle):
             c = self._round_cache = (self.spec, self.ammo, ammo_stats(self.spec, self.ammo))
         return c[2]
 
+    def select_ammo(self, kind):
+        """Сменить тип снаряда. Если идёт перезарядка, прогресс сохраняется пропорционально:
+        иначе можно выстрелить ББ, переключиться на КС и получить его раньше положенного."""
+        if kind is self.ammo:
+            return
+        old_total = self.reload_total
+        self.ammo = kind
+        if self.reload_left > 0.0 and old_total > 0.0:
+            new_total = self.round_stats().reload
+            self.reload_left = self.reload_left / old_total * new_total
+            self.reload_total = new_total
+
     def hull_offset_to(self, x, y):
         """Сколько градусов довернуть КОРПУС (+ по часовой), чтобы точка (x, y) попала в сектор орудия.
         0, если башня круговая или точка уже в секторе (с запасом ARC_MARGIN_DEG)."""

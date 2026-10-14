@@ -373,10 +373,6 @@ class Vehicle(Damageable):
         v = (self.speed_kmh if speed_kmh is None else speed_kmh) * KMH_TO_PX
         return fx * v + self.push_vx, fy * v + self.push_vy
 
-    def take_damage(self, amount):
-        """Прямой урон (таран): без брони и рикошета."""
-        self.hp = max(0.0, self.hp - amount)
-
     def apply_impulse(self, nx, ny, dv_ms):
         """Таран: изменить скорость вдоль нормали (nx, ny) на dv_ms м/с (со знаком).
         Если машина сама врезалась (impact_kmh задан), составляющая вдоль корпуса меняет её ход

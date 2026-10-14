@@ -2,8 +2,8 @@
 Все размеры здесь в МИРОВЫХ пикселях (100 px = 1 м); на экран переводятся через camera.zoom."""
 import math
 import random
-
 import pygame
+from dataclasses import dataclass
 
 from engine import heading_vector, AlphaLayer
 from .projectile import Shell
@@ -27,6 +27,18 @@ SCORCH_MAX_ALPHA = 150
 
 SMOKE_MAX_ALPHA = 190
 SMOKE_POINTS = 12                    # из скольких отрезков состоит одна полоска
+
+@dataclass
+class Impact:
+    """Взрыв снаряда. target = None: снаряд взорвался в воздухе (фугас на пределе дальности)."""
+    target: object
+    stats: object          # AmmoStats выстрела
+    cos: float
+    normal: object
+    power: float           # доля силы (после рикошетов меньше 1)
+    owner: object
+    x: float               # точка взрыва, мировые px
+    y: float
 
 # ==========================================
 # ВСПЫШКА ВЫСТРЕЛА
@@ -143,9 +155,10 @@ class SmokeStreak:
 # ВЗРЫВ СНАРЯДА: огненный шар + комья земли
 # ==========================================
 class Explosion:
-    def __init__(self, x, y, spec, rng):
+    def __init__(self, x, y, spec, rng, radius_px=0.0):
         self.x, self.y = x, y
         self.size = spec.BLAST_SIZE_PX
+        self.fire = max(self.size, radius_px * 1.6)    # диаметр огненного шара (у фугаса от радиуса взрыва)
         self.life = spec.BLAST_TIME
         self.age = 0.0
         self.dirt = []                    # (dx, dy, на сколько разлетится, размер комка, цвет)
@@ -172,7 +185,7 @@ class Explosion:
         grow = 1.0 - (1.0 - min(1.0, u / 0.4)) ** 2
         fade = max(0.0, (u - 0.4) / 0.6)
         for scale, color in BLAST_LAYERS:
-            r = self.size * 0.5 * scale * grow * (1.0 - fade) * z
+            r = self.fire * 0.5 * scale * grow * (1.0 - fade) * z
             if r >= 1.0:
                 pygame.draw.circle(screen, color, (round(cx), round(cy)), int(r))
 
@@ -187,11 +200,11 @@ class Explosion:
 # ТЁМНОЕ ПЯТНО НА ЗЕМЛЕ
 # ==========================================
 class Scorch:
-    def __init__(self, x, y, spec, rng):
+    def __init__(self, x, y, spec, rng, radius_px=0.0):
         self.x, self.y = x, y
         self.life = spec.SCORCH_TIME
         self.age = 0.0
-        r = spec.SCORCH_RADIUS_PX
+        r = max(spec.SCORCH_RADIUS_PX, radius_px * 0.5)
         self.lumps = []                   # неровное пятно из нескольких кругов: (смещение x, y, радиус)
         self.reach = r * 1.25             # дальше этого радиуса от центра пятно не рисуется
         for _ in range(7):
@@ -285,8 +298,9 @@ class EffectsSystem:
             self.smoke.append(SmokeStreak(shot.x, shot.y, shot.angle, spec, self._rng, anchor=tank))
 
     def _spawn_impact(self, shell):
-        self.explosions.append(Explosion(shell.x, shell.y, shell.spec, self._rng))
-        self.scorches.append(Scorch(shell.x, shell.y, shell.spec, self._rng))
+        radius = shell.stats.aoe_radius_px
+        self.explosions.append(Explosion(shell.x, shell.y, shell.spec, self._rng, radius))
+        self.scorches.append(Scorch(shell.x, shell.y, shell.spec, self._rng, radius))
 
     def update(self, dt, targets=None):
         """Возвращает три списка:
@@ -308,10 +322,11 @@ class EffectsSystem:
                 shell.ricochet_target = None
             if shell.exploded:
                 self._spawn_impact(shell)
-                if shell.hit_target is not None:
-                    hits.append((shell.hit_target, shell.stats, shell.hit_cos,
-                                 shell.hit_normal, shell.power, shell.owner))
-                elif shell.bounces == 0:                  # после рикошета «долёт до конца» промахом не считаем
+                if shell.hit_target is not None or shell.stats.explode_at_range:
+                    hits.append(Impact(shell.hit_target, shell.stats, shell.hit_cos,
+                                       shell.hit_normal, shell.power, shell.owner,
+                                       shell.x, shell.y))
+                elif shell.bounces == 0:
                     misses.append(shell.owner)
 
         self.shells = [o for o in self.shells if o.alive]

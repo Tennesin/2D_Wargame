@@ -3,12 +3,8 @@ import random
 
 import pygame
 
-from engine import heading_vector
-from .armor import is_ricochet
-
-SHELL_COLOR = (205, 160, 105)       # светло-коричневый
-SHELL_LIGHT = (234, 202, 154)       # блик по центру
-SHELL_TIP = (150, 108, 64)          # наконечник темнее
+from engine import heading_vector, AMMO_COLORS
+from .armor import is_ricochet, impact_cos
 
 RICOCHET_LOSS = (0.30, 0.35)         # сколько силы теряет снаряд при рикошете (случайно в этих пределах)
 RICOCHET_RANGE_K = 0.5               # во сколько раз сокращается оставшаяся дальность
@@ -55,10 +51,10 @@ class Shell:
 
                 if normal is not None:
                     cos_i = abs(self.dx * normal[0] + self.dy * normal[1])
-                    if self.bounces < RICOCHET_MAX and is_ricochet(cos_i):
+                    if self.stats.ricochet and self.bounces < RICOCHET_MAX and is_ricochet(cos_i):
                         self._ricochet(hx, hy, normal, target)
                         return
-                    self.hit_cos = cos_i
+                    self.hit_cos = impact_cos(self.stats, cos_i)
 
                 self.x, self.y = hx, hy
                 self.hit_target = target
@@ -99,12 +95,13 @@ class Shell:
             self.exploded = True
 
     def draw(self, screen, camera):
+        body, light, tip = AMMO_COLORS[self.stats.kind]
         z = camera.zoom
         hx, hy = camera.world_to_screen(self.x, self.y)
         length = self.length * z
         tx, ty = hx - self.dx * length, hy - self.dy * length
         thick = max(2, int(round(self.thick * z)))
-        pygame.draw.line(screen, SHELL_COLOR, (tx, ty), (hx, hy), thick)
-        pygame.draw.line(screen, SHELL_LIGHT, (tx, ty), (hx, hy), max(1, thick // 3))
+        pygame.draw.line(screen, body, (tx, ty), (hx, hy), thick)
+        pygame.draw.line(screen, light, (tx, ty), (hx, hy), max(1, thick // 3))
         nx, ny = hx - self.dx * length * 0.2, hy - self.dy * length * 0.2
-        pygame.draw.line(screen, SHELL_TIP, (nx, ny), (hx, hy), thick)
+        pygame.draw.line(screen, tip, (nx, ny), (hx, hy), thick)

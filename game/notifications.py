@@ -22,7 +22,6 @@ C_SHADOW = (0, 0, 0)
 
 ZONE_RU = {"front": "в лоб", "side": "в борт", "rear": "в корму"}
 
-
 def _faded(surf, alpha):
     """Копия поверхности с прозрачностью alpha (0..255). Исходную менять нельзя: она общая (кэш текста)."""
     if alpha >= 255:
@@ -30,7 +29,6 @@ def _faded(surf, alpha):
     out = surf.copy()
     out.set_alpha(alpha)
     return out
-
 
 class _Line:
     __slots__ = ("text", "color", "age")
@@ -44,7 +42,6 @@ class _Floater:
 
     def __init__(self, x, y, text, color):
         self.x, self.y, self.text, self.color, self.age = x, y, text, color, 0.0
-
 
 class Notifier:
     """Принимает события боя (попадание, рикошет, промах) и показывает только те, что касаются игрока."""
@@ -66,19 +63,20 @@ class Notifier:
         del self._floaters[:-FLOAT_MAX]
 
     # ---------- события боя ----------
-    def on_hit(self, owner, target, normal, res, dealt):
+    def on_hit(self, owner, target, normal, res, dealt, min_frac=0.0):
         """Снаряд owner попал в target. res — HitResult, dealt — нанесённый урон.
         Вызывать ПОСЛЕ take_hit, чтобы hp уже был обновлён."""
-        if res.ricochet:                          # рикошет на последнем отскоке приходит как попадание
+        if res.ricochet:
             self.on_ricochet(owner, target)
             return
         me = self.player
+        frag = dealt > 0.0 and res.damage_frac < min_frac
         if target is me:
-            self._hit_on_player(normal, res, dealt)
+            self._hit_on_player(normal, res, dealt, frag)
         elif owner is me and target.target_type is TargetType.VEHICLE:
-            self._hit_on_enemy(target, normal, res, dealt)
+            self._hit_on_enemy(target, normal, res, dealt, frag)
         elif owner is me and target.target_type is TargetType.WALL:
-            self._hit_on_wall(target, res, dealt)
+            self._hit_on_wall(target, dealt)
         elif owner is me and target.target_type is TargetType.TERRAIN:
             self.say("Камень: снаряд не пробил", C_DIM)
 
@@ -120,11 +118,28 @@ class Notifier:
         if foe.hp <= 0.0:
             self.say("ЦЕЛЬ УНИЧТОЖЕНА!", C_GOOD)
 
+    def on_splash(self, owner, target, dealt):
+        """Осколки фугаса задели target (не прямая цель). Показываем только связанное с игроком."""
+        me = self.player
+        if target is me:
+            self.say(f"Осколки: -{dealt:.0f} HP", C_WARN)
+            self.float_at(me.x, me.y, f"-{dealt:.0f}", C_WARN)
+        elif owner is me and target.target_type is TargetType.VEHICLE:
+            self.float_at(target.x, target.y, f"-{dealt:.0f}", C_WARN)
+            if target.hp <= 0.0:
+                self.say("ЦЕЛЬ УНИЧТОЖЕНА!", C_GOOD)
+        elif owner is me and target.target_type is TargetType.WALL:
+            if target.hp <= 0.0:
+                self.say("Стена разрушена", C_DIM)
+
     # ---------- разбор попаданий ----------
-    def _hit_on_player(self, normal, res, dealt):
+    def _hit_on_player(self, normal, res, dealt, frag=False):
         me = self.player
         zone = ZONE_RU[me.zone_at(normal)]
-        if res.damage_frac <= 0.0:
+        if frag:
+            self.say(f"Фугас {zone}: осколки -{dealt:.0f} HP", C_WARN)
+            self.float_at(me.x, me.y, f"-{dealt:.0f}", C_WARN)
+        elif res.damage_frac <= 0.0:
             self.say(f"Броня не пробита! ({zone}, приведённая {res.eff_armor:.0f} мм)", C_GOOD)
             self.float_at(me.x, me.y, "0", C_GOOD)
         elif res.damage_frac >= 1.0:
@@ -134,9 +149,12 @@ class Notifier:
             self.say(f"Частичное пробитие {zone}: -{dealt:.0f} HP", C_WARN)
             self.float_at(me.x, me.y, f"-{dealt:.0f}", C_WARN)
 
-    def _hit_on_enemy(self, target, normal, res, dealt):
+    def _hit_on_enemy(self, target, normal, res, dealt, frag=False):
         zone = ZONE_RU[target.zone_at(normal)]
-        if res.damage_frac <= 0.0:
+        if frag:
+            self.say(f"Фугас {zone}: осколки -{dealt:.0f} HP (осталось {max(0.0, target.hp):.0f})", C_WARN)
+            self.float_at(target.x, target.y, f"-{dealt:.0f}", C_WARN)
+        elif res.damage_frac <= 0.0:
             self.say(f"Не пробито ({zone}): приведённая броня {res.eff_armor:.0f} мм", C_BAD)
             self.float_at(target.x, target.y, "0", C_DIM)
         elif res.damage_frac >= 1.0:
@@ -148,8 +166,8 @@ class Notifier:
         if target.hp <= 0.0:
             self.say("ЦЕЛЬ УНИЧТОЖЕНА!", C_GOOD)
 
-    def _hit_on_wall(self, wall, res, dealt):
-        if res.damage_frac <= 0.0:
+    def _hit_on_wall(self, wall, dealt):
+        if dealt <= 0.0:
             self.say("Стена: броня не пробита", C_DIM)
         else:
             self.say(f"Стена: -{dealt:.0f} HP (осталось {max(0.0, wall.hp):.0f})", C_DIM)

@@ -92,6 +92,8 @@ class HudOverlay:
         else:
             rows.append((f"{k[Action.COMBAT]} — боевой режим, {k[Action.TOGGLE_FREE_CAM]} — камера, "
                          f"{k[Action.TOGGLE_DEBUG]} — отладка", (170, 176, 186)))
+        rows.append((f"{k[Action.AMMO_1]}/{k[Action.AMMO_2]}/{k[Action.AMMO_3]} — тип снаряда",
+                     (170, 176, 186)))
         if self.camera_ctrl.free_camera:
             rows.append((f"Свободная камера ({k[Action.TOGGLE_FREE_CAM]}): ПКМ — двигать", (110, 190, 240)))
         if self.tank.terrain_k < 0.99:

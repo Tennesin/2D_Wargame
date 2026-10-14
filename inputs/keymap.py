@@ -19,6 +19,9 @@ class Action(Enum):
     TOGGLE_FREE_CAM = auto()
     DELETE_WALL = auto()
     COMBAT = auto()
+    AMMO_1 = auto()
+    AMMO_2 = auto()
+    AMMO_3 = auto()
 
 class MouseOwner(Enum):
     """Кому сейчас принадлежит нажатая кнопка мыши (до её отпускания)."""
@@ -40,18 +43,22 @@ HELD_KEYMAP = {
 
 # Разовые действия: действие -> клавиши
 PRESS_KEYMAP = {
-    Action.CANCEL:       (pygame.K_ESCAPE,),
-    Action.TOGGLE_DEBUG: (pygame.K_TAB,),     # Tab: отладочные строки
-    Action.LOCK_TURRET:  (pygame.K_q,),
-    Action.TOGGLE_BUILD: (pygame.K_b,),
+    Action.CANCEL:          (pygame.K_ESCAPE,),
+    Action.TOGGLE_DEBUG:    (pygame.K_TAB,),
+    Action.LOCK_TURRET:     (pygame.K_q,),
+    Action.TOGGLE_BUILD:    (pygame.K_b,),
     Action.TOGGLE_FREE_CAM: (pygame.K_l,),
-    Action.DELETE_WALL:  (pygame.K_DELETE,),
-    Action.COMBAT:       (pygame.K_LALT, pygame.K_RALT),
+    Action.DELETE_WALL:     (pygame.K_DELETE,),
+    Action.COMBAT:          (pygame.K_LALT, pygame.K_RALT),
+    Action.AMMO_1:          (pygame.K_1, pygame.K_KP1),
+    Action.AMMO_2:          (pygame.K_2, pygame.K_KP2),
+    Action.AMMO_3:          (pygame.K_3, pygame.K_KP3),
 }
 
 # Обратная таблица для быстрого поиска по событию KEYDOWN: клавиша -> действие
 KEY_TO_PRESS = {key: action for action, keys in PRESS_KEYMAP.items() for key in keys}
-
+# порядок совпадает с vehicles.AMMO_ORDER: ББ, КС, ФГ
+AMMO_HOTKEYS = (Action.AMMO_1, Action.AMMO_2, Action.AMMO_3)
 # Подписи клавиш для подсказок на экране. Нет в словаре: берём имя из pygame.
 KEY_LABELS = {pygame.K_LALT: "Alt", pygame.K_RALT: "Alt", pygame.K_ESCAPE: "Esc",
               pygame.K_DELETE: "Delete", pygame.K_TAB: "Tab"}

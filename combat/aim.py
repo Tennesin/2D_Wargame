@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from typing import Optional
 import pygame
 
-from engine import heading_vector, AlphaLayer, get_text, FONT_SIZE_LABEL
-from .armor import HitResult
+from engine import heading_vector, AlphaLayer, get_text, FONT_SIZE_LABEL, TargetType
+from .armor import HitResult, impact_cos
 
 LINE_COLOR = (255, 40, 40, 110)      # красный, полупрозрачный
 LINE_WIDTH = 2
@@ -24,6 +24,7 @@ class AimInfo:
     end: tuple                            # точка попадания или конец дальности
     result: Optional[HitResult] = None    # результат попадания (None, если линия свободна)
     target: object = None                 # цель, в которую упирается линия (None, если свободна)
+    min_frac: float = 0.0                 # гарантированная доля урона (фугас), 0 = нет
 
 def compute_aim(tank, targets):
     """Траектория от дульного среза вдоль башни. Отрезок для проверки начинается в центре танка,
@@ -40,8 +41,9 @@ def compute_aim(tank, targets):
 
     target, t, normal = hit
     point = (tank.x + (end[0] - tank.x) * t, tank.y + (end[1] - tank.y) * t)
-    cos_impact = 1.0 if normal is None else abs(dx * normal[0] + dy * normal[1])
-    return AimInfo(start, point, target.hit_result(stats.penetration, cos_impact, normal), target)
+    cos_impact = 1.0 if normal is None else impact_cos(stats, abs(dx * normal[0] + dy * normal[1]))
+    min_frac = 0.0 if target.target_type is TargetType.TERRAIN else stats.min_frac
+    return AimInfo(start, point, target.hit_result(stats.penetration, cos_impact, normal), target, min_frac)
 
 class AimRenderer:
 
@@ -76,7 +78,9 @@ class AimRenderer:
             result, color = "Рикошет: урона нет", C_NO
         else:
             eff_text = f"Приведённая броня: {res.eff_armor:.0f} мм"
-            if res.damage_frac >= 1.0:
+            if info.min_frac > 0.0 and res.damage_frac < info.min_frac:
+                result, color = f"Осколки: {round(info.min_frac * 100)}% урона", C_CHANCE
+            elif res.damage_frac >= 1.0:
                 result, color = "Урон: 100%", C_YES
             elif res.damage_frac <= 0.0:
                 result, color = "Урон: 0% (не пробито)", C_NO
