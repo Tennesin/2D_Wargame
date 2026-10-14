@@ -24,12 +24,12 @@ class Archetype:
     budget_k: float = 1.0               # множитель бюджета (Бункер дороже, Разведчик дешевле)
     spawn_weight: float = 1.0           # относительная частота появления
     edge_k: float = 1.0                 # насколько характеристики сдвигают дистанцию боя (0: ровно engage_dist_m)
-    aspect_deg: float = 90.0        # куда стремится: 0 лоб, 90 борт, 180 корма
-    aspect_tol_deg: float = 30.0    # допуск: в этих пределах бот считается «на позиции»
-    aspect_drive: float = 0.0       # постоянная тяга к позиции (балл намерения FLANK)
-    damage_band: tuple = (0.5, 0.5)   # где на ползунке урона (0..1 внутри коридора калибра) выбирается значение
-    pen_band: tuple = (0.5, 0.5)      # то же для пробития
-    emblem: str = ""                  # деталь на башне для узнавания: "" нет, "chevron" и т.д.
+    aspect_deg: float = 90.0            # куда стремится: 0 лоб, 90 борт, 180 корма
+    aspect_tol_deg: float = 30.0        # допуск: в этих пределах бот считается «на позиции»
+    aspect_drive: float = 0.0           # постоянная тяга к позиции (балл намерения FLANK)
+    damage_band: tuple = (0.5, 0.5)     # где на ползунке урона (0..1 внутри коридора калибра) выбирается значение
+    pen_band: tuple = (0.5, 0.5)        # то же для пробития
+    emblem: str = ""                    # деталь на башне для узнавания: "" нет, "chevron" и т.д.
 
 @dataclass(frozen=True)
 class Skill:
@@ -46,7 +46,7 @@ UNIVERSAL = Archetype(
     engage_dist_m=22.0, flank_bias=0.3,
     jitter=0.0, t_anchor=_t, retreat_hp=0.35, cover_bias=0.3,
     aspect_deg=150.0, aspect_tol_deg=30.0, aspect_drive=1.6,
-    damage_band=(0.60, 0.80), pen_band=(0.60, 0.80))
+    damage_band=(0.40, 0.60), pen_band=(0.40, 0.60))
 
 BUNKER = Archetype(
     "Бункер",
