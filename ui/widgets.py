@@ -8,6 +8,7 @@ from .theme import (BUTTON_COLORS, SLIDER_FILL_COLOR, SLIDER_BG_COLOR, SLIDER_BO
 # ==========================================
 # БАЗОВЫЕ ВИДЖЕТЫ
 # ==========================================
+
 class Button:
     def __init__(self, rect, label, enabled=True):
         self.rect = pygame.Rect(rect)
@@ -28,6 +29,60 @@ class Button:
 
     def collidepoint(self, *args):
         return self.enabled and self.rect.collidepoint(*args)
+
+class Checkbox:
+    """Строка-переключатель: [галочка] [цветной квадратик] подпись ........ примечание.
+    Недоступная строка (enabled=False) не реагирует на мышь и рисуется приглушённо."""
+    BOX = 22
+    PAD = 10
+    SWATCH = 16
+    CHECK_COLOR = (90, 200, 90)
+    CHECK_DIM = (80, 120, 80)
+
+    def __init__(self, rect, label, checked=True, enabled=True, note="", swatch=None):
+        self.rect = pygame.Rect(rect)
+        self.label = label
+        self.checked = checked
+        self.enabled = enabled
+        self.note = note
+        self.swatch = swatch             # цвет маленького квадратика или None
+
+    def collidepoint(self, *args):
+        return self.enabled and self.rect.collidepoint(*args)
+
+    def draw(self, surface, mouse_pos, font_size=FONT_SIZE_LABEL):
+        if not self.enabled:
+            bg = BUTTON_COLORS["disabled"]
+        elif self.rect.collidepoint(mouse_pos):
+            bg = BUTTON_COLORS["hover"]
+        else:
+            bg = BUTTON_COLORS["normal"]
+        pygame.draw.rect(surface, bg, self.rect, border_radius=4)
+
+        box = pygame.Rect(self.rect.x + self.PAD, 0, self.BOX, self.BOX)
+        box.centery = self.rect.centery
+        pygame.draw.rect(surface, SLIDER_BG_COLOR, box, border_radius=3)
+        pygame.draw.rect(surface, SLIDER_BORDER_COLOR, box, 1, border_radius=3)
+        if self.checked:
+            color = self.CHECK_COLOR if self.enabled else self.CHECK_DIM
+            pts = [(box.x + 5, box.y + 11), (box.x + 9, box.y + 16), (box.x + 17, box.y + 6)]
+            pygame.draw.lines(surface, color, False, pts, 3)
+
+        x = box.right + self.PAD
+        if self.swatch is not None:
+            sw = pygame.Rect(x, 0, self.SWATCH, self.SWATCH)
+            sw.centery = self.rect.centery
+            pygame.draw.rect(surface, self.swatch, sw, border_radius=3)
+            pygame.draw.rect(surface, (20, 22, 26), sw, 1, border_radius=3)
+            x = sw.right + self.PAD
+
+        text_color = TEXT_COLOR if self.enabled else TEXT_DIM
+        label = get_text(self.label, font_size, text_color)
+        surface.blit(label, label.get_rect(midleft=(x, self.rect.centery)))
+
+        if self.note:
+            note = get_text(self.note, font_size, TEXT_DIM)
+            surface.blit(note, note.get_rect(midright=(self.rect.right - self.PAD, self.rect.centery)))
 
 class Slider:
     def __init__(self, rect, value=0.5, min_value=0.0, max_value=1.0, step=0.05):

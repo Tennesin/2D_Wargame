@@ -2,7 +2,7 @@
 import pygame
 
 from .settings import GAME_TITLE
-from .scenes import MenuScene, ConstructorScene, PlayScene
+from .scenes import MenuScene, ConstructorScene, PlayScene, SettingsScene
 from .session import Session
 
 class App:
@@ -27,11 +27,16 @@ class App:
     def show_menu(self):
         self._next = lambda: MenuScene(on_play=self.start_game,
                                        on_constructor=self.show_constructor,
+                                       on_settings=self.show_settings,
                                        on_quit=self.quit)
 
     def show_constructor(self):
         self._next = lambda: ConstructorScene(self.session, on_play=self.start_game,
                                               on_menu=self.show_menu, on_quit=self.quit)
+
+    def show_settings(self):
+        self._next = lambda: SettingsScene(self.session.prefs,
+                                           on_back=self.show_menu, on_quit=self.quit)
 
     def start_game(self):
         self._next = lambda: PlayScene(self.seed, self.clock, self.session,

@@ -72,7 +72,7 @@ class PlayScene(Scene):
 
         # --- боты ---
         finder = SpawnFinder(terrain, blockers=[walls.blocks_obb, fleet.blocks_obb])
-        self.spawner = BotSpawner(fleet, finder, self.camera, self.seed)
+        self.spawner = BotSpawner(fleet, finder, self.camera, self.seed, session.prefs)
         self.bot_ctrl = BotController(ctx)
         self.ram = RamController(ctx)
 

@@ -1,12 +1,14 @@
 """game/session.py — данные, которые переживают смену сцен: выбранный тип техники и настройки каждого типа."""
 from engine import VehicleKind
 from vehicles import VEHICLE_TYPES, default_tuning
+from .preferences import Preferences
 
 class Session:
     def __init__(self):
         self.kind = VehicleKind.MBT
         # значения ползунков для КАЖДОГО типа отдельно: при переключении кнопок настройки не теряются
         self.values = {kind: self._defaults(t) for kind, t in VEHICLE_TYPES.items()}
+        self.prefs = Preferences()       # настройки меню: живут, пока открыто приложение
 
     @staticmethod
     def _defaults(vtype):

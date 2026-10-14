@@ -22,10 +22,11 @@ EARLY_UNLOCK_MULT = 1.8      # ...если его множитель шанса 
 UNLOCKS = [(0, "universal"), (2, "scout"), (4, "destroyer"), (6, "bunker")]
 
 class BotSpawner:
-    def __init__(self, fleet, finder, camera, seed):
+    def __init__(self, fleet, finder, camera, seed, prefs):
         self.fleet = fleet
         self.finder = finder
         self.camera = camera
+        self.prefs = prefs
         self.rng = random.Random(seed + 777)
         self.spawned = 0
         self._clock = 0.0
@@ -80,8 +81,10 @@ class BotSpawner:
         mult = counter_multipliers(self.profile, ARCHETYPES)
         self.multipliers = mult
 
+        allowed = self.prefs.enabled_keys()
         pool = [k for n, k in UNLOCKS
-                if self.spawned >= n
-                or (self.spawned >= EARLY_UNLOCK_FROM and mult[k] >= EARLY_UNLOCK_MULT)]
+                if k in allowed
+                and (self.spawned >= n
+                     or (self.spawned >= EARLY_UNLOCK_FROM and mult[k] >= EARLY_UNLOCK_MULT))]
         weights = [ARCHETYPES[k].spawn_weight * mult[k] for k in pool]
         return ARCHETYPES[self.rng.choices(pool, weights=weights)[0]]
