@@ -104,7 +104,7 @@ def resolve_tuning(cal, damage=None, penetration=None, profile=MBT_GUN):
 def tuning_k_bounds():
     """Реальные крайние множители урона и пробития среди ВСЕХ калибров (для профиля ОБТ):
     ((dmg_min, dmg_max), (pen_min, pen_max)). Нужны модели цены танка."""
-    cal = PARAMS["gun_caliber_mm"]
+    cal = CALIBER
     dk, pk = [], []
     for c in range(int(cal.min), int(cal.max) + 1):
         d_lo, d_hi = damage_range(c)
