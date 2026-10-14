@@ -28,6 +28,8 @@ class GunProfile:
     Между ними множитель растёт линейно: чем крупнее калибр, тем заметнее разница."""
     dmg_bonus: tuple = (1.0, 1.0)
     pen_bonus: tuple = (1.0, 1.0)
+    speed_bonus: tuple = (1.0, 1.0)
+    range_bonus: tuple = (1.0, 1.0)
 
     def dmg_mult(self, cal):
         return lerp(self.dmg_bonus[0], self.dmg_bonus[1], _cal_t(cal))
@@ -35,8 +37,15 @@ class GunProfile:
     def pen_mult(self, cal):
         return lerp(self.pen_bonus[0], self.pen_bonus[1], _cal_t(cal))
 
+    def speed_mult(self, cal):
+        return lerp(self.speed_bonus[0], self.speed_bonus[1], _cal_t(cal))
+
+    def range_mult(self, cal):
+        return lerp(self.range_bonus[0], self.range_bonus[1], _cal_t(cal))
+
 MBT_GUN = GunProfile()
-TD_GUN = GunProfile(dmg_bonus=(1.05, 1.30), pen_bonus=(1.03, 1.20))
+TD_GUN = GunProfile(dmg_bonus=(1.05, 1.30), pen_bonus=(1.03, 1.20),
+                    speed_bonus=(1.0, 1.15), range_bonus=(1.0, 1.25))
 
 # ---------- номиналы: зависят от калибра и профиля ----------
 def nominal_damage(cal, profile=MBT_GUN):

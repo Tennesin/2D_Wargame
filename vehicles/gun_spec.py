@@ -11,6 +11,9 @@ from .gun_params import (
     TURRET_TURN_REF, TURRET_TURN_MIN, TURRET_TURN_MAX, TURRET_POWER_EXP,
     TURRET_INERTIA_EXP, TURRET_SPINUP_REF, TURRET_RADIUS_M, GUN_ARM_BASE_M, GUN_ARM_BARREL_K,
     SHELL_LEN_K, BARREL_VIS_REF_M, BARREL_VIS_EXP, BARREL_VIS_K_RANGE,
+    SHELL_SPEED_REF_PX, SHELL_SPEED_L_EXP, SHELL_SPEED_CAL_EXP, SHELL_SPEED_PEN_EXP,
+    SHELL_SPEED_LIMITS, SHELL_RANGE_REF_PX, SHELL_RANGE_SPEED_EXP, SHELL_RANGE_CAL_EXP,
+    SHELL_RANGE_LIMITS, SHELL_SIZE_EXP, SHELL_STRETCH_EXP,
 )
 
 _CAL = CALIBER
@@ -104,11 +107,25 @@ class GunSpec:
         # где находится дульный срез от центра машины (px мира, с учётом масштаба башни)
         self.MUZZLE_DIST_PX = (self.GUN_FRONT_M + self.BARREL_LEN_M) * self.TURRET_SCALE * PX_PER_M
 
-        # снаряд
-        self.SHELL_LEN_PX = SHELL_LEN_K * cal
-        self.SHELL_THICK_PX = 0.15 * cal
-        self.SHELL_SPEED_PX = 6000.0 * (self.l_cal / REF_L_CAL) ** 0.3
-        self.SHELL_RANGE_PX = 3500.0                                   # дальше — взрыв, как при попадании в землю
+        # снаряд: сначала скорость, от неё зависят дальность и длина трассера
+        cr = cal / REF_CAL
+        speed = (SHELL_SPEED_REF_PX
+                 * (self.l_cal / REF_L_CAL) ** SHELL_SPEED_L_EXP
+                 * cr ** SHELL_SPEED_CAL_EXP
+                 * self.pen_k ** SHELL_SPEED_PEN_EXP
+                 * self.profile.speed_mult(cal))
+        self.SHELL_SPEED_PX = clamp(speed, *SHELL_SPEED_LIMITS)
+
+        reach = (SHELL_RANGE_REF_PX
+                 * (self.SHELL_SPEED_PX / SHELL_SPEED_REF_PX) ** SHELL_RANGE_SPEED_EXP
+                 * cr ** SHELL_RANGE_CAL_EXP
+                 * self.profile.range_mult(cal))
+        self.SHELL_RANGE_PX = clamp(reach, *SHELL_RANGE_LIMITS)
+
+        size = SHELL_LEN_K * REF_CAL * cr ** SHELL_SIZE_EXP
+        stretch = (self.SHELL_SPEED_PX / SHELL_SPEED_REF_PX) ** SHELL_STRETCH_EXP
+        self.SHELL_LEN_PX = size * stretch
+        self.SHELL_THICK_PX = 0.15 * REF_CAL * cr ** SHELL_SIZE_EXP
 
         # откат ствола (метры эталонного спрайта)
         self.RECOIL_DEPTH_M = 0.12 + 0.0028 * cal

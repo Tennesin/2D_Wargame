@@ -170,6 +170,8 @@ class TankSpec(ChassisSpec):
             "Урон": f"{self.damage:.0f}",
             "Пробитие": f"{self.penetration:.0f} мм",
             "Перезарядка": f"{self.reload:.2f} с",
+            "Скорость снаряда": f"{self.SHELL_SPEED_PX / PX_PER_M:.0f} м/с",
+            "Дальность": f"{self.SHELL_RANGE_PX / PX_PER_M:.0f} м",
             "Темп огня (DPS)": f"{self.dps:.0f}",
         }
 
