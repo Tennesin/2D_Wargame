@@ -3,14 +3,14 @@
 import pygame
 
 from engine import AlphaLayer, get_text, FONT_SIZE_HEADER, FONT_SIZE_LABEL
-from .theme import PANEL_BORDER, TEXT_COLOR, TEXT_DIM, LINE_COLOR
+from .theme import PANEL_BORDER, TEXT_COLOR, TEXT_DIM, LINE_COLOR, BG_COLOR
 
 CARD_OFFSET = 18           # на сколько px окно смещено от курсора
 CARD_PAD = 10              # внутренний отступ
 CARD_TITLE_H = 28          # высота строки заголовка
 CARD_ROW_H = 22            # высота строки данных
 CARD_COL_GAP = 18          # минимальный зазор между названием и значением
-CARD_BG = (28, 31, 36, 225)
+CARD_BG = (*BG_COLOR, 225)
 
 class InfoCard:
     def __init__(self):

@@ -2,7 +2,7 @@
 import pygame
 
 from .terrain import ROCK, DEEP_WATER, MID_WATER, SHALLOWS, MUD
-from engine import CONCRETE_SIDE, OUTLINE_DARK
+from engine import CONCRETE_SIDE, OUTLINE_DARK, shrink_polygon
 
 MIN_SCREEN_R = 1.5           # пятна мельче этого радиуса (экранные px) не рисуем
 
@@ -23,11 +23,6 @@ ROCK_OUTLINE = OUTLINE_DARK
 ROCK_TOP = (150, 150, 154)
 ROCK_LIT = (178, 178, 182)
 ROCK_FACET = (118, 118, 122)
-
-def _shrink(pts, cx, cy, k, dx=0.0, dy=0.0):
-    """Уменьшить фигуру относительно центра в k раз и сдвинуть."""
-    return [(cx + (x - cx) * k + dx, cy + (y - cy) * k + dy) for x, y in pts]
-
 
 class TerrainRenderer:
     def draw(self, screen, camera, terrain):
@@ -54,7 +49,7 @@ class TerrainRenderer:
                 pygame.draw.polygon(screen, DEEP_EDGE, pts, 1)
             elif kind is MUD:
                 pygame.draw.polygon(screen, MUD_FILL, pts)
-                pygame.draw.polygon(screen, MUD_DARK, _shrink(pts, cx, cy, 0.62))
+                pygame.draw.polygon(screen, MUD_DARK, shrink_polygon(pts, cx, cy, 0.62))
                 pygame.draw.polygon(screen, MUD_EDGE, pts, 1)
             elif kind is ROCK:
                 self._draw_rock(screen, pts, cx, cy, r)
@@ -67,10 +62,10 @@ class TerrainRenderer:
         pygame.draw.polygon(screen, ROCK_SIDE, pts)                   # боковая грань
 
         off = -0.06 * r                                               # верхняя грань сдвинута к свету
-        top = _shrink(pts, cx, cy, 0.82, off, off)
+        top = shrink_polygon(pts, cx, cy, 0.82, off, off)
         pygame.draw.polygon(screen, ROCK_TOP, top)
         if r >= 10:                                                   # блик и грани
-            lit = _shrink(pts, cx, cy, 0.45, off * 2.0, off * 2.0)
+            lit = shrink_polygon(pts, cx, cy, 0.45, off * 2.0, off * 2.0)
             pygame.draw.polygon(screen, ROCK_LIT, lit)
             for a, b in zip(top, lit):
                 pygame.draw.line(screen, ROCK_FACET, a, b, 1)

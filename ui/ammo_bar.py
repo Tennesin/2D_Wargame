@@ -2,7 +2,7 @@
 О танках не знает: что показывать и что делать по клику, приходит снаружи."""
 import pygame
 
-from engine import get_text
+from engine import get_text, COLOR_GOOD
 from .theme import BUTTON_COLORS, PANEL_BORDER, TEXT_COLOR, TEXT_DIM
 from .hud import MARGIN, WIDTH, HEIGHT
 from .ammo_icons import make_ammo_icon
@@ -11,9 +11,11 @@ BTN = 44                    # сторона кнопки; 3 кнопки + 2 з
 GAP = 6
 OFFSET_X = 8                # зазор между мини-панелью и столбиком
 ICON_SIZE = (28, 16)
-SELECT_COLOR = (90, 200, 90)    # зелёная рамка выбранного снаряда
+SELECT_COLOR = COLOR_GOOD
 CODE_SIZE = 14
 KEY_SIZE = 12
+GAP = 6
+BTN = (HEIGHT - 2 * GAP) // 3
 
 class AmmoBar:
     def __init__(self, items, on_select):

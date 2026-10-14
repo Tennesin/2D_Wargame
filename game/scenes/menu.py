@@ -1,12 +1,14 @@
-"""game/scenes/menu.py — главное меню: «Играть» и «Выйти»."""
+"""game/scenes/menu.py — главное меню."""
 import pygame
 
 from engine import get_text
 from ui import Button, DELETE_BUTTON_COLORS
+from ui.theme import BG_COLOR
 from .base import Scene
 from ..settings import GAME_TITLE
+from .. import texts
 
-BG = (28, 31, 36)
+BG = BG_COLOR
 TITLE_TEXT = GAME_TITLE
 TITLE_COLOR = (230, 230, 230)
 TITLE_SIZE = 48
@@ -23,10 +25,10 @@ class MenuScene(Scene):
         self.on_settings = on_settings          # открыть настройки
         self.on_quit = on_quit                  # закрыть приложение
 
-        self.play_button = Button((0, 0, BUTTON_W, BUTTON_H), "Играть")
-        self.constructor_button = Button((0, 0, BUTTON_W, BUTTON_H), "Конструктор")
-        self.settings_button = Button((0, 0, BUTTON_W, BUTTON_H), "Настройки")
-        self.quit_button = Button((0, 0, BUTTON_W, BUTTON_H), "Выйти")
+        self.play_button = Button((0, 0, BUTTON_W, BUTTON_H), texts.MENU_PLAY)
+        self.constructor_button = Button((0, 0, BUTTON_W, BUTTON_H), texts.MENU_CONSTRUCTOR)
+        self.settings_button = Button((0, 0, BUTTON_W, BUTTON_H), texts.MENU_SETTINGS)
+        self.quit_button = Button((0, 0, BUTTON_W, BUTTON_H), texts.MENU_QUIT)
         self._title_pos = (0, 0)
         self._size = None
         self._layout(pygame.display.get_surface().get_size())

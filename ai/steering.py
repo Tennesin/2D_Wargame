@@ -3,11 +3,13 @@ import math
 
 from engine import shortest_angle_diff, clamp
 
-def steer_to(tank, heading_deg, go, turn_in_place_deg=60.0):
-    """Курс корпуса -> (throttle, steer). go: +1 вперёд, -1 назад, 0 стоять.
-    Если до нужного курса далеко, газ в ноль: танк разворачивается на месте."""
+STEER_DEADZONE_DEG = 2.0      # ошибка курса меньше этого: руль в ноль
+STEER_FULL_DEG = 25.0         # при ошибке курса от этого руль «до упора»
+TURN_IN_PLACE_DEG = 60.0      # ошибка больше этого: газ в ноль, разворот на месте
+
+def steer_to(tank, heading_deg, go, turn_in_place_deg=TURN_IN_PLACE_DEG):
     err = shortest_angle_diff(heading_deg, tank.hull_angle)
-    steer = 0.0 if abs(err) < 2.0 else clamp(err / 25.0, -1.0, 1.0)
+    steer = 0.0 if abs(err) < STEER_DEADZONE_DEG else clamp(err / STEER_FULL_DEG, -1.0, 1.0)
     throttle = go if abs(err) <= turn_in_place_deg else 0.0
     return throttle, steer
 

@@ -5,9 +5,11 @@ import pygame
 from ai import ARCHETYPES
 from engine import get_text
 from ui import Button, Checkbox
+from ui.theme import BG_COLOR
 from .base import Scene
+from .. import texts
 
-BG = (28, 31, 36)
+BG = BG_COLOR
 TITLE_COLOR = (230, 230, 230)
 SUB_COLOR = (150, 156, 166)
 TITLE_SIZE = 40
@@ -23,9 +25,6 @@ TITLE_BLOCK_H = 64          # место под заголовок
 SUB_BLOCK_H = 40            # под подзаголовок
 HINT_BLOCK_H = 36           # под примечание под списком
 AFTER_HINT_GAP = 16
-
-SUBTITLE = "Враги: допустимые архетипы"
-HINT = "Изменения вступят в силу в новой игре."
 
 class SettingsScene(Scene):
     def __init__(self, prefs, on_back, on_quit):
@@ -95,14 +94,14 @@ class SettingsScene(Scene):
 
     def draw(self, screen):
         screen.fill(BG)
-        title = get_text("Настройки", TITLE_SIZE, TITLE_COLOR)
+        title = get_text(texts.SETTINGS_TITLE, TITLE_SIZE, TITLE_COLOR)
         screen.blit(title, title.get_rect(center=self._title_pos))
-        sub = get_text(SUBTITLE, SUB_SIZE, SUB_COLOR)
+        sub = get_text(texts.SETTINGS_SUBTITLE, SUB_SIZE, SUB_COLOR)
         screen.blit(sub, sub.get_rect(center=self._sub_pos))
 
         mouse = pygame.mouse.get_pos()
         for _, box in self.rows:
             box.draw(screen, mouse)
-        hint = get_text(HINT, HINT_SIZE, SUB_COLOR)
+        hint = get_text(texts.SETTINGS_HINT, HINT_SIZE, SUB_COLOR)
         screen.blit(hint, hint.get_rect(center=self._hint_pos))
         self.back_button.draw(screen, mouse, font_size=BUTTON_FONT)

@@ -4,6 +4,7 @@ import pygame
 from engine import PX_PER_M, get_text, FONT_SIZE_LABEL
 from inputs import Action, key_label
 from world import CHUNK_SIZE
+from . import texts
 
 class DebugOverlay:
     """Строки отладки (Tab)."""
@@ -88,20 +89,20 @@ class HudOverlay:
         k = self._k
         rows = []
         if self.modes.combat:
-            rows.append(("БОЕВОЙ РЕЖИМ: ЛКМ — огонь", (240, 80, 80)))
+            rows.append((texts.HINT_COMBAT, (240, 80, 80)))
         else:
-            rows.append((f"{k[Action.COMBAT]} — боевой режим, {k[Action.TOGGLE_FREE_CAM]} — камера, "
-                         f"{k[Action.TOGGLE_DEBUG]} — отладка", (170, 176, 186)))
-        rows.append((f"{k[Action.AMMO_1]}/{k[Action.AMMO_2]}/{k[Action.AMMO_3]} — тип снаряда",
+            rows.append((texts.HINT_IDLE.format(combat=k[Action.COMBAT], camera=k[Action.TOGGLE_FREE_CAM],
+                                                debug=k[Action.TOGGLE_DEBUG]), (170, 176, 186)))
+        rows.append((texts.HINT_AMMO.format(a=k[Action.AMMO_1], b=k[Action.AMMO_2], c=k[Action.AMMO_3]),
                      (170, 176, 186)))
         if self.camera_ctrl.free_camera:
-            rows.append((f"Свободная камера ({k[Action.TOGGLE_FREE_CAM]}): ПКМ — двигать", (110, 190, 240)))
+            rows.append((texts.HINT_FREE_CAM.format(key=k[Action.TOGGLE_FREE_CAM]), (110, 190, 240)))
         if self.tank.terrain_k < 0.99:
-            rows.append((f"Вязкая местность: скорость ×{self.tank.terrain_k:.2f}", (200, 170, 120)))
+            rows.append((texts.HINT_VISCOUS.format(k=self.tank.terrain_k), (200, 170, 120)))
         if not self.modes.turret_follow:
-            rows.append((f"Башня зафиксирована ({k[Action.LOCK_TURRET]})", (240, 210, 70)))
+            rows.append((texts.HINT_TURRET_LOCKED.format(key=k[Action.LOCK_TURRET]), (240, 210, 70)))
         if self.fleet is not None:
-            rows.append((f"Уничтожено: {self.fleet.kills}", (170, 176, 186)))
+            rows.append((texts.KILLS.format(n=self.fleet.kills), (170, 176, 186)))
 
         for text, color in reversed(rows):
             shadow = get_text(text, FONT_SIZE_LABEL, (0, 0, 0))
@@ -112,8 +113,8 @@ class HudOverlay:
 
     def _draw_death(self, screen):
         cx, cy = screen.get_width() // 2, screen.get_height() // 2
-        for text, size, color, dy in (("Машина уничтожена", 48, (240, 80, 80), -20),
-                                      (f"{self._k[Action.CANCEL]} — в меню", 24, (230, 230, 230), 28)):
+        for text, size, color, dy in ((texts.DEATH_TITLE, 48, (240, 80, 80), -20),
+                (texts.DEATH_HINT.format(key=self._k[Action.CANCEL]), 24, (230, 230, 230), 28)):
             shadow = get_text(text, size, (0, 0, 0))
             label = get_text(text, size, color)
             screen.blit(shadow, shadow.get_rect(center=(cx + 2, cy + dy + 2)))

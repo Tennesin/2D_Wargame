@@ -9,17 +9,12 @@ from ..sprite_base import (
     HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, GRILL, GRILL_LINE,
     TURRET_MAIN, TURRET_LIGHT, TURRET_DARK,
 )
-from .params import TD_HULL_HALF_M, TD_TURRET_HALF_M, TD_MASK_DEPTH_M, TD_CASEMATE_AHEAD_M, TD_SHOW_BREECH
+from .params import TD_HULL_HALF_M, TD_TURRET_HALF_M, TD_MASK_DEPTH_M, TD_CASEMATE_AHEAD_M
 
 SUPPORT_MAIN = (128, 120, 104)
 SUPPORT_DARK = (96, 90, 78)
-LAMP = (236, 222, 160)
 CABLE = (66, 60, 52)
 TOOLBOX = (132, 124, 106)
-
-def _tint(color, k):
-    """Осветлить (k > 1) или затемнить (k < 1) цвет."""
-    return tuple(max(0, min(255, int(c * k))) for c in color)
 
 # Рубка/опора: сколько метров корпуса лежит ПОЗАДИ оси орудия, по уровням опоры
 CASEMATE_REACH = (1.9, 2.3, 2.8)
@@ -30,6 +25,7 @@ OUTLINE_ANT = (38, 33, 28)
 
 class TDRenderer(GunVehicleRenderer):
     HULL_HALF_M = TD_HULL_HALF_M
+    HAS_TURRET_SPRITE = False
 
     def __init__(self):
         super().__init__()
@@ -188,11 +184,6 @@ class TDRenderer(GunVehicleRenderer):
     # ==========================================
     # ЛАФЕТ ОРУДИЯ
     # ==========================================
-    def _build_turret(self, team_color, paint, look, emblem, spec):
-        """У ПТ-САУ казённик и люлька спрятаны под рубкой: видна только маска и ствол.
-        Возвращаем пустую прозрачную заготовку, чтобы кэши и тень продолжали работать."""
-        size = 2 * math.ceil(TD_TURRET_HALF_M * self._ppm)
-        return pygame.Surface((size, size), pygame.SRCALPHA)
 
     def _build_mantlet(self, team_color, paint, look, spec):
         """Простая одноцветная маска орудия без теней и черной полоски."""

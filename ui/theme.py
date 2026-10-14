@@ -6,7 +6,8 @@ HEADER_HEIGHT = 56           # высота шапки панели (под за
 SCROLLBAR_GAP = 12           # место справа от контента под полосу прокрутки
 DEFAULT_SCROLL_SPEED = 30
 
-PANEL_BG = (28, 31, 36, 235)         # RGBA, чуть прозрачный фон
+BG_COLOR = (28, 31, 36)              # общий тёмный фон меню и панелей
+PANEL_BG = (*BG_COLOR, 235)          # RGBA, чуть прозрачный фон
 PANEL_BORDER = (70, 76, 86)
 TEXT_COLOR = (230, 230, 230)
 TEXT_DIM = (150, 156, 166)

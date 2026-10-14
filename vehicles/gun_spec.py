@@ -1,7 +1,5 @@
 """vehicles/gun_spec.py — расчёт башни и орудия: масса, наводка, урон, пробитие, перезарядка,
 размеры спрайтов, снаряд и эффекты. Шасси не знает: получает от него size_k и мощность."""
-import math
-
 from engine import PX_PER_M, clamp
 from .gun_tuning import resolve_tuning, reload_factor, MBT_GUN
 from .gun_params import (

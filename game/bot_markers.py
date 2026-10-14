@@ -3,7 +3,7 @@ import math
 import pygame
 
 from .settings import BOT_MARKERS_ENABLED
-from engine import PX_PER_M, get_text, clamp, FONT_SIZE_LABEL
+from engine import PX_PER_M, get_text, clamp, FONT_SIZE_LABEL, hp_color
 
 EDGE_INSET = 24              # отступ указателя от края экрана, px
 EDGE_SIZE = 13               # размер треугольника у края
@@ -17,9 +17,6 @@ BAR_H = 5                    # высота полоски HP, px
 BAR_GAP = 4                  # зазор между остриём треугольника и полоской
 BAR_BG = (30, 33, 40)
 BAR_BORDER = (10, 20, 50)
-HP_OK = (90, 200, 90)
-HP_MID = (230, 200, 70)
-HP_LOW = (230, 80, 70)
 
 class BotMarkers:
     def __init__(self, fleet, camera):
@@ -83,7 +80,7 @@ class BotMarkers:
     def _hp_bar(screen, cx, top, tank):
         """Полоска здоровья: центр по cx, верхний край на top. Без цифр, только заполнение."""
         frac = clamp(tank.hp / tank.max_hp, 0.0, 1.0) if tank.max_hp > 0 else 0.0
-        color = HP_OK if frac > 0.6 else HP_MID if frac > 0.3 else HP_LOW
+        color = hp_color(frac)
 
         bar = pygame.Rect(0, 0, BAR_W, BAR_H)
         bar.midtop = (round(cx), round(top))

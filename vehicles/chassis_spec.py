@@ -4,7 +4,7 @@
 import math
 from dataclasses import dataclass
 
-from engine import PX_PER_M, clamp
+from engine import PX_PER_M, clamp, round_to
 from .chassis_params import (
     STEEL_T_PER_M3, V_CAP_KMH, PW_SCALE, V_MASS_EXP, V_MIN_KMH, V_MAX_CLAMP_KMH,
     V_AVG_BASE, V_AVG_GAIN, BACK_SPEED_K, V_BACK_CAP_KMH,
@@ -12,10 +12,6 @@ from .chassis_params import (
     HULL_TURN_CAP, HULL_TURN_MIN, HULL_ALPHA_REF, HULL_ALPHA_MIN, HULL_ALPHA_MAX,
     HP_EXP, HP_STEP,
 )
-
-def round_to(value, step):
-    """Округление до ближайшего кратного step (половина округляется вверх)."""
-    return math.floor(value / step + 0.5) * step
 
 def armor_masses(areas_m2, front, side, rear, size_k):
     """Массы брони лба, борта и кормы, т."""

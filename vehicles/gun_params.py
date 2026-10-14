@@ -110,3 +110,31 @@ HE_SPEED_K = 1.0
 HE_RELOAD_K = 1.0
 HE_MIN_FRAC = (0.10, 0.30)   # гарантированная доля урона при мин. и макс. калибре (линейно между ними)
 HE_RADIUS_PX_PER_MM = 3.5    # радиус взрыва на 1 мм калибра, px мира (125 мм ≈ 4.4 м)
+
+# ==========================================
+# 8. ФОРМА И ЭФФЕКТЫ ОРУДИЯ
+# ==========================================
+L_CAL_SIZE_EXP = 0.45              # как длина ствола (в калибрах) растёт с размером платформы
+L_CAL_LIMITS = (30.0, 55.0)
+TURRET_SCALE_CAL_EXP = 0.35        # поправка масштаба башни на калибр
+BARREL_MIN_STEPS = 4               # ствол не короче стольких шагов BARREL_LEN_STEP_M
+BARREL_THICK_MIN_M = 0.22          # пол толщины ствола
+BARREL_THICK_EXP = 0.5
+SHELL_THICK_K = 0.15               # толщина снаряда: доля эталонного калибра
+
+RECOIL_BASE_M, RECOIL_PER_MM = 0.12, 0.0028
+RECOIL_TIME_BASE_S, RECOIL_TIME_CAL_DIV = 0.25, 400.0
+
+FLASH_SIZE_PER_MM = 2.2
+FLASH_TIME_BASE_S, FLASH_TIME_GAIN_S = 0.07, 0.05
+
+SMOKE_TIME_BASE_S, SMOKE_TIME_GAIN_S = 1.0, 0.5
+SMOKE_STREAKS_BASE, SMOKE_STREAKS_CAL_DIV = 5, 20
+SMOKE_REACH_BASE_PX, SMOKE_REACH_PER_MM = 160.0, 3.2
+SMOKE_WIDTH_MIN_PX, SMOKE_WIDTH_CAL_DIV = 8.0, 6.0
+
+BLAST_SIZE_PER_MM = 1.8
+BLAST_TIME_BASE_S, BLAST_TIME_GAIN_S = 0.35, 0.2
+BLAST_DIRT_BASE, BLAST_DIRT_CAL_DIV = 6, 15
+SCORCH_RADIUS_PER_MM = 0.9
+SCORCH_TIME_BASE_S, SCORCH_TIME_GAIN_S = 4.0, 2.0

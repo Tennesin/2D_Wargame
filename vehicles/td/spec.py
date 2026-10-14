@@ -2,8 +2,8 @@
 import dataclasses
 import math
 
-from engine import clamp, lerp, fmt_num, PX_PER_M
-from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses, round_to
+from engine import clamp, lerp, fmt_num, PX_PER_M, round_to
+from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses
 from ..chassis_params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP
 from ..gun_spec import GunSpec, turret_masses
 from ..gun_tuning import TD_GUN
@@ -20,6 +20,7 @@ from .params import (
     TD_GUN_FRONT_M, TD_BARREL_VIS_REF_M, TD_RECOIL_K, MOUNT_FRONT_FWD_M, MOUNT_REAR_FWD_M,
     MOUNT_CAL, MOUNT_STEP_M, SUPPORT_T, TD_HULL_COLL_HALF_W_M, TD_HULL_COLL_HALF_L_M,
     TD_LOOK_FRONT_RATIO, TD_LOOK_SIDE_RATIO, TD_LOOK_GUN_RATIO, TD_LOOK_SPEED_RATIO,
+    TD_CASE_CAL_EXP, TD_CASE_K_LIMITS
 )
 
 _CAL = TD_PARAMS["gun_caliber_mm"]
@@ -114,7 +115,7 @@ class TDSpec(ChassisSpec):
         self.m_gun, self.m_casemate = td_masses(cal)
         self.MOUNT_FWD_M = mount_fwd_m(cal)
         self.SUPPORT = support_level(cal)
-        self.CASE_K = round(clamp((cal / _REF_CAL) ** 0.5, 0.7, 1.2), 1)   # размер рубки и маски
+        self.CASE_K = round(clamp((cal / _REF_CAL) ** TD_CASE_CAL_EXP, *TD_CASE_K_LIMITS), 1)
         # положение орудия = сдвиг хитбокса корпуса относительно оси (x, y) машины
         body = dataclasses.replace(TD_BODY, coll_shift_m=self.MOUNT_FWD_M)
         super().__init__(body, front, side, rear, power, payload_t=self.m_gun + self.m_casemate)

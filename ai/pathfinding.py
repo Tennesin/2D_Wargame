@@ -5,6 +5,7 @@
 import heapq
 import math
 
+from vehicles.chassis_params import TERRAIN_MIN_K, KMH_TO_PX
 from engine import PX_PER_M, WORLD_HALF_PX, LRUCache
 from .gunnery import seconds_to_break, BREACH_MAX_S, MIN_USEFUL_DAMAGE
 
@@ -20,7 +21,6 @@ NAV_MARGIN_PX = 0.5 * PX_PER_M    # запас к радиусу танка
 CORE_MARGIN_PX = 0.3 * PX_PER_M   # запас к полуширине корпуса для «жёсткой» зоны
 RELEASE_CELLS = 2                 # вокруг старта «раздутые» клетки освобождаются в этом радиусе
 RELEASE_PENALTY_PX = 150.0        # цена входа в освобождённую клетку (пусть путь выходит из зоны быстрее)
-MIN_SPEED_K = 0.15                # как в TERRAIN_MIN_K у танка: цена клетки не растёт бесконечно
 WALL_EST_COS = 0.85               # при оценке стены берём «средний» угол попадания
 STUCK_RADIUS_PX = 5.0 * PX_PER_M  # радиус штрафа вокруг места, где бот застрял
 STUCK_PENALTY_PX = 1500.0         # штраф клетки, в px пути (15 м)
@@ -91,7 +91,7 @@ class TerrainNavCache:
         slow = [1.0] * (B * B)
         for p in patches:
             solid = p.kind.solid
-            slow_k = 1.0 / max(p.kind.speed_k, MIN_SPEED_K)
+            slow_k = 1.0 / max(p.kind.speed_k, TERRAIN_MIN_K)
             lim = p.r_max + (NAV_CAP_PX if solid else 0.0)
             lim2 = lim * lim
             for j in range(B):
@@ -152,6 +152,7 @@ class Path:
 # ==========================================
 # СЕТКА
 # ==========================================
+
 class NavGrid:
     def __init__(self, cx, cy, radius, core_radius, nav, walls, me,
                  forbidden=(), bad_spots=(), no_breach=False):
@@ -210,7 +211,7 @@ class NavGrid:
 
     def _fill_walls(self, walls, me, forbidden, no_breach):
         R, Rc = self.radius, self.core_radius
-        est_speed = max(me.spec.v_avg, 5.0) / 3.6 * PX_PER_M          # px/с: чтобы перевести секунды в px пути
+        est_speed = max(me.spec.v_avg, 5.0) * KMH_TO_PX
         for w in walls.items:
             if not w.alive:
                 continue
@@ -406,14 +407,9 @@ def find_path(me, goal, walls, nav, forbidden=(), bad_spots=(), no_breach=False)
     return first
 
 class PlanBudget:
-    """Сколько путей можно построить в одном кадре на всех ботов вместе.
-    Бот, которому не хватило, продолжает ехать по старому пути и повторит попытку при следующем «размышлении»."""
-
     def __init__(self, per_frame=1):
         self.per_frame = per_frame
         self.left = per_frame
-        self.taken = 0          # всего выдано (для замера)
-        self.denied = 0         # всего отказано
 
     def new_frame(self):
         self.left = self.per_frame
@@ -421,7 +417,5 @@ class PlanBudget:
     def try_take(self):
         if self.left > 0:
             self.left -= 1
-            self.taken += 1
             return True
-        self.denied += 1
         return False

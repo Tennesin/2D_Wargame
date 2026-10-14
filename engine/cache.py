@@ -47,6 +47,3 @@ class LRUCache:
 
     def __len__(self):
         return len(self._data)
-
-    def __contains__(self, key):
-        return key in self._data

@@ -8,12 +8,10 @@ import random
 from dataclasses import dataclass
 
 from combat import resolve_hit
-from engine import (hash_int, PX_PER_M, WORLD_HALF_PX, clamp, obb_hits_convex,
-                    obb_outside_rect, LRUCache, TargetType, fmt_num)
+from engine import (hash_int, PX_PER_M, WORLD_HALF_PX, clamp, obb_hits_convex, TAU,
+                    obb_outside_rect, LRUCache, TargetType, fmt_num, shrink_polygon)
 from .patch_geometry import patches_overlap
 from .rock_physics import RockMover
-
-TAU = 2.0 * math.pi
 
 # ==========================================
 # 1. НАСТРОЙКИ
@@ -56,6 +54,10 @@ ROCK_H_BASE = 0.4            # высота = ROCK_H_BASE + ROCK_H_K × (рад�
 ROCK_H_K = 0.45
 ROCK_H_MIN, ROCK_H_MAX = 0.5, 4.0
 ROCK_ARMOR_MM = 3000.0       # броня камня: практически непробиваем
+
+LAKE_VERTS, LAKE_STRETCH, LAKE_ROUGH, LAKE_JITTER = 22, (1.0, 1.5), 0.22, 0.04
+MUD_VERTS, MUD_STRETCH, MUD_ROUGH, MUD_JITTER = 16, (1.0, 1.6), 0.28, 0.06
+ROCK_VERTS, ROCK_STRETCH, ROCK_ROUGH, ROCK_JITTER = (7, 11), (1.0, 1.7), 0.15, 0.20
 
 @dataclass(frozen=True)
 class TerrainKind:
@@ -235,10 +237,6 @@ def _make_pts(rng, cx, cy, radius, n, stretch=1.0, rough=0.2, jitter=0.1):
         pts = [(cx + (px - cx) * s, cy + (py - cy) * s) for px, py in pts]
     return pts
 
-def _scaled(patch, k):
-    """Контур пятна, уменьшенный к его центру в k раз."""
-    return [(patch.x + (px - patch.x) * k, patch.y + (py - patch.y) * k) for px, py in patch.pts]
-
 # ==========================================
 # 3. КАРТА ПРЕПЯТСТВИЙ
 # ==========================================
@@ -270,9 +268,11 @@ class TerrainMap:
         lake = mud = None
         rocks = []
         if rng.random() < LAKE_CHANCE:
-            lake = place(SHALLOWS, rng.uniform(*LAKE_RADIUS), 22, rng.uniform(1.0, 1.5), 0.22, 0.04)
+            lake = place(SHALLOWS, rng.uniform(*LAKE_RADIUS), LAKE_VERTS,
+                         rng.uniform(*LAKE_STRETCH), LAKE_ROUGH, LAKE_JITTER)
         if rng.random() < MUD_CHANCE:
-            mud = place(MUD, rng.uniform(*MUD_RADIUS), 16, rng.uniform(1.0, 1.6), 0.28, 0.06)
+            mud = place(MUD, rng.uniform(*MUD_RADIUS), MUD_VERTS,
+                        rng.uniform(*MUD_STRETCH), MUD_ROUGH, MUD_JITTER)
         if rng.random() < ROCK_CELL_CHANCE:
             for n in range(rng.randint(*ROCKS_PER_CELL)):
                 roll = rng.random()
@@ -282,7 +282,8 @@ class TerrainMap:
                     radius = rng.uniform(*ROCK_MEDIUM)
                 else:
                     radius = rng.uniform(*ROCK_SMALL)
-                rock = place(ROCK, radius, rng.randint(7, 11), rng.uniform(1.0, 1.7), 0.15, 0.20)
+                rock = place(ROCK, radius, rng.randint(*ROCK_VERTS), rng.uniform(*ROCK_STRETCH),
+                             ROCK_ROUGH, ROCK_JITTER)
                 if rock is not None:
                     rock.uid = (ix, iy, n)
                     rock.cell = (ix, iy)
@@ -318,8 +319,10 @@ class TerrainMap:
         patches = []
         for shore in self._accepted_lake(ix, iy):
             patches.append(shore)
-            patches.append(Patch(MID_WATER, shore.x, shore.y, _scaled(shore, MID_SCALE)))
-            patches.append(Patch(DEEP_WATER, shore.x, shore.y, _scaled(shore, DEEP_SCALE)))
+            patches.append(Patch(MID_WATER, shore.x, shore.y,
+                                 shrink_polygon(shore.pts, shore.x, shore.y, MID_SCALE)))
+            patches.append(Patch(DEEP_WATER, shore.x, shore.y,
+                                 shrink_polygon(shore.pts, shore.x, shore.y, DEEP_SCALE)))
         if mud is not None and self._survives(mud, 1, ix, iy):
             patches.append(mud)
 

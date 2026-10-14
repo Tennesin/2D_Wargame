@@ -6,7 +6,7 @@ from enum import Enum, auto
 from engine import VehicleCommand, shortest_angle_diff, clamp, PX_PER_M, heading_vector, bearing_deg
 from combat import compute_aim
 from .steering import steer_to, StuckGuard
-from .gunnery import (lead_point, flank_point, evaluate_matchup,
+from .gunnery import (lead_point, evaluate_matchup,
                       outflank_feasibility, preferred_distance_m, best_hull_heading,
                       shot_fraction_now, MIN_USEFUL_DAMAGE, NO_DAMAGE)
 from .navigator import Navigator
@@ -24,6 +24,9 @@ class Intent(Enum):
 ORBIT_STEP_DEG = 40.0        # на сколько градусов вперёд по орбите ставим путевую точку
 FLANK_GIVEUP_S = 14.0        # дольше этого к позиции не пробиваемся
 FLANK_COOLDOWN_S = 8.0       # пауза в обходах после неудачи
+HOLD_MIN_S = 1.5             # минимальное время удержания намерения (гистерезис)
+HOLD_SPREAD_S = 1.0          # плюс случайная добавка до этого значения
+FIRE_GATE_DEG = 6.0          # башня дальше этого от цели: линию огня даже не проверяем
 
 # --- бить нечем: пора обходить ---
 FUTILE_REACT_S = 0.6         # сколько секунд урон должен быть «гарантированно» ниже NO_DAMAGE
@@ -158,7 +161,7 @@ class BotBrain:
                     self._flank_side = self._pick_flank_side(me, enemy, ctx)
                     self._flank_t = 0.0
             self.intent = intent
-            self._hold = 1.5 + self.rng.random()                  # гистерезис
+            self._hold = HOLD_MIN_S + self.rng.random() * HOLD_SPREAD_S
             if intent is Intent.COVER and self._run_cover(me, enemy, ctx, dist, 0.0):
                 return
 
@@ -342,7 +345,7 @@ class BotBrain:
         target = self.breach.wall if breaching else enemy
         # по врагу стреляем уже от 5% урона, по стене только от 15% (по этому порогу считалось время прорыва)
         min_frac = MIN_USEFUL_DAMAGE if breaching else NO_DAMAGE
-        if abs(err) > 6.0:
+        if abs(err) > FIRE_GATE_DEG:
             self._react_left = None
             return False
 

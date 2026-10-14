@@ -2,8 +2,8 @@
 import itertools
 import math
 
-from engine import clamp, fmt_num, PX_PER_M
-from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses, round_to
+from engine import clamp, fmt_num, PX_PER_M, round_to
+from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses
 from ..chassis_params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP
 from ..gun_spec import GunSpec, turret_masses, REF_CAL, REF_POWER
 from ..gun_tuning import tuning_k_bounds

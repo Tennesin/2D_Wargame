@@ -1,8 +1,7 @@
 """hud.py — компактная сводка по танку в левом нижнем углу."""
 import pygame
 
-from engine import clamp, fmt_num
-from engine import get_text, FONT_SIZE_LABEL
+from engine import clamp, fmt_num, get_text, FONT_SIZE_LABEL, hp_color, COLOR_GOOD
 
 MARGIN = 10          # отступ от краёв окна
 WIDTH = 190
@@ -17,11 +16,8 @@ BORDER = (70, 76, 86)
 C_TEXT = (230, 230, 230)
 C_DIM = (150, 156, 166)
 C_BAR_BG = (45, 49, 56)
-C_HP_OK = (90, 200, 90)
-C_HP_MID = (230, 200, 70)
-C_HP_LOW = (230, 80, 70)
 C_LOADING = (230, 170, 60)
-C_READY = (90, 200, 90)
+C_READY = COLOR_GOOD
 
 class TankHud:
     def __init__(self):
@@ -42,9 +38,8 @@ class TankHud:
 
         # 1. Здоровье
         hp_frac = clamp(tank.hp / tank.max_hp, 0.0, 1.0) if tank.max_hp > 0 else 0.0
-        hp_color = C_HP_OK if hp_frac > 0.6 else C_HP_MID if hp_frac > 0.3 else C_HP_LOW
         y = self._row(screen, x0, x1, y, "Здоровье", f"{fmt_num(tank.hp)} / {fmt_num(tank.max_hp)}")
-        y = self._bar(screen, x0, x1, y, hp_frac, hp_color)
+        y = self._bar(screen, x0, x1, y, hp_frac, hp_color(hp_frac))
 
         # 2. Урон и пробитие
         y = self._row(screen, x0, x1, y, "Урон", fmt_num(stats.damage))

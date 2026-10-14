@@ -1,9 +1,8 @@
 """vehicles/gun_tuning.py — тюнинг орудия: номиналы по калибру, профили орудий, коридоры выбора, множитель перезарядки.
 Чистые функции без pygame и без знания о танке: их берёт любая техника с орудием."""
-import math
 from dataclasses import dataclass
 
-from engine import clamp, lerp
+from engine import clamp, lerp, round_to
 from .gun_params import (
     CALIBER, GUN_DAMAGE_REF, GUN_PEN_REF,
     GUN_DAMAGE_RANGE, GUN_PEN_RANGE, GUN_DAMAGE_STEP, GUN_PEN_STEP,
@@ -12,10 +11,6 @@ from .gun_params import (
 
 _CAL = CALIBER
 _REF_CAL = _CAL.default
-
-def _round_to(value, step):
-    """Округление до ближайшего кратного step (половина вверх)."""
-    return math.floor(value / step + 0.5) * step
 
 # ---------- профиль орудия ----------
 def _cal_t(cal):
@@ -58,9 +53,8 @@ def nominal_pen(cal, profile=MBT_GUN):
 
 # ---------- коридоры выбора ----------
 def _corridor(nominal, ratios, step):
-    """(min, max), кратные step. Гарантируем, что max больше min хотя бы на один шаг."""
-    lo = _round_to(nominal * ratios[0], step)
-    hi = _round_to(nominal * ratios[1], step)
+    lo = round_to(nominal * ratios[0], step)
+    hi = round_to(nominal * ratios[1], step)
     return lo, max(hi, lo + step)
 
 def damage_range(cal, profile=MBT_GUN):
@@ -72,9 +66,8 @@ def pen_range(cal, profile=MBT_GUN):
     return _corridor(nominal_pen(cal, profile), GUN_PEN_RANGE, GUN_PEN_STEP)
 
 def default_tuning(cal, profile=MBT_GUN):
-    """Стартовые (урон, пробитие): номинал профиля, округлённый до шага ползунка."""
-    d = clamp(_round_to(nominal_damage(cal, profile), GUN_DAMAGE_STEP), *damage_range(cal, profile))
-    p = clamp(_round_to(nominal_pen(cal, profile), GUN_PEN_STEP), *pen_range(cal, profile))
+    d = clamp(round_to(nominal_damage(cal, profile), GUN_DAMAGE_STEP), *damage_range(cal, profile))
+    p = clamp(round_to(nominal_pen(cal, profile), GUN_PEN_STEP), *pen_range(cal, profile))
     return d, p
 
 def remap(value, old_range, new_range, step=None):
@@ -84,7 +77,7 @@ def remap(value, old_range, new_range, step=None):
     t = 0.5 if old_hi <= old_lo else clamp((value - old_lo) / (old_hi - old_lo), 0.0, 1.0)
     result = new_lo + (new_hi - new_lo) * t
     if step:
-        result = clamp(_round_to(result, step), new_lo, new_hi)
+        result = clamp(round_to(result, step), new_lo, new_hi)
     return result
 
 # ---------- перезарядка ----------

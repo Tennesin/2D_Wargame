@@ -11,3 +11,15 @@ AMMO_COLORS = {
     AmmoKind.HEAT: ((110, 175, 225), (205, 235, 255), (60, 105, 160)),
     AmmoKind.HE:   ((225, 110, 70),  (255, 200, 150), (150, 60, 40)),
 }
+
+COLOR_GOOD = (90, 200, 90)
+COLOR_WARN = (230, 200, 70)
+COLOR_BAD = (230, 80, 70)
+
+def hp_color(frac):
+    """Цвет полоски здоровья по доле 0..1: общее правило для HUD и указателей ботов."""
+    if frac > 0.6:
+        return COLOR_GOOD
+    if frac > 0.3:
+        return COLOR_WARN
+    return COLOR_BAD

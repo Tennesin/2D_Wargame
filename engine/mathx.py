@@ -1,5 +1,7 @@
 import math
 
+TAU = 2.0 * math.pi
+
 # ==========================================
 # МАТЕМАТИЧЕСКИЕ ПОМОЩНИКИ
 # ==========================================
@@ -44,3 +46,11 @@ def find_free_fraction(is_blocked, iterations=8):
 def fmt_num(value, decimals=0):
     """Число с пробелом между тысячами: fmt_num(2400) -> '2 400'."""
     return f"{value:,.{decimals}f}".replace(",", " ")
+
+def round_to(value, step):
+    """Округление до ближайшего кратного step (половина округляется вверх)."""
+    return math.floor(value / step + 0.5) * step
+
+def shade_color(color, k):
+    """Умножить цвет на коэффициент (k<1 темнее, k>1 светлее), результат в 0..255."""
+    return tuple(max(0, min(255, int(c * k))) for c in color)

@@ -12,6 +12,7 @@ FORBID_WALL_S = 15.0         # сколько секунд «непробива�
 STUCK_SPOT_S = 12.0          # сколько секунд помним место, где застряли
 BREACH_TRIGGER_M = 25.0      # стена на пути ближе этого: пора решать, ломать ли её
 REVERSE_CHECK_M = 5.0        # на сколько метров назад смотрим, прежде чем сдавать задом
+STUCK_MARK_AHEAD_M = 4.0     # на сколько метров впереди ставим пометку «здесь застряли»
 
 class Navigator:
     def __init__(self, rng):
@@ -39,9 +40,9 @@ class Navigator:
         self._replan_in = 0.0
 
     def remember_stuck(self, me):
-        """Бот застрял: помечаем место впереди штрафом и перестраиваем путь."""
         fx, fy = heading_vector(me.hull_angle)
-        self._bad_spots.append([me.x + fx * 400.0, me.y + fy * 400.0, STUCK_SPOT_S])
+        ahead = STUCK_MARK_AHEAD_M * PX_PER_M
+        self._bad_spots.append([me.x + fx * ahead, me.y + fy * ahead, STUCK_SPOT_S])
         self.invalidate()
 
     @staticmethod

@@ -16,8 +16,10 @@ from .chassis_params import (
     KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, ARMOR_K, TERRAIN_MIN_K, TERRAIN_BRAKE,
     TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY, TRACK_LINK_M, TRACK_OFFSET_M,
     CONTACT_TURN_STEPS, CONTACT_PUSH_STEPS, SLIDE_ANGLES_DEG, SLIDE_MIN_PX, CONTACT_SCRUB,
-    CONTACT_STOP_PROGRESS, PUSH_FRICTION_MS2, PUSH_STOP_PX
+    CONTACT_STOP_PROGRESS, PUSH_FRICTION_MS2, PUSH_STOP_PX, TERRAIN_SAMPLE_REACH
 )
+
+PLAYER_TITLE = "Ваша техника"            # заголовок сводки, когда это техника игрока
 
 # Направления отодвигания корпуса: (вдоль корпуса, поперёк). Назад, вперёд, в стороны и диагонали.
 _NUDGE_DIRS = ((-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0),
@@ -145,7 +147,7 @@ class Vehicle(Damageable):
     def describe(self):
         """(заголовок, [(название, значение), ...]) для краткой сводки. Подклассы дополняют."""
         s = self.spec
-        title = "Ваша техника" if self.team is Team.PLAYER else f"Враг: {self.label}"
+        title = self.PLAYER_TITLE if self.team is Team.PLAYER else f"Враг: {self.label}"
         return title, [
             ("Броня: лоб", f"{s.front:.0f} мм"),
             ("Броня: борт", f"{s.side:.0f} мм"),
@@ -176,19 +178,23 @@ class Vehicle(Damageable):
         """Хук для подклассов: башня, орудие, перезарядка. Возвращает Shot или None."""
         return None
 
+    def ground_probes_at(self, x, y, hull_angle):
+        """Три точки замера грунта вдоль оси корпуса (зад, центр, перед) для машины в (x, y)."""
+        hx, hy, _, half_l, angle = self._hull_obb(x, y, hull_angle)
+        fx, fy = heading_vector(angle)
+        reach = half_l * TERRAIN_SAMPLE_REACH
+        return [(hx + fx * d, hy + fy * d) for d in (-reach, 0.0, reach)]
+
     def _sample_terrain(self):
-        """Множитель скорости: среднее по трём точкам под корпусом (зад, центр, перед),
+        """Множитель скорости: среднее по трём точкам под корпусом,
         поэтому при въезде в воду техника тормозится постепенно."""
         terrain = self._terrain
         if terrain is None:
             self.terrain_k = 1.0
             return
-        hx, hy, _, half_l, angle = self._hull_obb(self.x, self.y, self.hull_angle)
-        fx, fy = heading_vector(angle)
-        reach = half_l * 0.8
         total = 0.0
-        for d in (-reach, 0.0, reach):
-            total += terrain.speed_in(self._patches, hx + fx * d, hy + fy * d)
+        for px, py in self.ground_probes_at(self.x, self.y, self.hull_angle):
+            total += terrain.speed_in(self._patches, px, py)
         self.terrain_k = max(TERRAIN_MIN_K, total / 3.0)
 
     @staticmethod

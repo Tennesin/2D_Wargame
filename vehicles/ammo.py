@@ -15,23 +15,22 @@ from .gun_params import (
 class AmmoType:
     kind: AmmoKind
     code: str                          # двухбуквенная подпись на кнопке
-    name: str
     dmg_k: float = 1.0
     pen_k: float = 1.0
     speed_k: float = 1.0
     reload_k: float = 1.0
     ricochet: bool = True
     explode_at_range: bool = False
-    min_frac: tuple = (0.0, 0.0)       # гарантированная доля урона при мин. и макс. калибре
-    radius_px_per_mm: float = 0.0      # радиус взрыва на 1 мм калибра (0 = нет взрыва)
+    min_frac: tuple = (0.0, 0.0)
+    radius_px_per_mm: float = 0.0
 
 AMMO_TYPES = {
-    AmmoKind.AP: AmmoType(AmmoKind.AP, "ББ", "Бронебойный"),
-    AmmoKind.HEAT: AmmoType(AmmoKind.HEAT, "КС", "Кумулятивный",
+    AmmoKind.AP: AmmoType(AmmoKind.AP, "ББ"),
+    AmmoKind.HEAT: AmmoType(AmmoKind.HEAT, "КС",
                             dmg_k=HEAT_DAMAGE_K, pen_k=HEAT_PEN_K,
                             speed_k=HEAT_SPEED_K, reload_k=HEAT_RELOAD_K,
                             ricochet=False),
-    AmmoKind.HE: AmmoType(AmmoKind.HE, "ФГ", "Фугасный",
+    AmmoKind.HE: AmmoType(AmmoKind.HE, "ФГ",
                           dmg_k=HE_DAMAGE_K, pen_k=HE_PEN_K,
                           speed_k=HE_SPEED_K, reload_k=HE_RELOAD_K,
                           ricochet=False, explode_at_range=True,

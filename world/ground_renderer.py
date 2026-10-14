@@ -1,14 +1,12 @@
 """world/ground_renderer.py — отрисовка земли: чанки с зумом и декор."""
 import math
 import time
-
 import pygame
 
-from engine import LRUCache
+from engine import LRUCache, shade_color
 from .generator import CHUNK_SIZE, CELL_SIZE
 
 MIN_CACHED_CHUNKS = 40
-VISIBLE_BUILD_MS = 14.0     # сколько мс за кадр можно тратить на построение ВИДИМЫХ чанков (один строится всегда)
 PREFETCH_MS = 3.0           # сколько мс за кадр уходит на предзагрузку чанков за краем экрана
 PREFETCH_RING = 1           # на сколько чанков за экраном готовим запас
 
@@ -22,17 +20,11 @@ def ground_lod(zoom):
         return 4
     return 8
 
-def _shade(color, k):
-    """Умножить цвет на коэффициент (k<1 темнее, k>1 светлее)."""
-    return tuple(max(0, min(255, int(c * k))) for c in color)
-
 class GroundRenderer:
     def __init__(self, world_generator):
         self.world = world_generator
         self._chunk_cache = LRUCache()    # (cx, cy, lod) -> Surface, как построено (без масштаба)
         self._scaled_cache = LRUCache()   # (cx, cy) -> Surface, уже под текущий зум
-        self._built_now = 0               # сколько видимых чанков построено в этом кадре
-        self._deadline = 0.0              # до какого момента (perf_counter) можно строить видимые чанки
 
     def set_zoom(self):
         """Зум сменился: масштабированные чанки устарели, базовые остаются."""
@@ -41,11 +33,6 @@ class GroundRenderer:
     def draw(self, screen, camera):
         z = camera.zoom
         lod = ground_lod(z)
-        self._built_now = 0
-        if len(self._chunk_cache) == 0:
-            self._deadline = float("inf")          # самый первый кадр: строим всё сразу
-        else:
-            self._deadline = time.perf_counter() + VISIBLE_BUILD_MS / 1000.0
         left, top = camera.origin_px()
         width, height = screen.get_size()
 
@@ -73,10 +60,6 @@ class GroundRenderer:
     # ==========================================
     # ЗЕМЛЯ И ЧАНКИ
     # ==========================================
-
-    def _can_build(self):
-        """Хотя бы один видимый чанк за кадр строим всегда, дальше пока не вышло время."""
-        return self._built_now == 0 or time.perf_counter() < self._deadline
 
     def _prefetch(self, cx0, cx1, cy0, cy1, lod):
         """Готовит базовые чанки в кольце за краем экрана, чтобы при движении они уже были построены.
@@ -165,19 +148,19 @@ class GroundRenderer:
         rect.center = (x, y)
         pygame.draw.ellipse(surf, (45, 70, 45), rect.move(2, 3))          # тень
         pygame.draw.ellipse(surf, d.color, rect)
-        pygame.draw.ellipse(surf, _shade(d.color, 0.7), rect, 1)          # контур
+        pygame.draw.ellipse(surf, shade_color(d.color, 0.7), rect, 1)          # контур
         hl = pygame.Rect(0, 0, max(2, w // 3), max(2, h // 3))
         hl.center = (x - w // 5, y - h // 5)
-        pygame.draw.ellipse(surf, _shade(d.color, 1.25), hl)              # блик
+        pygame.draw.ellipse(surf, shade_color(d.color, 1.25), hl)              # блик
 
     @staticmethod
     def _draw_bush(surf, d):
         x, y = int(d.x), int(d.y)
         r = max(4, int(d.size * 0.65))
-        pygame.draw.circle(surf, _shade(d.color, 0.6), (x + 2, y + 3), r + 1)   # тень
+        pygame.draw.circle(surf, shade_color(d.color, 0.6), (x + 2, y + 3), r + 1)   # тень
         for ox, oy in ((-0.5, 0.3), (0.5, 0.2), (0.0, -0.5)):
             pygame.draw.circle(surf, d.color, (int(x + ox * r), int(y + oy * r)), r)
-        pygame.draw.circle(surf, _shade(d.color, 1.3), (x - r // 3, y - r // 2), max(2, r // 2))
+        pygame.draw.circle(surf, shade_color(d.color, 1.3), (x - r // 3, y - r // 2), max(2, r // 2))
         if d.variant % 3 == 0:                                                  # ягоды
             for ox, oy in ((-3, -1), (2, 2), (3, -3)):
                 pygame.draw.circle(surf, (200, 40, 50), (x + ox, y + oy), 2)

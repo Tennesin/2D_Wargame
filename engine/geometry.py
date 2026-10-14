@@ -154,3 +154,7 @@ def obb_distance_to_point(obb, x, y):
     u = dx * c + dy * s
     v = -dx * s + dy * c
     return math.hypot(max(abs(u) - half_w, 0.0), max(abs(v) - half_l, 0.0))
+
+def shrink_polygon(pts, cx, cy, k, dx=0.0, dy=0.0):
+    """Уменьшить фигуру относительно центра (cx, cy) в k раз и сдвинуть на (dx, dy)."""
+    return [(cx + (x - cx) * k + dx, cy + (y - cy) * k + dy) for x, y in pts]

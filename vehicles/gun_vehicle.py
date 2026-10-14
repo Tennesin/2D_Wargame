@@ -30,6 +30,15 @@ class GunVehicle(Vehicle):
         super().place_at(spot)
         self.turret_rate = 0.0
 
+    def _extra_rows(self):
+        """Строки сводки между калибром и бронёй (подклассы добавляют своё)."""
+        return []
+
+    def describe(self):
+        title, rows = super().describe()
+        head = [("Калибр", f"{self.spec.cal:.0f} мм"), *self._extra_rows()]
+        return title, head + rows
+
     # ---------- оружие ----------
     def _update_weapons(self, command, dt):
         self._aim_turret(command.aim_point, dt)

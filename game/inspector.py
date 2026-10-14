@@ -1,17 +1,10 @@
 """game/inspector.py — «Краткая сводка»: что под курсором. Данные о цели она берёт у самой цели.
 Окно появляется при простой наводке мыши (без кликов)."""
-from engine import heading_vector
+from engine import obb_distance_to_point
 from ui import InfoCard
 from world import ROCK
 from .modes import Mode
 from .settings import HIDE_IN_BUILD
-
-def _in_obb(obb, x, y):
-    """Лежит ли точка (x, y) внутри повёрнутого прямоугольника (x, y, half_w, half_l, angle)."""
-    cx, cy, hw, hl, angle = obb
-    fx, fy = heading_vector(angle)
-    dx, dy = x - cx, y - cy
-    return abs(-dx * fy + dy * fx) <= hw and abs(dx * fx + dy * fy) <= hl
 
 class HoverInspector:
     def __init__(self, ctx, input_handler, modes):
@@ -39,7 +32,7 @@ class HoverInspector:
 
         # порядок как при рисовании: сверху танки (игрок самый верхний), потом стены, потом камни
         for tank in reversed(self.fleet.vehicles):
-            if tank.alive and _in_obb(tank.hull_obb(), wx, wy):
+            if tank.alive and obb_distance_to_point(tank.hull_obb(), wx, wy) == 0.0:
                 return tank
         wall = self.walls.pick(wx, wy)
         if wall is not None:

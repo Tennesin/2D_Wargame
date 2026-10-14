@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from combat import resolve_hit
 from engine import heading_vector, shortest_angle_diff, clamp, PX_PER_M
+from vehicles.chassis_params import KMH_TO_PX
 
 def lead_point(shooter, target, lead_k=1.0):
     """Точка упреждения: где будет цель, когда долетит снаряд. Две итерации."""
@@ -28,13 +29,6 @@ def damage_by_aspect(me, enemy):
         "rear": enemy.hit_result(pen, 1.0, (-fx, -fy)).damage_frac,
     }
 
-def flank_point(enemy, dist_px, side):
-    """Точка за бортом (слегка в сторону кормы) цели на заданной дистанции. side: +1 / -1."""
-    fx, fy = heading_vector(enemy.hull_angle)
-    rx, ry = -fy, fx
-    return (enemy.x + (rx * side * 0.8 - fx * 0.6) * dist_px,
-            enemy.y + (ry * side * 0.8 - fy * 0.6) * dist_px)
-
 def seconds_to_break(me, wall, cos_impact=1.0, normal=None, min_frac=0.15):
     """Сколько секунд бот будет ломать стену, или None, если пробить не получится."""
     if wall.hp <= 0.0:
@@ -48,8 +42,8 @@ def seconds_to_break(me, wall, cos_impact=1.0, normal=None, min_frac=0.15):
 # ==========================================
 # КОНСТАНТЫ ОЦЕНКИ
 # ==========================================
-BREACH_MAX_S = 25.0           # дольше этого стену не долбим (раньше лежало в brain.py)
-MIN_USEFUL_DAMAGE = 0.15      # меньше этой доли урона по цели не стреляем (раньше в brain.py)
+BREACH_MAX_S = 25.0           # дольше этого стену не долбим
+MIN_USEFUL_DAMAGE = 0.15      # меньше этой доли урона по цели не стреляем
 
 TTK_CAP_S = 60.0              # «убить невозможно»: время убийства ограничиваем сверху
 NO_DAMAGE = 0.05              # доля урона ниже этого считается нулевой
@@ -59,6 +53,8 @@ CLOSE_DIST_M = 12.0           # самая ближняя желаемая ди�
 
 HULL_ANGLES = (0.0, 15.0, -15.0, 25.0, -25.0, 35.0, -35.0, 45.0, -45.0)   # проба поворота корпуса, °
 AIM_JITTER_DEG = 6.0          # на столько градусов враг может промахнуться мимо центра корпуса
+
+OUTFLANK_MIN_RADIUS_M = 5.0   # ближе этого радиус облёта не считаем (угловая скорость не взлетает)
 
 # ==========================================
 # МАТЧАП: КТО КОГО УБЬЁТ БЫСТРЕЕ
@@ -93,8 +89,8 @@ def outflank_feasibility(me, enemy, dist_px):
     """0..1: успею ли я обойти врага, пока он доворачивает орудие.
     Угловая скорость облёта по окружности радиуса dist равна v / R, но не больше моего поворота корпуса.
     Сравниваем с тем, как быстро враг водит башней (плюс половина поворота его корпуса)."""
-    r_m = max(dist_px / PX_PER_M, 5.0)
-    omega = math.degrees((me.spec.v_avg / 3.6) / r_m)
+    r_px = max(dist_px, OUTFLANK_MIN_RADIUS_M * PX_PER_M)
+    omega = math.degrees(me.spec.v_avg * KMH_TO_PX / r_px)
     omega = min(omega, me.spec.hull_turn)
     track = enemy.spec.turret_turn + 0.5 * enemy.spec.hull_turn
     return clamp(0.35 + 0.65 * omega / max(track, 1.0), 0.0, 1.0)
@@ -148,7 +144,9 @@ def best_hull_heading(me, enemy, to_enemy_deg):
 # ==========================================
 # УРОН ИЗ ТЕКУЩЕЙ ПОЗИЦИИ
 # ==========================================
+
 AIM_SPREAD_M = 1.2            # боковой разброс пробных точек поперёк корпуса врага, м
+RAY_OVERSHOOT_M = 3.0         # на сколько метров луч заходит за корпус цели
 
 def shot_fraction_now(me, enemy):
     """Максимальная доля урона, которую я нанесу по врагу из текущей позиции (по его реальному положению
@@ -163,12 +161,13 @@ def shot_fraction_now(me, enemy):
     px, py = -dy / ln, dx / ln
     spread = AIM_SPREAD_M * PX_PER_M
     best = 0.0
+    overshoot = RAY_OVERSHOOT_M * PX_PER_M
     for k in (0.0, -1.0, 1.0):
         tx, ty = ex + px * spread * k, ey + py * spread * k
         sx, sy = tx - me.x, ty - me.y
         sl = math.hypot(sx, sy)
         ux, uy = sx / sl, sy / sl
-        hit = enemy.raycast(me.x, me.y, tx + ux * 300.0, ty + uy * 300.0)   # отрезок с запасом за корпус
+        hit = enemy.raycast(me.x, me.y, tx + ux * overshoot, ty + uy * overshoot)
         if hit is None:
             continue
         _, _t, normal = hit

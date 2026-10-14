@@ -53,13 +53,11 @@ ANGLE_STEPS = 720
 ANGLE_STEP = 360.0 / ANGLE_STEPS
 ROT_CACHE_BYTES = 48 * 1024 * 1024       # бюджет памяти под кэш повёрнутых поверхностей
 
-
 def apply_paint(color, paint):
     """Подмешивает цвет команды к цвету детали. paint=None: деталь остаётся как есть."""
     if paint is None:
         return color
     return tuple(int(c + (p - c) * PAINT_K) for c, p in zip(color, paint))
-
 
 # ==========================================
 # 2. «РУЧКА» ДЛЯ РИСОВАНИЯ В МЕТРАХ
@@ -108,7 +106,6 @@ class Pen:
     def clear_clip(self):
         self.s.set_clip(None)
 
-
 # ==========================================
 # 3. ОБЩИЙ ОТРИСОВЩИК
 # ==========================================
@@ -116,7 +113,8 @@ class GunVehicleRenderer:
     """Порядок слоёв: тень, корпус, ствол, башня (качающаяся часть), передний слой (хук).
     Наследник обязан задать HULL_HALF_M и реализовать _build_hull и _build_turret."""
 
-    HULL_HALF_M = None               # половина стороны квадратной заготовки корпуса, м
+    HULL_HALF_M = None
+    HAS_TURRET_SPRITE = True
 
     def __init__(self):
         self._ppm = 0.0
@@ -170,13 +168,10 @@ class GunVehicleRenderer:
 
         hull_k = self._bucket(tank.hull_angle)
         turret_k = self._bucket(tank.turret_angle)
-        turret_key = (team, paint, look.turret_key, emblem)
         barrel_key = (bl, bt, look.barrel_key)
 
         hull = self._get_hull(lp, rp, paint, look, spec)
         hull_rot = pygame.transform.rotozoom(hull, -tank.hull_angle, hs)
-        turret_rot = self._rotated("turret", turret_key,
-                                   lambda: self._get_turret(team, paint, look, emblem, spec), turret_k, ts)
         barrel_rot = self._rotated("barrel", barrel_key,
                                    lambda: self._get_barrel(bl, bt, look), turret_k, ts)
 
@@ -184,7 +179,6 @@ class GunVehicleRenderer:
         f = (spec.GUN_FRONT_M + bl * BARREL_LEN_STEP_M / 2.0 - BARREL_HIDDEN_M / 2.0
              - tank.recoil_m) * ppm * ts
         hull_rect = hull_rot.get_rect(center=(cx, cy))
-        turret_rect = turret_rot.get_rect(center=(cx, cy))
         barrel_rect = barrel_rot.get_rect(center=(round(cx + fx * f), round(cy + fy * f)))
 
         hox, hoy = (round(v * ppm * hs) for v in SHADOW_HULL_M)
@@ -192,20 +186,28 @@ class GunVehicleRenderer:
         sil_hull = self._rotated(
             "sil_hull", (look.hull_key, var),
             lambda: self._get_sil(("hull", look.hull_key, var), hull), hull_k, hs)
-        sil_turret = self._rotated(
-            "sil_turret", look.turret_key,
-            lambda: self._get_sil(("turret", look.turret_key),
-                                  self._get_turret(team, paint, look, emblem, spec)),
-            turret_k, ts)
         sil_barrel = self._rotated(
             "sil_barrel", barrel_key,
             lambda: self._get_sil(("barrel", bl, bt, look.barrel_key), self._get_barrel(bl, bt, look)),
             turret_k, ts)
-        parts = (
+        parts = [
             (sil_hull, sil_hull.get_rect(center=hull_rect.center).move(hox, hoy)),
             (sil_barrel, sil_barrel.get_rect(center=barrel_rect.center).move(tox, toy)),
-            (sil_turret, sil_turret.get_rect(center=turret_rect.center).move(tox, toy)),
-        )
+        ]
+
+        turret_rot = turret_rect = None
+        if self.HAS_TURRET_SPRITE:
+            turret_key = (team, paint, look.turret_key, emblem)
+            turret_rot = self._rotated("turret", turret_key,
+                                       lambda: self._get_turret(team, paint, look, emblem, spec), turret_k, ts)
+            turret_rect = turret_rot.get_rect(center=(cx, cy))
+            sil_turret = self._rotated(
+                "sil_turret", look.turret_key,
+                lambda: self._get_sil(("turret", look.turret_key),
+                                      self._get_turret(team, paint, look, emblem, spec)),
+                turret_k, ts)
+            parts.append((sil_turret, sil_turret.get_rect(center=turret_rect.center).move(tox, toy)))
+
         union = parts[0][1].unionall([r for _, r in parts[1:]])
         buf = self._ensure_shadow_buf(union.w, union.h)
         buf.fill((0, 0, 0, 0), (0, 0, union.w, union.h))
@@ -215,7 +217,8 @@ class GunVehicleRenderer:
 
         screen.blit(hull_rot, hull_rect)
         screen.blit(barrel_rot, barrel_rect)
-        screen.blit(turret_rot, turret_rect)
+        if turret_rot is not None:
+            screen.blit(turret_rot, turret_rect)
         self._draw_front_layer(screen, tank, cx, cy, hull_k, hs, team, paint, look)
 
     # ---------- тень и кэши ----------

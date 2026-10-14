@@ -1,7 +1,7 @@
 """ui/widgets.py — базовые виджеты и элементы содержимого панели."""
 import pygame
 
-from engine import FONT_SIZE_HEADER, FONT_SIZE_LABEL, get_font, get_text, wrap_text
+from engine import FONT_SIZE_HEADER, FONT_SIZE_LABEL, get_font, get_text, wrap_text, COLOR_GOOD
 from .theme import (BUTTON_COLORS, SLIDER_FILL_COLOR, SLIDER_BG_COLOR, SLIDER_BORDER_COLOR,
                     TEXT_COLOR, TEXT_DIM, LINE_COLOR, DEFAULT_SCROLL_SPEED)
 
@@ -36,7 +36,7 @@ class Checkbox:
     BOX = 22
     PAD = 10
     SWATCH = 16
-    CHECK_COLOR = (90, 200, 90)
+    CHECK_COLOR = COLOR_GOOD
     CHECK_DIM = (80, 120, 80)
 
     def __init__(self, rect, label, checked=True, enabled=True, note="", swatch=None):
