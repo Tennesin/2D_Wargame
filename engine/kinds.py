@@ -9,6 +9,11 @@ class VehicleKind(Enum):
     MBT = auto()
     TD = auto()
 
+class AmmoKind(Enum):
+    AP = auto()      # бронебойный (ББ)
+    HEAT = auto()    # кумулятивный (КС)
+    HE = auto()      # фугасный (ФГ)
+
 class TargetType(Enum):
     """Что именно задел снаряд. Нужен уведомлениям и сводке, чтобы не проверять isinstance."""
     VEHICLE = auto()

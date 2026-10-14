@@ -36,7 +36,7 @@ class TankHud:
             pygame.draw.rect(self._bg, BORDER, self._bg.get_rect(), 1, border_radius=6)
         screen.blit(self._bg, rect.topleft)
 
-        spec = tank.spec
+        stats = tank.round_stats()
         x0, x1 = rect.x + PAD, rect.right - PAD
         y = rect.y + PAD
 
@@ -47,14 +47,15 @@ class TankHud:
         y = self._bar(screen, x0, x1, y, hp_frac, hp_color)
 
         # 2. Урон и пробитие
-        y = self._row(screen, x0, x1, y, "Урон", fmt_num(spec.damage))
-        y = self._row(screen, x0, x1, y, "Пробитие", f"{spec.penetration:.0f} мм")
+        y = self._row(screen, x0, x1, y, "Урон", fmt_num(stats.damage))
+        y = self._row(screen, x0, x1, y, "Пробитие", f"{stats.penetration:.0f} мм")
 
         # 3. Перезарядка: полоска заполняется после выстрела
-        if tank.reload_left <= 0.0 or spec.reload <= 0.0:
+        total = tank.reload_total
+        if tank.reload_left <= 0.0 or total <= 0.0:
             reload_frac, reload_text, reload_color = 1.0, "готово", C_READY
         else:
-            reload_frac = clamp(1.0 - tank.reload_left / spec.reload, 0.0, 1.0)
+            reload_frac = clamp(1.0 - tank.reload_left / total, 0.0, 1.0)
             reload_text, reload_color = f"{tank.reload_left:.1f} с", C_LOADING
         y = self._row(screen, x0, x1, y, "Перезарядка", reload_text)
         y = self._bar(screen, x0, x1, y, reload_frac, reload_color)

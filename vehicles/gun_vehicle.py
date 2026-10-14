@@ -3,8 +3,9 @@
 У техники без башни это угол орудия."""
 import math
 
-from engine import shortest_angle_diff, Shot, heading_vector, bearing_deg, clamp
+from engine import shortest_angle_diff, Shot, heading_vector, bearing_deg, clamp, AmmoKind
 from .base import Vehicle
+from .ammo import ammo_stats
 
 class GunVehicle(Vehicle):
     AIM_DEAD_ZONE = 100.0   # если курсор ближе к оси орудия (1 м), орудие не дёргается
@@ -16,6 +17,9 @@ class GunVehicle(Vehicle):
         self.turret_rate = 0.0          # угловая скорость относительно корпуса, °/с
         self.reload_left = 0.0          # сколько секунд осталось до следующего выстрела
         self.since_shot = 999.0         # сколько секунд прошло с последнего выстрела (для отката)
+        self.ammo = AmmoKind.AP         # выбранный тип снаряда (по умолчанию бронебойный)
+        self.reload_total = 0.0         # длительность текущей перезарядки, с (нужна HUD)
+        self._round_cache = None        # (spec, ammo, stats): пересчитывается при смене орудия или снаряда
 
     @property
     def turret_angle(self):
@@ -73,16 +77,25 @@ class GunVehicle(Vehicle):
         if not fire or self.reload_left > 0.0:
             return None
 
-        self.reload_left = self.spec.reload
+        stats = self.round_stats()
+        self.reload_total = self.reload_left = stats.reload
         self.since_shot = 0.0
         mx, my = self.muzzle_point()
-        return Shot(mx, my, self.turret_angle)
+        return Shot(mx, my, self.turret_angle, stats)
 
     def muzzle_point(self):
         """Текущая позиция дульного среза (мировые px)."""
         fx, fy = heading_vector(self.turret_angle)
         dist = self.spec.MUZZLE_DIST_PX
         return self.x + fx * dist, self.y + fy * dist
+
+    def round_stats(self):
+        """Характеристики выстрела текущим снарядом. Зовётся каждый кадр (HUD, прицел), поэтому кэшируется.
+        Сравнение по идентичности: set_spec() подменяет объект spec, и кэш обновится сам."""
+        c = self._round_cache
+        if c is None or c[0] is not self.spec or c[1] is not self.ammo:
+            c = self._round_cache = (self.spec, self.ammo, ammo_stats(self.spec, self.ammo))
+        return c[2]
 
     def hull_offset_to(self, x, y):
         """Сколько градусов довернуть КОРПУС (+ по часовой), чтобы точка (x, y) попала в сектор орудия.

@@ -24,10 +24,10 @@ class CombatController:
         """Снаряд попал в цель: урон = заявленный × доля по правилам armor.py (стена и танк одинаково)."""
         if not hits:
             return
-        for target, spec, cos_impact, normal, power, owner in hits:
-            pen = spec.penetration * power
+        for target, stats, cos_impact, normal, power, owner in hits:
+            pen = stats.penetration * power
             res = target.hit_result(pen, cos_impact, normal)          # для сообщения: до изменения hp
-            dealt = target.take_hit(pen, spec.damage * power, cos_impact, normal)
+            dealt = target.take_hit(pen, stats.damage * power, cos_impact, normal)
             self.notifier.on_hit(owner, target, normal, res, dealt)
         self.walls.remove_dead()
         self.fleet.remove_dead()

@@ -20,14 +20,15 @@ RICOCHET_PUSH_PX = 1.5               # на сколько px выталкива
 # ==========================================
 
 class Shell:
-    def __init__(self, x, y, heading_deg, spec, origin=None, owner=None):
+    def __init__(self, x, y, heading_deg, spec, stats, origin=None, owner=None):
         self.x, self.y = x, y
-        self._sx, self._sy = origin if origin is not None else (x, y)   # откуда считаем отрезок пролёта
+        self._sx, self._sy = origin if origin is not None else (x, y)
         self.dx, self.dy = heading_vector(heading_deg)
-        self.speed = spec.SHELL_SPEED_PX
+        self.stats = stats                # тип снаряда и его числа (скорость, дальность, урон, пробитие)
+        self.speed = stats.speed_px
         self.length = spec.SHELL_LEN_PX
         self.thick = spec.SHELL_THICK_PX
-        self.range_left = spec.SHELL_RANGE_PX
+        self.range_left = stats.range_px
         self.spec = spec                  # параметры взрыва берём из той же спецификации, что и выстрел
         self.alive = True
         self.exploded = False

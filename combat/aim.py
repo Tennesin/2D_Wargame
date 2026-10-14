@@ -29,9 +29,10 @@ def compute_aim(tank, targets):
     """Траектория от дульного среза вдоль башни. Отрезок для проверки начинается в центре танка,
     как и у настоящего снаряда (Shell), поэтому результат совпадает с реальным выстрелом."""
     spec = tank.spec
+    stats = tank.round_stats()
     dx, dy = heading_vector(tank.turret_angle)
     start = (tank.x + dx * spec.MUZZLE_DIST_PX, tank.y + dy * spec.MUZZLE_DIST_PX)
-    end = (start[0] + dx * spec.SHELL_RANGE_PX, start[1] + dy * spec.SHELL_RANGE_PX)
+    end = (start[0] + dx * stats.range_px, start[1] + dy * stats.range_px)
 
     hit = targets.raycast(tank.x, tank.y, end[0], end[1], ignore=tank)
     if hit is None:
@@ -40,7 +41,7 @@ def compute_aim(tank, targets):
     target, t, normal = hit
     point = (tank.x + (end[0] - tank.x) * t, tank.y + (end[1] - tank.y) * t)
     cos_impact = 1.0 if normal is None else abs(dx * normal[0] + dy * normal[1])
-    return AimInfo(start, point, target.hit_result(spec.penetration, cos_impact, normal), target)
+    return AimInfo(start, point, target.hit_result(stats.penetration, cos_impact, normal), target)
 
 class AimRenderer:
 

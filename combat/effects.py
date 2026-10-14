@@ -279,7 +279,7 @@ class EffectsSystem:
         dx, dy = heading_vector(shot.angle)
         origin = (shot.x - dx * spec.MUZZLE_DIST_PX,        # центр танка: оттуда считаем первый отрезок пролёта
                   shot.y - dy * spec.MUZZLE_DIST_PX)
-        self.shells.append(Shell(shot.x, shot.y, shot.angle, spec, origin, owner=tank))
+        self.shells.append(Shell(shot.x, shot.y, shot.angle, spec, shot.ammo, origin, owner=tank))
         self.flashes.append(MuzzleFlash(shot.x, shot.y, shot.angle, spec, anchor=tank))
         for _ in range(spec.SMOKE_STREAKS):
             self.smoke.append(SmokeStreak(shot.x, shot.y, shot.angle, spec, self._rng, anchor=tank))
@@ -290,9 +290,9 @@ class EffectsSystem:
 
     def update(self, dt, targets=None):
         """Возвращает три списка:
-          попадания [(цель, spec, cos_impact, normal, power, стрелок), ...]: урон применяет Game, а не эффекты;
-          рикошеты  [(стрелок, цель), ...]: снаряд отскочил и летит дальше;
-          промахи   [стрелок, ...]: снаряд долетел до предела дальности, ничего не задев."""
+          попадания: урон применяет Game, а не эффекты;
+          рикошеты: снаряд отскочил и летит дальше;
+          промахи: снаряд долетел до предела дальности, ничего не задев."""
         for shell in self.shells:
             shell.update(dt, targets)
         for group in (self.flashes, self.smoke, self.explosions, self.scorches, self.sparks):
@@ -309,7 +309,7 @@ class EffectsSystem:
             if shell.exploded:
                 self._spawn_impact(shell)
                 if shell.hit_target is not None:
-                    hits.append((shell.hit_target, shell.spec, shell.hit_cos,
+                    hits.append((shell.hit_target, shell.stats, shell.hit_cos,
                                  shell.hit_normal, shell.power, shell.owner))
                 elif shell.bounces == 0:                  # после рикошета «долёт до конца» промахом не считаем
                     misses.append(shell.owner)
