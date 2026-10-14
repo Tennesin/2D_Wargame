@@ -4,17 +4,17 @@ import math
 
 from engine import clamp, fmt_num, PX_PER_M
 from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses, round_to
-from .gun_spec import GunSpec, turret_masses, REF_CAL, REF_POWER
-from .gun_tuning import tuning_k_bounds
-from .look import Look, level
+from ..chassis_params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP
+from ..gun_spec import GunSpec, turret_masses, REF_CAL, REF_POWER
+from ..gun_tuning import tuning_k_bounds
+from ..gun_params import GUN_TUNE_COST_D, GUN_TUNE_COST_P
+from ..look import Look, level
 from .params import (
-    PARAMS, FIXED_MASS_T, ENGINE_T_PER_HP, FRONT_AREA_M2, SIDE_AREA_M2, REAR_AREA_M2,
+    PARAMS, FIXED_MASS_T, FRONT_AREA_M2, SIDE_AREA_M2, REAR_AREA_M2,
     HP_REF, HULL_COLL_HALF_W_M, HULL_COLL_HALF_L_M, HULL_COLL_SHIFT_M,
     COST_REF, COST_MIN, COST_MAX, COST_STEP, BUILD_TIME_REF, COST_ARMOR_ZONES, COST_PARTS,
-    TURRET_FRONT_M, LOOK_FRONT_RATIO, LOOK_SIDE_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO,
-    GUN_TUNE_COST_D, GUN_TUNE_COST_P
+    LOOK_FRONT_RATIO, LOOK_SIDE_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO,
 )
-from ..chassis_params import COLLISION_MARGIN_PX
 
 # ==========================================
 # 1. ГРАНИЦЫ ВХОДОВ И ЭТАЛОН
@@ -72,17 +72,17 @@ COST_EXP_HIGH = math.log(COST_MAX / COST_REF) / math.log(INDEX_MAX)
 def _price(index):
     return COST_REF * index ** (COST_EXP_LOW if index < 1.0 else COST_EXP_HIGH)
 
-def _raw_cost(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0):
+def raw_cost(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0):
     """Цена до округления."""
     return _price(_cost_index(cal, front, side, rear, power, dmg_k, pen_k))
 
-def _round_cost(raw):
+def round_cost(raw):
     """Округление цены до шага и в допустимых границах."""
     return clamp(round_to(raw, COST_STEP), COST_MIN, COST_MAX)
 
 def cost_for(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0):
     """Цена машины по входным параметрам без полного расчёта TankSpec (для подбора билдов ботов)."""
-    return _round_cost(_raw_cost(cal, front, side, rear, power, dmg_k, pen_k))
+    return round_cost(raw_cost(cal, front, side, rear, power, dmg_k, pen_k))
 
 # ==========================================
 # 3. ТАНК
@@ -139,9 +139,9 @@ class TankSpec(ChassisSpec):
         self.REACH_PX = max(self.HULL_REACH_PX, barrel_reach) + COLLISION_MARGIN_PX
 
     def _calc_economy(self):
-        raw = _raw_cost(self.cal, self.front, self.side, self.rear, self.power,
-                        self.damage_k, self.pen_k)
-        self.cost = _round_cost(raw)
+        raw = raw_cost(self.cal, self.front, self.side, self.rear, self.power,
+                       self.damage_k, self.pen_k)
+        self.cost = round_cost(raw)
         self.build_time = BUILD_TIME_REF * raw / COST_REF
 
     def _calc_look(self):

@@ -4,13 +4,13 @@ import math
 from dataclasses import dataclass
 
 from engine import clamp, lerp
-from .params import (
-    PARAMS, GUN_DAMAGE_REF, GUN_PEN_REF,
+from .gun_params import (
+    CALIBER, GUN_DAMAGE_REF, GUN_PEN_REF,
     GUN_DAMAGE_RANGE, GUN_PEN_RANGE, GUN_DAMAGE_STEP, GUN_PEN_STEP,
     GUN_TUNE_RELOAD_A, GUN_TUNE_RELOAD_B,
 )
 
-_CAL = PARAMS["gun_caliber_mm"]
+_CAL = CALIBER
 _REF_CAL = _CAL.default
 
 def _round_to(value, step):

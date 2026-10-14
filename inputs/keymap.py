@@ -51,3 +51,12 @@ PRESS_KEYMAP = {
 
 # Обратная таблица для быстрого поиска по событию KEYDOWN: клавиша -> действие
 KEY_TO_PRESS = {key: action for action, keys in PRESS_KEYMAP.items() for key in keys}
+
+# Подписи клавиш для подсказок на экране. Нет в словаре: берём имя из pygame.
+KEY_LABELS = {pygame.K_LALT: "Alt", pygame.K_RALT: "Alt", pygame.K_ESCAPE: "Esc",
+              pygame.K_DELETE: "Delete", pygame.K_TAB: "Tab"}
+
+def key_label(action):
+    """Подпись первой клавиши действия (для подсказок, чтобы не писать «Alt» или «L» руками)."""
+    codes = PRESS_KEYMAP.get(action) or HELD_KEYMAP[action]
+    return KEY_LABELS.get(codes[0]) or pygame.key.name(codes[0]).upper()

@@ -6,7 +6,8 @@ from inputs import Action, MouseOwner
 from structures import (Wall, ROTATE_HANDLE_HIT_PX, ROTATE_DEAD_ZONE_PX, ROTATE_SNAP_DEG)
 from .settings import PLACE_REPEAT
 from .modes import Mode
-from .panels import PanelMode, wall_values, bind_wall_delete
+from .panels import (PanelMode, wall_values, bind_wall_delete,
+                     STAT_HP, STAT_THICK, STAT_ARMOR, STAT_MASS, STAT_ANGLE)
 
 class WallEditor:
     def __init__(self, ctx, input_handler, modes, ui):
@@ -137,8 +138,8 @@ class WallEditor:
         if key == self._stats_key:
             return
         self._stats_key = key
-        self.ui.set_stat(PanelMode.WALL, "Текущее HP", f"{fmt_num(wall.hp)} / {fmt_num(wall.max_hp)}")
-        self.ui.set_stat(PanelMode.WALL, "Масса стены", f"{fmt_num(wall.mass_t, 1)} т")
-        self.ui.set_stat(PanelMode.WALL, "Толщина", f"{wall.thickness_m:.2f} м")
-        self.ui.set_stat(PanelMode.WALL, "Эквивалент брони", f"{wall.armor_mm:.0f} мм")
-        self.ui.set_stat(PanelMode.WALL, "Угол", f"{wall.angle:.0f} °")
+        self.ui.set_stat(PanelMode.WALL, STAT_HP, f"{fmt_num(wall.hp)} / {fmt_num(wall.max_hp)}")
+        self.ui.set_stat(PanelMode.WALL, STAT_MASS, f"{fmt_num(wall.mass_t, 1)} т")
+        self.ui.set_stat(PanelMode.WALL, STAT_THICK, f"{wall.thickness_m:.2f} м")
+        self.ui.set_stat(PanelMode.WALL, STAT_ARMOR, f"{wall.armor_mm:.0f} мм")
+        self.ui.set_stat(PanelMode.WALL, STAT_ANGLE, f"{wall.angle:.0f} °")

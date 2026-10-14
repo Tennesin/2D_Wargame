@@ -2,7 +2,7 @@
 import pygame
 
 from engine import PX_PER_M, get_text, FONT_SIZE_LABEL
-from inputs import Action
+from inputs import Action, key_label
 from world import CHUNK_SIZE
 
 class DebugOverlay:
@@ -24,6 +24,7 @@ class DebugOverlay:
         self.spawner = spawner
         self.visible = False
         self._font = pygame.font.Font(None, 22)
+        self._k = {a: key_label(a) for a in Action}
 
     def handle_hotkeys(self):
         if self.input.was_pressed(Action.TOGGLE_DEBUG):
@@ -35,18 +36,18 @@ class DebugOverlay:
         return [
             f"FPS: {self.clock.get_fps():.0f}",
             f"Zoom: {self.camera.zoom:.2f} (1 m = {PX_PER_M * self.camera.zoom:.0f} px)",
-            f"Free camera (L): {'ON' if self.camera_ctrl.free_camera else 'OFF'}",
+            f"Free camera ({k[Action.TOGGLE_FREE_CAM]}): {'ON' if self.camera_ctrl.free_camera else 'OFF'}",
             f"X: {t.x:.0f}  Y: {t.y:.0f}",
             f"Chunk: {int(t.x // CHUNK_SIZE)}, {int(t.y // CHUNK_SIZE)}",
             f"Grass: {self.world.grass_at(t.x, t.y):.2f}",
             f"Hull: {t.hull_angle:.0f}  Turret: {t.turret_angle:.0f}",
             f"Seed: {self.seed}",
-            f"Turret follow (Q): {'ON' if self.modes.turret_follow else 'OFF'}",
+            f"Turret follow ({k[Action.LOCK_TURRET]}): {'ON' if self.modes.turret_follow else 'OFF'}",
             f"Reload: {t.reload_left:.1f}s",
             f"Pos (m): {t.x / PX_PER_M:.1f}, {t.y / PX_PER_M:.1f}",
             f"Walls: {len(self.walls.items)}",
             f"Mode: {self.modes.mode.name}  Mouse owner: {owner}",
-            f"Combat (Alt): {'ON' if self.modes.combat else 'OFF'}",
+            f"Combat ({k[Action.COMBAT]}): {'ON' if self.modes.combat else 'OFF'}",
             f"Speed: {t.speed_kmh:.1f} km/h",
             f"Terrain speed k: {t.terrain_k:.2f}",
             f"Bots: {len(self.fleet.bots)}  next in {self.spawner.time_left:.0f}s  "
@@ -75,6 +76,7 @@ class HudOverlay:
         self.modes = modes
         self.camera_ctrl = camera_ctrl
         self.fleet = fleet                   # Fleet: берём счётчик убийств
+        self._k = {a: key_label(a) for a in Action}
 
     def draw(self, screen):
         y = self.hud.draw(screen, self.tank) - 6
@@ -82,17 +84,19 @@ class HudOverlay:
             self._draw_death(screen)
             return
 
+        k = self._k
         rows = []
         if self.modes.combat:
             rows.append(("БОЕВОЙ РЕЖИМ: ЛКМ — огонь", (240, 80, 80)))
         else:
-            rows.append(("Alt — боевой режим, L — камера, Tab — отладка", (170, 176, 186)))
+            rows.append((f"{k[Action.COMBAT]} — боевой режим, {k[Action.TOGGLE_FREE_CAM]} — камера, "
+                         f"{k[Action.TOGGLE_DEBUG]} — отладка", (170, 176, 186)))
         if self.camera_ctrl.free_camera:
-            rows.append(("Свободная камера (L): ПКМ — двигать", (110, 190, 240)))
+            rows.append((f"Свободная камера ({k[Action.TOGGLE_FREE_CAM]}): ПКМ — двигать", (110, 190, 240)))
         if self.tank.terrain_k < 0.99:
             rows.append((f"Вязкая местность: скорость ×{self.tank.terrain_k:.2f}", (200, 170, 120)))
         if not self.modes.turret_follow:
-            rows.append(("Башня зафиксирована (Q)", (240, 210, 70)))
+            rows.append((f"Башня зафиксирована ({k[Action.LOCK_TURRET]})", (240, 210, 70)))
         if self.fleet is not None:
             rows.append((f"Уничтожено: {self.fleet.kills}", (170, 176, 186)))
 
@@ -105,8 +109,8 @@ class HudOverlay:
 
     def _draw_death(self, screen):
         cx, cy = screen.get_width() // 2, screen.get_height() // 2
-        for text, size, color, dy in (("Танк уничтожен", 48, (240, 80, 80), -20),
-                                      ("Esc — в меню", 24, (230, 230, 230), 28)):
+        for text, size, color, dy in (("Машина уничтожена", 48, (240, 80, 80), -20),
+                                      (f"{self._k[Action.CANCEL]} — в меню", 24, (230, 230, 230), 28)):
             shadow = get_text(text, size, (0, 0, 0))
             label = get_text(text, size, color)
             screen.blit(shadow, shadow.get_rect(center=(cx + 2, cy + dy + 2)))

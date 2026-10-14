@@ -4,22 +4,22 @@ import math
 
 from engine import clamp, lerp, fmt_num, PX_PER_M
 from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses, round_to
-from ..chassis_params import COLLISION_MARGIN_PX
-from ..tank.gun_spec import GunSpec, turret_masses
-from ..tank.gun_tuning import TD_GUN
-from ..tank.look import Look, level
-from ..tank.params import (
+from ..chassis_params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP
+from ..gun_spec import GunSpec, turret_masses
+from ..gun_tuning import TD_GUN
+from ..gun_params import (
     REF_L_CAL, BARREL_VISIBLE_K, GUN_ARM_BASE_M, GUN_ARM_BARREL_K,
-    TURRET_INERTIA_EXP, TURRET_POWER_EXP, ENGINE_T_PER_HP,
-    HULL_COLL_HALF_W_M, HULL_COLL_HALF_L_M, COST_REF, BUILD_TIME_REF,
+    TURRET_INERTIA_EXP, TURRET_POWER_EXP,
 )
-from ..tank.spec import _raw_cost, _round_cost
+from ..look import Look, level
+from ..tank.params import COST_REF, BUILD_TIME_REF       # модель цены общая, привязана к эталону ОБТ
+from ..tank.spec import raw_cost, round_cost
 from .params import (
     TD_PARAMS, TD_FIXED_MASS_T, TD_FRONT_AREA_M2, TD_SIDE_AREA_M2, TD_REAR_AREA_M2, TD_HP_REF,
     TD_CASEMATE_K, gun_arc_deg, TD_TRAVERSE_REF, TD_TRAVERSE_MIN, TD_TRAVERSE_MAX, TD_SPINUP_REF,
-    TD_GUN_FRONT_M, TD_BARREL_VIS_REF_M, MOUNT_FRONT_FWD_M, MOUNT_REAR_FWD_M, MOUNT_CAL,
-    MOUNT_STEP_M, SUPPORT_T, TD_LOOK_FRONT_RATIO, TD_LOOK_SIDE_RATIO, TD_LOOK_GUN_RATIO,
-    TD_LOOK_SPEED_RATIO,
+    TD_GUN_FRONT_M, TD_BARREL_VIS_REF_M, TD_RECOIL_K, MOUNT_FRONT_FWD_M, MOUNT_REAR_FWD_M,
+    MOUNT_CAL, MOUNT_STEP_M, SUPPORT_T, TD_HULL_COLL_HALF_W_M, TD_HULL_COLL_HALF_L_M,
+    TD_LOOK_FRONT_RATIO, TD_LOOK_SIDE_RATIO, TD_LOOK_GUN_RATIO, TD_LOOK_SPEED_RATIO,
 )
 
 _CAL = TD_PARAMS["gun_caliber_mm"]
@@ -70,7 +70,7 @@ TD_BODY = ChassisBody(
     fixed_t=TD_FIXED_MASS_T, engine_t_per_hp=ENGINE_T_PER_HP, areas_m2=_AREAS,
     ref_filling_t=_REF_FILLING, ref_mass_t=_REF_MASS, ref_power_hp=_POWER.default,
     ref_armor_share=_REF_ARMOR_MASS / _REF_MASS, hp_ref=TD_HP_REF,
-    coll_half_w_m=HULL_COLL_HALF_W_M, coll_half_l_m=HULL_COLL_HALF_L_M,
+    coll_half_w_m=TD_HULL_COLL_HALF_W_M, coll_half_l_m=TD_HULL_COLL_HALF_L_M,
     coll_shift_m=0.0)       # реальный сдвиг подставляется в TDSpec (зависит от калибра)
 
 _REF_BARREL_M = _REF_CAL * REF_L_CAL / 1000.0 * BARREL_VISIBLE_K
@@ -120,7 +120,8 @@ class TDSpec(ChassisSpec):
                              profile=TD_GUN, front_m=TD_GUN_FRONT_M,
                              barrel_ref_m=TD_BARREL_VIS_REF_M)
         self.__dict__.update(vars(self.gun))
-        self.HULL_VARIANT = (round(self.MOUNT_FWD_M / MOUNT_STEP_M), self.SUPPORT, self.CASE_K)
+        self.HULL_VARIANT = (round(self.MOUNT_FWD_M / MOUNT_STEP_M), self.SUPPORT, self.CASE_K,
+                             round(self.TURRET_ARC_DEG))
 
         self._calc_reach()
         self._calc_economy()
@@ -150,10 +151,10 @@ class TDSpec(ChassisSpec):
         """Цена по формуле танка, но урон и пробитие считаются вместе с бонусом профиля:
         сильное орудие стоит дороже."""
         prof = self.profile
-        raw = _raw_cost(self.cal, self.front, self.side, self.rear, self.power,
-                        self.damage_k * prof.dmg_mult(self.cal),
-                        self.pen_k * prof.pen_mult(self.cal))
-        self.cost = _round_cost(raw)
+        raw = raw_cost(self.cal, self.front, self.side, self.rear, self.power,
+                       self.damage_k * prof.dmg_mult(self.cal),
+                       self.pen_k * prof.pen_mult(self.cal))
+        self.cost = round_cost(raw)
         self.build_time = BUILD_TIME_REF * raw / COST_REF
 
     def _calc_look(self):
@@ -163,6 +164,10 @@ class TDSpec(ChassisSpec):
             gun=level(self.cal / _REF_CAL, TD_LOOK_GUN_RATIO),
             speed=level(self.q_pw, TD_LOOK_SPEED_RATIO),
         )
+
+    def _calc_shot(self):
+        super()._calc_shot()
+        self.RECOIL_DEPTH_M *= TD_RECOIL_K       # откат короче, чтобы корень ствола не вылезал из-под маски
 
     # ---------- вывод в интерфейс ----------
     def mount_name(self):

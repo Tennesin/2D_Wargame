@@ -4,11 +4,12 @@ import math
 
 import pygame
 
-from ..tank.sprites import (
-    TankRenderer, _Pen, _paint, SS, TRACK_X, HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK,
-    GRILL, GRILL_LINE, TURRET_MAIN, TURRET_LIGHT, TURRET_DARK, APPLIQUE,
+from ..sprite_base import (
+    GunVehicleRenderer, Pen as _Pen, apply_paint as _paint, SS, TRACK_X,
+    HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, GRILL, GRILL_LINE,
+    TURRET_MAIN, TURRET_LIGHT, TURRET_DARK,
 )
-from .params import TD_HULL_HALF_M, TD_TURRET_HALF_M
+from .params import TD_HULL_HALF_M, TD_TURRET_HALF_M, TD_MASK_DEPTH_M, TD_CASEMATE_AHEAD_M, TD_SHOW_BREECH
 
 SUPPORT_MAIN = (128, 120, 104)
 SUPPORT_DARK = (96, 90, 78)
@@ -22,13 +23,12 @@ def _tint(color, k):
 
 # Рубка/опора: сколько метров корпуса лежит ПОЗАДИ оси орудия, по уровням опоры
 CASEMATE_REACH = (1.9, 2.3, 2.8)
-CASEMATE_AHEAD = 0.45            # передняя грань рубки впереди оси орудия
 DECK_TOP = -2.25         # начало палубы сразу за лобовой плитой (в координатах корпуса)
 HULL_FRONT_LIMIT = -2.55
 HULL_REAR_LIMIT = 2.8
+OUTLINE_ANT = (38, 33, 28)
 
-
-class TDRenderer(TankRenderer):
+class TDRenderer(GunVehicleRenderer):
     HULL_HALF_M = TD_HULL_HALF_M
 
     def __init__(self):
@@ -60,7 +60,7 @@ class TDRenderer(TankRenderer):
         tool = _paint(TOOLBOX, paint)
 
         # --- границы рубки: передняя грань чуть впереди оси, всё остальное позади неё ---
-        front = max(axis - CASEMATE_AHEAD, HULL_FRONT_LIMIT)
+        front = max(axis - TD_CASEMATE_AHEAD_M, HULL_FRONT_LIMIT)
         rear = min(axis + CASEMATE_REACH[support] * g, HULL_REAR_LIMIT)
         rear = max(rear, front + 1.3)
         wf = 0.65 + 0.30 * g                                   # полуширина передней грани (g=1 даёт прежние 0.95)
@@ -189,48 +189,37 @@ class TDRenderer(TankRenderer):
     # ЛАФЕТ ОРУДИЯ
     # ==========================================
     def _build_turret(self, team_color, paint, look, emblem, spec):
-        """Вращается вокруг оси орудия ТОЛЬКО качающаяся часть: казённик и узкая люлька.
-        Маска лежит в отдельном слое (_build_mantlet) и неподвижна относительно корпуса."""
-        ppm = self._ppm
-        size = 2 * math.ceil(TD_TURRET_HALF_M * ppm)
-        big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
-        pen = _Pen(big, ppm * SS)
-
-        dark = _paint(TURRET_DARK, paint)
-        main = _paint(TURRET_MAIN, paint)
-        light = _paint(TURRET_LIGHT, paint)
-
-        # казённик (позади оси)
-        pen.rect(dark, -0.30, 0.12, 0.60, 0.85, r=0.08)
-        pen.rect(main, -0.20, 0.28, 0.40, 0.14, outline=None)
-        pen.rect(light, -0.14, 0.60, 0.28, 0.10, outline=None)
-        # люлька (узкая, уходит под маску)
-        pen.rect(main, -0.26, -0.40, 0.52, 0.56, r=0.05)
-        pen.rect(light, -0.14, -0.34, 0.28, 0.10, outline=None)
-        return pygame.transform.smoothscale(big, (size, size))
+        """У ПТ-САУ казённик и люлька спрятаны под рубкой: видна только маска и ствол.
+        Возвращаем пустую прозрачную заготовку, чтобы кэши и тень продолжали работать."""
+        size = 2 * math.ceil(TD_TURRET_HALF_M * self._ppm)
+        return pygame.Surface((size, size), pygame.SRCALPHA)
 
     def _build_mantlet(self, team_color, paint, look, spec):
-        """Маска орудия: часть корпуса. Центр спрайта = ось орудия, перед = -y."""
+        """Простая одноцветная маска орудия без теней и черной полоски."""
         ppm = self._ppm
         size = 2 * math.ceil(TD_TURRET_HALF_M * ppm)
+
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
         pen = _Pen(big, ppm * SS)
 
         g = spec.CASE_K
-        k = 1.0 + 0.12 * look.front                  # накладная броня расширяет маску
+        k = 1.0 + 0.12 * look.front
         front = spec.GUN_FRONT_M                     # передний край, м вперёд от оси
-        back = 0.25                                  # задний край, м вперёд от оси
-        wf = (0.50 * g + 0.10) * k                   # полуширина переднего края
-        wb = wf + 0.22 * g                           # полуширина у корпуса
+        back = front - TD_MASK_DEPTH_M               # задний край (может уходить за ось, это нормально)
 
-        pen.poly(team_color, [(-(wf - 0.12), -front), (wf - 0.12, -front), (wf, -front + 0.12),
-                              (wb, -back), (-wb, -back), (-wf, -front + 0.12)])
-        pen.poly(_tint(team_color, 1.2),
-                 [(-(wf - 0.24), -front + 0.10), (wf - 0.24, -front + 0.10), (wf - 0.12, -front + 0.22),
-                  (wb - 0.14, -back - 0.08), (-(wb - 0.14), -back - 0.08), (-(wf - 0.12), -front + 0.22)],
-                 outline=None)
-        sw = wf - 0.20                               # тёмная щель, из которой выходит ствол
-        pen.rect(_tint(team_color, 0.45), -sw, -front + 0.04, 2 * sw, 0.09, outline=None)
+        wf = (0.50 * g + 0.10) * k
+        wb = wf + 0.22 * g
+
+        # Основная маска: один цвет, никаких теней и полосок.
+        pen.poly(team_color, [
+            (-(wf - 0.12), -front),
+            (wf - 0.12, -front),
+            (wf, -front + 0.12),
+            (wb, -back),
+            (-wb, -back),
+            (-wf, -front + 0.12),
+        ])
+
         return pygame.transform.smoothscale(big, (size, size))
 
     def _draw_front_layer(self, screen, tank, cx, cy, hull_k, hull_scale, team, paint, look):

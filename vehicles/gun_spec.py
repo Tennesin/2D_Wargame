@@ -4,20 +4,18 @@ import math
 
 from engine import PX_PER_M, clamp
 from .gun_tuning import resolve_tuning, reload_factor, MBT_GUN
-from .params import (
-    PARAMS, REF_L_CAL, GUN_MASS_T, GUN_MASS_AT_MM, TURRET_MASS_REF_T,
+from .gun_params import (
+    CALIBER, REF_POWER_HP, REF_L_CAL, GUN_MASS_T, GUN_MASS_AT_MM, TURRET_MASS_REF_T,
     BARREL_VISIBLE_K, BARREL_THICK_REF_M, BARREL_LEN_STEP_M, TURRET_FRONT_M,
-    GUN_RELOAD_REF, GUN_RELOAD_MIN, GUN_OVERLOAD_Q, GUN_OVERLOAD_K,
-    GUN_TUNE_RELOAD_MIN,
+    GUN_RELOAD_REF, GUN_RELOAD_MIN, GUN_OVERLOAD_Q, GUN_OVERLOAD_K, GUN_TUNE_RELOAD_MIN,
     TURRET_TURN_REF, TURRET_TURN_MIN, TURRET_TURN_MAX, TURRET_POWER_EXP,
     TURRET_INERTIA_EXP, TURRET_SPINUP_REF, TURRET_RADIUS_M, GUN_ARM_BASE_M, GUN_ARM_BARREL_K,
     SHELL_LEN_K, BARREL_VIS_REF_M, BARREL_VIS_EXP, BARREL_VIS_K_RANGE,
 )
 
-_CAL = PARAMS["gun_caliber_mm"]
-_POWER = PARAMS["engine_power_hp"]
-REF_CAL = _CAL.default
-REF_POWER = _POWER.default
+_CAL = CALIBER
+REF_CAL = CALIBER.default
+REF_POWER = REF_POWER_HP
 
 def turret_masses(cal):
     """Массы орудия и башни калибра cal, т: (орудие, башня)."""

@@ -1,6 +1,7 @@
 """game/app.py — окно, главный цикл и смена сцен. Логики игры здесь нет."""
 import pygame
 
+from .settings import GAME_TITLE
 from .scenes import MenuScene, ConstructorScene, PlayScene
 from .session import Session
 
@@ -10,7 +11,7 @@ class App:
     def __init__(self, seed=None):
         pygame.init()
         pygame.display.set_mode((1000, 700), pygame.RESIZABLE)
-        pygame.display.set_caption("2D Wargame")
+        pygame.display.set_caption(GAME_TITLE)
         self.clock = pygame.time.Clock()
         self.seed = seed                 # None: у каждой новой игры свой случайный мир
         self.session = Session()         # настройки техники живут здесь, пока открыто приложение

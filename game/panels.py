@@ -3,9 +3,12 @@
 from enum import Enum, auto
 from functools import partial
 
+from combat import RICOCHET_ANGLE
 from engine import VehicleKind
-from vehicles import TankSpec, TDSpec, TANK_PARAMS, TD_PARAMS, GUN_TUNE_PARAMS
-from structures import WALL_PARAMS
+from inputs import Action, key_label
+from vehicles import (TankSpec, TDSpec, TANK_PARAMS, TD_PARAMS, GUN_TUNE_PARAMS,
+                      VEHICLE_TYPES, gun_arc_deg)
+from structures import WALL_PARAMS, ROTATE_SNAP_DEG
 from ui import (Panel, SectionHeader, StatsBlock, InfoText, ActionButton,
                 make_param_row, DELETE_BUTTON_COLORS)
 
@@ -15,6 +18,16 @@ class PanelMode(Enum):
     TD = auto()
 
 PANEL_OF = {VehicleKind.MBT: PanelMode.TANK, VehicleKind.TD: PanelMode.TD}
+
+# Названия характеристик стены: используются и панелью, и WallEditor.update_stats
+STAT_HP = "Текущее HP"
+STAT_THICK = "Толщина"
+STAT_ARMOR = "Эквивалент брони"
+STAT_MASS = "Масса стены"
+STAT_ANGLE = "Угол"
+
+def _title(kind):
+    return f"Конструктор: {VEHICLE_TYPES[kind].label}"
 
 def _build_vehicle_panel(title, params, spec0, note=None):
     """Общая панель конструктора: ползунки типа техники + блоки характеристик."""
@@ -46,15 +59,17 @@ def _build_vehicle_panel(title, params, spec0, note=None):
     return Panel(title, items)
 
 def build_tank_panel():
-    return _build_vehicle_panel("Конструктор: ОБТ", TANK_PARAMS, TankSpec.from_config())
+    return _build_vehicle_panel(_title(VehicleKind.MBT), TANK_PARAMS, TankSpec.from_config())
 
 def build_td_panel():
-    return _build_vehicle_panel(
-        "Конструктор: ПТ-САУ", TD_PARAMS, TDSpec.from_config(),
-        note="Орудие без башни: наводка только в пределах УГН (±15° от оси корпуса), "
-             "дальше нужно доворачивать корпус. Чем крупнее калибр, тем дальше назад "
-             "уезжает орудие и появляется задняя опора. Урон и пробитие выше, чем у ОБТ "
-             "того же калибра, при той же перезарядке.")
+    cal = TD_PARAMS["gun_caliber_mm"]
+    wide = gun_arc_deg(cal.min) / 2.0        # УГН у самого малого калибра
+    narrow = gun_arc_deg(cal.max) / 2.0      # и у самого крупного
+    note = (f"Орудие без башни: наводка только в пределах УГН (от ±{wide:.0f}° у малых калибров "
+            f"до ±{narrow:.0f}° у крупных), дальше нужно доворачивать корпус. "
+            "Чем крупнее калибр, тем дальше назад уезжает орудие и появляется задняя опора. "
+            "Урон и пробитие выше, чем у ОБТ того же калибра, при той же перезарядке.")
+    return _build_vehicle_panel(_title(VehicleKind.TD), TD_PARAMS, TDSpec.from_config(), note=note)
 
 def build_wall_panel():
     """Колбэк красной кнопки здесь не задаётся: его привязывает WallEditor (bind_wall_delete)."""
@@ -66,11 +81,11 @@ def build_wall_panel():
         row("wall_length_m"),
 
         SectionHeader("Расчётные характеристики"),
-        StatsBlock(["Текущее HP", "Толщина", "Эквивалент брони", "Масса стены", "Угол"]),
+        StatsBlock([STAT_HP, STAT_THICK, STAT_ARMOR, STAT_MASS, STAT_ANGLE]),
         InfoText("Толщина — меньшая из сторон. Эквивалент брони растёт при косом попадании "
-                 "(броня / cos угла), а при угле больше 70° снаряд рикошетит. "
-                 "Белая точка в центре поворачивает стену; с Shift поворот идёт шагом 15°. "
-                 "Delete — удалить выбранную стену."),
+                 f"(броня / cos угла), а при угле больше {RICOCHET_ANGLE:.0f}° снаряд рикошетит. "
+                 f"Белая точка в центре поворачивает стену; с Shift поворот идёт шагом {ROTATE_SNAP_DEG:.0f}°. "
+                 f"{key_label(Action.DELETE_WALL)} — удалить выбранную стену."),
 
         ActionButton("Удалить стену", DELETE_BUTTON_COLORS),
     ])
