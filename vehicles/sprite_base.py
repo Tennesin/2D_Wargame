@@ -34,6 +34,8 @@ TRACK_BROKEN_MARK = (150, 70, 50)        # трещины на ней
 
 SKIRT_MAIN = (150, 142, 124)
 APPLIQUE = (138, 129, 112)
+SCREEN_MAIN = (128, 122, 108)
+SCREEN_MESH = (70, 66, 58)
 HULL_MAIN = (170, 160, 140)
 HULL_LIGHT = (200, 191, 169)
 HULL_DARK = (126, 117, 101)
@@ -368,6 +370,21 @@ class GunVehicleRenderer:
             pen.rect(color, -1.2, -2.08, 2.4, 0.20, r=0.05)
             for sx in (-1, 1):  # боковые клинья
                 pen.poly(color, [(sx * 1.35, -2.10), (sx * 1.35, -1.20), (sx * 1.05, -2.05)])
+
+    @staticmethod
+    def _draw_front_screen(pen, level, paint):
+        """Сетчатые «кирпичи» перед лобовой плитой. Выступают на 0.14-0.22 м, внутри хитбокса."""
+        if level <= 0:
+            return
+        color = apply_paint(SCREEN_MAIN, paint)
+        n = 2 + level  # 3, 4 или 5 секций
+        x0, x1 = -1.0, 1.0
+        w = (x1 - x0) / n
+        depth = 0.10 + 0.04 * level
+        for i in range(n):
+            x = x0 + i * w + 0.03
+            pen.rect(color, x, -2.92 - depth, w - 0.06, depth, r=0.03)
+            pen.line(SCREEN_MESH, x + (w - 0.06) / 2, -2.90 - depth, x + (w - 0.06) / 2, -2.94, 0.02)
 
     @staticmethod
     def _draw_exhaust(pen, level):

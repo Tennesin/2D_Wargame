@@ -4,7 +4,7 @@ import math
 
 from engine import clamp, fmt_num, PX_PER_M, round_to
 from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses
-from ..chassis_params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP
+from ..chassis_params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP, FRONT_SCREEN, SCREEN_LOOK_STEPS
 from ..gun_spec import GunSpec, turret_masses, REF_CAL, REF_POWER
 from ..gun_tuning import tuning_k_bounds
 from ..gun_params import GUN_TUNE_COST_D, GUN_TUNE_COST_P
@@ -92,17 +92,19 @@ class TankSpec(ChassisSpec):
     Атрибуты орудия копируются в сам объект, поэтому снаружи всё читается как раньше:
     spec.v_max (шасси), spec.damage (орудие). Имена в ЗАГЛАВНЫХ буквах читают Tank и Renderer."""
 
-    def __init__(self, cal, front, side, rear, power, damage=None, penetration=None):
+    def __init__(self, cal, front, side, rear, power, damage=None, penetration=None, screen=0.0)
         # входные параметры (с защитой от выхода за границы)
         cal = clamp(float(cal), _CAL.min, _CAL.max)
         front = clamp(float(front), _FRONT.min, _FRONT.max)
         side = clamp(float(side), _SIDE.min, _SIDE.max)
         rear = clamp(float(rear), _REAR.min, _REAR.max)
         power = clamp(float(power), _POWER.min, _POWER.max)
+        screen = clamp(float(screen), FRONT_SCREEN.min, FRONT_SCREEN.max)
 
         self.cal = cal
         self.m_gun, self.m_turret = turret_masses(cal)
-        super().__init__(TANK_BODY, front, side, rear, power, payload_t=self.m_gun + self.m_turret)
+        super().__init__(TANK_BODY, front, side, rear, power,
+                         payload_t=self.m_gun + self.m_turret, screen_mm=screen)
 
         # arc_deg=360: круговая башня. У будущей ПТ-САУ здесь будет маленький сектор.
         self.gun = GunSpec(cal, self.size_k, power, self.m_gun, self.m_turret, arc_deg=360.0,
@@ -121,7 +123,8 @@ class TankSpec(ChassisSpec):
         (так работают боты, у которых этих значений нет)."""
         return cls(v["gun_caliber_mm"], v["front_armor_mm"], v["side_armor_mm"],
                    v["rear_armor_mm"], v["engine_power_hp"],
-                   damage=v.get("gun_damage"), penetration=v.get("gun_penetration"))
+                   damage=v.get("gun_damage"), penetration=v.get("gun_penetration"),
+                   screen=v.get("front_screen_mm", 0.0))
 
     @classmethod
     def from_config(cls):
@@ -139,7 +142,7 @@ class TankSpec(ChassisSpec):
         self.REACH_PX = max(self.HULL_REACH_PX, barrel_reach) + COLLISION_MARGIN_PX
 
     def _calc_economy(self):
-        raw = raw_cost(self.cal, self.front, self.side, self.rear, self.power,
+        raw = raw_cost(self.cal, self.front + self.screen_mm, self.side, self.rear, self.power,
                        self.damage_k, self.pen_k)
         self.cost = round_cost(raw)
         self.build_time = BUILD_TIME_REF * raw / COST_REF
@@ -150,6 +153,7 @@ class TankSpec(ChassisSpec):
             side=level(self.side / _SIDE.default, LOOK_SIDE_RATIO),
             gun=level(self.cal / REF_CAL, LOOK_GUN_RATIO),
             speed=level(self.q_pw, LOOK_SPEED_RATIO),
+            screen=level(self.screen_mm, SCREEN_LOOK_STEPS),
         )
 
     # ---------- вывод в интерфейс ----------
@@ -181,6 +185,7 @@ class TankSpec(ChassisSpec):
             "Удельная мощность": f"{self.pw:.1f} л.с./т",
             "Калибр / платформа": f"{self.q_gun:.2f}",
             "Бронированность": f"{self.q_arm:.2f}",
+            "Лоб с экранами": f"{self.front + self.screen_mm:.0f} мм",
             "Длина ствола": f"{self.l_cal:.1f} кал.",
             "Инерция башни": f"{self.i_turret:.1f} т·м²",
             "Угл. разгон корпуса": f"{self.hull_alpha:.0f} °/с²",

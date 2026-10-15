@@ -16,6 +16,7 @@ class Session:
         dmg, pen = default_tuning(values["gun_caliber_mm"], vtype.gun_profile)
         values["gun_damage"] = dmg
         values["gun_penetration"] = pen
+        values["front_screen_mm"] = FRONT_SCREEN.default
         return values
 
     def spec(self):

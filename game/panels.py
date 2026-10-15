@@ -43,6 +43,7 @@ def _build_vehicle_panel(title, params, spec0, note=None):
         row("front_armor_mm"),
         row("side_armor_mm"),
         row("rear_armor_mm"),
+        make_param_row({"front_screen_mm": FRONT_SCREEN}, "front_screen_mm"),
 
         SectionHeader("Силовая установка"),
         row("engine_power_hp"),

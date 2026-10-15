@@ -43,7 +43,8 @@ class ChassisBody:
 class ChassisSpec:
     """Входы уже должны быть в допустимых границах (это делает конкретная спецификация)."""
 
-    def __init__(self, body, front, side, rear, power, payload_t):
+    def __init__(self, body, front, side, rear, power, payload_t, screen_mm=0.0):
+        self.screen_mm = screen_mm
         self.body = body
         self.gear = body.gear
         self.front, self.side, self.rear = front, side, rear
@@ -62,7 +63,7 @@ class ChassisSpec:
         self.filling = self.m_fixed + self.m_engine + self.payload_t
         self.size_k = (self.filling / b.ref_filling_t) ** (1.0 / 3.0)   # линейный размер, у эталона 1
         self.m_front, self.m_side, self.m_rear = armor_masses(
-            b.areas_m2, self.front, self.side, self.rear, self.size_k)
+            b.areas_m2, self.front + self.screen_mm * SCREEN_MASS_K, self.side, self.rear, self.size_k)
         self.m_armor = self.m_front + self.m_side + self.m_rear
         self.mass = self.filling + self.m_armor
 
@@ -83,10 +84,11 @@ class ChassisSpec:
 
         # момент сопротивления ~ M * size_k, момент тяги ~ P * size_k, инерция ~ M * size_k²
         self.q_turn = self.q_pw / self.size_k
+        screen_k = 1.0 - SCREEN_TURN_LOSS * self.screen_mm / FRONT_SCREEN.max
         self.hull_turn = max(
             HULL_TURN_MIN,
-            HULL_TURN_CAP * (1.0 - math.exp(-math.log(2.0) * self.q_turn)))   # эталон = половина потолка
-        self.hull_alpha = clamp(HULL_ALPHA_REF * self.q_turn, HULL_ALPHA_MIN, HULL_ALPHA_MAX)
+            screen_k * HULL_TURN_CAP * (1.0 - math.exp(-math.log(2.0) * self.q_turn)))
+        self.hull_alpha = clamp(HULL_ALPHA_REF * self.q_turn * screen_k, HULL_ALPHA_MIN, HULL_ALPHA_MAX)
 
         self.accel = clamp(ACCEL_K * self.pw, ACCEL_MIN, ACCEL_MAX)
         self.accel_back = self.accel * REVERSE_ACCEL_K

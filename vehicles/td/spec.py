@@ -4,7 +4,7 @@ import math
 
 from engine import clamp, lerp, fmt_num, PX_PER_M, round_to
 from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses
-from ..chassis_params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP
+from ..chassis_params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP, FRONT_SCREEN, SCREEN_LOOK_STEPS
 from ..gun_spec import GunSpec, turret_masses
 from ..gun_tuning import TD_GUN
 from ..gun_params import (
@@ -104,12 +104,13 @@ class TDGunSpec(GunSpec):
 # 4. ПТ-САУ
 # ==========================================
 class TDSpec(ChassisSpec):
-    def __init__(self, cal, front, side, rear, power, damage=None, penetration=None):
+    def __init__(self, cal, front, side, rear, power, damage=None, penetration=None, screen=0.0):
         cal = clamp(float(cal), _CAL.min, _CAL.max)
         front = clamp(float(front), _FRONT.min, _FRONT.max)
         side = clamp(float(side), _SIDE.min, _SIDE.max)
         rear = clamp(float(rear), _REAR.min, _REAR.max)
         power = clamp(float(power), _POWER.min, _POWER.max)
+        screen = clamp(float(screen), FRONT_SCREEN.min, FRONT_SCREEN.max)
 
         self.cal = cal
         self.m_gun, self.m_casemate = td_masses(cal)
@@ -118,7 +119,7 @@ class TDSpec(ChassisSpec):
         self.CASE_K = round(clamp((cal / _REF_CAL) ** TD_CASE_CAL_EXP, *TD_CASE_K_LIMITS), 1)
         # положение орудия = сдвиг хитбокса корпуса относительно оси (x, y) машины
         body = dataclasses.replace(TD_BODY, coll_shift_m=self.MOUNT_FWD_M)
-        super().__init__(body, front, side, rear, power, payload_t=self.m_gun + self.m_casemate)
+        super().__init__(body, front, side, rear, power, payload_t=self.m_gun + self.m_casemate, screen_mm=screen)
 
         self.gun = TDGunSpec(cal, self.size_k, power, self.m_gun, self.m_casemate,
                              arc_deg=gun_arc_deg(cal), damage=damage, penetration=penetration,
@@ -137,7 +138,8 @@ class TDSpec(ChassisSpec):
     def from_values(cls, v):
         return cls(v["gun_caliber_mm"], v["front_armor_mm"], v["side_armor_mm"],
                    v["rear_armor_mm"], v["engine_power_hp"],
-                   damage=v.get("gun_damage"), penetration=v.get("gun_penetration"))
+                   damage=v.get("gun_damage"), penetration=v.get("gun_penetration"),
+                   screen=v.get("front_screen_mm", 0.0))
 
     @classmethod
     def from_config(cls):
@@ -156,7 +158,7 @@ class TDSpec(ChassisSpec):
         """Цена по формуле танка, но урон и пробитие считаются вместе с бонусом профиля:
         сильное орудие стоит дороже."""
         prof = self.profile
-        raw = raw_cost(self.cal, self.front, self.side, self.rear, self.power,
+        raw = raw_cost(self.cal, self.front + self.screen_mm, self.side, self.rear, self.power,
                        self.damage_k * prof.dmg_mult(self.cal),
                        self.pen_k * prof.pen_mult(self.cal))
         self.cost = round_cost(raw)
@@ -168,6 +170,7 @@ class TDSpec(ChassisSpec):
             side=level(self.side / _SIDE.default, TD_LOOK_SIDE_RATIO),
             gun=level(self.cal / _REF_CAL, TD_LOOK_GUN_RATIO),
             speed=level(self.q_pw, TD_LOOK_SPEED_RATIO),
+            screen=level(self.screen_mm, SCREEN_LOOK_STEPS)
         )
 
     # ---------- вывод в интерфейс ----------
@@ -202,6 +205,7 @@ class TDSpec(ChassisSpec):
             "Удельная мощность": f"{self.pw:.1f} л.с./т",
             "Калибр / платформа": f"{self.q_gun:.2f}",
             "Бронированность": f"{self.q_arm:.2f}",
+            "Лоб с экранами": f"{self.front + self.screen_mm:.0f} мм",
             "Длина ствола": f"{self.l_cal:.1f} кал.",
             "Инерция орудия": f"{self.i_turret:.1f} т·м²",
             "Угл. разгон корпуса": f"{self.hull_alpha:.0f} °/с²",

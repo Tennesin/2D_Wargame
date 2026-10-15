@@ -139,8 +139,11 @@ class Vehicle(Damageable):
         Борт прикрыт гусеницей, поэтому к нему добавляется броня ходовой."""
         s = self.spec
         zone = self.zone_at(normal, hull_angle)
+        zone = self.zone_at(normal, hull_angle)
         base = {"front": s.front, "side": s.side, "rear": s.rear}[zone]
-        if zone == "side":
+        if zone == "front":
+            base += s.screen_mm
+        elif zone == "side":
             base += s.gear.armor_mm
         return base * ARMOR_K
 
@@ -152,7 +155,7 @@ class Vehicle(Damageable):
         s = self.spec
         title = self.PLAYER_TITLE if self.team is Team.PLAYER else f"Враг: {self.label}"
         return title, [
-            ("Броня: лоб", f"{s.front:.0f} мм"),
+            ("Броня: лоб", f"{s.front:.0f}" + (f" + {s.screen_mm:.0f}" if s.screen_mm else "") + " мм"),
             ("Броня: борт", f"{s.side:.0f} + {s.gear.armor_mm:.0f} мм"),
             ("Броня: корма", f"{s.rear:.0f} мм"),
             ("Масса", f"{fmt_num(s.mass, 1)} т"),

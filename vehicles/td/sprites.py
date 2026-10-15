@@ -81,7 +81,9 @@ class TDRenderer(GunVehicleRenderer):
         # Лобовая плита, палуба, накладная броня
         pen.poly(hull_light, [(-1.15, -2.9), (1.15, -2.9), (1.35, -2.3), (-1.35, -2.3)])
         pen.rect(deck, -1.25, -2.25, 2.50, 4.60)
+
         self._draw_front_kit(pen, look.front, paint)
+        self._draw_front_screen(pen, look.screen, paint)
 
         # Детали лба: только люк механика-водителя
         pen.ellipse(hull_dark, 0.78, -2.52, 0.20, 0.20)

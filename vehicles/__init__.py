@@ -4,6 +4,7 @@
 from .base import Vehicle
 from .gun_vehicle import GunVehicle
 from .gun_params import GUN_TUNE_PARAMS
+from .chassis_params import FRONT_SCREEN
 from .gun_tuning import (damage_range, pen_range, remap, nominal_damage, nominal_pen,
                          GunProfile, MBT_GUN, TD_GUN, default_tuning)
 from .ammo import AmmoType, AMMO_TYPES, AMMO_ORDER, ammo_stats
@@ -18,5 +19,5 @@ __all__ = ["Vehicle", "GunVehicle", "Tank", "TankSpec", "TankRenderer", "TANK_PA
            "GUN_TUNE_PARAMS", "damage_range", "pen_range", "remap", "TRACKS", "TRACK_SIDES",
            "nominal_damage", "nominal_pen", "GunProfile", "MBT_GUN", "TD_GUN", "default_tuning",
            "TDSpec", "TankDestroyer", "TDRenderer", "TD_PARAMS", "gun_arc_deg",
-           "VehicleType", "VEHICLE_TYPES", "RENDERERS", "make_vehicle",
+           "VehicleType", "VEHICLE_TYPES", "RENDERERS", "make_vehicle", "FRONT_SCREEN",
            "AmmoType", "AMMO_TYPES", "AMMO_ORDER", "ammo_stats", "RunningGear"]

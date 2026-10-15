@@ -6,14 +6,14 @@ def level(value, thresholds):
     return sum(value > t for t in thresholds)
 
 class Look(NamedTuple):
-    front: int = 0     # накладная броня лба и утолщённая башня
-    side: int = 0      # бортовые экраны
-    gun: int = 0       # дульный тормоз
-    speed: int = 0     # выхлоп и антенна
+    front: int = 0
+    side: int = 0
+    gun: int = 0
+    speed: int = 0
+    screen: int = 0    # лобовые экраны: 0 нет, 1..3 по толщине
 
-    # ключи кэшей: в них входят только те уровни, которые меняют конкретный спрайт
     @property
-    def hull_key(self): return (self.front, self.side, self.speed)
+    def hull_key(self): return (self.front, self.side, self.speed, self.screen)
     @property
     def turret_key(self): return (self.front, self.speed)
     @property

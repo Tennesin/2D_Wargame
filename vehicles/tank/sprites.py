@@ -50,6 +50,7 @@ class TankRenderer(GunVehicleRenderer):
         pen.rect(deck, -1.25, -2.05, 2.50, 4.40)
 
         self._draw_front_kit(pen, look.front, paint)
+        self._draw_front_screen(pen, look.screen, paint)
 
         # Погон башни: тёмное кольцо вокруг оси (контактная тень под башней)
         pen.ellipse(_paint(RING, paint), 0.0, -HULL_SHIFT_M, 1.35, 1.35, outline=None)

@@ -39,7 +39,7 @@ class GunProfile:
         return lerp(self.range_bonus[0], self.range_bonus[1], _cal_t(cal))
 
 MBT_GUN = GunProfile()
-TD_GUN = GunProfile(dmg_bonus=(1.05, 1.30), pen_bonus=(1.03, 1.20),
+TD_GUN = GunProfile(dmg_bonus=(1.05, 1.30), pen_bonus=(1.03, 1.15),
                     speed_bonus=(1.0, 1.15), range_bonus=(1.0, 1.25))
 
 # ---------- номиналы: зависят от калибра и профиля ----------
