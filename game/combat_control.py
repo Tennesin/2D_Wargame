@@ -1,7 +1,7 @@
 """game/combat_control.py — попадания снарядов, линия прицела, уведомления о боях."""
 
 from engine import TargetType
-from combat import compute_aim, splash_damage
+from combat import compute_aim, splash_damage, pen_after_modules
 from .modes import Mode
 
 class CombatController:
@@ -36,9 +36,12 @@ class CombatController:
 
     def _direct_hit(self, im):
         stats, target = im.stats, im.target
-        pen = stats.penetration * im.power
-        res = target.hit_result(pen, im.cos, im.normal)               # для сообщения: до изменения hp
+        full_pen = stats.penetration * im.power
+        pen = pen_after_modules(target, full_pen, stats, im.x, im.y)   # КС на гусенице: пробитие ×0.5
+        res = target.hit_result(pen, im.cos, im.normal)
         dealt = target.take_hit(pen, stats.damage * im.power, im.cos, im.normal, stats.min_frac)
+        if pen < full_pen:
+            self.notifier.on_module_absorb(im.owner, target)
         self.notifier.on_hit(im.owner, target, im.normal, res, dealt, stats.min_frac)
         if target.target_type is TargetType.VEHICLE and target.alive:
             side = target.knock_track(im.x, im.y)       # точка удара лежит на грани корпуса

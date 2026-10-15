@@ -51,7 +51,7 @@ GUN_LIGHT = (150, 147, 140)
 GUN_DARK = (62, 60, 56)
 EMBLEM_COLOR = (245, 215, 80)
 
-ANGLE_STEPS = 720
+ANGLE_STEPS = 480
 ANGLE_STEP = 360.0 / ANGLE_STEPS
 ROT_CACHE_BYTES = 48 * 1024 * 1024       # бюджет памяти под кэш повёрнутых поверхностей
 
@@ -156,7 +156,7 @@ class GunVehicleRenderer:
         # размер повёрнутой поверхности растёт с зумом, поэтому лимит записей считаем от бюджета памяти
         side = 2.0 * self.HULL_HALF_M * ppm * 1.42
         per_surface = max(1.0, side * side * 4.0)
-        self._rot_cache.limit = int(clamp(ROT_CACHE_BYTES / per_surface, 40, 800))
+        self._rot_cache.limit = int(clamp(ROT_CACHE_BYTES / per_surface, 40, 3000))
 
     # ---------- главный метод ----------
 

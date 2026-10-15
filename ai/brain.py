@@ -8,7 +8,8 @@ from combat import compute_aim
 from .steering import steer_to, StuckGuard
 from .gunnery import (lead_point, evaluate_matchup,
                       outflank_feasibility, preferred_distance_m, best_hull_heading,
-                      shot_fraction_now, MIN_USEFUL_DAMAGE, NO_DAMAGE)
+                      shot_fraction_now, shot_geometry, best_ammo,
+                      MIN_USEFUL_DAMAGE, NO_DAMAGE)
 from .navigator import Navigator
 from .breach import BreachPlanner
 from .cover_planner import CoverPlanner, COVER_RETRY_S
@@ -57,6 +58,7 @@ COVER_BASE = -1.0
 ENGAGE_FAR_K = 1.15          # дальше engage * этого: подъезжаем
 ENGAGE_NEAR_K = 0.6          # ближе engage * этого: сдаём назад
 
+BREACH_AMMO_COS = 0.85       # при выборе снаряда против стены берём «средний» угол
 FIRE_TOLERANCE_DEG = 2.0
 
 class BotBrain:
@@ -339,7 +341,20 @@ class BotBrain:
     # ==========================================
     # ОГОНЬ
     # ==========================================
-    def _gunnery(self, dt, me, enemy, ctx, aim_point):
+
+    def _pick_ammo(self, me, enemy):
+        """Выбор снаряда: по игроку (по реальной грани, углу и гусенице) либо по стене при прорыве.
+        Смена идёт через select_ammo: прогресс перезарядки сохраняется пропорционально."""
+        wall = self.breach.wall if self.intent is Intent.BREACH else None
+        if wall is not None:
+            kind = best_ammo(me, wall, None, BREACH_AMMO_COS, None)
+        else:
+            normal, cos_i, point = shot_geometry(me, enemy)
+            kind = best_ammo(me, enemy, normal, cos_i, point)
+        if kind is not me.ammo:
+            me.select_ammo(kind)
+
+     _gunnery(self, dt, me, enemy, ctx, aim_point):
         err = shortest_angle_diff(bearing_deg(me.x, me.y, *aim_point), me.turret_angle)
         breaching = self.intent is Intent.BREACH
         target = self.breach.wall if breaching else enemy
@@ -351,7 +366,8 @@ class BotBrain:
 
         info = compute_aim(me, ctx.targets)                       # то же, что видит игрок
         res = info.result
-        if not (info.target is target and res is not None and res.damage_frac >= min_frac):
+        frac = 0.0 if res is None else max(res.damage_frac, info.min_frac)   # фугас бьёт осколками и сквозь броню
+        if not (info.target is target and res is not None and frac >= min_frac):
             self._react_left = None
             return False
 

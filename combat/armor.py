@@ -63,6 +63,17 @@ def impact_cos(stats, cos_impact):
     (броня / cos 70°, примерно x2,9), но пробить её по-прежнему можно."""
     return cos_impact if stats.ricochet else max(cos_impact, RICOCHET_COS)
 
+def pen_after_modules(target, penetration, stats, x, y):
+    """Пробитие после внешнего модуля цели в точке попадания (x, y).
+    Цели без модулей (стены, камни: у них нет метода module_at) пробитие не меняют."""
+    k = stats.module_pen_k
+    if k >= 1.0:
+        return penetration
+    fn = getattr(target, "module_at", None)
+    if fn is not None and fn(x, y) is not None:
+        return penetration * k
+    return penetration
+
 class Damageable:
     """Миксин для целей: объект задаёт hit_result(...) и поле hp, а take_hit общий."""
 

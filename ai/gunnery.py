@@ -2,14 +2,15 @@
 import math
 from dataclasses import dataclass
 
-from combat import resolve_hit
+from combat import resolve_hit, impact_cos, pen_after_modules
 from engine import heading_vector, shortest_angle_diff, clamp, PX_PER_M
+from vehicles import AMMO_ORDER, ammo_stats
 from vehicles.chassis_params import KMH_TO_PX
 
 def lead_point(shooter, target, lead_k=1.0):
     """Точка упреждения: где будет цель, когда долетит снаряд. Две итерации."""
     sx, sy = shooter.muzzle_point()
-    speed = shooter.spec.SHELL_SPEED_PX
+    speed = shooter.round_stats().speed_px
     vx, vy = target.velocity_px()
     px, py = target.x, target.y
     for _ in range(2):
@@ -55,6 +56,9 @@ HULL_ANGLES = (0.0, 15.0, -15.0, 25.0, -25.0, 35.0, -35.0, 45.0, -45.0)   # пр
 AIM_JITTER_DEG = 6.0          # на столько градусов враг может промахнуться мимо центра корпуса
 
 OUTFLANK_MIN_RADIUS_M = 5.0   # ближе этого радиус облёта не считаем (угловая скорость не взлетает)
+
+AMMO_SPEED_EXP = 0.5          # штраф за медленный снаряд: (скорость типа / скорость ББ) ** этой степени
+AMMO_SWITCH_GAIN = 1.15       # новый тип берём, только если он лучше текущего больше чем в столько раз
 
 # ==========================================
 # МАТЧАП: КТО КОГО УБЬЁТ БЫСТРЕЕ
@@ -142,6 +146,45 @@ def best_hull_heading(me, enemy, to_enemy_deg):
     return best_h % 360.0
 
 # ==========================================
+# ВЫБОР СНАРЯДА
+# ==========================================
+
+def shot_geometry(me, enemy):
+    """Как мой снаряд ляжет в центр корпуса врага из текущей позиции: (нормаль, cos угла, точка).
+    Луч идёт из центра танка, как у настоящего снаряда. Не достаём корпус: (None, 1.0, None)."""
+    dx, dy = enemy.x - me.x, enemy.y - me.y
+    ln = math.hypot(dx, dy)
+    if ln < 1.0:
+        return None, 1.0, None
+    ux, uy = dx / ln, dy / ln
+    over = RAY_OVERSHOOT_M * PX_PER_M
+    end_x, end_y = enemy.x + ux * over, enemy.y + uy * over
+    hit = enemy.raycast(me.x, me.y, end_x, end_y)
+    if hit is None or hit[2] is None:
+        return None, 1.0, None
+    _, t, normal = hit
+    point = (me.x + (end_x - me.x) * t, me.y + (end_y - me.y) * t)
+    return normal, abs(ux * normal[0] + uy * normal[1]), point
+
+def ammo_value(me, target, kind, normal, cos_i, point):
+    """Ожидаемый урон в секунду снарядом kind по цели при такой геометрии удара."""
+    stats = ammo_stats(me.spec, kind)
+    pen = stats.penetration
+    if point is not None:
+        pen = pen_after_modules(target, pen, stats, *point)           # КС на гусенице
+    frac = target.hit_result(pen, impact_cos(stats, cos_i), normal).damage_frac
+    dps = stats.damage * max(frac, stats.min_frac) / stats.reload      # min_frac: гарантия осколков фугаса
+    return dps * (stats.speed_px / me.spec.SHELL_SPEED_PX) ** AMMO_SPEED_EXP
+
+def best_ammo(me, target, normal, cos_i, point):
+    """Лучший тип снаряда по цели. Текущий меняем, только если выигрыш заметный (гистерезис)."""
+    scores = {k: ammo_value(me, target, k, normal, cos_i, point) for k in AMMO_ORDER}
+    best = max(scores, key=scores.get)
+    if scores[best] <= scores[me.ammo] * AMMO_SWITCH_GAIN:
+        return me.ammo
+    return best
+
+# ==========================================
 # УРОН ИЗ ТЕКУЩЕЙ ПОЗИЦИИ
 # ==========================================
 
@@ -149,10 +192,9 @@ AIM_SPREAD_M = 1.2            # боковой разброс пробных т�
 RAY_OVERSHOOT_M = 3.0         # на сколько метров луч заходит за корпус цели
 
 def shot_fraction_now(me, enemy):
-    """Максимальная доля урона, которую я нанесу по врагу из текущей позиции (по его реальному положению
-    и повороту корпуса). Три прицельные точки: центр и по бокам. Если даже лучшая даёт меньше NO_DAMAGE,
-    то бить отсюда бесполезно «гарантированно»."""
-    pen = me.spec.penetration
+    """Максимальная доля урона по броне (любым пробивным снарядом) из текущей позиции.
+    Фугас не считаем: его осколочный минимум не должен скрывать «бить нечем»."""
+    rounds = [s for s in (ammo_stats(me.spec, k) for k in AMMO_ORDER) if s.min_frac <= 0.0]
     ex, ey = enemy.x, enemy.y
     dx, dy = ex - me.x, ey - me.y
     ln = math.hypot(dx, dy)
@@ -167,10 +209,14 @@ def shot_fraction_now(me, enemy):
         sx, sy = tx - me.x, ty - me.y
         sl = math.hypot(sx, sy)
         ux, uy = sx / sl, sy / sl
-        hit = enemy.raycast(me.x, me.y, tx + ux * overshoot, ty + uy * overshoot)
+        end_x, end_y = tx + ux * overshoot, ty + uy * overshoot
+        hit = enemy.raycast(me.x, me.y, end_x, end_y)
         if hit is None:
             continue
-        _, _t, normal = hit
+        _, t_hit, normal = hit
         cos_i = 1.0 if normal is None else abs(ux * normal[0] + uy * normal[1])
-        best = max(best, enemy.hit_result(pen, cos_i, normal).damage_frac)
+        hx, hy = me.x + (end_x - me.x) * t_hit, me.y + (end_y - me.y) * t_hit
+        for st in rounds:
+            pen = pen_after_modules(enemy, st.penetration, st, hx, hy)
+            best = max(best, enemy.hit_result(pen, impact_cos(st, cos_i), normal).damage_frac)
     return best

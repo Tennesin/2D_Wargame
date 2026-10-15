@@ -28,6 +28,7 @@ class AmmoStats:
     aoe_radius_px: float = 0.0       # радиус взрыва по площади, 0 = нет (шаг ФГ)
     min_frac: float = 0.0            # гарантированная доля урона, 0 = нет (шаг ФГ)
     explode_at_range: bool = False   # взрывается на пределе дальности (шаг ФГ)
+    module_pen_k: float = 1.0        # множитель пробития после преодоления внешнего модуля (1.0 = не влияет)
 
 @dataclass
 class Shot:

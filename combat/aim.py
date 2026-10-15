@@ -5,7 +5,7 @@ from typing import Optional
 import pygame
 
 from engine import heading_vector, AlphaLayer, get_text, FONT_SIZE_LABEL, TargetType
-from .armor import HitResult, impact_cos
+from .armor import HitResult, impact_cos, pen_after_modules
 
 LINE_COLOR = (255, 40, 40, 110)      # красный, полупрозрачный
 LINE_WIDTH = 2
@@ -43,7 +43,8 @@ def compute_aim(tank, targets):
     point = (tank.x + (end[0] - tank.x) * t, tank.y + (end[1] - tank.y) * t)
     cos_impact = 1.0 if normal is None else impact_cos(stats, abs(dx * normal[0] + dy * normal[1]))
     min_frac = 0.0 if target.target_type is TargetType.TERRAIN else stats.min_frac
-    return AimInfo(start, point, target.hit_result(stats.penetration, cos_impact, normal), target, min_frac)
+    pen = pen_after_modules(target, stats.penetration, stats, *point)
+    return AimInfo(start, point, target.hit_result(pen, cos_impact, normal), target, min_frac)
 
 class AimRenderer:
 

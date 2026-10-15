@@ -3,7 +3,7 @@ import math
 import random
 
 from engine import PX_PER_M, Team, bearing_deg
-from vehicles import Tank, TankSpec
+from vehicles import VEHICLE_TYPES, make_vehicle
 from ai import (Bot, BotBrain, DEFAULT_SKILL, ARCHETYPES, fit_loadout, BASE_BUDGET,
                 threat_profile, counter_multipliers)
 
@@ -19,7 +19,8 @@ EARLY_UNLOCK_FROM = 1        # с какого по счёту спавна ко
 EARLY_UNLOCK_MULT = 1.8      # ...если его множитель шанса не ниже этого значения
 
 # (с какого по счёту спавна, ключ архетипа): архетип входит в случайный выбор
-UNLOCKS = [(0, "universal"), (2, "scout"), (4, "destroyer"), (6, "bunker")]
+UNLOCKS = [(0, "universal"), (2, "scout"), (4, "destroyer"), (6, "bunker"),
+           (8, "assault"), (10, "sniper")]
 
 class BotSpawner:
     def __init__(self, fleet, finder, camera, seed, prefs):
@@ -54,9 +55,9 @@ class BotSpawner:
     def _spawn(self):
         arch = self._pick_archetype()
         budget = round(BASE_BUDGET * arch.budget_k)
-        spec = TankSpec.from_values(fit_loadout(arch, budget, self.rng))
-        tank = Tank(0.0, 0.0, spec=spec, team_color=arch.color, team=Team.BOTS,
-                    label=arch.name, emblem=arch.emblem)
+        spec = VEHICLE_TYPES[arch.kind].spec_cls.from_values(fit_loadout(arch, budget, self.rng))
+        tank = make_vehicle(arch.kind, spec, team_color=arch.color, team=Team.BOTS,
+                            label=arch.name, emblem=arch.emblem)
 
         player = self.fleet.player
         cam = self.camera

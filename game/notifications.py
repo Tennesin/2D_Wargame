@@ -147,6 +147,14 @@ class Notifier:
         if vehicle is self.player:
             self.say(f"{TRACK_RU[side].capitalize()} гусеница починена", C_GOOD)
 
+    def on_module_absorb(self, owner, target):
+        """Кумулятив сработал на внешнем модуле: пробитие упало."""
+        me = self.player
+        if target is me:
+            self.say("КС сработал на гусенице: пробитие упало вдвое", C_GOOD)
+        elif owner is me and target.target_type is TargetType.VEHICLE:
+            self.say("КС сработал на гусенице: пробитие упало вдвое", C_WARN)
+
     # ---------- разбор попаданий ----------
     def _hit_on_player(self, normal, res, dealt, frag=False):
         me = self.player

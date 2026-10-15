@@ -181,6 +181,14 @@ class Vehicle(Damageable):
             return None
         return LEFT if u < 0.0 else RIGHT
 
+    def module_at(self, x, y):
+        """Внешний модуль, который первым задевает точка попадания (x, y): пока только ЦЕЛАЯ гусеница.
+        Возвращает "left" / "right" или None. Сбитая гусеница снаряд уже не задерживает."""
+        side = self.track_at(x, y)
+        if side is None or self.tracks.is_broken(side):
+            return None
+        return side
+
     def knock_track(self, x, y):
         """Попали в точку (x, y): сбить гусеницу, если это её край. Возвращает сторону или None."""
         side = self.track_at(x, y)

@@ -13,9 +13,9 @@ _REF_CAL = TANK_PARAMS["gun_caliber_mm"].default
 # Что спавнить против каждой «выкрученной» характеристики игрока.
 # Число: насколько растёт множитель шанса при максимальном уровне (отрицательное: шанс падает).
 COUNTERS = {
-    "armor": {"destroyer": 2.0, "bunker": 1.5, "scout": -0.5},
-    "gun":   {"bunker": 1.5, "universal": 0.5},
-    "speed": {"scout": 2.0, "universal": 1.0, "bunker": -0.3},
+    "armor": {"destroyer": 2.0, "bunker": 1.5, "scout": -0.5, "sniper": 1.5, "assault": -0.3},
+    "gun":   {"bunker": 1.5, "universal": 0.5, "assault": 0.5},
+    "speed": {"scout": 2.0, "universal": 1.0, "bunker": -0.3, "assault": 0.8, "sniper": -0.3},
 }
 
 MIN_MULT = 0.15     # шанс архетипа не падает ниже 15% от обычного
