@@ -6,8 +6,9 @@ import math
 
 import pygame
 
-from engine import LRUCache, SHADOW_ALPHA, heading_vector, clamp, Team
-from .chassis_params import TRACK_LINK_M, TRACK_OFFSET_M
+from engine import LRUCache, SHADOW_ALPHA, heading_vector, clamp, Team, PX_PER_M
+from .chassis_params import TRACK_LINK_M, TRACK_OFFSET_M, TRACK_WIDTH_M
+from .running_gear import LEFT, RIGHT
 from .gun_params import BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M
 
 # ==========================================
@@ -15,9 +16,8 @@ from .gun_params import BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M
 # ==========================================
 SS = 2                                   # суперсэмплинг: рисуем в SS раз крупнее, затем smoothscale
 OUTLINE_W = SS                           # толщина контура ≈ 1 px на экране при любом зуме
-TRACK_PHASES = 6                         # сколько фаз анимации у гусеницы
 TRACK_X = TRACK_OFFSET_M                 # центр гусеницы от оси, м
-TRACK_W = 0.75
+TRACK_W = TRACK_WIDTH_M
 TRACK_TOP = -3.1                         # передний край гусеницы (в координатах корпуса)
 TRACK_LEN = 6.3
 
@@ -29,6 +29,8 @@ PAINT_K = 0.55                           # насколько сильно ко�
 OUTLINE = (38, 33, 28)
 TRACK_BODY = (58, 54, 49)
 TRACK_LINK = (118, 111, 100)
+TRACK_BROKEN = (84, 50, 42)              # сбитая гусеница: ржаво-бурая
+TRACK_BROKEN_MARK = (150, 70, 50)        # трещины на ней
 
 SKIRT_MAIN = (150, 142, 124)
 APPLIQUE = (138, 129, 112)
@@ -62,6 +64,7 @@ def apply_paint(color, paint):
 # ==========================================
 # 2. «РУЧКА» ДЛЯ РИСОВАНИЯ В МЕТРАХ
 # ==========================================
+
 class Pen:
     """Рисует в метрах относительно центра поверхности (с суперсэмплингом и контуром 1 px)."""
 
@@ -109,6 +112,7 @@ class Pen:
 # ==========================================
 # 3. ОБЩИЙ ОТРИСОВЩИК
 # ==========================================
+
 class GunVehicleRenderer:
     """Порядок слоёв: тень, корпус, ствол, башня (качающаяся часть), передний слой (хук).
     Наследник обязан задать HULL_HALF_M и реализовать _build_hull и _build_turret."""
@@ -123,10 +127,16 @@ class GunVehicleRenderer:
         self._barrel_cache = LRUCache(80)
         self._sil_cache = LRUCache(240)
         self._rot_cache = LRUCache(400)
+        self._gear_cache = LRUCache(20)
         self._shadow_buf = None
 
     # ---------- что обязан сделать наследник ----------
-    def _build_hull(self, lp, rp, paint, look, spec):
+
+    def _build_hull(self, paint, look, spec):
+        raise NotImplementedError
+
+    def _hull_shift_m(self, spec):
+        """На сколько метров корпус сдвинут назад от центра спрайта (то же число, что идёт в Pen)."""
         raise NotImplementedError
 
     def _build_turret(self, team_color, paint, look, emblem, spec):
@@ -141,7 +151,7 @@ class GunVehicleRenderer:
         """Вызывается при смене зума: запоминает масштаб и сбрасывает кэши спрайтов."""
         self._ppm = ppm
         for cache in (self._hull_cache, self._turret_cache, self._barrel_cache,
-                      self._sil_cache, self._rot_cache):
+                      self._sil_cache, self._rot_cache, self._gear_cache):
             cache.clear()
         # размер повёрнутой поверхности растёт с зумом, поэтому лимит записей считаем от бюджета памяти
         side = 2.0 * self.HULL_HALF_M * ppm * 1.42
@@ -149,6 +159,7 @@ class GunVehicleRenderer:
         self._rot_cache.limit = int(clamp(ROT_CACHE_BYTES / per_surface, 40, 800))
 
     # ---------- главный метод ----------
+
     def draw(self, screen, camera, tank):
         ppm = self._ppm
         sx, sy = camera.world_to_screen(tank.x, tank.y)
@@ -163,15 +174,17 @@ class GunVehicleRenderer:
         team = tank.team_color
         paint = None if tank.team is Team.PLAYER else team
         emblem = tank.emblem
-        lp = int(tank.left_track_offset / tank.TRACK_STEP * TRACK_PHASES) % TRACK_PHASES
-        rp = int(tank.right_track_offset / tank.TRACK_STEP * TRACK_PHASES) % TRACK_PHASES
+        broken = (tank.tracks.is_broken(LEFT), tank.tracks.is_broken(RIGHT))
 
         hull_k = self._bucket(tank.hull_angle)
         turret_k = self._bucket(tank.turret_angle)
         barrel_key = (bl, bt, look.barrel_key)
 
-        hull = self._get_hull(lp, rp, paint, look, spec)
-        hull_rot = pygame.transform.rotozoom(hull, -tank.hull_angle, hs)
+        # корпус и ходовая больше не зависят от фазы гусениц: оба слоя берутся из кэша по углу
+        gear_rot = self._rotated("gear", (var, broken),
+                                 lambda: self._get_gear(spec, *broken), hull_k, hs)
+        hull_rot = self._rotated("hull", (paint, look.hull_key, var),
+                                 lambda: self._get_hull(paint, look, spec), hull_k, hs)
         barrel_rot = self._rotated("barrel", barrel_key,
                                    lambda: self._get_barrel(bl, bt, look), turret_k, ts)
 
@@ -179,13 +192,15 @@ class GunVehicleRenderer:
         f = (spec.GUN_FRONT_M + bl * BARREL_LEN_STEP_M / 2.0 - BARREL_HIDDEN_M / 2.0
              - tank.recoil_m) * ppm * ts
         hull_rect = hull_rot.get_rect(center=(cx, cy))
+        gear_rect = gear_rot.get_rect(center=(cx, cy))
         barrel_rect = barrel_rot.get_rect(center=(round(cx + fx * f), round(cy + fy * f)))
 
         hox, hoy = (round(v * ppm * hs) for v in SHADOW_HULL_M)
         tox, toy = (round(v * ppm * ts) for v in SHADOW_TURRET_M)
         sil_hull = self._rotated(
             "sil_hull", (look.hull_key, var),
-            lambda: self._get_sil(("hull", look.hull_key, var), hull), hull_k, hs)
+            lambda: self._get_sil(("hull", look.hull_key, var), self._gear_plus_hull(spec, paint, look)),
+            hull_k, hs)
         sil_barrel = self._rotated(
             "sil_barrel", barrel_key,
             lambda: self._get_sil(("barrel", bl, bt, look.barrel_key), self._get_barrel(bl, bt, look)),
@@ -215,7 +230,9 @@ class GunVehicleRenderer:
             buf.blit(surf, (rect.x - union.x, rect.y - union.y))
         screen.blit(buf, union.topleft, area=(0, 0, union.w, union.h))
 
-        screen.blit(hull_rot, hull_rect)
+        screen.blit(gear_rot, gear_rect)                      # тело гусениц под корпусом
+        self._draw_track_links(screen, tank, cx, cy, hull_k, hs, spec, broken)   # бегущие звенья
+        screen.blit(hull_rot, hull_rect)                      # корпус перекрывает внутренние края гусениц
         screen.blit(barrel_rot, barrel_rect)
         if turret_rot is not None:
             screen.blit(turret_rot, turret_rect)
@@ -250,10 +267,10 @@ class GunVehicleRenderer:
     def _get_sil(self, key, surface):
         return self._sil_cache.get_or_build(key, lambda: self._make_silhouette(surface))
 
-    def _get_hull(self, lp, rp, paint, look, spec):
+    def _get_hull(self, paint, look, spec):
         return self._hull_cache.get_or_build(
-            (lp, rp, paint, look.hull_key, spec.HULL_VARIANT),
-            lambda: self._build_hull(lp, rp, paint, look, spec))
+            (paint, look.hull_key, spec.HULL_VARIANT),
+            lambda: self._build_hull(paint, look, spec))
 
     def _get_turret(self, team_color, paint, look, emblem, spec):
         return self._turret_cache.get_or_build(
@@ -265,18 +282,66 @@ class GunVehicleRenderer:
             (bl, bt, look.barrel_key), lambda: self._build_barrel(bl, bt, look))
 
     # ---------- общие детали корпуса ----------
-    @staticmethod
-    def _draw_track(pen, x, phase):
-        """Одна гусеница: лента + поперечные звенья, бегущие с фазой phase."""
-        left = x - TRACK_W / 2
-        pen.rect(TRACK_BODY, left, TRACK_TOP, TRACK_W, TRACK_LEN, r=0.22)
 
-        pen.set_clip(left + 0.05, TRACK_TOP + 0.05, TRACK_W - 0.1, TRACK_LEN - 0.1)
-        y = TRACK_TOP - TRACK_LINK_M + phase * TRACK_LINK_M / TRACK_PHASES
-        while y < TRACK_TOP + TRACK_LEN:
-            pen.line(TRACK_LINK, left + 0.07, y, left + TRACK_W - 0.07, y, 0.06)
-            y += TRACK_LINK_M
-        pen.clear_clip()
+    @staticmethod
+    def _draw_track_body(pen, x, broken=False):
+        """Тело гусеницы без звеньев (звенья бегут отдельно и рисуются прямо на экране)."""
+        left = x - TRACK_W / 2
+        if not broken:
+            pen.rect(TRACK_BODY, left, TRACK_TOP, TRACK_W, TRACK_LEN, r=0.22)
+            return
+        pen.rect(TRACK_BROKEN, left, TRACK_TOP, TRACK_W, TRACK_LEN, r=0.22)
+        for y in (-1.8, -0.2, 1.4):                          # разрывы поперёк ленты
+            pen.line(TRACK_BROKEN_MARK, left + 0.08, y, left + TRACK_W - 0.08, y + 0.35, 0.08)
+
+    def _build_gear(self, spec, left_broken, right_broken):
+        """Слой ходовой: обе гусеницы. Лежит под корпусом, того же размера, что спрайт корпуса."""
+        ppm = self._ppm
+        size = 2 * math.ceil(self.HULL_HALF_M * ppm)
+        big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
+        pen = Pen(big, ppm * SS, 0.0, self._hull_shift_m(spec))
+        self._draw_track_body(pen, -TRACK_X, left_broken)
+        self._draw_track_body(pen, TRACK_X, right_broken)
+        return pygame.transform.smoothscale(big, (size, size))
+
+    def _get_gear(self, spec, left_broken=False, right_broken=False):
+        return self._gear_cache.get_or_build(
+            (spec.HULL_VARIANT, left_broken, right_broken),
+            lambda: self._build_gear(spec, left_broken, right_broken))
+
+    def _gear_plus_hull(self, spec, paint, look):
+        """Ходовая + корпус одним спрайтом: из него строится силуэт тени. Зовётся только при промахе кэша."""
+        surf = self._get_gear(spec).copy()
+        surf.blit(self._get_hull(paint, look, spec), (0, 0))
+        return surf
+
+    def _draw_track_links(self, screen, tank, cx, cy, hull_k, scale, spec, broken):
+        """Бегущие звенья целых гусениц: линии прямо на экране. Сбитая гусеница стоит без звеньев."""
+        k = self._ppm * scale                        # экранных px на метр спрайта
+        if TRACK_LINK_M * k < 3.0:                   # на дальнем зуме звенья сливаются
+            return
+        fx, fy = heading_vector(hull_k * ANGLE_STEP)
+        rx, ry = -fy, fx                             # вправо от корпуса
+        shift = self._hull_shift_m(spec)
+        width = max(1, round(0.06 * k))
+        y_min = TRACK_TOP + 0.05
+        y_max = TRACK_TOP + TRACK_LEN - 0.05
+
+        def pt(x, y):                                # координаты корпуса (м) -> экран
+            y += shift
+            return (cx + (rx * x - fx * y) * k, cy + (ry * x - fy * y) * k)
+
+        for side, offset, bad in ((-1, tank.left_track_offset, broken[0]),
+                                  (1, tank.right_track_offset, broken[1])):
+            if bad:
+                continue
+            xc = side * TRACK_X
+            xa, xb = xc - TRACK_W / 2 + 0.07, xc + TRACK_W / 2 - 0.07
+            y = TRACK_TOP - TRACK_LINK_M + offset / PX_PER_M      # смещение хранится в px эталона
+            y += math.ceil((y_min - y) / TRACK_LINK_M) * TRACK_LINK_M
+            while y < y_max:
+                pygame.draw.line(screen, TRACK_LINK, pt(xa, y), pt(xb, y), width)
+                y += TRACK_LINK_M
 
     @staticmethod
     def _draw_skirts(pen, level, paint):

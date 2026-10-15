@@ -11,11 +11,12 @@ from .tank import (Tank, TankSpec, TankRenderer, PARAMS as TANK_PARAMS, COST_REF
                    LOOK_FRONT_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO)
 from .td import TDSpec, TankDestroyer, TDRenderer, TD_PARAMS, gun_arc_deg
 from .registry import VehicleType, VEHICLE_TYPES, RENDERERS, make_vehicle
+from .running_gear import RunningGear, TRACKS, TRACK_SIDES
 
 __all__ = ["Vehicle", "GunVehicle", "Tank", "TankSpec", "TankRenderer", "TANK_PARAMS", "COST_REF",
            "LOOK_FRONT_RATIO", "LOOK_GUN_RATIO", "LOOK_SPEED_RATIO", "cost_for",
-           "GUN_TUNE_PARAMS", "damage_range", "pen_range", "remap",
+           "GUN_TUNE_PARAMS", "damage_range", "pen_range", "remap", "TRACKS", "TRACK_SIDES",
            "nominal_damage", "nominal_pen", "GunProfile", "MBT_GUN", "TD_GUN", "default_tuning",
            "TDSpec", "TankDestroyer", "TDRenderer", "TD_PARAMS", "gun_arc_deg",
            "VehicleType", "VEHICLE_TYPES", "RENDERERS", "make_vehicle",
-           "AmmoType", "AMMO_TYPES", "AMMO_ORDER", "ammo_stats"]
+           "AmmoType", "AMMO_TYPES", "AMMO_ORDER", "ammo_stats", "RunningGear"]

@@ -1,6 +1,7 @@
 """game/overlays.py — текст поверх игры: отладочные строки и подсказки над HUD."""
 import pygame
 
+from vehicles import TRACK_SIDES
 from engine import PX_PER_M, get_text, FONT_SIZE_LABEL
 from inputs import Action, key_label
 from world import CHUNK_SIZE
@@ -99,6 +100,13 @@ class HudOverlay:
             rows.append((texts.HINT_FREE_CAM.format(key=k[Action.TOGGLE_FREE_CAM]), (110, 190, 240)))
         if self.tank.terrain_k < 0.99:
             rows.append((texts.HINT_VISCOUS.format(k=self.tank.terrain_k), (200, 170, 120)))
+        tracks = self.tank.tracks
+        if tracks.repair_side is not None:
+            rows.append((texts.HINT_TRACK_REPAIR.format(side=texts.TRACK_RU[tracks.repair_side],
+                                                        t=tracks.repair_left), (240, 210, 70)))
+        elif tracks.broken:
+            sides = ", ".join(texts.TRACK_RU[s] for s in TRACK_SIDES if tracks.is_broken(s))
+            rows.append((texts.HINT_TRACK_BROKEN.format(sides=sides, key=k[Action.REPAIR]), (240, 80, 80)))
         if not self.modes.turret_follow:
             rows.append((texts.HINT_TURRET_LOCKED.format(key=k[Action.LOCK_TURRET]), (240, 210, 70)))
         if self.fleet is not None:

@@ -5,7 +5,7 @@ import math
 import pygame
 
 from ..sprite_base import (
-    GunVehicleRenderer, Pen as _Pen, apply_paint as _paint, SS, TRACK_X,
+    GunVehicleRenderer, Pen as _Pen, apply_paint as _paint, SS,
     HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, GRILL, GRILL_LINE,
     TURRET_MAIN, TURRET_LIGHT, TURRET_DARK,
 )
@@ -27,14 +27,14 @@ class TDRenderer(GunVehicleRenderer):
     HULL_HALF_M = TD_HULL_HALF_M
     HAS_TURRET_SPRITE = False
 
-    def __init__(self):
-        super().__init__()
-        self._hull_cache.limit = 600       # вариантов корпуса больше: сдвиг оси × опора × фазы гусениц
-
     # ==========================================
     # КОРПУС
     # ==========================================
-    def _build_hull(self, lp, rp, paint, look, spec):
+
+    def _hull_shift_m(self, spec):
+        return spec.MOUNT_FWD_M
+
+    def _build_hull(self, paint, look, spec):
         ppm = self._ppm
         size = 2 * math.ceil(self.HULL_HALF_M * ppm)
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
@@ -62,17 +62,13 @@ class TDRenderer(GunVehicleRenderer):
         wf = 0.65 + 0.30 * g                                   # полуширина передней грани (g=1 даёт прежние 0.95)
         wr = 0.80 + 0.35 * g + (0.10 if support >= 2 else 0.0)  # полуширина основной части
 
-        # 1. Гусеницы
-        self._draw_track(pen, -TRACK_X, lp)
-        self._draw_track(pen, TRACK_X, rp)
-
-        # 2. Корпус и подкрылки
+        # Корпус и подкрылки
         pen.poly(hull_main, [(-1.15, -2.9), (1.15, -2.9), (1.35, -2.3), (1.35, 2.65),
                              (1.15, 2.9), (-1.15, 2.9), (-1.35, 2.65), (-1.35, -2.3)])
         pen.rect(hull_dark, 1.35, -2.1, 0.22, 4.75)
         pen.rect(hull_dark, -1.57, -2.1, 0.22, 4.75)
 
-        # 2а. Детали на крыльях: ящики ЗИП слева, буксирный трос справа
+        # Детали на крыльях: ящики ЗИП слева, буксирный трос справа
         pen.rect(tool, -1.57, 0.45, 0.22, 0.95, r=0.04)
         pen.rect(tool, -1.57, -1.75, 0.22, 0.55, r=0.04)
         pen.line(GRILL_LINE, -1.46, 0.60, -1.46, 1.30, 0.04)
@@ -82,15 +78,15 @@ class TDRenderer(GunVehicleRenderer):
 
         self._draw_skirts(pen, look.side, paint)
 
-        # 3. Лобовая плита, палуба, накладная броня
+        # Лобовая плита, палуба, накладная броня
         pen.poly(hull_light, [(-1.15, -2.9), (1.15, -2.9), (1.35, -2.3), (-1.35, -2.3)])
         pen.rect(deck, -1.25, -2.25, 2.50, 4.60)
         self._draw_front_kit(pen, look.front, paint)
 
-        # 3а. Детали лба: только люк механика-водителя
+        # Детали лба: только люк механика-водителя
         pen.ellipse(hull_dark, 0.78, -2.52, 0.20, 0.20)
 
-        # 4. Моторная часть позади рубки (только когда орудие на лбу)
+        # Моторная часть позади рубки (только когда орудие на лбу)
         if support == 0 and rear < 2.0:
             gy = rear + 0.2
             gh = 2.75 - gy
@@ -107,7 +103,7 @@ class TDRenderer(GunVehicleRenderer):
             pen.rect(hull_dark, -0.95, 2.50, 1.90, 0.25)  # кормовая планка
         self._draw_deck(pen, front, hull_dark)
 
-        # 5. Опора (уровни 1 и 2): цоколь под рубкой; на уровне 2 ещё гладкий кормовой короб
+        # Опора (уровни 1 и 2): цоколь под рубкой; на уровне 2 ещё гладкий кормовой короб
         if support >= 1:
             slab_w = min(wr + 0.10, 1.34)
             pen.poly(sup_dark, [(-slab_w, front + 0.20), (slab_w, front + 0.20),
@@ -116,7 +112,7 @@ class TDRenderer(GunVehicleRenderer):
                 by0 = max(front + 1.0, rear - 0.80)
                 pen.rect(sup_main, -1.05, by0, 2.10, rear + 0.08 - by0, r=0.05)
 
-        # 6. Рубка: передняя грань чуть впереди оси, тело уходит назад
+        # Рубка: передняя грань чуть впереди оси, тело уходит назад
         pen.poly(case_main, [(-wf, front), (wf, front), (wr, front + 0.55), (wr, rear - 0.35),
                              (wr - 0.30, rear), (-wr + 0.30, rear), (-wr, rear - 0.35),
                              (-wr, front + 0.55)])
@@ -130,7 +126,7 @@ class TDRenderer(GunVehicleRenderer):
                               (-wr + inset, front + 0.55 + inset * 0.4)],
                  outline=case_dark)
 
-        # 6а. Крыша: швы между листами и «лоток» хода казённика
+        # Крыша: швы между листами и «лоток» хода казённика
         seam_in = wr - inset
         for sy in (front + 1.15, rear - 1.05):
             if front + 0.9 < sy < rear - 0.5:
@@ -141,12 +137,12 @@ class TDRenderer(GunVehicleRenderer):
         pen.poly(case_dark, [(-0.32, axis), (0.32, axis),
                              (0.32 + t, axis + lb), (-0.32 - t, axis + lb)], outline=None)
 
-        # 7. Амбразура: орудие смотрит из передней грани, а не стоит на круглой основе
+        # Амбразура: орудие смотрит из передней грани, а не стоит на круглой основе
         ew = 0.55 + 0.15 * g
         pen.poly(case_dark, [(-ew, front), (ew, front), (ew - 0.20, front + 0.55), (-(ew - 0.20), front + 0.55)],
                  outline=None)
 
-        # 8. Детали крыши рубки (позади орудия, чтобы не пересекаться с казёнником)
+        # Детали крыши рубки (позади орудия, чтобы не пересекаться с казёнником)
         for sx in (-1, 1):                              # перископы по углам передней части
             pen.rect(case_dark, sx * 0.62 - 0.15, front + 0.62, 0.30, 0.10, r=0.02)
         pen.ellipse(case_dark, 0.72, axis + 0.90, 0.26, 0.26)       # купол командира

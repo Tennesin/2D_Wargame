@@ -6,7 +6,7 @@ import pygame
 
 from ..gun_params import TURRET_FRONT_M
 from ..sprite_base import (
-    GunVehicleRenderer, Pen as _Pen, apply_paint as _paint, SS, OUTLINE, TRACK_X,
+    GunVehicleRenderer, Pen as _Pen, apply_paint as _paint, SS, OUTLINE,
     HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, RING, GRILL, GRILL_LINE,
     TURRET_MAIN, TURRET_LIGHT, TURRET_DARK, EMBLEM_COLOR,
 )
@@ -21,7 +21,10 @@ class TankRenderer(GunVehicleRenderer):
 
     # ---------- построение спрайтов ----------
 
-    def _build_hull(self, lp, rp, paint, look, spec):
+    def _hull_shift_m(self, spec):
+        return HULL_SHIFT_M
+
+    def _build_hull(self, paint, look, spec):
         ppm = self._ppm
         size = 2 * math.ceil(HULL_HALF_M * ppm)
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
@@ -32,38 +35,34 @@ class TankRenderer(GunVehicleRenderer):
         hull_dark = _paint(HULL_DARK, paint)
         deck = _paint(DECK, paint)
 
-        # 1. Гусеницы (чуть выступают за нос и корму)
-        self._draw_track(pen, -TRACK_X, lp)
-        self._draw_track(pen, TRACK_X, rp)
-
-        # 2. Корпус: короткий клин спереди, скошенные углы сзади
+        # Корпус: короткий клин спереди, скошенные углы сзади
         pen.poly(hull_main, [(-1.00, -2.9), (1.00, -2.9), (1.35, -2.1), (1.35, 2.65),
                              (1.15, 2.9), (-1.15, 2.9), (-1.35, 2.65), (-1.35, -2.1)])
 
-        # 3. Подкрылки (полки над гусеницами)
+        # Подкрылки (полки над гусеницами)
         pen.rect(hull_dark, 1.35, -2.1, 0.22, 4.75)
         pen.rect(hull_dark, -1.57, -2.1, 0.22, 4.75)
 
         self._draw_skirts(pen, look.side, paint)
 
-        # 4. Лобовая плита (светлее: обращена к свету) и палуба
+        # Лобовая плита (светлее: обращена к свету) и палуба
         pen.poly(hull_light, [(-1.00, -2.9), (1.00, -2.9), (1.35, -2.1), (-1.35, -2.1)])
         pen.rect(deck, -1.25, -2.05, 2.50, 4.40)
 
         self._draw_front_kit(pen, look.front, paint)
 
-        # 5. Погон башни: тёмное кольцо вокруг оси (контактная тень под башней)
+        # Погон башни: тёмное кольцо вокруг оси (контактная тень под башней)
         pen.ellipse(_paint(RING, paint), 0.0, -HULL_SHIFT_M, 1.35, 1.35, outline=None)
 
-        # 6. Люк механика-водителя
+        # Люк механика-водителя
         pen.ellipse(hull_dark, 0.65, -1.65, 0.24, 0.24)
 
-        # 7. МТО: решётка и жалюзи
+        # МТО: решётка и жалюзи
         pen.rect(GRILL, -0.95, 1.00, 1.90, 1.20)
         for ly in (1.30, 1.55, 1.80, 2.05):
             pen.line(GRILL_LINE, -0.80, ly, 0.80, ly, 0.05)
 
-        # 8. Кормовая плита
+        # Кормовая плита
         pen.rect(hull_dark, -1.15, 2.40, 2.30, 0.50)
 
         self._draw_exhaust(pen, look.speed)

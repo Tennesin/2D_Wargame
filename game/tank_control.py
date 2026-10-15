@@ -1,5 +1,5 @@
 """game/tank_control.py — танк игрока: команда из ввода и обновление."""
-from inputs import AMMO_HOTKEYS
+from inputs import Action, AMMO_HOTKEYS
 from vehicles import AMMO_ORDER
 from .modes import Mode
 
@@ -23,3 +23,5 @@ class TankController:
         for action, kind in zip(AMMO_HOTKEYS, AMMO_ORDER):
             if self.input.was_pressed(action):
                 self.tank.select_ammo(kind)
+        if self.input.was_pressed(Action.REPAIR):
+            self.tank.start_repair()        # чинит первую сбитую; если ремонт уже идёт, ничего не делает

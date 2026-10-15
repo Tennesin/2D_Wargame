@@ -1,5 +1,6 @@
 """game/notifications.py — сообщения о попаданиях: лента сверху и всплывающие числа над целью."""
 from engine import get_text, FONT_SIZE_HEADER, TargetType
+from .texts import TRACK_RU
 
 FEED_MAX = 5                 # сколько строк в ленте одновременно
 FEED_LIFE = 3.5              # сколько секунд живёт строка
@@ -35,7 +36,6 @@ class _Line:
 
     def __init__(self, text, color):
         self.text, self.color, self.age = text, color, 0.0
-
 
 class _Floater:
     __slots__ = ("x", "y", "text", "color", "age")
@@ -131,6 +131,21 @@ class Notifier:
         elif owner is me and target.target_type is TargetType.WALL:
             if target.hp <= 0.0:
                 self.say("Стена разрушена", C_DIM)
+
+    def on_track_broken(self, owner, target, side):
+        """Сбита гусеница. Показываем только связанное с игроком."""
+        me = self.player
+        name = TRACK_RU[side]
+        if target is me:
+            self.say(f"Сбита {name} гусеница!", C_BAD)
+            self.float_at(me.x, me.y, "гусеница", C_BAD)
+        elif owner is me:
+            self.say(f"Сбита {name} гусеница врага", C_GOOD)
+            self.float_at(target.x, target.y, "гусеница", C_GOOD)
+
+    def on_track_repaired(self, vehicle, side):
+        if vehicle is self.player:
+            self.say(f"{TRACK_RU[side].capitalize()} гусеница починена", C_GOOD)
 
     # ---------- разбор попаданий ----------
     def _hit_on_player(self, normal, res, dealt, frag=False):

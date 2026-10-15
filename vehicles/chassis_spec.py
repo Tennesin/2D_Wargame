@@ -10,8 +10,9 @@ from .chassis_params import (
     V_AVG_BASE, V_AVG_GAIN, BACK_SPEED_K, V_BACK_CAP_KMH,
     ACCEL_K, ACCEL_MIN, ACCEL_MAX, ACCEL_TAIL_FLOOR, REVERSE_ACCEL_K, COAST_DECEL, BRAKE_DECEL,
     HULL_TURN_CAP, HULL_TURN_MIN, HULL_ALPHA_REF, HULL_ALPHA_MIN, HULL_ALPHA_MAX,
-    HP_EXP, HP_STEP,
+    HP_EXP, HP_STEP, TRACK_WIDTH_M, TRACK_EDGE_ZONE_M,
 )
+from .running_gear import RunningGear, TRACKS
 
 def armor_masses(areas_m2, front, side, rear, size_k):
     """Массы брони лба, борта и кормы, т."""
@@ -33,6 +34,7 @@ class ChassisBody:
     coll_half_w_m: float      # половина ширины корпуса вместе с гусеницами, м
     coll_half_l_m: float      # половина длины гусениц, м
     coll_shift_m: float       # на сколько центр корпуса лежит позади оси башни, м
+    gear: RunningGear = TRACKS  # тип ходовой части (поле с умолчанием должно быть последним)
 
     @property
     def ref_pw(self):
@@ -43,6 +45,7 @@ class ChassisSpec:
 
     def __init__(self, body, front, side, rear, power, payload_t):
         self.body = body
+        self.gear = body.gear
         self.front, self.side, self.rear = front, side, rear
         self.power = power
         self.payload_t = payload_t        # масса того, что стоит на шасси (башня, орудие), т
@@ -125,3 +128,5 @@ class ChassisSpec:
         self.COLLISION_SHIFT_PX = b.coll_shift_m * k
         self.HULL_REACH_PX = (math.hypot(self.COLLISION_HALF_W_PX, self.COLLISION_HALF_L_PX)
                               + abs(self.COLLISION_SHIFT_PX))
+        self.TRACK_BAND_PX = TRACK_WIDTH_M * k          # полоса гусеницы вдоль борта
+        self.TRACK_EDGE_PX = TRACK_EDGE_ZONE_M * k      # уязвимый конец гусеницы

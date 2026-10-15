@@ -24,6 +24,11 @@ KILLS = "Уничтожено: {n}"
 DEATH_TITLE = "Машина уничтожена"
 DEATH_HINT = "{key} — в меню"
 
+# Гусеницы
+TRACK_RU = {"left": "левая", "right": "правая"}
+HINT_TRACK_BROKEN = "Гусеница сбита ({sides}): {key} — ремонт"
+HINT_TRACK_REPAIR = "Ремонт: {side} гусеница, {t:.1f} с"
+
 # Прочее
 DISTANCE_FMT = "{:.0f} м"
 ZONE_RU = {"front": "в лоб", "side": "в борт", "rear": "в корму"}

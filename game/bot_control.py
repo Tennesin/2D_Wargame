@@ -28,5 +28,7 @@ class BotController:
             tank = bot.tank
             if not tank.alive:
                 continue
+            if tank.tracks.broken and tank.tracks.repair_side is None:
+                tank.start_repair()
             command = bot.brain.think(dt, tank, player, self.ctx)
             self.game_ctx.step_vehicle(tank, command, dt)

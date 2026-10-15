@@ -1,23 +1,20 @@
 """vehicles/base.py — Vehicle: шасси любой наземной техники.
 Здесь движение, столкновения, броня по граням, таран и здоровье. Оружия и башни тут нет:
-подкласс переопределяет _update_weapons() и возвращает Shot или None.
-
-Что должен уметь spec: hp, mass, front, side, rear, v_max, v_back, hull_turn, hull_alpha,
-accel, accel_back, accel_at(v), decel_coast, decel_brake, HULL_SCALE,
-COLLISION_HALF_W_PX, COLLISION_HALF_L_PX, COLLISION_SHIFT_PX, REACH_PX."""
+подкласс переопределяет _update_weapons() и возвращает Shot или None.."""
 import math
 
 from engine import (
     normalize_angle, obb_hits_obb, obb_segment_hit, VehicleCommand, PX_PER_M,
-    heading_vector, find_free_fraction, Team, TargetType, fmt_num
+    heading_vector, find_free_fraction, Team, TargetType, fmt_num, clamp
 )
 from combat import resolve_hit, Damageable
 from .chassis_params import (
     KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, ARMOR_K, TERRAIN_MIN_K, TERRAIN_BRAKE,
-    TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY, TRACK_LINK_M, TRACK_OFFSET_M,
+    TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY, TRACK_LINK_M, TRACK_OFFSET_M, ONE_TRACK_SPEED_K,
     CONTACT_TURN_STEPS, CONTACT_PUSH_STEPS, SLIDE_ANGLES_DEG, SLIDE_MIN_PX, CONTACT_SCRUB,
     CONTACT_STOP_PROGRESS, PUSH_FRICTION_MS2, PUSH_STOP_PX, TERRAIN_SAMPLE_REACH
 )
+from .running_gear import TrackState, LEFT, RIGHT, TRACK_SIDES
 
 PLAYER_TITLE = "Ваша техника"            # заголовок сводки, когда это техника игрока
 
@@ -52,6 +49,8 @@ class Vehicle(Damageable):
         self.impact_kmh = None          # скорость в момент удара в ЭТОМ кадре (None: удара не было)
         self.push_vx = 0.0              # скорость, полученная от тарана, px/с мира
         self.push_vy = 0.0
+        self.tracks = TrackState()      # сбитые гусеницы и ремонт
+        self.repaired_track = None      # сторона гусеницы, которую починили в ЭТОМ кадре (для сообщений)
 
     # ---------- параметры ----------
     @property
@@ -136,9 +135,13 @@ class Vehicle(Damageable):
         return "side"
 
     def armor_at(self, normal, hull_angle=None):
-        """Броня грани, в которую попали (мм, с коэффициентом ARMOR_K)."""
+        """Броня грани, в которую попали (мм, с коэффициентом ARMOR_K).
+        Борт прикрыт гусеницей, поэтому к нему добавляется броня ходовой."""
         s = self.spec
-        base = {"front": s.front, "side": s.side, "rear": s.rear}[self.zone_at(normal, hull_angle)]
+        zone = self.zone_at(normal, hull_angle)
+        base = {"front": s.front, "side": s.side, "rear": s.rear}[zone]
+        if zone == "side":
+            base += s.gear.armor_mm
         return base * ARMOR_K
 
     def hit_result(self, penetration, cos_impact=1.0, normal=None):
@@ -150,15 +153,67 @@ class Vehicle(Damageable):
         title = self.PLAYER_TITLE if self.team is Team.PLAYER else f"Враг: {self.label}"
         return title, [
             ("Броня: лоб", f"{s.front:.0f} мм"),
-            ("Броня: борт", f"{s.side:.0f} мм"),
+            ("Броня: борт", f"{s.side:.0f} + {s.gear.armor_mm:.0f} мм"),
             ("Броня: корма", f"{s.rear:.0f} мм"),
             ("Масса", f"{fmt_num(s.mass, 1)} т"),
+            ("Гусеницы", self._track_status()),
         ]
 
     def hull_offset_to(self, x, y):
         """Сколько градусов надо довернуть корпус (+ по часовой), чтобы точка (x, y) стала досягаема
         орудием. Базовая техника: 0 (вопрос не стоит)."""
         return 0.0
+
+    # ---------- гусеницы ----------
+    def track_at(self, x, y):
+        """Какую гусеницу задевает точка попадания (x, y): "left" / "right" или None.
+        Гусеницу можно сбить только у самого переднего или заднего края."""
+        cx, cy, hw, hl, ang = self.hull_obb()
+        rad = math.radians(ang)
+        c, sn = math.cos(rad), math.sin(rad)
+        dx, dy = x - cx, y - cy
+        u = dx * c + dy * sn            # поперёк корпуса (+ вправо)
+        v = -dx * sn + dy * c           # вдоль корпуса (минус = нос)
+        s = self.spec
+        if abs(u) < hw - s.TRACK_BAND_PX:       # не в полосе гусеницы
+            return None
+        if abs(v) < hl - s.TRACK_EDGE_PX:       # не у переднего или заднего края
+            return None
+        return LEFT if u < 0.0 else RIGHT
+
+    def knock_track(self, x, y):
+        """Попали в точку (x, y): сбить гусеницу, если это её край. Возвращает сторону или None."""
+        side = self.track_at(x, y)
+        if side is None or not self.tracks.break_track(side):
+            return None
+        return side
+
+    def start_repair(self, side=None):
+        """Начать ремонт сбитой гусеницы. Одновременно идёт только один ремонт.
+        Возвращает сторону, которую начали чинить, или None."""
+        return self.tracks.start_repair(self.spec.gear.repair_s, side)
+
+    def _track_status(self):
+        names = {LEFT: "левая", RIGHT: "правая"}
+        if not self.tracks.broken:
+            return "целы"
+        return "сбита: " + ", ".join(names[s] for s in TRACK_SIDES if self.tracks.is_broken(s))
+
+    def _track_inputs(self, throttle, steer):
+        """Газ и руль с учётом сбитых гусениц.
+        Обе целы: без изменений. Обе сбиты: стоим. Цела одна: работает только она,
+        машина ползёт по дуге вокруг стоящей гусеницы (поворот в сторону сбитой)."""
+        left_bad = self.tracks.is_broken(LEFT)
+        right_bad = self.tracks.is_broken(RIGHT)
+        if not left_bad and not right_bad:
+            return throttle, steer
+        if left_bad and right_bad:
+            return 0.0, 0.0
+        if left_bad:                                   # цела правая: центр поворота у левой, крутимся влево
+            u = clamp(throttle - steer, -1.0, 1.0)
+            return u * ONE_TRACK_SPEED_K, -u
+        u = clamp(throttle + steer, -1.0, 1.0)         # цела левая: крутимся вправо
+        return u * ONE_TRACK_SPEED_K, u
 
     # ---------- кадр ----------
     def update(self, command: VehicleCommand, dt, obstacles=(), terrain=None):
@@ -169,8 +224,10 @@ class Vehicle(Damageable):
         self._terrain = terrain
         self._patches = terrain.patches_near(self.x, self.y, self.reach_px()) if terrain is not None else ()
         self._sample_terrain()
-        delta_hull = self._rotate_hull(command.steer, dt, obstacles)
-        distance = self._drive(command.throttle, command.steer, dt, obstacles)
+        self.repaired_track = self.tracks.update(dt)        # ремонт идёт, пока машина жива и обновляется
+        throttle, steer = self._track_inputs(command.throttle, command.steer)
+        delta_hull = self._rotate_hull(steer, dt, obstacles)
+        distance = self._drive(throttle, steer, dt, obstacles)
         self._animate_tracks(distance, delta_hull)
         return self._update_weapons(command, dt)
 
@@ -368,8 +425,10 @@ class Vehicle(Damageable):
         rot_dist = math.radians(delta_hull) * self.TRACK_RADIUS
         # Поворот вправо (delta_hull > 0): левая гусеница едет вперёд, правая назад.
         # "Вперёд" для узора = отрицательное смещение. distance переводим в пиксели спрайта.
-        self.left_track_offset = (self.left_track_offset - distance / scale - rot_dist) % self.TRACK_STEP
-        self.right_track_offset = (self.right_track_offset - distance / scale + rot_dist) % self.TRACK_STEP
+        if not self.tracks.is_broken(LEFT):
+            self.left_track_offset = (self.left_track_offset - distance / scale - rot_dist) % self.TRACK_STEP
+        if not self.tracks.is_broken(RIGHT):
+            self.right_track_offset = (self.right_track_offset - distance / scale + rot_dist) % self.TRACK_STEP
 
     # ---------- скорость и таран ----------
     def velocity_px(self, speed_kmh=None):

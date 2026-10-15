@@ -1,4 +1,6 @@
 """game/combat_control.py — попадания снарядов, линия прицела, уведомления о боях."""
+
+from engine import TargetType
 from combat import compute_aim, splash_damage
 from .modes import Mode
 
@@ -38,6 +40,10 @@ class CombatController:
         res = target.hit_result(pen, im.cos, im.normal)               # для сообщения: до изменения hp
         dealt = target.take_hit(pen, stats.damage * im.power, im.cos, im.normal, stats.min_frac)
         self.notifier.on_hit(im.owner, target, im.normal, res, dealt, stats.min_frac)
+        if target.target_type is TargetType.VEHICLE and target.alive:
+            side = target.knock_track(im.x, im.y)       # точка удара лежит на грани корпуса
+            if side is not None:
+                self.notifier.on_track_broken(im.owner, target, side)
 
     def _splash(self, im):
         """Осколки по всем целям в радиусе. Прямая цель пропускается: она уже получила
