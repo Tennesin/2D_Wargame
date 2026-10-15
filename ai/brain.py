@@ -354,7 +354,7 @@ class BotBrain:
         if kind is not me.ammo:
             me.select_ammo(kind)
 
-     _gunnery(self, dt, me, enemy, ctx, aim_point):
+    def _gunnery(self, dt, me, enemy, ctx, aim_point):
         err = shortest_angle_diff(bearing_deg(me.x, me.y, *aim_point), me.turret_angle)
         breaching = self.intent is Intent.BREACH
         target = self.breach.wall if breaching else enemy

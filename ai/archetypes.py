@@ -13,12 +13,11 @@ def _reference_weights():
 @dataclass(frozen=True)
 class Archetype:
     name: str
-    kind: VehicleKind = VehicleKind.MBT # тип техники: ОБТ или ПТ-САУ
     weights: dict                       # ключи как в TANK_PARAMS, значения 0..1
     color: tuple                        # цвет башни и маски
     engage_dist_m: float                # желаемая дистанция боя
     flank_bias: float                   # 0..1: охота обходить, если лоб не пробивается
-    retreat_hp: float = 0.0             # доля HP, ниже которой бот ищет укрытие (0: никогда)
+    retreat_hp: float = 0.0
     jitter: float = 0.06                # разброс весов у каждого экземпляра
     t_anchor: Optional[float] = None    # уровень, на котором архетип равен эталону
     cover_bias: float = 0.0             # склонность прятаться: 0 лезет напролом, 1 осторожный
@@ -31,6 +30,7 @@ class Archetype:
     damage_band: tuple = (0.5, 0.5)     # где на ползунке урона (0..1 внутри коридора калибра) выбирается значение
     pen_band: tuple = (0.5, 0.5)        # то же для пробития
     emblem: str = ""                    # деталь на башне для узнавания: "" нет, "chevron" и т.д.
+    kind: VehicleKind = VehicleKind.MBT # тип техники: ОБТ или ПТ-САУ
 
 @dataclass(frozen=True)
 class Skill:
