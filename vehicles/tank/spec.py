@@ -92,7 +92,7 @@ class TankSpec(ChassisSpec):
     Атрибуты орудия копируются в сам объект, поэтому снаружи всё читается как раньше:
     spec.v_max (шасси), spec.damage (орудие). Имена в ЗАГЛАВНЫХ буквах читают Tank и Renderer."""
 
-    def __init__(self, cal, front, side, rear, power, damage=None, penetration=None, screen=0.0)
+    def __init__(self, cal, front, side, rear, power, damage=None, penetration=None, screen=0.0):
         # входные параметры (с защитой от выхода за границы)
         cal = clamp(float(cal), _CAL.min, _CAL.max)
         front = clamp(float(front), _FRONT.min, _FRONT.max)

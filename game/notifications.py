@@ -1,6 +1,6 @@
 """game/notifications.py — сообщения о попаданиях: лента сверху и всплывающие числа над целью."""
 from engine import get_text, FONT_SIZE_HEADER, TargetType
-from .texts import TRACK_RU
+from .texts import TRACK_RU, MODULE_ON
 
 FEED_MAX = 5                 # сколько строк в ленте одновременно
 FEED_LIFE = 3.5              # сколько секунд живёт строка
@@ -147,13 +147,14 @@ class Notifier:
         if vehicle is self.player:
             self.say(f"{TRACK_RU[side].capitalize()} гусеница починена", C_GOOD)
 
-    def on_module_absorb(self, owner, target):
-        """Кумулятив сработал на внешнем модуле: пробитие упало."""
+    def on_module_absorb(self, owner, target, module):
+        """Кумулятив сработал на внешнем модуле (гусеница, экран): пробитие упало."""
         me = self.player
+        where = MODULE_ON.get(module, "модуле")
         if target is me:
-            self.say("КС сработал на гусенице: пробитие упало вдвое", C_GOOD)
+            self.say(f"КС сработал на {where}: пробитие снижено", C_GOOD)
         elif owner is me and target.target_type is TargetType.VEHICLE:
-            self.say("КС сработал на гусенице: пробитие упало вдвое", C_WARN)
+            self.say(f"КС сработал на {where}: пробитие снижено", C_WARN)
 
     # ---------- разбор попаданий ----------
     def _hit_on_player(self, normal, res, dealt, frag=False):

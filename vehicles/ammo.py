@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from engine import AmmoKind, AmmoStats, clamp, lerp
 from .gun_params import (
     CALIBER,
-    HEAT_MODULE_PEN_K, HEAT_DAMAGE_K, HEAT_PEN_K, HEAT_SPEED_K, HEAT_RELOAD_K,
+    HEAT_MODULE_PEN_K, HEAT_SCREEN_PEN_K, HEAT_DAMAGE_K, HEAT_PEN_K, HEAT_SPEED_K, HEAT_RELOAD_K,
     HE_DAMAGE_K, HE_PEN_K, HE_SPEED_K, HE_RELOAD_K, HE_MIN_FRAC, HE_RADIUS_PX_PER_MM,
 )
 
@@ -24,13 +24,15 @@ class AmmoType:
     min_frac: tuple = (0.0, 0.0)
     radius_px_per_mm: float = 0.0
     module_pen_k: float = 1.0
+    screen_pen_k: float = 1.0
 
 AMMO_TYPES = {
     AmmoKind.AP: AmmoType(AmmoKind.AP, "ББ"),
     AmmoKind.HEAT: AmmoType(AmmoKind.HEAT, "КС",
                             dmg_k=HEAT_DAMAGE_K, pen_k=HEAT_PEN_K,
                             speed_k=HEAT_SPEED_K, reload_k=HEAT_RELOAD_K,
-                            ricochet=False, module_pen_k=HEAT_MODULE_PEN_K),
+                            ricochet=False, module_pen_k=HEAT_MODULE_PEN_K,
+                            screen_pen_k=HEAT_SCREEN_PEN_K),
     AmmoKind.HE: AmmoType(AmmoKind.HE, "ФГ",
                           dmg_k=HE_DAMAGE_K, pen_k=HE_PEN_K,
                           speed_k=HE_SPEED_K, reload_k=HE_RELOAD_K,
@@ -56,4 +58,5 @@ def ammo_stats(spec, kind):
         min_frac=lerp(t.min_frac[0], t.min_frac[1], cal_t),
         explode_at_range=t.explode_at_range,
         module_pen_k=t.module_pen_k,
+        screen_pen_k=t.screen_pen_k,
     )

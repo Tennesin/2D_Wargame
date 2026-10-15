@@ -41,7 +41,7 @@ class CombatController:
         res = target.hit_result(pen, im.cos, im.normal)
         dealt = target.take_hit(pen, stats.damage * im.power, im.cos, im.normal, stats.min_frac)
         if pen < full_pen:
-            self.notifier.on_module_absorb(im.owner, target)
+            self.notifier.on_module_absorb(im.owner, target, target.module_at(im.x, im.y))
         self.notifier.on_hit(im.owner, target, im.normal, res, dealt, stats.min_frac)
         if target.target_type is TargetType.VEHICLE and target.alive:
             side = target.knock_track(im.x, im.y)       # точка удара лежит на грани корпуса

@@ -65,14 +65,18 @@ def impact_cos(stats, cos_impact):
 
 def pen_after_modules(target, penetration, stats, x, y):
     """Пробитие после внешнего модуля цели в точке попадания (x, y).
-    Цели без модулей (стены, камни: у них нет метода module_at) пробитие не меняют."""
-    k = stats.module_pen_k
-    if k >= 1.0:
-        return penetration
+    Цели без модулей (стены, камни: у них нет метода module_at) пробитие не меняют.
+    У гусеницы и экрана свои множители: stats.module_pen_k и stats.screen_pen_k."""
+    if stats.module_pen_k >= 1.0 and stats.screen_pen_k >= 1.0:
+        return penetration                                    # ББ и ФГ: быстрый выход
     fn = getattr(target, "module_at", None)
-    if fn is not None and fn(x, y) is not None:
-        return penetration * k
-    return penetration
+    if fn is None:
+        return penetration
+    module = fn(x, y)
+    if module is None:
+        return penetration
+    k = stats.screen_pen_k if module == "screen" else stats.module_pen_k
+    return penetration * k
 
 class Damageable:
     """Миксин для целей: объект задаёт hit_result(...) и поле hp, а take_hit общий."""

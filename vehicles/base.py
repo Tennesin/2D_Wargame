@@ -12,7 +12,8 @@ from .chassis_params import (
     KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, ARMOR_K, TERRAIN_MIN_K, TERRAIN_BRAKE,
     TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY, TRACK_LINK_M, TRACK_OFFSET_M, ONE_TRACK_SPEED_K,
     CONTACT_TURN_STEPS, CONTACT_PUSH_STEPS, SLIDE_ANGLES_DEG, SLIDE_MIN_PX, CONTACT_SCRUB,
-    CONTACT_STOP_PROGRESS, PUSH_FRICTION_MS2, PUSH_STOP_PX, TERRAIN_SAMPLE_REACH
+    CONTACT_STOP_PROGRESS, PUSH_FRICTION_MS2, PUSH_STOP_PX, TERRAIN_SAMPLE_REACH,
+    SCREEN_HALF_W_M, SCREEN_FACE_EPS_PX
 )
 from .running_gear import TrackState, LEFT, RIGHT, TRACK_SIDES
 
@@ -139,7 +140,6 @@ class Vehicle(Damageable):
         Борт прикрыт гусеницей, поэтому к нему добавляется броня ходовой."""
         s = self.spec
         zone = self.zone_at(normal, hull_angle)
-        zone = self.zone_at(normal, hull_angle)
         base = {"front": s.front, "side": s.side, "rear": s.rear}[zone]
         if zone == "front":
             base += s.screen_mm
@@ -184,13 +184,31 @@ class Vehicle(Damageable):
             return None
         return LEFT if u < 0.0 else RIGHT
 
+    def screen_at(self, x, y):
+        """Попала ли точка (x, y) в лобовые экраны: передняя грань корпуса, средняя часть по ширине.
+        Если экранов нет (screen_mm = 0), всегда False."""
+        s = self.spec
+        if s.screen_mm <= 0.0:
+            return False
+        cx, cy, hw, hl, ang = self.hull_obb()
+        rad = math.radians(ang)
+        c, sn = math.cos(rad), math.sin(rad)
+        dx, dy = x - cx, y - cy
+        u = dx * c + dy * sn            # поперёк корпуса
+        v = -dx * sn + dy * c           # вдоль корпуса (минус = нос)
+        half = SCREEN_HALF_W_M * s.HULL_SCALE * PX_PER_M
+        return v <= -hl + SCREEN_FACE_EPS_PX and abs(u) <= half
+
     def module_at(self, x, y):
-        """Внешний модуль, который первым задевает точка попадания (x, y): пока только ЦЕЛАЯ гусеница.
-        Возвращает "left" / "right" или None. Сбитая гусеница снаряд уже не задерживает."""
+        """Внешний модуль, который первым задевает точка попадания (x, y).
+        Возвращает "left" / "right" (целая гусеница), "screen" (лобовой экран) или None.
+        Гусеница проверяется первой: на углу лба она закрывает экран."""
         side = self.track_at(x, y)
-        if side is None or self.tracks.is_broken(side):
-            return None
-        return side
+        if side is not None and not self.tracks.is_broken(side):
+            return side
+        if self.screen_at(x, y):
+            return "screen"
+        return None
 
     def knock_track(self, x, y):
         """Попали в точку (x, y): сбить гусеницу, если это её край. Возвращает сторону или None."""

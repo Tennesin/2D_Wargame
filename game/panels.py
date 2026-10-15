@@ -7,7 +7,7 @@ from combat import RICOCHET_ANGLE
 from engine import VehicleKind
 from inputs import Action, key_label
 from vehicles import (TankSpec, TDSpec, TANK_PARAMS, TD_PARAMS, GUN_TUNE_PARAMS,
-                      VEHICLE_TYPES, gun_arc_deg)
+                      VEHICLE_TYPES, gun_arc_deg, FRONT_SCREEN)
 from structures import WALL_PARAMS, ROTATE_SNAP_DEG
 from ui import (Panel, SectionHeader, StatsBlock, InfoText, ActionButton,
                 make_param_row, DELETE_BUTTON_COLORS)

@@ -32,3 +32,4 @@ HINT_TRACK_REPAIR = "Ремонт: {side} гусеница, {t:.1f} с"
 # Прочее
 DISTANCE_FMT = "{:.0f} м"
 ZONE_RU = {"front": "в лоб", "side": "в борт", "rear": "в корму"}
+MODULE_ON = {"left": "гусенице", "right": "гусенице", "screen": "лобовом экране"}
