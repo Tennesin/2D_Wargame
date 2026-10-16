@@ -9,7 +9,9 @@ from .mathx import (TAU, normalize_angle, shortest_angle_diff, clamp, lerp, lerp
                     heading_vector, find_free_fraction, fmt_num, bearing_deg, round_to)
 from .kinds import Team, VehicleKind, TargetType, AmmoKind
 from .geometry import (obb_hits_obb, obb_hits_convex, obb_segment_hit, obb_outside_rect,
-                       obb_contact, obb_convex_contact, obb_distance_to_point, shrink_polygon)
+                       obb_contact, obb_convex_contact, obb_distance_to_point, shrink_polygon,
+                       convex_segment_hit, point_in_convex, is_convex, edge_normal_away,
+                       to_local_frame, from_local_frame, vec_to_local, vec_from_local)
 from .cache import LRUCache
 from .noise import hash_int, hash_float, value_noise, SEED_SALT
 from .gfx import (FONT_SIZE_TITLE, FONT_SIZE_HEADER, FONT_SIZE_LABEL,
@@ -24,7 +26,9 @@ __all__ = [
     "heading_vector", "find_free_fraction", "fmt_num", "bearing_deg", "round_to",
     "Team", "VehicleKind", "TargetType", "AmmoKind",
     "obb_hits_obb", "obb_hits_convex", "obb_segment_hit", "obb_outside_rect",
-    "obb_contact", "obb_convex_contact", "obb_distance_to_point", "shrink_polygon",
+    "obb_contact", "convex_segment_hit", "point_in_convex", "is_convex", "edge_normal_away",
+    "to_local_frame", "from_local_frame", "vec_to_local", "vec_from_local",
+    "obb_convex_contact", "obb_distance_to_point", "shrink_polygon",
     "LRUCache", "hash_int", "hash_float", "value_noise", "SEED_SALT",
     "FONT_SIZE_TITLE", "FONT_SIZE_HEADER", "FONT_SIZE_LABEL",
     "get_font", "get_text", "wrap_text", "AlphaLayer",

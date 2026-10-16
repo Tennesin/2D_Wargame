@@ -158,3 +158,125 @@ def obb_distance_to_point(obb, x, y):
 def shrink_polygon(pts, cx, cy, k, dx=0.0, dy=0.0):
     """Уменьшить фигуру относительно центра (cx, cy) в k раз и сдвинуть на (dx, dy)."""
     return [(cx + (x - cx) * k + dx, cy + (y - cy) * k + dy) for x, y in pts]
+
+# ==========================================
+# ВЫПУКЛЫЕ МНОГОУГОЛЬНИКИ И ЛОКАЛЬНАЯ СИСТЕМА КОРПУСА
+# ==========================================
+
+_EPS = 1e-9
+
+def _signed_area2(poly):
+    """Удвоенная площадь со знаком: знак показывает направление обхода вершин."""
+    s = 0.0
+    n = len(poly)
+    for i in range(n):
+        x0, y0 = poly[i]
+        x1, y1 = poly[(i + 1) % n]
+        s += x0 * y1 - x1 * y0
+    return s
+
+def is_convex(poly):
+    """Выпуклый ли многоугольник (любой порядок обхода). Меньше 3 вершин: False."""
+    n = len(poly)
+    if n < 3:
+        return False
+    pos = neg = False
+    for i in range(n):
+        ax, ay = poly[i]
+        bx, by = poly[(i + 1) % n]
+        cx, cy = poly[(i + 2) % n]
+        cross = (bx - ax) * (cy - by) - (by - ay) * (cx - bx)
+        if cross > _EPS:
+            pos = True
+        elif cross < -_EPS:
+            neg = True
+        if pos and neg:
+            return False
+    return pos or neg
+
+def point_in_convex(poly, x, y):
+    """Лежит ли точка внутри выпуклого многоугольника. Точка на границе считается внутри."""
+    sign = 1.0 if _signed_area2(poly) >= 0.0 else -1.0
+    n = len(poly)
+    for i in range(n):
+        ax, ay = poly[i]
+        bx, by = poly[(i + 1) % n]
+        if ((bx - ax) * (y - ay) - (by - ay) * (x - ax)) * sign < -_EPS:
+            return False
+    return True
+
+def convex_segment_hit(poly, x0, y0, x1, y1):
+    """Первое пересечение отрезка с выпуклым многоугольником poly = [(x, y), ...]."""
+    n = len(poly)
+    sign = 1.0 if _signed_area2(poly) >= 0.0 else -1.0
+    dx, dy = x1 - x0, y1 - y0
+    t0, t1 = 0.0, 1.0
+    normal = None
+    for i in range(n):
+        ax, ay = poly[i]
+        bx, by = poly[(i + 1) % n]
+        ex, ey = bx - ax, by - ay
+        ln = math.hypot(ex, ey)
+        if ln < _EPS:
+            continue
+        nx, ny = ey * sign / ln, -ex * sign / ln          # наружная единичная нормаль
+        dist = nx * (x0 - ax) + ny * (y0 - ay)            # > 0: начало отрезка снаружи ребра
+        denom = nx * dx + ny * dy                         # < 0: отрезок идёт внутрь
+        if abs(denom) < _EPS:                             # параллельно ребру
+            if dist > 0.0:
+                return None
+            continue
+        t = -dist / denom
+        if denom < 0.0:                                   # вход
+            if t > t0:
+                t0 = t
+                normal = (nx, ny)
+        elif t < t1:                                      # выход
+            t1 = t
+        if t0 > t1:
+            return None
+    return t0, normal
+
+def edge_normal_away(ax, ay, bx, by, rx, ry):
+    """Единичная нормаль ребра ab, направленная ОТ внутренней точки (rx, ry).
+    Нужна, чтобы не следить за порядком обхода вершин при задании плит."""
+    ex, ey = bx - ax, by - ay
+    ln = math.hypot(ex, ey)
+    if ln < _EPS:
+        raise ValueError("edge_normal_away: вырожденное ребро")
+    nx, ny = ey / ln, -ex / ln
+    side = nx * (rx - ax) + ny * (ry - ay)
+    if abs(side) < _EPS:
+        raise ValueError("edge_normal_away: опорная точка лежит на линии ребра")
+    if side > 0.0:
+        nx, ny = -nx, -ny
+    return nx, ny
+
+def to_local_frame(x, y, cx, cy, angle_deg, scale=1.0):
+    """Мировая точка -> локальная (u, v). (cx, cy): начало локальной системы в мире,
+    angle_deg: курс корпуса (0 = вверх, по часовой), scale: мировых px в одной локальной единице
+    (для локальных метров это HULL_SCALE * PX_PER_M)."""
+    rad = math.radians(angle_deg)
+    c, s = math.cos(rad), math.sin(rad)
+    dx, dy = x - cx, y - cy
+    return (dx * c + dy * s) / scale, (-dx * s + dy * c) / scale
+
+def from_local_frame(u, v, cx, cy, angle_deg, scale=1.0):
+    """Обратное к to_local_frame: локальная точка -> мировая."""
+    rad = math.radians(angle_deg)
+    c, s = math.cos(rad), math.sin(rad)
+    u *= scale
+    v *= scale
+    return cx + u * c - v * s, cy + u * s + v * c
+
+def vec_to_local(dx, dy, angle_deg):
+    """Мировой вектор (например, нормаль) -> локальный. Только поворот, без сдвига и масштаба."""
+    rad = math.radians(angle_deg)
+    c, s = math.cos(rad), math.sin(rad)
+    return dx * c + dy * s, -dx * s + dy * c
+
+def vec_from_local(u, v, angle_deg):
+    """Локальный вектор -> мировой (только поворот)."""
+    rad = math.radians(angle_deg)
+    c, s = math.cos(rad), math.sin(rad)
+    return u * c - v * s, u * s + v * c
