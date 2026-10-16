@@ -1,7 +1,9 @@
 """tank/spec.py — характеристики танка: шасси (ChassisSpec) + орудие (GunSpec) + цена и оформление."""
 import itertools
 import math
+import dataclasses
 
+from ..hulls import classify, class_index, class_for_index, layout_for, HULL_CLASS_RU
 from engine import clamp, fmt_num, PX_PER_M, round_to
 from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses
 from ..chassis_params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP, FRONT_SCREEN, SCREEN_LOOK_STEPS
@@ -41,6 +43,21 @@ TANK_BODY = ChassisBody(
     ref_armor_share=REF_ARMOR_MASS / REF_MASS, hp_ref=HP_REF,
     coll_half_w_m=HULL_COLL_HALF_W_M, coll_half_l_m=HULL_COLL_HALF_L_M,
     coll_shift_m=HULL_COLL_SHIFT_M)
+
+# ---------- вход классификатора корпуса ----------
+def _armor_mass_index(front, side, rear):
+    """Условная «масса брони»: толщина × площадь по зонам."""
+    return FRONT_AREA_M2 * front + SIDE_AREA_M2 * side + REAR_AREA_M2 * rear
+
+_ARMOR_IDX_MIN = _armor_mass_index(_FRONT.min, _SIDE.min, _REAR.min)
+_ARMOR_IDX_MAX = _armor_mass_index(_FRONT.max, _SIDE.max, _REAR.max)
+
+def hull_inputs(front, side, rear, power):
+    """Броня и мощность, нормированные в 0..1 по границам ползунков."""
+    armor_t = clamp((_armor_mass_index(front, side, rear) - _ARMOR_IDX_MIN)
+                    / (_ARMOR_IDX_MAX - _ARMOR_IDX_MIN), 0.0, 1.0)
+    power_t = clamp((power - _POWER.min) / (_POWER.max - _POWER.min), 0.0, 1.0)
+    return armor_t, power_t
 
 # ==========================================
 # 2. СТОИМОСТЬ: индекс ценности -> цена
@@ -103,14 +120,23 @@ class TankSpec(ChassisSpec):
 
         self.cal = cal
         self.m_gun, self.m_turret = turret_masses(cal)
-        super().__init__(TANK_BODY, front, side, rear, power,
+
+        # класс корпуса зависит ТОЛЬКО от ползунков (не от массы)
+        self.hull_index = class_index(*hull_inputs(front, side, rear, power))
+        self.HULL_CLASS = class_for_index(self.hull_index)
+        layout = layout_for(self.HULL_CLASS)       # пока для всех классов это MEDIUM
+        body = dataclasses.replace(TANK_BODY, layout=layout,
+                                   coll_half_w_m=layout.coll_half_w_m,
+                                   coll_half_l_m=layout.coll_half_l_m,
+                                   coll_shift_m=layout.coll_shift_m)
+        super().__init__(body, front, side, rear, power,
                          payload_t=self.m_gun + self.m_turret, screen_mm=screen)
 
         # arc_deg=360: круговая башня. У будущей ПТ-САУ здесь будет маленький сектор.
         self.gun = GunSpec(cal, self.size_k, power, self.m_gun, self.m_turret, arc_deg=360.0,
                            damage=damage, penetration=penetration)
         self.__dict__.update(vars(self.gun))
-        self.HULL_VARIANT = ()      # у ОБТ единственный вариант корпуса (ключ кэша спрайтов)
+        self.HULL_VARIANT = (self.layout.key,)
 
         self._calc_reach()
         self._calc_economy()
@@ -164,6 +190,7 @@ class TankSpec(ChassisSpec):
             "Время производства": f"{self.build_time:.1f} с",
             "HP": fmt_num(self.hp),
             "Масса": f"{self.mass:.1f} т",
+            "Корпус": HULL_CLASS_RU[self.HULL_CLASS],
             "Макс. скорость": f"{self.v_max:.0f} км/ч",
             "Средняя скорость": f"{self.v_avg:.0f} км/ч",
             "Скорость назад": f"{self.v_back:.0f} км/ч",
@@ -182,6 +209,7 @@ class TankSpec(ChassisSpec):
     def internal_stats(self):
         """Внутренние показатели (полезны при отладке баланса)."""
         return {
+            "Индекс корпуса": f"{self.hull_index:+.2f}",
             "Удельная мощность": f"{self.pw:.1f} л.с./т",
             "Калибр / платформа": f"{self.q_gun:.2f}",
             "Бронированность": f"{self.q_arm:.2f}",

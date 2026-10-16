@@ -176,23 +176,27 @@ def _signed_area2(poly):
     return s
 
 def is_convex(poly):
-    """Выпуклый ли многоугольник (любой порядок обхода). Меньше 3 вершин: False."""
+    """Простой выпуклый многоугольник (любой порядок обхода). Звёздчатые и самопересекающиеся: False."""
     n = len(poly)
     if n < 3:
         return False
     pos = neg = False
+    turn = 0.0
     for i in range(n):
         ax, ay = poly[i]
         bx, by = poly[(i + 1) % n]
         cx, cy = poly[(i + 2) % n]
-        cross = (bx - ax) * (cy - by) - (by - ay) * (cx - bx)
+        abx, aby = bx - ax, by - ay
+        bcx, bcy = cx - bx, cy - by
+        cross = abx * bcy - aby * bcx
         if cross > _EPS:
             pos = True
         elif cross < -_EPS:
             neg = True
         if pos and neg:
             return False
-    return pos or neg
+        turn += math.atan2(cross, abx * bcx + aby * bcy)
+    return (pos or neg) and abs(abs(turn) - 2.0 * math.pi) < 1e-6
 
 def point_in_convex(poly, x, y):
     """Лежит ли точка внутри выпуклого многоугольника. Точка на границе считается внутри."""

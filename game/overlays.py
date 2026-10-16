@@ -35,6 +35,7 @@ class DebugOverlay:
     def _lines(self):
         k = self._k
         t = self.tank
+        s = t.spec
         owner = self.input.mouse_owner.name if self.input.mouse_owner else "-"
         return [
             f"FPS: {self.clock.get_fps():.0f}",
@@ -49,6 +50,10 @@ class DebugOverlay:
             f"Reload: {t.reload_left:.1f}s",
             f"Pos (m): {t.x / PX_PER_M:.1f}, {t.y / PX_PER_M:.1f}",
             f"Walls: {len(self.walls.items)}",
+            f"Hull class: {s.HULL_CLASS.name if hasattr(s, 'HULL_CLASS') else '-'}  "
+            f"layout: {s.layout.key if s.layout else '-'}  index: {getattr(s, 'hull_index', 0.0):+.2f}",
+            f"Hull scale: {s.HULL_SCALE:.2f}  size_k: {s.size_k:.3f}",
+            f"Hitbox: {2 * s.COLLISION_HALF_W_PX / PX_PER_M:.2f} x {2 * s.COLLISION_HALF_L_PX / PX_PER_M:.2f} m",
             f"Mode: {self.modes.mode.name}  Mouse owner: {owner}",
             f"Combat ({k[Action.COMBAT]}): {'ON' if self.modes.combat else 'OFF'}",
             f"Speed: {t.speed_kmh:.1f} km/h",

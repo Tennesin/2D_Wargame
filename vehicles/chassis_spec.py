@@ -3,7 +3,9 @@
 Чем один тип техники отличается от другого, описывает ChassisBody."""
 import math
 from dataclasses import dataclass
+from typing import Optional
 
+from .hulls import HullLayout
 from engine import PX_PER_M, clamp, round_to
 from .chassis_params import (
     STEEL_T_PER_M3, V_CAP_KMH, PW_SCALE, V_MASS_EXP, V_MIN_KMH, V_MAX_CLAMP_KMH,
@@ -36,6 +38,7 @@ class ChassisBody:
     coll_half_l_m: float      # половина длины гусениц, м
     coll_shift_m: float       # на сколько центр корпуса лежит позади оси башни, м
     gear: RunningGear = TRACKS  # тип ходовой части (поле с умолчанием должно быть последним)
+    layout: Optional[HullLayout] = None   # раскладка корпуса; None = старый путь (ПТ-САУ до этапа 11)
 
     @property
     def ref_pw(self):
@@ -48,6 +51,7 @@ class ChassisSpec:
         self.screen_mm = screen_mm
         self.body = body
         self.gear = body.gear
+        self.layout = body.layout
         self.front, self.side, self.rear = front, side, rear
         self.power = power
         self.payload_t = payload_t        # масса того, что стоит на шасси (башня, орудие), т
@@ -70,7 +74,7 @@ class ChassisSpec:
 
     def _calc_ratios(self):
         b = self.body
-        self.HULL_SCALE = self.size_k
+        self.HULL_SCALE = self.size_k if b.layout is None else b.layout.scale_for(self.size_k)
         self.pw = self.power / self.mass                              # удельная мощность
         self.s = 1.0 - math.exp(-self.pw / PW_SCALE)                  # «ходовая отдача» 0..1
         self.q_pw = self.pw / b.ref_pw                                # мощность относительно эталона

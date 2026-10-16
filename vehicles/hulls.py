@@ -3,7 +3,7 @@ import math
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from engine import clamp, round_to, edge_normal_away, is_convex
+from engine import edge_normal_away, is_convex
 
 # ==========================================
 # 1. КЛАССЫ И ПЛИТЫ
@@ -14,15 +14,12 @@ class HullClass(Enum):
     MEDIUM = auto()
     HEAVY = auto()
 
+HULL_CLASS_RU = {HullClass.LIGHT: "лёгкий", HullClass.MEDIUM: "средний", HullClass.HEAVY: "тяжёлый"}
 ZONES = ("front", "side", "rear")      # зоны те же, что возвращает Vehicle.zone_at
 
 @dataclass(frozen=True)
 class ArmorPlate:
-    """Одна плита брони: ребро корпуса в плане. Снаряд летит горизонтально и бьёт в контур, поэтому
-    для попадания важно ребро (две точки), а не площадь.
-    zone: к какой зоне относится плита (для интерфейса, цены, уведомлений).
-    k: множитель брони зоны для этой плиты (1.0 = как в ползунке).
-    normal: наружная единичная нормаль в системе корпуса (считается один раз)."""
+    """Одна плита брони: ребро корпуса в плане."""
     a: tuple
     b: tuple
     zone: str
@@ -149,13 +146,18 @@ class HullLayout:
         return max(max(abs(x), abs(y + self.axis_fwd_m)) for x, y in pts)
 
     def scale_for(self, size_k):
-        """Масштаб корпуса для физического размера size_k: ограничен диапазоном класса и квантован.
-        Квантование нужно кэшам спрайтов: иначе при каждом новом значении ползунка строится новый спрайт."""
+        """Масштаб корпуса для физического размера size_k: в пределах класса и квантованный.
+        Сетка привязана к нижней границе, а обе границы возвращаются точно (без ошибок float)."""
         lo, hi = self.scale_range
-        s = clamp(size_k, lo, hi)
-        if self.scale_step > 0.0:
-            s = clamp(round(round_to(s, self.scale_step), 4), lo, hi)
-        return s
+        if size_k <= lo:
+            return lo
+        if size_k >= hi:
+            return hi
+        step = self.scale_step
+        if step <= 0.0:
+            return size_k
+        n = math.floor((size_k - lo) / step + 0.5 + 1e-9)    # 1e-9: защита от 17.4999999
+        return round(min(hi, lo + n * step), 4)
 
     def plate_by_normal(self, nx, ny):
         """Плита, чья наружная нормаль ближе всего к направлению (nx, ny) (в системе корпуса)."""
@@ -205,3 +207,26 @@ def layout_for(cls):
 def max_canvas_half_m():
     """Наибольший холст среди раскладок: один размер заготовки на весь рендерер (этап 4)."""
     return max(layout.canvas_half_m for layout in LAYOUTS.values())
+
+# ==========================================
+# 5. КЛАССИФИКАЦИЯ ПО ПОЛЗУНКАМ
+# ==========================================
+CLASS_W_ARMOR = 1.0
+CLASS_W_POWER = 0.5
+CLASS_LIGHT_BELOW = -0.20      # индекс ниже этого: лёгкий
+CLASS_HEAVY_ABOVE = 0.15       # выше этого: тяжёлый (стартовые значения, подгоняются по отладке)
+
+def class_index(armor_t, power_t):
+    """Индекс «тяжести»: много брони и мало мощности = больше."""
+    return CLASS_W_ARMOR * armor_t - CLASS_W_POWER * power_t
+
+def class_for_index(index):
+    if index < CLASS_LIGHT_BELOW:
+        return HullClass.LIGHT
+    if index > CLASS_HEAVY_ABOVE:
+        return HullClass.HEAVY
+    return HullClass.MEDIUM
+
+def classify(armor_t, power_t):
+    """Класс корпуса по нормированным броне и мощности (обе 0..1)."""
+    return class_for_index(class_index(armor_t, power_t))
