@@ -94,6 +94,9 @@ class HullLayout:
     screen_y: float              # лобовые экраны: y передней грани, от которой они выступают
     exhaust_xs: tuple            # выхлопные патрубки: x
     exhaust_y: float             # и y
+    fender_rects: tuple          # подкрылки: ((x, y, w, h), ...) — правый и левый
+    front_plate: tuple           # многоугольник лобовой плиты (светлее остального корпуса)
+    deck_rect: tuple             # палуба: (x, y, w, h)
 
     # --- холст спрайта и масштаб ---
     canvas_half_m: float         # половина стороны квадратного холста корпуса
@@ -166,9 +169,6 @@ class HullLayout:
 # ==========================================
 # 3. СРЕДНИЙ КОРПУС: ТОЧНАЯ КОПИЯ ТЕКУЩЕГО ТАНКА
 # ==========================================
-# Числа перенесены из: tank/sprites.py (_build_hull), sprite_base.py (TRACK_*, _draw_skirts,
-# _draw_front_kit, _draw_front_screen, _draw_exhaust), tank/params.py (HULL_COLL_*).
-# Хитбокс-прямоугольник и плиты у среднего корпуса те же, что у старого OBB: поведение попаданий не меняется.
 
 _MED_HW, _MED_HL = 1.95, 3.15
 
@@ -190,6 +190,9 @@ MEDIUM_LAYOUT = HullLayout(
     front_kit_wedge=((1.35, -2.10), (1.35, -1.20), (1.05, -2.05)),
     screen_x=(-1.0, 1.0), screen_y=-2.92,
     exhaust_xs=(-0.7, 0.7), exhaust_y=2.65,
+    fender_rects=((1.35, -2.1, 0.22, 4.75), (-1.57, -2.1, 0.22, 4.75)),
+    front_plate=((-1.00, -2.9), (1.00, -2.9), (1.35, -2.1), (-1.35, -2.1)),
+    deck_rect=(-1.25, -2.05, 2.50, 4.40),
     canvas_half_m=3.7,
     scale_range=(0.80, 1.15), scale_step=0.02,
 )

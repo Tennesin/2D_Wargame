@@ -7,7 +7,8 @@ import math
 import pygame
 
 from engine import LRUCache, SHADOW_ALPHA, heading_vector, clamp, Team, PX_PER_M
-from .chassis_params import TRACK_LINK_M, TRACK_OFFSET_M, TRACK_WIDTH_M
+from .chassis_params import TRACK_LINK_M
+from .hulls import MEDIUM_LAYOUT
 from .running_gear import LEFT, RIGHT
 from .gun_params import BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M
 
@@ -16,10 +17,8 @@ from .gun_params import BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M
 # ==========================================
 SS = 2                                   # суперсэмплинг: рисуем в SS раз крупнее, затем smoothscale
 OUTLINE_W = SS                           # толщина контура ≈ 1 px на экране при любом зуме
-TRACK_X = TRACK_OFFSET_M                 # центр гусеницы от оси, м
-TRACK_W = TRACK_WIDTH_M
-TRACK_TOP = -3.1                         # передний край гусеницы (в координатах корпуса)
-TRACK_LEN = 6.3
+BREAK_MARK_REF_LEN = 6.3                 # длина гусеницы, для которой заданы смещения разрывов
+BREAK_MARK_OFFSETS = (1.3, 2.9, 4.5)     # м от переднего края гусеницы
 
 SHADOW_HULL_M = (0.25, 0.35)             # смещение тени корпуса, м
 SHADOW_TURRET_M = (0.40, 0.55)           # башня выше, поэтому тень дальше
@@ -62,6 +61,10 @@ def apply_paint(color, paint):
     if paint is None:
         return color
     return tuple(int(c + (p - c) * PAINT_K) for c, p in zip(color, paint))
+
+def layout_of(spec):
+    """Раскладка корпуса. У техники без раскладки (ПТ-САУ до этапа 11) берём средний корпус: числа те же."""
+    return MEDIUM_LAYOUT if spec.layout is None else spec.layout
 
 # ==========================================
 # 2. «РУЧКА» ДЛЯ РИСОВАНИЯ В МЕТРАХ
@@ -286,15 +289,18 @@ class GunVehicleRenderer:
     # ---------- общие детали корпуса ----------
 
     @staticmethod
-    def _draw_track_body(pen, x, broken=False):
-        """Тело гусеницы без звеньев (звенья бегут отдельно и рисуются прямо на экране)."""
-        left = x - TRACK_W / 2
+    def _draw_track_body(pen, layout, side, broken=False):
+        """Тело гусеницы без звеньев (звенья бегут отдельно и рисуются прямо на экране).
+        side: -1 левая, +1 правая."""
+        tw, top, ln = layout.track_w, layout.track_top, layout.track_len
+        left = side * layout.track_x - tw / 2
         if not broken:
-            pen.rect(TRACK_BODY, left, TRACK_TOP, TRACK_W, TRACK_LEN, r=0.22)
+            pen.rect(TRACK_BODY, left, top, tw, ln, r=0.22)
             return
-        pen.rect(TRACK_BROKEN, left, TRACK_TOP, TRACK_W, TRACK_LEN, r=0.22)
-        for y in (-1.8, -0.2, 1.4):                          # разрывы поперёк ленты
-            pen.line(TRACK_BROKEN_MARK, left + 0.08, y, left + TRACK_W - 0.08, y + 0.35, 0.08)
+        pen.rect(TRACK_BROKEN, left, top, tw, ln, r=0.22)
+        for off in BREAK_MARK_OFFSETS:                       # разрывы поперёк ленты
+            y = top + off * ln / BREAK_MARK_REF_LEN
+            pen.line(TRACK_BROKEN_MARK, left + 0.08, y, left + tw - 0.08, y + 0.35, 0.08)
 
     def _build_gear(self, spec, left_broken, right_broken):
         """Слой ходовой: обе гусеницы. Лежит под корпусом, того же размера, что спрайт корпуса."""
@@ -302,8 +308,9 @@ class GunVehicleRenderer:
         size = 2 * math.ceil(self.HULL_HALF_M * ppm)
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
         pen = Pen(big, ppm * SS, 0.0, self._hull_shift_m(spec))
-        self._draw_track_body(pen, -TRACK_X, left_broken)
-        self._draw_track_body(pen, TRACK_X, right_broken)
+        layout = layout_of(spec)
+        self._draw_track_body(pen, layout, -1, left_broken)
+        self._draw_track_body(pen, layout, +1, right_broken)
         return pygame.transform.smoothscale(big, (size, size))
 
     def _get_gear(self, spec, left_broken=False, right_broken=False):
@@ -322,12 +329,13 @@ class GunVehicleRenderer:
         k = self._ppm * scale                        # экранных px на метр спрайта
         if TRACK_LINK_M * k < 3.0:                   # на дальнем зуме звенья сливаются
             return
+        layout = layout_of(spec)
         fx, fy = heading_vector(hull_k * ANGLE_STEP)
         rx, ry = -fy, fx                             # вправо от корпуса
         shift = self._hull_shift_m(spec)
         width = max(1, round(0.06 * k))
-        y_min = TRACK_TOP + 0.05
-        y_max = TRACK_TOP + TRACK_LEN - 0.05
+        y_min = layout.track_top + 0.05
+        y_max = layout.track_top + layout.track_len - 0.05
 
         def pt(x, y):                                # координаты корпуса (м) -> экран
             y += shift
@@ -337,63 +345,66 @@ class GunVehicleRenderer:
                                   (1, tank.right_track_offset, broken[1])):
             if bad:
                 continue
-            xc = side * TRACK_X
-            xa, xb = xc - TRACK_W / 2 + 0.07, xc + TRACK_W / 2 - 0.07
-            y = TRACK_TOP - TRACK_LINK_M + offset / PX_PER_M      # смещение хранится в px эталона
+            xc = side * layout.track_x
+            xa, xb = xc - layout.track_w / 2 + 0.07, xc + layout.track_w / 2 - 0.07
+            y = layout.track_top - TRACK_LINK_M + offset / PX_PER_M   # смещение хранится в px эталона
             y += math.ceil((y_min - y) / TRACK_LINK_M) * TRACK_LINK_M
             while y < y_max:
                 pygame.draw.line(screen, TRACK_LINK, pt(xa, y), pt(xb, y), width)
                 y += TRACK_LINK_M
 
     @staticmethod
-    def _draw_skirts(pen, level, paint):
-        """Бортовые экраны поверх гусениц. Не выходят за габарит гусениц (x = ±1.95), хитбокс не меняется."""
+    def _draw_skirts(pen, level, paint, layout=MEDIUM_LAYOUT):
+        """Бортовые экраны поверх гусениц. Не выходят за габарит гусениц, хитбокс не меняется."""
         if level <= 0:
             return
         color = apply_paint(SKIRT_MAIN, paint)
-        y0, y1 = (-2.2, 2.4) if level == 1 else (-2.9, 3.0)
-        width = 0.42 if level == 1 else 0.50
-        n = max(1, round((y1 - y0) / 1.15))  # плиты по ~1.15 м с зазором
+        y0, y1, width = layout.skirt_levels[min(level, len(layout.skirt_levels)) - 1]
+        n = max(1, round((y1 - y0) / layout.skirt_pitch_m))   # плиты с зазором
         step = (y1 - y0) / n
-        for x in (1.95 - width, -1.95):
+        outer = layout.skirt_outer_x
+        for x in (outer - width, -outer):
             for i in range(n):
                 pen.rect(color, x, y0 + i * step + 0.03, width, step - 0.06)
 
     @staticmethod
-    def _draw_front_kit(pen, level, paint):
+    def _draw_front_kit(pen, level, paint, layout=MEDIUM_LAYOUT):
         """Накладная броня на лобовой плите."""
         if level <= 0:
             return
         color = apply_paint(APPLIQUE, paint)
-        pen.poly(color, [(-0.85, -2.82), (0.85, -2.82), (1.18, -2.15), (-1.18, -2.15)])
+        pen.poly(color, layout.front_kit_poly)
         if level >= 2:
-            pen.rect(color, -1.2, -2.08, 2.4, 0.20, r=0.05)
-            for sx in (-1, 1):  # боковые клинья
-                pen.poly(color, [(sx * 1.35, -2.10), (sx * 1.35, -1.20), (sx * 1.05, -2.05)])
+            bx, by, bw, bh = layout.front_kit_bar
+            pen.rect(color, bx, by, bw, bh, r=0.05)
+            for sx in (-1, 1):  # боковые клинья (в раскладке задан правый)
+                pen.poly(color, [(sx * x, y) for x, y in layout.front_kit_wedge])
 
     @staticmethod
-    def _draw_front_screen(pen, level, paint):
+    def _draw_front_screen(pen, level, paint, layout=MEDIUM_LAYOUT):
         """Сетчатые «кирпичи» перед лобовой плитой. Выступают на 0.14-0.22 м, внутри хитбокса."""
         if level <= 0:
             return
         color = apply_paint(SCREEN_MAIN, paint)
         n = 2 + level  # 3, 4 или 5 секций
-        x0, x1 = -1.0, 1.0
+        x0, x1 = layout.screen_x
+        sy = layout.screen_y
         w = (x1 - x0) / n
         depth = 0.10 + 0.04 * level
         for i in range(n):
             x = x0 + i * w + 0.03
-            pen.rect(color, x, -2.92 - depth, w - 0.06, depth, r=0.03)
-            pen.line(SCREEN_MESH, x + (w - 0.06) / 2, -2.90 - depth, x + (w - 0.06) / 2, -2.94, 0.02)
+            pen.rect(color, x, sy - depth, w - 0.06, depth, r=0.03)
+            pen.line(SCREEN_MESH, x + (w - 0.06) / 2, sy + 0.02 - depth,
+                     x + (w - 0.06) / 2, sy - 0.02, 0.02)
 
     @staticmethod
-    def _draw_exhaust(pen, level):
+    def _draw_exhaust(pen, level, layout=MEDIUM_LAYOUT):
         """Выхлопные патрубки на кормовой плите."""
         if level <= 0:
             return
         r = 0.13 if level == 1 else 0.17
-        for x in (-0.7, 0.7):
-            pen.ellipse(GRILL, x, 2.65, r, r)
+        for x in layout.exhaust_xs:
+            pen.ellipse(GRILL, x, layout.exhaust_y, r, r)
 
     # ---------- ствол (одинаковый у всех) ----------
     def _build_barrel(self, bl, bt, look):
