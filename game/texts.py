@@ -10,7 +10,7 @@ MENU_QUIT = "Выйти"
 SETTINGS_TITLE = "Настройки"
 SETTINGS_SUBTITLE = "Враги: допустимые архетипы"
 SETTINGS_HINT = "Изменения вступят в силу в новой игре."
-SETTINGS_LOCKED_NOTE = "нельзя отключить"
+SETTINGS_LOCKED_NOTE = "последний"
 BACK = "Назад"
 
 # Подсказки над HUD

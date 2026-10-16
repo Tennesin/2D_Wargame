@@ -34,20 +34,24 @@ class SettingsScene(Scene):
 
         self.rows = []                              # [(ключ архетипа, Checkbox)]
         for key, arch in ARCHETYPES.items():
-            locked = prefs.is_locked(key)
-            box = Checkbox((0, 0, ROW_W, ROW_H), arch.name,
-                           checked=prefs.is_enabled(key),
-                           enabled=not locked,
-                           note="нельзя отключить" if locked else "",
-                           swatch=arch.color)
+            box = Checkbox((0, 0, ROW_W, ROW_H), arch.name, swatch=arch.color)
             self.rows.append((key, box))
-        self.back_button = Button((0, 0, BACK_W, BACK_H), "Назад")
+        self.back_button = Button((0, 0, BACK_W, BACK_H), texts.BACK)
+        self._refresh_rows()
 
         self._size = None
         self._title_pos = (0, 0)
         self._sub_pos = (0, 0)
         self._hint_pos = (0, 0)
         self._layout(pygame.display.get_surface().get_size())
+
+    def _refresh_rows(self):
+        """Галочки, доступность и примечания по текущим настройкам."""
+        for key, box in self.rows:
+            locked = self.prefs.is_locked(key)
+            box.checked = self.prefs.is_enabled(key)
+            box.enabled = not locked
+            box.note = texts.SETTINGS_LOCKED_NOTE if locked else ""
 
     def _layout(self, size):
         """Центрированная колонка: заголовок, подзаголовок, список, примечание, «Назад»."""
@@ -89,7 +93,7 @@ class SettingsScene(Scene):
                 for key, box in self.rows:
                     if box.collidepoint(event.pos):          # у заблокированной строки всегда False
                         self.prefs.toggle(key)
-                        box.checked = self.prefs.is_enabled(key)
+                        self._refresh_rows()
                         break
 
     def draw(self, screen):

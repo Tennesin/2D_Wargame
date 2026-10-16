@@ -77,15 +77,19 @@ class BotSpawner:
         return False
 
     def _pick_archetype(self):
-        """Случайный архетип: базовый вес умножается на множитель контр-выбора против текущего игрока."""
+        """Случайный архетип среди включённых в настройках."""
         self.profile = threat_profile(self.fleet.player.spec)
-        mult = counter_multipliers(self.profile, ARCHETYPES)
-        self.multipliers = mult
 
         allowed = self.prefs.enabled_keys()
-        pool = [k for n, k in UNLOCKS
-                if k in allowed
-                and (self.spawned >= n
-                     or (self.spawned >= EARLY_UNLOCK_FROM and mult[k] >= EARLY_UNLOCK_MULT))]
+        keys = [k for k in ARCHETYPES if k in allowed]  # порядок как в ARCHETYPES
+        mult = counter_multipliers(self.profile, keys)
+        self.multipliers = mult  # теперь только включённые
+
+        # расписание открытия: первый из включённых доступен с самого начала
+        ordered = [(n, k) for n, k in UNLOCKS if k in allowed]
+        progress = self.spawned + ordered[0][0]
+        pool = [k for n, k in ordered
+                if progress >= n
+                or (self.spawned >= EARLY_UNLOCK_FROM and mult[k] >= EARLY_UNLOCK_MULT)]
         weights = [ARCHETYPES[k].spawn_weight * mult[k] for k in pool]
         return ARCHETYPES[self.rng.choices(pool, weights=weights)[0]]
