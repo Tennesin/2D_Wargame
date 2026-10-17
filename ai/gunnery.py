@@ -3,7 +3,7 @@ import math
 from dataclasses import dataclass
 
 from combat import resolve_hit, impact_cos, pen_after_modules
-from engine import heading_vector, shortest_angle_diff, clamp, PX_PER_M
+from engine import clamp, PX_PER_M
 from vehicles import AMMO_ORDER, ammo_stats
 from vehicles.chassis_params import KMH_TO_PX
 
@@ -19,15 +19,30 @@ def lead_point(shooter, target, lead_k=1.0):
         py = target.y + vy * t * lead_k
     return px, py
 
+AIM_LATERALS_M = (-0.36, 0.0, 0.36)      # = AIM_SPREAD_M * 0.3
+
+def _mean_frac(defender, pen, from_deg, hull_deg, laterals=AIM_LATERALS_M):
+    """Средняя доля урона по броне defender для лучей с азимута from_deg при курсе корпуса hull_deg.
+    Лучи, прошедшие мимо корпуса, не считаются. Если мимо все: 1.0 (худший случай для защитника)."""
+    total, n = 0.0, 0
+    for lat in laterals:
+        res = defender.armor_along(from_deg, hull_deg, lat)
+        if res is None:
+            continue
+        armor, cos_i = res
+        total += resolve_hit(pen, armor, cos_i).damage_frac
+        n += 1
+    return total / n if n else 1.0
+
 def damage_by_aspect(me, enemy):
-    """Доля урона моего снаряда при прямом ударе (cos = 1) по лбу, борту и корме врага."""
-    fx, fy = heading_vector(enemy.hull_angle)
-    rx, ry = -fy, fx
+    """Доля урона моего снаряда по лбу, борту и корме врага (лучи с трёх направлений от его корпуса,
+    среднее по AIM_LATERALS_M). Броню и угол даёт раскладка корпуса, а не нормали с cos = 1."""
     pen = me.spec.penetration
+    h = enemy.hull_angle
     return {
-        "front": enemy.hit_result(pen, 1.0, (fx, fy)).damage_frac,
-        "side": enemy.hit_result(pen, 1.0, (rx, ry)).damage_frac,
-        "rear": enemy.hit_result(pen, 1.0, (-fx, -fy)).damage_frac,
+        "front": _mean_frac(enemy, pen, h, h),
+        "side": _mean_frac(enemy, pen, h + 90.0, h),
+        "rear": _mean_frac(enemy, pen, h + 180.0, h),
     }
 
 def seconds_to_break(me, wall, cos_impact=1.0, normal=None, min_frac=0.15):
@@ -114,22 +129,10 @@ def preferred_distance_m(me, enemy, base_m, edge_k=1.0):
 # УГОЛ КОРПУСА
 # ==========================================
 
-def _frac_from(me, pen, from_deg, hull_deg):
-    """Доля урона, если враг стреляет в центр моего корпуса с направления from_deg (азимут от меня к нему),
-    а корпус развёрнут на hull_deg. Какая грань принимает удар, определяет геометрия корпуса."""
-    spec = me.spec
-    off = shortest_angle_diff(from_deg, hull_deg)
-    a = abs(off)
-    corner = math.degrees(math.atan2(spec.COLLISION_HALF_W_PX, spec.COLLISION_HALF_L_PX))
-    fx, fy = heading_vector(hull_deg)
-    if a <= corner:                                    # бьёт в лоб
-        normal, cos_i = (fx, fy), math.cos(math.radians(a))
-    elif a >= 180.0 - corner:                          # бьёт в корму
-        normal, cos_i = (-fx, -fy), math.cos(math.radians(180.0 - a))
-    else:                                              # бьёт в борт
-        sign = 1.0 if off > 0.0 else -1.0
-        normal, cos_i = (-fy * sign, fx * sign), math.cos(math.radians(90.0 - a))
-    return resolve_hit(pen, me.armor_at(normal, hull_deg), cos_i).damage_frac
+def _frac_from(me, pen, from_deg, hull_deg, laterals=AIM_LATERALS_M):
+    """Доля урона, если враг стреляет в мой корпус с азимута from_deg (от меня к нему),
+    а корпус развёрнут на hull_deg. Грань, плиту и угол определяет раскладка корпуса."""
+    return _mean_frac(me, pen, from_deg, hull_deg, laterals)
 
 def best_hull_heading(me, enemy, to_enemy_deg):
     """Курс корпуса, при котором враг наносит мне меньше урона (с запасом на неточность его прицела).
