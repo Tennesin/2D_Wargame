@@ -20,6 +20,7 @@ def _values_at(arch, vtype, jitter, tune, t):
     t_dmg, t_pen = tune
     out["gun_damage"] = remap(t_dmg, (0.0, 1.0), damage_range(cal, vtype.gun_profile), DMG_STEP)
     out["gun_penetration"] = remap(t_pen, (0.0, 1.0), pen_range(cal, vtype.gun_profile), PEN_STEP)
+    out["front_nose"] = arch.nose
     return out
 
 def _cost(values):

@@ -228,14 +228,16 @@ class Vehicle(Damageable):
         """(заголовок, [(название, значение), ...]) для краткой сводки. Подклассы дополняют."""
         s = self.spec
         title = self.PLAYER_TITLE if self.team is Team.PLAYER else f"Враг: {self.label}"
+        pike = getattr(s, "nose", None) == NOSE_PIKE
         rows = [
-            ("Броня: лоб", f"{s.front:.0f}" + (f" + {s.screen_mm:.0f}" if s.screen_mm else "") + " мм"),
+            ("Броня: лоб (по оси)" if pike else "Броня: лоб",
+             f"{s.front:.0f}" + (f" + {s.screen_mm:.0f}" if s.screen_mm else "") + " мм"),
             ("Броня: борт", f"{s.side:.0f} + {s.gear.armor_mm:.0f} мм"),
             ("Броня: корма", f"{s.rear:.0f} мм"),
             ("Масса", f"{fmt_num(s.mass, 1)} т"),
             ("Гусеницы", self._track_status()),
         ]
-        if getattr(s, "nose", None) == NOSE_PIKE:
+        if pike:
             rows.insert(1, ("Нос корпуса", NOSE_RU[NOSE_PIKE]))
         return title, rows
 

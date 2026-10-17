@@ -7,7 +7,7 @@ from combat import RICOCHET_ANGLE
 from engine import VehicleKind
 from inputs import Action, key_label
 from vehicles import (TankSpec, TDSpec, TANK_PARAMS, TD_PARAMS, GUN_TUNE_PARAMS,
-                      VEHICLE_TYPES, gun_arc_deg, FRONT_SCREEN,
+                      VEHICLE_TYPES, gun_arc_deg, FRONT_SCREEN, nose_front_factor,
                       NOSE_FLAT, NOSE_PIKE, NOSE_MIN_FRONT_MM)
 from structures import WALL_PARAMS, ROTATE_SNAP_DEG
 from ui import (Panel, SectionHeader, StatsBlock, InfoText, ActionButton, ChoiceRow,
@@ -66,8 +66,11 @@ def _build_vehicle_panel(title, params, spec0, note=None, with_nose=False):
     return Panel(title, items)
 
 def build_tank_panel():
+    gain = nose_front_factor() * 100.0
     note = (f"Щучий нос: двускатный лоб, доступен при лобовой броне больше {NOSE_MIN_FRONT_MM:.0f} мм. "
-            "«Лоб» указан для удара строго в лоб; лобовые экраны с носом не сочетаются.")
+            f"При ударе строго по оси приведённая броня носа составляет около {gain:.0f}% от значения «Лоб»; "
+            "под углом одна плита становится тоньше, другая толще. "
+            "Лобовые экраны с носом не сочетаются.")
     return _build_vehicle_panel(_title(VehicleKind.MBT), TANK_PARAMS, TankSpec.from_config(),
                                 note=note, with_nose=True)
 

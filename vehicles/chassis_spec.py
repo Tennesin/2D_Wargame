@@ -67,8 +67,9 @@ class ChassisSpec:
         self.m_engine = b.engine_t_per_hp * self.power
         self.filling = self.m_fixed + self.m_engine + self.payload_t
         self.size_k = (self.filling / b.ref_filling_t) ** (1.0 / 3.0)   # линейный размер, у эталона 1
+        areas = tuple(a * k for a, k in zip(b.areas_m2, self.layout.area_k))
         self.m_front, self.m_side, self.m_rear = armor_masses(
-            b.areas_m2, self.front + self.screen_mm * SCREEN_MASS_K, self.side, self.rear, self.size_k)
+            areas, self.front + self.screen_mm * SCREEN_MASS_K, self.side, self.rear, self.size_k)
         self.m_armor = self.m_front + self.m_side + self.m_rear
         self.mass = self.filling + self.m_armor
 

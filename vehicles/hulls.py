@@ -123,6 +123,7 @@ class HullLayout:
     base_skirt: int = 0                            # постоянный бортовой экран, прибавляется к look.side
     turret_front_m: float = TURRET_FRONT_M         # где из башни выходит ствол, м вперёд от оси
     nose: str = NOSE_FLAT                          # вариант лба: NOSE_FLAT или NOSE_PIKE
+    area_k: tuple = (1.0, 1.0, 1.0)                # множители площадей брони (лоб, борт, корма) к эталонным
 
     # ---------- проверка при создании ----------
     def __post_init__(self):
@@ -230,6 +231,7 @@ LIGHT_LAYOUT = HullLayout(
     grill_rect=(-0.70, 1.10, 1.40, 1.20),
     rear_plate=(-0.80, 2.40, 1.60, 0.60),
     turret_front_m=1.35,
+    area_k=(0.75, 0.88, 0.75),
 )
 
 MEDIUM_LAYOUT = HullLayout(
@@ -288,6 +290,7 @@ HEAVY_LAYOUT = HullLayout(
     rear_plate=(-1.50, 2.40, 3.00, 0.50),
     base_skirt=1,
     turret_front_m=1.95,
+    area_k=(1.20, 1.05, 1.20),
 )
 
 # ==========================================
@@ -361,6 +364,13 @@ def layout_with_nose(base, nose):
     if layout is None:
         layout = _NOSE_CACHE[base.key] = _make_pike(base)
     return layout
+
+def nose_front_factor():
+    """Во сколько раз приведённая броня щучьего носа при ударе строго в лоб
+    отличается от ползунка «Лоб» (1.0 = ровно ползунок)."""
+    theta = math.radians(NOSE_ANGLE_DEG)
+    k = 1.0 - NOSE_COMP * (1.0 - math.cos(theta))
+    return k / math.cos(theta)
 
 # ==========================================
 # 5. КЛАССИФИКАЦИЯ ПО ПОЛЗУНКАМ

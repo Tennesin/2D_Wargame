@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from typing import Optional
 from engine import VehicleKind
-from vehicles import TANK_PARAMS
+from vehicles import TANK_PARAMS, NOSE_FLAT, NOSE_PIKE
 
 def _reference_weights():
     """Доли ползунков эталона, поделённые на максимальную: w * t_anchor = доля эталона."""
@@ -31,6 +31,7 @@ class Archetype:
     pen_band: tuple = (0.5, 0.5)        # то же для пробития
     emblem: str = ""                    # деталь на башне для узнавания: "" нет, "chevron" и т.д.
     kind: VehicleKind = VehicleKind.MBT # тип техники: ОБТ или ПТ-САУ
+    nose: str = NOSE_FLAT               # нос корпуса
 
 @dataclass(frozen=True)
 class Skill:
@@ -58,7 +59,8 @@ BUNKER = Archetype(
     retreat_hp=0.0, cover_bias=0.0,
     budget_k=1.4, spawn_weight=0.5, edge_k=0.3,
     aspect_deg=0.0, aspect_tol_deg=35.0, aspect_drive=3.0,
-    damage_band=(0.40, 0.60), pen_band=(0.40, 0.60))
+    damage_band=(0.40, 0.60), pen_band=(0.40, 0.60),
+    nose=NOSE_PIKE)
 
 DESTROYER = Archetype(
     "Уничтожитель",
