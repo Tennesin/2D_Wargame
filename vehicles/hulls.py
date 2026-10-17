@@ -129,6 +129,11 @@ class HullLayout:
         return self.axis_fwd_m
 
     @property
+    def front_face_m(self):
+        """Самая передняя точка корпуса по hit_parts в системе корпуса, м (перед = минус)."""
+        return min(y for part in self.hit_parts for _, y in part)
+
+    @property
     def track_rects(self):
         """Прямоугольники левой и правой гусениц: ((x0, y0, x1, y1), (x0, y0, x1, y1)), в системе корпуса."""
         hw = self.track_w / 2.0

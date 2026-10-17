@@ -5,7 +5,8 @@ import math
 
 from engine import (
     normalize_angle, obb_hits_obb, obb_segment_hit, VehicleCommand, PX_PER_M,
-    heading_vector, find_free_fraction, Team, TargetType, fmt_num, clamp
+    heading_vector, find_free_fraction, Team, TargetType, fmt_num, clamp,
+    convex_segment_hit, to_local_frame, vec_to_local, vec_from_local
 )
 from combat import resolve_hit, Damageable
 from .chassis_params import (
@@ -13,7 +14,7 @@ from .chassis_params import (
     TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY, TRACK_LINK_M, TRACK_OFFSET_M, ONE_TRACK_SPEED_K,
     CONTACT_TURN_STEPS, CONTACT_PUSH_STEPS, SLIDE_ANGLES_DEG, SLIDE_MIN_PX, CONTACT_SCRUB,
     CONTACT_STOP_PROGRESS, PUSH_FRICTION_MS2, PUSH_STOP_PX, TERRAIN_SAMPLE_REACH,
-    SCREEN_HALF_W_M, SCREEN_FACE_EPS_PX
+    SCREEN_HALF_W_M, SCREEN_FACE_EPS_PX, TRACK_EDGE_ZONE_M, TRACK_HIT_TOL_M
 )
 from .running_gear import TrackState, LEFT, RIGHT, TRACK_SIDES
 
@@ -117,10 +118,40 @@ class Vehicle(Damageable):
         return [self._hull_obb(x, y, hull_angle)]
 
     # ---------- попадания снарядов (универсальный интерфейс цели) ----------
+
+    def _local_parts(self):
+        """Выпуклые участки для попаданий в метрах корпуса (центр корпуса = (0, 0), перед = -v).
+        Без раскладки это прямоугольник хитбокса: те же числа, что у hull_obb."""
+        layout = self.spec.layout
+        if layout is not None:
+            return layout.hit_parts
+        b = self.spec.body
+        hw, hl = b.coll_half_w_m, b.coll_half_l_m
+        return (((-hw, -hl), (hw, -hl), (hw, hl), (-hw, hl)),)
+
+    def _to_hull_local(self, x, y):
+        """Мировая точка -> метры корпуса (u вправо, v назад)."""
+        cx, cy, _, _, ang = self.hull_obb()
+        return to_local_frame(x, y, cx, cy, ang, self.spec.HULL_SCALE * PX_PER_M)
+
     def raycast(self, x0, y0, x1, y1):
-        """Пересечение отрезка с корпусом: (self, t, normal) или None."""
-        res = obb_segment_hit(self._hull_obb(self.x, self.y, self.hull_angle), x0, y0, x1, y1)
-        return None if res is None else (self, res[0], res[1])
+        """Пересечение отрезка с корпусом: (self, t, normal) или None.
+        Отрезок переводится в систему корпуса, там ищется ближайшая из выпуклых частей раскладки."""
+        cx, cy, _, _, ang = self.hull_obb()
+        k = self.spec.HULL_SCALE * PX_PER_M
+        u0, v0 = to_local_frame(x0, y0, cx, cy, ang, k)
+        u1, v1 = to_local_frame(x1, y1, cx, cy, ang, k)
+        best = None
+        for part in self._local_parts():
+            res = convex_segment_hit(part, u0, v0, u1, v1)
+            if res is not None and (best is None or res[0] < best[0]):
+                best = res
+        if best is None:
+            return None
+        t, n = best
+        if n is not None:
+            n = vec_from_local(n[0], n[1], ang)      # масштаб однородный, нормаль только поворачиваем
+        return self, t, n
 
     def zone_at(self, normal, hull_angle=None):
         """Какая грань корпуса принимает удар: "front" / "side" / "rear".
@@ -135,17 +166,54 @@ class Vehicle(Damageable):
             return "rear"
         return "side"
 
+    def plate_at(self, normal, hull_angle=None):
+        """Плита брони, принявшая удар: та, чья наружная нормаль ближе всего к normal (мировая).
+        None, если у техники нет раскладки. Нормаль None (выстрел начался внутри) = боковая плита."""
+        layout = self.spec.layout
+        if layout is None:
+            return None
+        if normal is None:
+            return next((p for p in layout.plates if p.zone == "side"), layout.plates[0])
+        ang = self.hull_angle if hull_angle is None else hull_angle
+        nu, nv = vec_to_local(normal[0], normal[1], ang)
+        return layout.plate_by_normal(nu, nv)
+
     def armor_at(self, normal, hull_angle=None):
         """Броня грани, в которую попали (мм, с коэффициентом ARMOR_K).
-        Борт прикрыт гусеницей, поэтому к нему добавляется броня ходовой."""
+        Зона берётся из zone_at (одна на весь проект), коэффициент толщины из плиты.
+        Борт прикрыт гусеницей, лоб экранами: эти добавки идут поверх плиты и на k не умножаются."""
         s = self.spec
         zone = self.zone_at(normal, hull_angle)
         base = {"front": s.front, "side": s.side, "rear": s.rear}[zone]
+        plate = self.plate_at(normal, hull_angle)
+        if plate is not None:
+            base *= plate.k
         if zone == "front":
             base += s.screen_mm
         elif zone == "side":
             base += s.gear.armor_mm
         return base * ARMOR_K
+
+    def armor_along(self, from_deg, hull_deg=None, lateral=0.0):
+        """Броня и косинус угла для луча, пришедшего с азимута from_deg (от этой техники к стрелку)."""
+        if hull_deg is None:
+            hull_deg = self.hull_angle
+        wx, wy = heading_vector(from_deg)
+        ex, ey = vec_to_local(wx, wy, hull_deg)       # единичный вектор на стрелка в системе корпуса
+        tx, ty = -ey * lateral, ex * lateral          # точка прицеливания
+        reach = 50.0                                  # м: заведомо больше корпуса
+        best = None
+        for part in self._local_parts():
+            res = convex_segment_hit(part, tx + ex * reach, ty + ey * reach,
+                                     tx - ex * reach, ty - ey * reach)
+            if res is not None and (best is None or res[0] < best[0]):
+                best = res
+        if best is None or best[1] is None:
+            return None
+        nu, nv = best[1]
+        cos_i = abs(ex * nu + ey * nv)
+        normal = vec_from_local(nu, nv, hull_deg)
+        return self.armor_at(normal, hull_deg), cos_i
 
     def hit_result(self, penetration, cos_impact=1.0, normal=None):
         return resolve_hit(penetration, self.armor_at(normal), cos_impact)
@@ -170,7 +238,21 @@ class Vehicle(Damageable):
     # ---------- гусеницы ----------
     def track_at(self, x, y):
         """Какую гусеницу задевает точка попадания (x, y): "left" / "right" или None.
-        Гусеницу можно сбить только у самого переднего или заднего края."""
+        Сбить можно только передний или задний конец гусеницы (TRACK_EDGE_ZONE_M)."""
+        layout = self.spec.layout
+        if layout is None:
+            return self._track_at_legacy(x, y)
+        u, v = self._to_hull_local(x, y)
+        tol = TRACK_HIT_TOL_M
+        for side, (x0, y0, x1, y1) in zip((LEFT, RIGHT), layout.track_rects):
+            if not (x0 - tol <= u <= x1 + tol and y0 - tol <= v <= y1 + tol):
+                continue
+            if v <= y0 + TRACK_EDGE_ZONE_M or v >= y1 - TRACK_EDGE_ZONE_M:
+                return side
+        return None
+
+    def _track_at_legacy(self, x, y):
+        """Старая логика по прямоугольнику хитбокса. Нужна технике без раскладки (удалить на этапе 11)."""
         cx, cy, hw, hl, ang = self.hull_obb()
         rad = math.radians(ang)
         c, sn = math.cos(rad), math.sin(rad)
@@ -190,6 +272,17 @@ class Vehicle(Damageable):
         s = self.spec
         if s.screen_mm <= 0.0:
             return False
+        layout = s.layout
+        if layout is None:
+            return self._screen_at_legacy(x, y)
+        u, v = self._to_hull_local(x, y)
+        k = s.HULL_SCALE * PX_PER_M
+        x0, x1 = layout.screen_x
+        return v <= layout.front_face_m + SCREEN_FACE_EPS_PX / k and x0 <= u <= x1
+
+    def _screen_at_legacy(self, x, y):
+        """Старая логика (удалить на этапе 11)."""
+        s = self.spec
         cx, cy, hw, hl, ang = self.hull_obb()
         rad = math.radians(ang)
         c, sn = math.cos(rad), math.sin(rad)
