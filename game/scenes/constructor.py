@@ -6,7 +6,8 @@ from inputs import InputHandler, Action
 from ui import SidePanel, Button, ACTIVE_BUTTON_COLORS
 from ui.theme import PANEL_WIDTH
 from vehicles import (GUN_TUNE_PARAMS, damage_range, pen_range, remap,
-                      VEHICLE_TYPES, RENDERERS, make_vehicle)
+                      VEHICLE_TYPES, RENDERERS, make_vehicle,
+                      NOSE_FLAT, NOSE_PIKE, NOSE_MIN_FRONT_MM)
 from world import Camera
 from ..panels import PanelMode, PANEL_OF, build_tank_panel, build_td_panel
 from .base import Scene
@@ -48,6 +49,7 @@ class ConstructorScene(Scene):
         self.ui.set_range(self._mode, "gun_damage", *self._ranges[0])
         self.ui.set_range(self._mode, "gun_penetration", *self._ranges[1])
         self.ui.set_values(self._mode, values)
+        values = session.values[kind] = self._apply_nose_rules(values)
         self._sync_tune_t(values)
         for mode in (PanelMode.TANK, PanelMode.TD):
             self.ui.set_on_change(mode, self._on_change)
@@ -91,7 +93,8 @@ class ConstructorScene(Scene):
         self._ranges = (damage_range(self._cal, self._profile), pen_range(self._cal, self._profile))
         self.ui.set_range(self._mode, "gun_damage", *self._ranges[0])
         self.ui.set_range(self._mode, "gun_penetration", *self._ranges[1])
-        self.ui.show(self._mode, values)              # значения + смена панели + открыть
+        self.ui.show(self._mode, values)
+        values = self.session.values[kind] = self._apply_nose_rules(values)
         self._sync_tune_t(values)
         self.vehicle = make_vehicle(kind, self.session.spec())
         self.renderer = self._make_renderer(kind)
@@ -106,6 +109,7 @@ class ConstructorScene(Scene):
             values = self._change_caliber(cal, values)
         else:
             self._sync_tune_t(values)
+        values = self._apply_nose_rules(values)
         self.session.values[self.session.kind] = dict(values)
         self.vehicle.set_spec(self.session.spec())
         self._show_stats()
@@ -115,6 +119,21 @@ class ConstructorScene(Scene):
         d_rng, p_rng = self._ranges
         self._tune_t = (remap(values["gun_damage"], d_rng, (0.0, 1.0)),
                         remap(values["gun_penetration"], p_rng, (0.0, 1.0)))
+
+    def _apply_nose_rules(self, values):
+        """Правила носа: щучий только при лбе больше порога; со щучьим экранов нет.
+        Обновляет доступность переключателя и ползунки панели, возвращает исправленные значения."""
+        if self._mode is not PanelMode.TANK:
+            return values
+        values = dict(values)
+        allowed = values["front_armor_mm"] > NOSE_MIN_FRONT_MM
+        if not allowed:
+            values["front_nose"] = NOSE_FLAT
+        if values["front_nose"] == NOSE_PIKE:
+            values["front_screen_mm"] = 0.0
+        self.ui.set_enabled(self._mode, "front_nose", allowed)
+        self.ui.set_values(self._mode, values)
+        return values
 
     def _change_caliber(self, cal, values):
         """Калибр изменился: новые границы урона и пробития (с учётом профиля), значения по сохранённому уровню."""

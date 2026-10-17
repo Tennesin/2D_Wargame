@@ -7,9 +7,10 @@ from combat import RICOCHET_ANGLE
 from engine import VehicleKind
 from inputs import Action, key_label
 from vehicles import (TankSpec, TDSpec, TANK_PARAMS, TD_PARAMS, GUN_TUNE_PARAMS,
-                      VEHICLE_TYPES, gun_arc_deg, FRONT_SCREEN)
+                      VEHICLE_TYPES, gun_arc_deg, FRONT_SCREEN,
+                      NOSE_FLAT, NOSE_PIKE, NOSE_MIN_FRONT_MM)
 from structures import WALL_PARAMS, ROTATE_SNAP_DEG
-from ui import (Panel, SectionHeader, StatsBlock, InfoText, ActionButton,
+from ui import (Panel, SectionHeader, StatsBlock, InfoText, ActionButton, ChoiceRow,
                 make_param_row, DELETE_BUTTON_COLORS)
 
 class PanelMode(Enum):
@@ -29,7 +30,7 @@ STAT_ANGLE = "Угол"
 def _title(kind):
     return f"Конструктор: {VEHICLE_TYPES[kind].label}"
 
-def _build_vehicle_panel(title, params, spec0, note=None):
+def _build_vehicle_panel(title, params, spec0, note=None, with_nose=False):
     """Общая панель конструктора: ползунки типа техники + блоки характеристик."""
     row = partial(make_param_row, params)
     tune_row = partial(make_param_row, GUN_TUNE_PARAMS)
@@ -44,7 +45,12 @@ def _build_vehicle_panel(title, params, spec0, note=None):
         row("side_armor_mm"),
         row("rear_armor_mm"),
         make_param_row({"front_screen_mm": FRONT_SCREEN}, "front_screen_mm"),
-
+    ]
+    if with_nose:
+        items.append(ChoiceRow("front_nose", "Нос корпуса",
+                               [(NOSE_FLAT, "Плоский"), (NOSE_PIKE, "Щучий")], NOSE_FLAT,
+                               note=f"лоб > {NOSE_MIN_FRONT_MM:.0f} мм"))
+    items += [
         SectionHeader("Силовая установка"),
         row("engine_power_hp"),
     ]
@@ -60,7 +66,10 @@ def _build_vehicle_panel(title, params, spec0, note=None):
     return Panel(title, items)
 
 def build_tank_panel():
-    return _build_vehicle_panel(_title(VehicleKind.MBT), TANK_PARAMS, TankSpec.from_config())
+    note = (f"Щучий нос: двускатный лоб, доступен при лобовой броне больше {NOSE_MIN_FRONT_MM:.0f} мм. "
+            "«Лоб» указан для удара строго в лоб; лобовые экраны с носом не сочетаются.")
+    return _build_vehicle_panel(_title(VehicleKind.MBT), TANK_PARAMS, TankSpec.from_config(),
+                                note=note, with_nose=True)
 
 def build_td_panel():
     cal = TD_PARAMS["gun_caliber_mm"]

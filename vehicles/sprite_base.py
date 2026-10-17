@@ -8,7 +8,7 @@ import pygame
 
 from engine import LRUCache, SHADOW_ALPHA, heading_vector, clamp, Team, PX_PER_M
 from .chassis_params import TRACK_LINK_M
-from .hulls import MEDIUM_LAYOUT
+from .hulls import MEDIUM_LAYOUT, NOSE_FLAT
 from .running_gear import LEFT, RIGHT
 from .gun_params import BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M
 
@@ -377,8 +377,9 @@ class GunVehicleRenderer:
         if level >= 2:
             bx, by, bw, bh = layout.front_kit_bar
             pen.rect(color, bx, by, bw, bh, r=0.05)
-            for sx in (-1, 1):  # боковые клинья (в раскладке задан правый)
-                pen.poly(color, [(sx * x, y) for x, y in layout.front_kit_wedge])
+            if layout.nose == NOSE_FLAT:                   # у щучьего носа боковых клиньев нет
+                for sx in (-1, 1):  # боковые клинья (в раскладке задан правый)
+                    pen.poly(color, [(sx * x, y) for x, y in layout.front_kit_wedge])
 
     @staticmethod
     def _draw_front_screen(pen, level, paint, layout=MEDIUM_LAYOUT):

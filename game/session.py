@@ -1,6 +1,6 @@
 """game/session.py — данные, которые переживают смену сцен: выбранный тип техники и настройки каждого типа."""
 from engine import VehicleKind
-from vehicles import VEHICLE_TYPES, default_tuning, FRONT_SCREEN
+from vehicles import VEHICLE_TYPES, default_tuning, FRONT_SCREEN, NOSE_FLAT
 from .preferences import Preferences
 
 class Session:
@@ -17,6 +17,7 @@ class Session:
         values["gun_damage"] = dmg
         values["gun_penetration"] = pen
         values["front_screen_mm"] = FRONT_SCREEN.default
+        values["front_nose"] = NOSE_FLAT
         return values
 
     def spec(self):

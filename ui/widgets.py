@@ -210,6 +210,63 @@ def make_param_row(params, key):
     p = params[key]
     return ParamRow(key, p.label, p.unit, p.min, p.max, p.default, p.step, p.decimals)
 
+class ChoiceRow:
+    """Строка выбора из нескольких вариантов: подпись и ряд кнопок. Значение: первый элемент пары."""
+    height = 62
+
+    def __init__(self, key, label, options, value, note=""):
+        self.key = key
+        self.label = label
+        self.options = options              # [(значение, подпись), ...]
+        self.value = value
+        self.enabled = True
+        self.note = note                    # показывается, пока строка недоступна
+        self.rect = pygame.Rect(0, 0, 0, self.height)
+        self._rects = []
+
+    def set_value(self, value):
+        """Поставить значение извне (без вызова on_change)."""
+        if any(value == v for v, _ in self.options):
+            self.value = value
+
+    def layout(self, x, y, w):
+        self.rect = pygame.Rect(x, y, w, self.height)
+        gap = 6
+        n = len(self.options)
+        bw = (w - gap * (n - 1)) // n
+        self._rects = [pygame.Rect(x + i * (bw + gap), y + 26, bw, 30) for i in range(n)]
+
+    def hit(self, pos):
+        """Значение кнопки под точкой или None."""
+        if not self.enabled:
+            return None
+        for (value, _), rect in zip(self.options, self._rects):
+            if rect.collidepoint(pos):
+                return value
+        return None
+
+    def draw(self, surface, mouse_pos):
+        text_color = TEXT_COLOR if self.enabled else TEXT_DIM
+        name = get_text(self.label, FONT_SIZE_LABEL, text_color)
+        surface.blit(name, (self.rect.x, self.rect.y + 4))
+        if self.note and not self.enabled:
+            note = get_text(self.note, FONT_SIZE_LABEL, TEXT_DIM)
+            surface.blit(note, note.get_rect(topright=(self.rect.right, self.rect.y + 4)))
+        for (value, label), rect in zip(self.options, self._rects):
+            selected = value == self.value
+            if not self.enabled:
+                bg = BUTTON_COLORS["disabled"]
+            elif selected:
+                bg = SLIDER_FILL_COLOR
+            elif rect.collidepoint(mouse_pos):
+                bg = BUTTON_COLORS["hover"]
+            else:
+                bg = BUTTON_COLORS["normal"]
+            pygame.draw.rect(surface, bg, rect, border_radius=4)
+            color = (30, 30, 30) if selected and self.enabled else text_color
+            txt = get_text(label, FONT_SIZE_LABEL, color)
+            surface.blit(txt, txt.get_rect(center=rect.center))
+
 class StatsBlock:
     """Блок «название ... значение»."""
     ROW_H = 24

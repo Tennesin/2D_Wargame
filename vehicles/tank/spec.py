@@ -3,7 +3,8 @@ import itertools
 import math
 import dataclasses
 
-from ..hulls import classify, class_index, class_for_index, layout_for, HULL_CLASS_RU
+from ..hulls import (classify, class_index, class_for_index, layout_for, HULL_CLASS_RU,
+                     layout_with_nose, NOSE_FLAT, NOSE_PIKE, NOSE_RU, NOSE_MIN_FRONT_MM)
 from engine import clamp, fmt_num, PX_PER_M, round_to
 from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses
 from ..chassis_params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP, FRONT_SCREEN, SCREEN_LOOK_STEPS
@@ -109,7 +110,8 @@ class TankSpec(ChassisSpec):
     Атрибуты орудия копируются в сам объект, поэтому снаружи всё читается как раньше:
     spec.v_max (шасси), spec.damage (орудие). Имена в ЗАГЛАВНЫХ буквах читают Tank и Renderer."""
 
-    def __init__(self, cal, front, side, rear, power, damage=None, penetration=None, screen=0.0):
+    def __init__(self, cal, front, side, rear, power, damage=None, penetration=None,
+                 screen=0.0, nose=NOSE_FLAT):
         # входные параметры (с защитой от выхода за границы)
         cal = clamp(float(cal), _CAL.min, _CAL.max)
         front = clamp(float(front), _FRONT.min, _FRONT.max)
@@ -118,13 +120,19 @@ class TankSpec(ChassisSpec):
         power = clamp(float(power), _POWER.min, _POWER.max)
         screen = clamp(float(screen), FRONT_SCREEN.min, FRONT_SCREEN.max)
 
+        if nose != NOSE_PIKE or front <= NOSE_MIN_FRONT_MM:
+            nose = NOSE_FLAT                    # щучий нос только при лобовой броне больше порога
+        if nose == NOSE_PIKE:
+            screen = 0.0                        # экраны со щучьим носом пока не сочетаются
+        self.nose = nose
+
         self.cal = cal
         self.m_gun, self.m_turret = turret_masses(cal)
 
         # класс корпуса зависит ТОЛЬКО от ползунков (не от массы)
         self.hull_index = class_index(*hull_inputs(front, side, rear, power))
         self.HULL_CLASS = class_for_index(self.hull_index)
-        layout = layout_for(self.HULL_CLASS)       # пока для всех классов это MEDIUM
+        layout = layout_with_nose(layout_for(self.HULL_CLASS), nose)
         body = dataclasses.replace(TANK_BODY, layout=layout,
                                    coll_half_w_m=layout.coll_half_w_m,
                                    coll_half_l_m=layout.coll_half_l_m,
@@ -151,7 +159,7 @@ class TankSpec(ChassisSpec):
         return cls(v["gun_caliber_mm"], v["front_armor_mm"], v["side_armor_mm"],
                    v["rear_armor_mm"], v["engine_power_hp"],
                    damage=v.get("gun_damage"), penetration=v.get("gun_penetration"),
-                   screen=v.get("front_screen_mm", 0.0))
+                   screen=v.get("front_screen_mm", 0.0), nose=v.get("front_nose", NOSE_FLAT))
 
     @classmethod
     def from_config(cls):
@@ -192,6 +200,7 @@ class TankSpec(ChassisSpec):
             "HP": fmt_num(self.hp),
             "Масса": f"{self.mass:.1f} т",
             "Корпус": HULL_CLASS_RU[self.HULL_CLASS],
+            "Нос корпуса": NOSE_RU[self.nose],
             "Макс. скорость": f"{self.v_max:.0f} км/ч",
             "Средняя скорость": f"{self.v_avg:.0f} км/ч",
             "Скорость назад": f"{self.v_back:.0f} км/ч",

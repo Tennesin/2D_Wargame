@@ -4,7 +4,7 @@ import math
 
 import pygame
 
-from ..hulls import max_canvas_half_m
+from ..hulls import max_canvas_half_m, NOSE_PIKE
 from ..sprite_base import (
     GunVehicleRenderer, Pen as _Pen, apply_paint as _paint, layout_of, SS, OUTLINE,
     HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, RING, GRILL, GRILL_LINE,
@@ -54,7 +54,10 @@ class TankRenderer(GunVehicleRenderer):
 
         self._draw_skirts(pen, look.side + layout.base_skirt, paint, layout)
 
-        pen.poly(hull_light, layout.front_plate)             # лобовая плита и палуба
+        if layout.nose == NOSE_PIKE:
+            self._draw_pike_plate(pen, layout, hull_light, hull_main)
+        else:
+            pen.poly(hull_light, layout.front_plate)
         pen.rect(deck, *layout.deck_rect)
 
         self._draw_front_kit(pen, look.front, paint, layout)
@@ -78,6 +81,14 @@ class TankRenderer(GunVehicleRenderer):
         self._draw_exhaust(pen, look.speed, layout)
 
         return pygame.transform.smoothscale(big, (size, size))
+
+    @staticmethod
+    def _draw_pike_plate(pen, layout, light, main):
+        """Щучий нос: два ската от острия к плечам, левый светлее правого."""
+        left, tip, right = layout.front_plate
+        mid = (0.0, left[1])
+        pen.poly(light, [left, tip, mid])
+        pen.poly(main, [tip, right, mid])
 
     # ---------- башня ----------
 

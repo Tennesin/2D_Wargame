@@ -8,6 +8,7 @@ from engine import (
     heading_vector, find_free_fraction, Team, TargetType, fmt_num, clamp,
     convex_segment_hit, to_local_frame, vec_to_local, vec_from_local
 )
+from .hulls import NOSE_PIKE, NOSE_RU
 from combat import resolve_hit, Damageable
 from .chassis_params import (
     KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, ARMOR_K, TERRAIN_MIN_K, TERRAIN_BRAKE,
@@ -227,13 +228,16 @@ class Vehicle(Damageable):
         """(заголовок, [(название, значение), ...]) для краткой сводки. Подклассы дополняют."""
         s = self.spec
         title = self.PLAYER_TITLE if self.team is Team.PLAYER else f"Враг: {self.label}"
-        return title, [
+        rows = [
             ("Броня: лоб", f"{s.front:.0f}" + (f" + {s.screen_mm:.0f}" if s.screen_mm else "") + " мм"),
             ("Броня: борт", f"{s.side:.0f} + {s.gear.armor_mm:.0f} мм"),
             ("Броня: корма", f"{s.rear:.0f} мм"),
             ("Масса", f"{fmt_num(s.mass, 1)} т"),
             ("Гусеницы", self._track_status()),
         ]
+        if getattr(s, "nose", None) == NOSE_PIKE:
+            rows.insert(1, ("Нос корпуса", NOSE_RU[NOSE_PIKE]))
+        return title, rows
 
     def hull_offset_to(self, x, y):
         """Сколько градусов надо довернуть корпус (+ по часовой), чтобы точка (x, y) стала досягаема

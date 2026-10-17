@@ -1,10 +1,22 @@
 """vehicles/hulls.py — раскладка корпуса: единый источник геометрии."""
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum, auto
 
-from engine import edge_normal_away, is_convex
+from engine import edge_normal_away, is_convex, shrink_polygon
 from .gun_params import TURRET_FRONT_M
+
+# ==========================================
+# 0. ВАРИАНТЫ ЛБА
+# ==========================================
+NOSE_FLAT = "flat"
+NOSE_PIKE = "pike"
+NOSE_RU = {NOSE_FLAT: "плоский", NOSE_PIKE: "щучий"}
+
+NOSE_MIN_FRONT_MM = 250.0   # щучий нос доступен при лобовой броне СТРОГО больше этого
+NOSE_ANGLE_DEG = 38.0       # угол плит к направлению «в лоб»; строго меньше 60°
+NOSE_COMP = 0.5             # 0: плиты полной толщины (лоб сильнее ползунка), 1: ровно «ползунок» в лоб
+NOSE_TIP_MARGIN_M = 0.05    # остриё не доходит до переднего края хитбокса на столько
 
 # ==========================================
 # 1. КЛАССЫ И ПЛИТЫ
@@ -110,6 +122,7 @@ class HullLayout:
     rear_plate: tuple = (-1.15, 2.40, 2.30, 0.50)  # кормовая плита: x, y, w, h
     base_skirt: int = 0                            # постоянный бортовой экран, прибавляется к look.side
     turret_front_m: float = TURRET_FRONT_M         # где из башни выходит ствол, м вперёд от оси
+    nose: str = NOSE_FLAT                          # вариант лба: NOSE_FLAT или NOSE_PIKE
 
     # ---------- проверка при создании ----------
     def __post_init__(self):
@@ -125,6 +138,8 @@ class HullLayout:
         lo, hi = self.scale_range
         if not (0.0 < lo < hi) or self.scale_step < 0.0:
             raise ValueError(f"{self.key}: неверный scale_range / scale_step")
+        if self.nose not in (NOSE_FLAT, NOSE_PIKE):
+            raise ValueError(f"{self.key}: неизвестный вариант носа {self.nose!r}")
         if self.sprite_reach_m() > self.canvas_half_m:
             raise ValueError(f"{self.key}: форма ({self.sprite_reach_m():.2f} м) не влезает в холст "
                              f"({self.canvas_half_m:.2f} м)")
@@ -290,6 +305,62 @@ def layout_for(cls):
 def max_canvas_half_m():
     """Наибольший холст среди раскладок: один размер заготовки на весь рендерер (этап 4)."""
     return max(layout.canvas_half_m for layout in LAYOUTS.values())
+
+# ==========================================
+# 4а. ЩУЧИЙ НОС
+# ==========================================
+
+def _make_pike(base):
+    """Производная раскладка со щучьим носом. Нос заменяет переднюю плиту: остриё у переднего
+    края хитбокса класса, плечи на полной ширине корпуса. Угол плит один для всех классов."""
+    half_w = base.outline[2][0]
+    if abs(base.outline[3][0] - half_w) > 1e-9 or abs(base.outline[-1][0] + half_w) > 1e-9:
+        raise ValueError(f"{base.key}: для щучьего носа боковые грани контура должны быть вертикальными")
+
+    theta = math.radians(NOSE_ANGLE_DEG)
+    tip_y = -(base.coll_half_l_m - NOSE_TIP_MARGIN_M)
+    sh_y = tip_y + half_w * math.tan(theta)                  # y плеч
+    tip, left, right = (0.0, tip_y), (-half_w, sh_y), (half_w, sh_y)
+
+    outline = (tip, right, *base.outline[3:-1], left)        # передние углы заменены остриём
+
+    k = 1.0 - NOSE_COMP * (1.0 - math.cos(theta))
+    plates = (ArmorPlate.make(left, tip, "front", k),
+              ArmorPlate.make(tip, right, "front", k)) + base.plates
+    # прежняя плоская плита остаётся в списке: по ней считаются удары в передние концы гусениц
+
+    hit_parts = (outline, *base.track_polys)                 # корпус по контуру + две гусеницы
+
+    ox, oy, ow, oh = base.deck_rect                          # палуба начинается сразу за плечами
+    deck_y = sh_y + 0.05
+    deck = (ox, deck_y, ow, oy + oh - deck_y)
+
+    fenders = []                                             # подкрылки не должны висеть перед плечами
+    for fx, fy, fw, fh in base.fender_rects:
+        y0 = max(fy, sh_y)
+        fenders.append((fx, y0, fw, fy + fh - y0))
+
+    centroid_y = (tip_y + 2.0 * sh_y) / 3.0                  # накладная броня: вписана в треугольник
+    kit = tuple(shrink_polygon([left, tip, right], 0.0, centroid_y, 0.78))
+    bar_y = sh_y - 0.20
+    bar_hw = half_w * (bar_y - tip_y) / (sh_y - tip_y) - 0.06
+    bar = (-bar_hw, bar_y, 2.0 * bar_hw, 0.20)
+
+    return replace(base, key=f"{base.key}+pike", nose=NOSE_PIKE, outline=outline,
+                   hit_parts=hit_parts, plates=plates, front_plate=(left, tip, right),
+                   deck_rect=deck, fender_rects=tuple(fenders),
+                   front_kit_poly=kit, front_kit_bar=bar)
+
+_NOSE_CACHE = {}
+
+def layout_with_nose(base, nose):
+    """Раскладка с выбранным носом. Плоский нос: сама базовая раскладка."""
+    if nose != NOSE_PIKE or base.nose == NOSE_PIKE:
+        return base
+    layout = _NOSE_CACHE.get(base.key)
+    if layout is None:
+        layout = _NOSE_CACHE[base.key] = _make_pike(base)
+    return layout
 
 # ==========================================
 # 5. КЛАССИФИКАЦИЯ ПО ПОЛЗУНКАМ

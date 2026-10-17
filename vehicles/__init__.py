@@ -13,7 +13,8 @@ from .tank import (Tank, TankSpec, TankRenderer, PARAMS as TANK_PARAMS, COST_REF
 from .td import TDSpec, TankDestroyer, TDRenderer, TD_PARAMS, gun_arc_deg
 from .registry import VehicleType, VEHICLE_TYPES, RENDERERS, make_vehicle
 from .running_gear import RunningGear, TRACKS, TRACK_SIDES
-from .hulls import HullClass, HullLayout, ArmorPlate, LAYOUTS, layout_for, MEDIUM_LAYOUT
+from .hulls import (HullClass, HullLayout, ArmorPlate, LAYOUTS, layout_for, MEDIUM_LAYOUT,
+                    NOSE_FLAT, NOSE_PIKE, NOSE_RU, NOSE_MIN_FRONT_MM, layout_with_nose)
 
 __all__ = ["Vehicle", "GunVehicle", "Tank", "TankSpec", "TankRenderer", "TANK_PARAMS", "COST_REF",
            "LOOK_FRONT_RATIO", "LOOK_GUN_RATIO", "LOOK_SPEED_RATIO", "cost_for",
@@ -22,4 +23,5 @@ __all__ = ["Vehicle", "GunVehicle", "Tank", "TankSpec", "TankRenderer", "TANK_PA
            "TDSpec", "TankDestroyer", "TDRenderer", "TD_PARAMS", "gun_arc_deg",
            "VehicleType", "VEHICLE_TYPES", "RENDERERS", "make_vehicle", "FRONT_SCREEN",
            "AmmoType", "AMMO_TYPES", "AMMO_ORDER", "ammo_stats", "RunningGear",
-           "HullClass", "HullLayout", "ArmorPlate", "LAYOUTS", "layout_for", "MEDIUM_LAYOUT"]
+           "HullClass", "HullLayout", "ArmorPlate", "LAYOUTS", "layout_for", "MEDIUM_LAYOUT",
+           "NOSE_FLAT", "NOSE_PIKE", "NOSE_RU", "NOSE_MIN_FRONT_MM", "layout_with_nose"]

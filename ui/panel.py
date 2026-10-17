@@ -4,7 +4,7 @@ import pygame
 from engine import FONT_SIZE_TITLE, get_text
 from .theme import (PANEL_WIDTH, PANEL_PADDING, HEADER_HEIGHT, SCROLLBAR_GAP,
                     PANEL_BG, PANEL_BORDER, TEXT_COLOR)
-from .widgets import ScrollArea, ParamRow, StatsBlock, ActionButton
+from .widgets import ScrollArea, ParamRow, StatsBlock, ActionButton, ChoiceRow
 
 class Panel:
     """Содержимое одной панели: заголовок, элементы и колбэк «ползунок сдвинут»."""
@@ -15,14 +15,21 @@ class Panel:
         self.on_change = on_change       # функция(values: dict) или None
 
     def get_values(self):
-        """Текущие значения всех ползунков панели: {ключ: число}."""
-        return {it.key: it.value for it in self.items if isinstance(it, ParamRow)}
+        """Текущие значения всех ползунков и переключателей панели: {ключ: значение}."""
+        return {it.key: it.value for it in self.items if isinstance(it, (ParamRow, ChoiceRow))}
 
     def set_values(self, values):
-        """Поставить значения ползунков извне (без вызова on_change)."""
+        """Поставить значения извне (без вызова on_change)."""
         for it in self.items:
-            if isinstance(it, ParamRow) and it.key in values:
+            if isinstance(it, (ParamRow, ChoiceRow)) and it.key in values:
                 it.set_value(values[it.key])
+
+    def set_enabled(self, key, enabled):
+        """Включить или выключить переключатель с ключом key."""
+        for it in self.items:
+            if isinstance(it, ChoiceRow) and it.key == key:
+                it.enabled = enabled
+                return
 
     def set_range(self, key, lo, hi):
         """Сменить границы ползунка с ключом key (без вызова on_change)."""
@@ -68,6 +75,10 @@ class SidePanel:
     def set_range(self, mode, key, lo, hi):
         """Границы ползунка key на панели mode. Высота строки не меняется, перекладывать панель не нужно."""
         self.panels[mode].set_range(key, lo, hi)
+
+    def set_enabled(self, mode, key, enabled):
+        """Доступность переключателя key на панели mode."""
+        self.panels[mode].set_enabled(key, enabled)
 
     def _index_stats(self):
         """Один раз связывает (режим, название характеристики) с блоком, где она показана."""
@@ -159,8 +170,13 @@ class SidePanel:
                             self._drag_slider(event.pos[0])
                             break
                         if isinstance(it, ActionButton) and it.hit(event.pos):
-                            it.click()       # колбэк может сменить панель, поэтому сразу выходим
+                            it.click()
                             break
+                        if isinstance(it, ChoiceRow):
+                            choice = it.hit(event.pos)
+                            if choice is not None:
+                                self._choose(it, choice)
+                                break
                 return True
 
         elif event.type == pygame.MOUSEMOTION:
@@ -183,9 +199,17 @@ class SidePanel:
 
     def _drag_slider(self, mouse_x):
         if self._active_row.slider.set_from_mouse(mouse_x):
-            panel = self.panels[self.mode]
-            if panel.on_change:
-                panel.on_change(panel.get_values())
+            self._notify_change()
+
+    def _choose(self, row, choice):
+        if choice != row.value:
+            row.value = choice
+            self._notify_change()
+
+    def _notify_change(self):
+        panel = self.panels[self.mode]
+        if panel.on_change:
+            panel.on_change(panel.get_values())
 
     # ---------- отрисовка ----------
     def draw(self, screen, mouse_pos):
