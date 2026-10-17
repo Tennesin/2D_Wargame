@@ -125,8 +125,6 @@ class TankSpec(ChassisSpec):
 
         if nose != NOSE_PIKE or front <= NOSE_MIN_FRONT_MM:
             nose = NOSE_FLAT                    # щучий нос только при лобовой броне больше порога
-        if nose == NOSE_PIKE:
-            screen = 0.0                        # экраны со щучьим носом пока не сочетаются
         self.nose = nose
 
         self.cal = cal

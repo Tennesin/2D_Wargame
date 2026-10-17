@@ -1,9 +1,9 @@
 """td/sprites.py — отрисовка ПТ-САУ: корпус с деталями, рубка/опора позади оси орудия,
 амбразура, лафет с маской. Орудие смотрит из передней грани рубки, а не из её середины."""
 import math
-
 import pygame
 
+from ..hulls import NOSE_PIKE
 from ..sprite_base import (
     GunVehicleRenderer, Pen as _Pen, apply_paint as _paint, SS,
     HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, GRILL, GRILL_LINE,
@@ -81,14 +81,13 @@ class TDRenderer(GunVehicleRenderer):
         self._draw_skirts(pen, look.side + layout.base_skirt, paint, layout)
 
         # Лобовая плита, палуба, накладная броня и экраны
-        pen.poly(hull_light, layout.front_plate)
+        if layout.nose == NOSE_PIKE:
+            self._draw_pike_plate(pen, layout, hull_light, hull_main)
+        else:
+            pen.poly(hull_light, layout.front_plate)
         pen.rect(deck, *layout.deck_rect)
         self._draw_front_kit(pen, look.front, paint, layout)
         self._draw_front_screen(pen, look.screen, paint, layout)
-
-        # Детали лба: только люк механика-водителя
-        hx, hy, hr = layout.hatch
-        pen.ellipse(hull_dark, hx, hy, hr, hr)
 
         # Моторная часть позади рубки (только когда орудие на лбу)
         if support == 0 and rear < 2.0:

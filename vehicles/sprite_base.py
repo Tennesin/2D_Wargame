@@ -8,7 +8,7 @@ import pygame
 
 from engine import LRUCache, SHADOW_ALPHA, heading_vector, clamp, Team, PX_PER_M
 from .chassis_params import TRACK_LINK_M
-from .hulls import NOSE_FLAT
+from .hulls import NOSE_FLAT, screen_pieces, SCREEN_OFFSET_M, SCREEN_THICK_M
 from .running_gear import LEFT, RIGHT
 from .gun_params import BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M
 
@@ -383,20 +383,19 @@ class GunVehicleRenderer:
 
     @staticmethod
     def _draw_front_screen(pen, level, paint, layout):
-        """Сетчатые «кирпичи» перед лобовой плитой. Выступают на 0.14-0.22 м, внутри хитбокса."""
+        """Четыре тонких листа перед лбом на стойках. level только включает показ:
+        число и толщина листов от ползунка не зависят."""
         if level <= 0:
             return
         color = apply_paint(SCREEN_MAIN, paint)
-        n = 2 + level  # 3, 4 или 5 секций
-        x0, x1 = layout.screen_x
-        sy = layout.screen_y
-        w = (x1 - x0) / n
-        depth = 0.10 + 0.04 * level
-        for i in range(n):
-            x = x0 + i * w + 0.03
-            pen.rect(color, x, sy - depth, w - 0.06, depth, r=0.03)
-            pen.line(SCREEN_MESH, x + (w - 0.06) / 2, sy + 0.02 - depth,
-                     x + (w - 0.06) / 2, sy - 0.02, 0.02)
+        off = SCREEN_OFFSET_M
+        for (ax, ay), (bx, by), (nx, ny) in screen_pieces(layout):
+            p0 = (ax + nx * off, ay + ny * off)
+            p1 = (bx + nx * off, by + ny * off)
+            pen.line(SCREEN_MESH, ax, ay, p0[0], p0[1], 0.04)                  # стойки
+            pen.line(SCREEN_MESH, bx, by, p1[0], p1[1], 0.04)
+            pen.line(OUTLINE, p0[0], p0[1], p1[0], p1[1], SCREEN_THICK_M + 0.04)   # контур листа
+            pen.line(color, p0[0], p0[1], p1[0], p1[1], SCREEN_THICK_M)            # сам лист
 
     @staticmethod
     def _draw_exhaust(pen, level, layout):
@@ -406,6 +405,14 @@ class GunVehicleRenderer:
         r = 0.13 if level == 1 else 0.17
         for x in layout.exhaust_xs:
             pen.ellipse(GRILL, x, layout.exhaust_y, r, r)
+
+    @staticmethod
+    def _draw_pike_plate(pen, layout, light, main):
+        """Щучий нос: два ската от острия к плечам, левый светлее правого."""
+        left, tip, right = layout.front_plate
+        mid = (0.0, left[1])
+        pen.poly(light, [left, tip, mid])
+        pen.poly(main, [tip, right, mid])
 
     # ---------- ствол (одинаковый у всех) ----------
     def _build_barrel(self, bl, bt, look):

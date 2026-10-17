@@ -121,16 +121,13 @@ class ConstructorScene(Scene):
                         remap(values["gun_penetration"], p_rng, (0.0, 1.0)))
 
     def _apply_nose_rules(self, values):
-        """Правила носа: щучий только при лбе больше порога; со щучьим экранов нет.
-        Обновляет доступность переключателя и ползунки панели, возвращает исправленные значения."""
-        if self._mode is not PanelMode.TANK:
-            return values
+        """Правило носа: щучий только при лобовой броне больше порога (для ОБТ и ПТ-САУ).
+        Экраны теперь сочетаются с любым носом. Обновляет доступность переключателя
+        и ползунки панели, возвращает исправленные значения."""
         values = dict(values)
         allowed = values["front_armor_mm"] > NOSE_MIN_FRONT_MM
         if not allowed:
             values["front_nose"] = NOSE_FLAT
-        if values["front_nose"] == NOSE_PIKE:
-            values["front_screen_mm"] = 0.0
         self.ui.set_enabled(self._mode, "front_nose", allowed)
         self.ui.set_values(self._mode, values)
         return values

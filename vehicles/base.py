@@ -8,7 +8,7 @@ from engine import (
     heading_vector, find_free_fraction, Team, TargetType, fmt_num, clamp,
     convex_segment_hit, to_local_frame, vec_to_local, vec_from_local
 )
-from .hulls import NOSE_PIKE, NOSE_RU
+from .hulls import NOSE_PIKE, NOSE_RU, screen_hit
 from combat import resolve_hit, Damageable
 from .chassis_params import (
     KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, ARMOR_K, TERRAIN_MIN_K, TERRAIN_BRAKE,
@@ -182,10 +182,8 @@ class Vehicle(Damageable):
         s = self.spec
         zone = self.zone_at(normal, hull_angle)
         base = {"front": s.front, "side": s.side, "rear": s.rear}[zone]
-        base *= self.plate_at(normal, hull_angle).k
         plate = self.plate_at(normal, hull_angle)
-        if plate is not None:
-            base *= plate.k
+        base *= plate.k
         if zone == "front":
             base += s.screen_mm
         elif zone == "side":
@@ -253,16 +251,14 @@ class Vehicle(Damageable):
         return None
 
     def screen_at(self, x, y):
-        """Попала ли точка (x, y) в лобовые экраны: передняя грань корпуса, средняя часть по ширине.
+        """Попала ли точка (x, y) прямо в лист лобового экрана (а не просто в лоб).
         Если экранов нет (screen_mm = 0), всегда False."""
         s = self.spec
         if s.screen_mm <= 0.0:
             return False
-        layout = s.layout
         u, v = self._to_hull_local(x, y)
         k = s.HULL_SCALE * PX_PER_M
-        x0, x1 = layout.screen_x
-        return v <= layout.screen_y + SCREEN_FACE_EPS_PX / k and x0 <= u <= x1
+        return screen_hit(s.layout, u, v, SCREEN_FACE_EPS_PX / k)
 
     def module_at(self, x, y):
         """Внешний модуль, который первым задевает точка попадания (x, y).

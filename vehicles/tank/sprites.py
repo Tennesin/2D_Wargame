@@ -83,14 +83,6 @@ class TankRenderer(GunVehicleRenderer):
 
         return pygame.transform.smoothscale(big, (size, size))
 
-    @staticmethod
-    def _draw_pike_plate(pen, layout, light, main):
-        """Щучий нос: два ската от острия к плечам, левый светлее правого."""
-        left, tip, right = layout.front_plate
-        mid = (0.0, left[1])
-        pen.poly(light, [left, tip, mid])
-        pen.poly(main, [tip, right, mid])
-
     # ---------- башня ----------
 
     def _build_turret(self, team_color, paint, look, emblem, spec):

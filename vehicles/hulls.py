@@ -379,6 +379,60 @@ def nose_front_factor():
     return k / math.cos(theta)
 
 # ==========================================
+# 4б. ЛОБОВЫЕ ЭКРАНЫ
+# ==========================================
+SCREEN_COUNT = 4             # всего листов (на щучьем носу по два на скат)
+SCREEN_COVER = 0.78          # какую долю длины лба закрывают листы
+SCREEN_OFFSET_M = 0.12       # вынос листа вперёд от плиты, м
+SCREEN_THICK_M = 0.07        # толщина листа на рисунке, м
+SCREEN_HIT_DEPTH_M = 0.40    # насколько впереди плиты (м) точка попадания ещё считается «на лбу»
+                             # (у плоского лба хитбокс чуть шире спрайта)
+
+def _front_edges(layout):
+    """Рёбра, вдоль которых стоят экраны: одно для плоского лба, два ската для щучьего."""
+    fp = layout.front_plate
+    if layout.nose == NOSE_PIKE:
+        left, tip, right = fp
+        return ((left, tip), (tip, right))
+    return ((fp[0], fp[1]),)
+
+def screen_pieces(layout):
+    """Листы экранов: ((a, b, (nx, ny)), ...). a и b лежат на самой плите, (nx, ny) смотрит наружу.
+    На каждом ребре листы расставлены с равными просветами; по краям ребра полпросвета."""
+    edges = _front_edges(layout)
+    per_edge = SCREEN_COUNT // len(edges)
+    pieces = []
+    for a, b in edges:
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        length = math.hypot(dx, dy)
+        ux, uy = dx / length, dy / length
+        nx, ny = uy, -ux
+        if ny > 0.0:                                  # перед корпуса = минус y
+            nx, ny = -nx, -ny
+        piece = SCREEN_COVER * length / per_edge
+        gap = (length - per_edge * piece) / per_edge
+        pos = gap / 2.0
+        for _ in range(per_edge):
+            pieces.append(((a[0] + ux * pos, a[1] + uy * pos),
+                           (a[0] + ux * (pos + piece), a[1] + uy * (pos + piece)),
+                           (nx, ny)))
+            pos += piece + gap
+    return tuple(pieces)
+
+def screen_hit(layout, u, v, tol=0.03):
+    """Попала ли точка (u, v) (метры корпуса) НАПРОТИВ листа экрана: вдоль плиты в пределах листа
+    и на лбу (не на гусенице и не на борту). Попадание в просвет между листами не считается."""
+    for (ax, ay), (bx, by), (nx, ny) in screen_pieces(layout):
+        dx, dy = bx - ax, by - ay
+        t = ((u - ax) * dx + (v - ay) * dy) / (dx * dx + dy * dy)
+        if not 0.0 <= t <= 1.0:
+            continue
+        depth = (u - ax) * nx + (v - ay) * ny          # > 0: точка впереди плиты
+        if -tol <= depth <= SCREEN_HIT_DEPTH_M:
+            return True
+    return False
+
+# ==========================================
 # 5. КЛАССИФИКАЦИЯ ПО ПОЛЗУНКАМ
 # ==========================================
 CLASS_W_ARMOR = 1.0
@@ -387,9 +441,14 @@ CLASS_LIGHT_BELOW = -0.20      # индекс ниже этого: лёгкий
 CLASS_HEAVY_ABOVE = 0.15       # выше этого: тяжёлый (стартовые значения, подгоняются по отладке)
 CLASS_BORDER_EPS = 0.03        # «рядом с порогом»: ещё чуть-чуть, и силуэт сменится
 
+HEAVY_ENABLED = False          # True вернёт тяжёлый корпус (скачок формы при индексе > CLASS_HEAVY_ABOVE)
+
 def near_class_border(index):
     """Индекс в пределах CLASS_BORDER_EPS от порога смены класса."""
-    return min(abs(index - CLASS_LIGHT_BELOW), abs(index - CLASS_HEAVY_ABOVE)) <= CLASS_BORDER_EPS
+    dist = abs(index - CLASS_LIGHT_BELOW)
+    if HEAVY_ENABLED:
+        dist = min(dist, abs(index - CLASS_HEAVY_ABOVE))
+    return dist <= CLASS_BORDER_EPS
 
 def class_index(armor_t, power_t):
     """Индекс «тяжести»: много брони и мало мощности = больше."""
@@ -398,7 +457,7 @@ def class_index(armor_t, power_t):
 def class_for_index(index):
     if index < CLASS_LIGHT_BELOW:
         return HullClass.LIGHT
-    if index > CLASS_HEAVY_ABOVE:
+    if HEAVY_ENABLED and index > CLASS_HEAVY_ABOVE:
         return HullClass.HEAVY
     return HullClass.MEDIUM
 

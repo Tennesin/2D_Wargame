@@ -3,7 +3,7 @@
 from dataclasses import replace
 from functools import lru_cache
 
-from ..hulls import MEDIUM_LAYOUT, with_box_hitbox
+from ..hulls import MEDIUM_LAYOUT, with_box_hitbox, layout_with_nose, NOSE_FLAT
 from .params import TD_HULL_COLL_HALF_W_M, TD_HULL_COLL_HALF_L_M, TD_HULL_HALF_M
 
 TD_LAYOUT = with_box_hitbox(
@@ -19,7 +19,8 @@ TD_LAYOUT = with_box_hitbox(
 )
 
 @lru_cache(maxsize=None)
-def td_layout(mount_fwd_m):
+def td_layout(mount_fwd_m, nose=NOSE_FLAT):
     """Раскладка ПТ-САУ с осью орудия на mount_fwd_m метров впереди центра корпуса
-    (значений мало: MOUNT_FWD_M квантуется шагом 0.1 м)."""
-    return replace(TD_LAYOUT, key=f"td{mount_fwd_m:+.1f}", axis_fwd_m=mount_fwd_m)
+    и выбранным носом (значений мало: MOUNT_FWD_M квантуется шагом 0.1 м)."""
+    base = replace(TD_LAYOUT, key=f"td{mount_fwd_m:+.1f}", axis_fwd_m=mount_fwd_m)
+    return layout_with_nose(base, nose)

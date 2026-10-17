@@ -11,6 +11,7 @@ from ..gun_params import (
     REF_L_CAL, BARREL_VISIBLE_K, GUN_ARM_BASE_M, GUN_ARM_BARREL_K,
     TURRET_INERTIA_EXP, TURRET_POWER_EXP,
 )
+from ..hulls import NOSE_FLAT, NOSE_PIKE, NOSE_RU, NOSE_MIN_FRONT_MM
 from .layout import td_layout
 from ..look import Look, level
 from ..tank.params import COST_REF, BUILD_TIME_REF       # модель цены общая, привязана к эталону ОБТ
@@ -32,10 +33,8 @@ _POWER = TD_PARAMS["engine_power_hp"]
 _AREAS = (TD_FRONT_AREA_M2, TD_SIDE_AREA_M2, TD_REAR_AREA_M2)
 
 # ==========================================
-# 1. ПОЛОЖЕНИЕ ОРУДИЯ (зависит только от калибра)
+# 1. ПОЛОЖЕНИЕ ОРУДИЯ
 # ==========================================
-# Зависимость только от калибра, а не от массы, снимает порочный круг: хитбокс считается
-# в ChassisSpec.__init__ раньше, чем известен size_k.
 
 def mount_t(cal):
     """0 — орудие на лбу, 1 — на задней опоре (сглаженный переход)."""
@@ -56,6 +55,7 @@ def support_level(cal):
 # ==========================================
 # 2. ЭТАЛОН ПТ-САУ
 # ==========================================
+
 def td_masses(cal):
     """Массы орудия и рубки калибра cal, т: (орудие, рубка)."""
     gun, turret = turret_masses(cal)
@@ -81,6 +81,7 @@ TD_REF_GUN_INERTIA = _REF_GUN_MASS * (GUN_ARM_BASE_M + GUN_ARM_BARREL_K * _REF_B
 # ==========================================
 # 3. ОРУДИЕ БЕЗ БАШНИ
 # ==========================================
+
 class TDGunSpec(GunSpec):
     """Вращается только орудие, а не башня: инерция меньше, наводка медленнее и в узком секторе.
     Имена turret_turn / turret_alpha сохранены: их читает GunVehicle._aim_turret."""
@@ -104,21 +105,26 @@ class TDGunSpec(GunSpec):
 # ==========================================
 # 4. ПТ-САУ
 # ==========================================
+
 class TDSpec(ChassisSpec):
-    def __init__(self, cal, front, side, rear, power, damage=None, penetration=None, screen=0.0):
+    def __init__(self, cal, front, side, rear, power, damage=None, penetration=None,
+                 screen=0.0, nose=NOSE_FLAT):
         cal = clamp(float(cal), _CAL.min, _CAL.max)
         front = clamp(float(front), _FRONT.min, _FRONT.max)
         side = clamp(float(side), _SIDE.min, _SIDE.max)
         rear = clamp(float(rear), _REAR.min, _REAR.max)
         power = clamp(float(power), _POWER.min, _POWER.max)
         screen = clamp(float(screen), FRONT_SCREEN.min, FRONT_SCREEN.max)
+        if nose != NOSE_PIKE or front <= NOSE_MIN_FRONT_MM:
+            nose = NOSE_FLAT                    # щучий нос только при лобовой броне больше порога
+        self.nose = nose                        # его читает Vehicle.describe
 
         self.cal = cal
         self.m_gun, self.m_casemate = td_masses(cal)
         self.MOUNT_FWD_M = mount_fwd_m(cal)
         self.SUPPORT = support_level(cal)
         self.CASE_K = round(clamp((cal / _REF_CAL) ** TD_CASE_CAL_EXP, *TD_CASE_K_LIMITS), 1)
-        layout = td_layout(self.MOUNT_FWD_M)
+        layout = td_layout(self.MOUNT_FWD_M, nose)
         body = dataclasses.replace(TD_BODY, layout=layout,
                                    coll_half_w_m=layout.coll_half_w_m,
                                    coll_half_l_m=layout.coll_half_l_m,
@@ -131,7 +137,7 @@ class TDSpec(ChassisSpec):
                              barrel_ref_m=TD_BARREL_VIS_REF_M)
         self.__dict__.update(vars(self.gun))
         self.HULL_VARIANT = (round(self.MOUNT_FWD_M / MOUNT_STEP_M), self.SUPPORT, self.CASE_K,
-                             round(self.TURRET_ARC_DEG))
+                             round(self.TURRET_ARC_DEG), nose)
 
         self._calc_reach()
         self._calc_economy()
@@ -143,7 +149,7 @@ class TDSpec(ChassisSpec):
         return cls(v["gun_caliber_mm"], v["front_armor_mm"], v["side_armor_mm"],
                    v["rear_armor_mm"], v["engine_power_hp"],
                    damage=v.get("gun_damage"), penetration=v.get("gun_penetration"),
-                   screen=v.get("front_screen_mm", 0.0))
+                   screen=v.get("front_screen_mm", 0.0), nose=v.get("front_nose", NOSE_FLAT))
 
     @classmethod
     def from_config(cls):
@@ -196,6 +202,7 @@ class TDSpec(ChassisSpec):
             "УГН": f"±{self.TURRET_ARC_DEG / 2.0:.0f} °",
             "Наводка орудия": f"{self.turret_turn:.0f} °/с",
             "Крепление орудия": self.mount_name(),
+            "Нос корпуса": NOSE_RU[self.nose],
             "Урон": f"{self.damage:.0f}",
             "Пробитие": f"{self.penetration:.0f} мм",
             "Перезарядка": f"{self.reload:.2f} с",
