@@ -217,13 +217,13 @@ class GunVehicleRenderer:
 
         turret_rot = turret_rect = None
         if self.HAS_TURRET_SPRITE:
-            turret_key = (team, paint, look.turret_key, emblem)
+            turret_key = (team, paint, look.turret_key, emblem, var)
             turret_rot = self._rotated("turret", turret_key,
                                        lambda: self._get_turret(team, paint, look, emblem, spec), turret_k, ts)
             turret_rect = turret_rot.get_rect(center=(cx, cy))
             sil_turret = self._rotated(
-                "sil_turret", look.turret_key,
-                lambda: self._get_sil(("turret", look.turret_key),
+                "sil_turret", (look.turret_key, var),
+                lambda: self._get_sil(("turret", look.turret_key, var),
                                       self._get_turret(team, paint, look, emblem, spec)),
                 turret_k, ts)
             parts.append((sil_turret, sil_turret.get_rect(center=turret_rect.center).move(tox, toy)))
@@ -279,7 +279,7 @@ class GunVehicleRenderer:
 
     def _get_turret(self, team_color, paint, look, emblem, spec):
         return self._turret_cache.get_or_build(
-            (team_color, paint, look.turret_key, emblem),
+            (team_color, paint, look.turret_key, emblem, spec.HULL_VARIANT),
             lambda: self._build_turret(team_color, paint, look, emblem, spec))
 
     def _get_barrel(self, bl, bt, look):

@@ -28,7 +28,12 @@ class Vehicle(Damageable):
     target_type = TargetType.VEHICLE
     renderer_key = None                         # ключ в реестре рендереров (Renderer.vehicle_renderers)
     TRACK_STEP = TRACK_LINK_M * PX_PER_M        # шаг между траками, px эталонного мира
-    TRACK_RADIUS = TRACK_OFFSET_M * PX_PER_M    # расстояние от центра до гусеницы, px
+
+    @property
+    def TRACK_RADIUS(self):
+        """Расстояние от центра до гусеницы, px эталонного спрайта: колея берётся из раскладки."""
+        layout = self.spec.layout
+        return (layout.track_x if layout is not None else TRACK_OFFSET_M) * PX_PER_M
 
     def __init__(self, x=0.0, y=0.0, *, spec, team_color=(200, 40, 40),
                  team=Team.PLAYER, label="техника", emblem=""):
@@ -278,7 +283,7 @@ class Vehicle(Damageable):
         u, v = self._to_hull_local(x, y)
         k = s.HULL_SCALE * PX_PER_M
         x0, x1 = layout.screen_x
-        return v <= layout.front_face_m + SCREEN_FACE_EPS_PX / k and x0 <= u <= x1
+        return v <= layout.screen_y + SCREEN_FACE_EPS_PX / k and x0 <= u <= x1
 
     def _screen_at_legacy(self, x, y):
         """Старая логика (удалить на этапе 11)."""

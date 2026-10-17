@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum, auto
 
 from engine import edge_normal_away, is_convex
+from .gun_params import TURRET_FRONT_M
 
 # ==========================================
 # 1. КЛАССЫ И ПЛИТЫ
@@ -103,6 +104,13 @@ class HullLayout:
     scale_range: tuple = (0.8, 1.2)    # в каких пределах класс масштабируется
     scale_step: float = 0.02           # шаг квантования масштаба (0 = без квантования)
 
+    # --- детали корпуса и башни (значения по умолчанию = средний корпус) ---
+    hatch: tuple = (0.65, -1.65, 0.24)             # люк механика: x, y, радиус
+    grill_rect: tuple = (-0.95, 1.0, 1.9, 1.2)     # решётка МТО: x, y, w, h
+    rear_plate: tuple = (-1.15, 2.40, 2.30, 0.50)  # кормовая плита: x, y, w, h
+    base_skirt: int = 0                            # постоянный бортовой экран, прибавляется к look.side
+    turret_front_m: float = TURRET_FRONT_M         # где из башни выходит ствол, м вперёд от оси
+
     # ---------- проверка при создании ----------
     def __post_init__(self):
         if not is_convex(self.outline):
@@ -172,10 +180,42 @@ class HullLayout:
         return max(self.plates, key=lambda p: p.normal[0] * nx + p.normal[1] * ny)
 
 # ==========================================
-# 3. СРЕДНИЙ КОРПУС: ТОЧНАЯ КОПИЯ ТЕКУЩЕГО ТАНКА
+# 3. КОРПУС
 # ==========================================
 
 _MED_HW, _MED_HL = 1.95, 3.15
+
+# Лёгкий: узкий, длинный (3.2 x 6.4, отношение 2.0), гусеницы выступают вперёд на 0.5 м
+LIGHT_LAYOUT = HullLayout(
+    key="light", cls=HullClass.LIGHT,
+    outline=((-0.80, -2.70), (0.80, -2.70), (1.05, -2.05), (1.05, 1.80),
+             (0.80, 3.00), (-0.80, 3.00), (-1.05, 1.80), (-1.05, -2.05)),
+    track_x=1.3, track_w=0.60, track_top=-3.2, track_len=6.4,
+    axis_fwd_m=0.0,                                   # башня по центру
+    coll_half_w_m=1.58, coll_half_l_m=3.2,
+    hit_parts=(_rect(1.05, 2.85, 0.0, 0.15),          # корпус: y от -2.7 до 3.0
+               _rect(0.30, 3.2, -1.3, 0.0),           # левая гусеница
+               _rect(0.30, 3.2, 1.3, 0.0)),           # правая гусеница
+    plates=_rect_plates(1.58, 3.2),
+    ring_r_m=0.9, turret_style="oval", hull_style="classic",
+    skirt_outer_x=1.6,
+    skirt_levels=((-2.0, 2.5, 0.34), (-2.8, 3.0, 0.42)),
+    skirt_pitch_m=1.05,
+    front_kit_poly=((-0.66, -2.62), (0.66, -2.62), (0.95, -2.10), (-0.95, -2.10)),
+    front_kit_bar=(-1.0, -2.02, 2.0, 0.18),
+    front_kit_wedge=((1.05, -2.00), (1.05, -1.25), (0.85, -1.96)),
+    screen_x=(-0.8, 0.8), screen_y=-2.72,
+    exhaust_xs=(-0.55, 0.55), exhaust_y=2.85,
+    fender_rects=((1.05, -2.0, 0.18, 4.7), (-1.23, -2.0, 0.18, 4.7)),
+    front_plate=((-0.80, -2.70), (0.80, -2.70), (1.05, -2.05), (-1.05, -2.05)),
+    deck_rect=(-0.95, -2.0, 1.9, 4.3),
+    canvas_half_m=3.7,
+    scale_range=(0.80, 0.92), scale_step=0.02,
+    hatch=(0.50, -1.75, 0.20),
+    grill_rect=(-0.70, 1.10, 1.40, 1.20),
+    rear_plate=(-0.80, 2.40, 1.60, 0.60),
+    turret_front_m=1.35,
+)
 
 MEDIUM_LAYOUT = HullLayout(
     key="medium", cls=HullClass.MEDIUM,
@@ -199,14 +239,49 @@ MEDIUM_LAYOUT = HullLayout(
     front_plate=((-1.00, -2.9), (1.00, -2.9), (1.35, -2.1), (-1.35, -2.1)),
     deck_rect=(-1.25, -2.05, 2.50, 4.40),
     canvas_half_m=3.7,
-    scale_range=(0.80, 1.15), scale_step=0.02,
+    scale_range=(0.88, 1.06), scale_step=0.02,
+)
+
+# Тяжёлый: широкий (4.4 x 6.0, отношение 1.36), сплошные бортовые экраны, башня сдвинута вперёд
+HEAVY_LAYOUT = HullLayout(
+    key="heavy", cls=HullClass.HEAVY,
+    outline=((-1.55, -2.75), (1.55, -2.75), (1.75, -2.20), (1.75, 2.65),
+             (1.60, 2.90), (-1.60, 2.90), (-1.75, 2.65), (-1.75, -2.20)),
+    track_x=1.8, track_w=0.80, track_top=-3.0, track_len=6.0,
+    axis_fwd_m=0.6,
+    coll_half_w_m=2.18, coll_half_l_m=3.0,
+    hit_parts=(_rect(1.75, 2.825, 0.0, 0.075),
+               _rect(0.40, 3.0, -1.8, 0.0),
+               _rect(0.40, 3.0, 1.8, 0.0)),
+    plates=_rect_plates(2.18, 3.0),
+    ring_r_m=1.55, turret_style="cast", hull_style="classic",
+    skirt_outer_x=2.2,
+    skirt_levels=((-2.4, 2.6, 0.55), (-2.95, 2.95, 0.65)),
+    skirt_pitch_m=1.3,
+    front_kit_poly=((-1.35, -2.67), (1.35, -2.67), (1.65, -2.25), (-1.65, -2.25)),
+    front_kit_bar=(-1.7, -2.17, 3.4, 0.22),
+    front_kit_wedge=((1.75, -2.20), (1.75, -1.30), (1.45, -2.15)),
+    screen_x=(-1.3, 1.3), screen_y=-2.77,
+    exhaust_xs=(-1.1, 1.1), exhaust_y=2.75,
+    fender_rects=((1.75, -2.2, 0.30, 4.85), (-2.05, -2.2, 0.30, 4.85)),
+    front_plate=((-1.55, -2.75), (1.55, -2.75), (1.75, -2.20), (-1.75, -2.20)),
+    deck_rect=(-1.55, -2.15, 3.1, 4.5),
+    canvas_half_m=3.7,
+    scale_range=(1.00, 1.12), scale_step=0.02,
+    hatch=(1.20, -2.00, 0.24),
+    grill_rect=(-1.10, 1.40, 2.20, 1.00),
+    rear_plate=(-1.50, 2.40, 3.00, 0.50),
+    base_skirt=1,
+    turret_front_m=1.95,
 )
 
 # ==========================================
 # 4. ТАБЛИЦА
 # ==========================================
 
-LAYOUTS = {HullClass.MEDIUM: MEDIUM_LAYOUT}
+LAYOUTS = {HullClass.LIGHT: LIGHT_LAYOUT,
+           HullClass.MEDIUM: MEDIUM_LAYOUT,
+           HullClass.HEAVY: HEAVY_LAYOUT}
 
 def layout_for(cls):
     """Раскладка класса. Пока готов только средний корпус: остальные классы временно получают его же."""
