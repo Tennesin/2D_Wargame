@@ -1,5 +1,6 @@
 """game/overlays.py — текст поверх игры: отладочные строки и подсказки над HUD."""
 import pygame
+from collections import Counter
 
 from vehicles import TRACK_SIDES
 from engine import PX_PER_M, get_text, FONT_SIZE_LABEL
@@ -51,7 +52,9 @@ class DebugOverlay:
             f"Pos (m): {t.x / PX_PER_M:.1f}, {t.y / PX_PER_M:.1f}",
             f"Walls: {len(self.walls.items)}",
             f"Hull class: {s.HULL_CLASS.name if hasattr(s, 'HULL_CLASS') else '-'}  "
-            f"layout: {s.layout.key if s.layout else '-'}  index: {getattr(s, 'hull_index', 0.0):+.2f}",
+            f"layout: {s.layout.key}  nose: {getattr(s, 'nose', '-')}  "
+            f"index: {getattr(s, 'hull_index', 0.0):+.2f}",
+            f"Bot hulls: {self._bot_hulls()}",
             f"Hull scale: {s.HULL_SCALE:.2f}  size_k: {s.size_k:.3f}",
             f"Hitbox: {2 * s.COLLISION_HALF_W_PX / PX_PER_M:.2f} x {2 * s.COLLISION_HALF_L_PX / PX_PER_M:.2f} m",
             f"Mode: {self.modes.mode.name}  Mouse owner: {owner}",
@@ -74,6 +77,12 @@ class DebugOverlay:
             screen.blit(shadow, (11, y + 1))
             screen.blit(label, (10, y))
             y += self.LINE_H
+
+    def _bot_hulls(self):
+        """Сколько ботов каждого класса корпуса (ПТ-САУ считаются отдельно)."""
+        classes = (getattr(b.tank.spec, "HULL_CLASS", None) for b in self.fleet.bots)
+        counts = Counter(c.name if c else "TD" for c in classes)
+        return "  ".join(f"{k} {v}" for k, v in sorted(counts.items())) or "-"
 
 class HudOverlay:
     """Левый нижний угол: сводка по танку, а над ней индикаторы боевого состояния и подсказки."""

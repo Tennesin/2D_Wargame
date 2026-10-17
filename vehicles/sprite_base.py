@@ -8,7 +8,7 @@ import pygame
 
 from engine import LRUCache, SHADOW_ALPHA, heading_vector, clamp, Team, PX_PER_M
 from .chassis_params import TRACK_LINK_M
-from .hulls import MEDIUM_LAYOUT, NOSE_FLAT
+from .hulls import NOSE_FLAT
 from .running_gear import LEFT, RIGHT
 from .gun_params import BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M
 
@@ -63,8 +63,8 @@ def apply_paint(color, paint):
     return tuple(int(c + (p - c) * PAINT_K) for c, p in zip(color, paint))
 
 def layout_of(spec):
-    """Раскладка корпуса. У техники без раскладки (ПТ-САУ до этапа 11) берём средний корпус: числа те же."""
-    return MEDIUM_LAYOUT if spec.layout is None else spec.layout
+    """Раскладка корпуса техники (она есть у всей техники)."""
+    return spec.layout
 
 # ==========================================
 # 2. «РУЧКА» ДЛЯ РИСОВАНИЯ В МЕТРАХ
@@ -354,7 +354,7 @@ class GunVehicleRenderer:
                 y += TRACK_LINK_M
 
     @staticmethod
-    def _draw_skirts(pen, level, paint, layout=MEDIUM_LAYOUT):
+    def _draw_skirts(pen, level, paint, layout):
         """Бортовые экраны поверх гусениц. Не выходят за габарит гусениц, хитбокс не меняется."""
         if level <= 0:
             return
@@ -368,7 +368,7 @@ class GunVehicleRenderer:
                 pen.rect(color, x, y0 + i * step + 0.03, width, step - 0.06)
 
     @staticmethod
-    def _draw_front_kit(pen, level, paint, layout=MEDIUM_LAYOUT):
+    def _draw_front_kit(pen, level, paint, layout):
         """Накладная броня на лобовой плите."""
         if level <= 0:
             return
@@ -382,7 +382,7 @@ class GunVehicleRenderer:
                     pen.poly(color, [(sx * x, y) for x, y in layout.front_kit_wedge])
 
     @staticmethod
-    def _draw_front_screen(pen, level, paint, layout=MEDIUM_LAYOUT):
+    def _draw_front_screen(pen, level, paint, layout):
         """Сетчатые «кирпичи» перед лобовой плитой. Выступают на 0.14-0.22 м, внутри хитбокса."""
         if level <= 0:
             return
@@ -399,7 +399,7 @@ class GunVehicleRenderer:
                      x + (w - 0.06) / 2, sy - 0.02, 0.02)
 
     @staticmethod
-    def _draw_exhaust(pen, level, layout=MEDIUM_LAYOUT):
+    def _draw_exhaust(pen, level, layout):
         """Выхлопные патрубки на кормовой плите."""
         if level <= 0:
             return

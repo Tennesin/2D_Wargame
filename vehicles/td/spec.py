@@ -11,6 +11,7 @@ from ..gun_params import (
     REF_L_CAL, BARREL_VISIBLE_K, GUN_ARM_BASE_M, GUN_ARM_BARREL_K,
     TURRET_INERTIA_EXP, TURRET_POWER_EXP,
 )
+from .layout import td_layout
 from ..look import Look, level
 from ..tank.params import COST_REF, BUILD_TIME_REF       # модель цены общая, привязана к эталону ОБТ
 from ..tank.spec import raw_cost, round_cost
@@ -117,8 +118,11 @@ class TDSpec(ChassisSpec):
         self.MOUNT_FWD_M = mount_fwd_m(cal)
         self.SUPPORT = support_level(cal)
         self.CASE_K = round(clamp((cal / _REF_CAL) ** TD_CASE_CAL_EXP, *TD_CASE_K_LIMITS), 1)
-        # положение орудия = сдвиг хитбокса корпуса относительно оси (x, y) машины
-        body = dataclasses.replace(TD_BODY, coll_shift_m=self.MOUNT_FWD_M)
+        layout = td_layout(self.MOUNT_FWD_M)
+        body = dataclasses.replace(TD_BODY, layout=layout,
+                                   coll_half_w_m=layout.coll_half_w_m,
+                                   coll_half_l_m=layout.coll_half_l_m,
+                                   coll_shift_m=layout.coll_shift_m)
         super().__init__(body, front, side, rear, power, payload_t=self.m_gun + self.m_casemate, screen_mm=screen)
 
         self.gun = TDGunSpec(cal, self.size_k, power, self.m_gun, self.m_casemate,

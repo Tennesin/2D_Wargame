@@ -3,7 +3,7 @@ import math
 from dataclasses import dataclass, replace
 from enum import Enum, auto
 
-from engine import edge_normal_away, is_convex, shrink_polygon
+from engine import edge_normal_away, is_convex, shrink_polygon, clamp, lerp, round_to
 from .gun_params import TURRET_FRONT_M
 
 # ==========================================
@@ -67,6 +67,13 @@ def _rect_plates(hw, hl):
             ArmorPlate.make(tr, br, "side"),
             ArmorPlate.make(br, bl, "rear"),
             ArmorPlate.make(bl, tl, "side"))
+
+def with_box_hitbox(base, half_w_m, half_l_m, **changes):
+    """Копия раскладки с прямоугольным хитбоксом half_w_m × half_l_m: части попаданий и плиты
+    брони пересчитываются от тех же чисел (единый источник). Остальные поля берутся из changes."""
+    return replace(base, coll_half_w_m=half_w_m, coll_half_l_m=half_l_m,
+                   hit_parts=(_rect(half_w_m, half_l_m),),
+                   plates=_rect_plates(half_w_m, half_l_m), **changes)
 
 # ==========================================
 # 2. РАСКЛАДКА
@@ -201,37 +208,36 @@ class HullLayout:
 
 _MED_HW, _MED_HL = 1.95, 3.15
 
-# Лёгкий: узкий, длинный (3.2 x 6.4, отношение 2.0), гусеницы выступают вперёд на 0.5 м
 LIGHT_LAYOUT = HullLayout(
     key="light", cls=HullClass.LIGHT,
-    outline=((-0.80, -2.70), (0.80, -2.70), (1.05, -2.05), (1.05, 1.80),
-             (0.80, 3.00), (-0.80, 3.00), (-1.05, 1.80), (-1.05, -2.05)),
-    track_x=1.3, track_w=0.60, track_top=-3.2, track_len=6.4,
+    outline=((-1.00, -2.80), (1.00, -2.80), (1.25, -2.15), (1.25, 1.90),
+             (1.00, 3.05), (-1.00, 3.05), (-1.25, 1.90), (-1.25, -2.15)),
+    track_x=1.45, track_w=0.64, track_top=-3.15, track_len=6.3,
     axis_fwd_m=0.0,                                   # башня по центру
-    coll_half_w_m=1.58, coll_half_l_m=3.2,
-    hit_parts=(_rect(1.05, 2.85, 0.0, 0.15),          # корпус: y от -2.7 до 3.0
-               _rect(0.30, 3.2, -1.3, 0.0),           # левая гусеница
-               _rect(0.30, 3.2, 1.3, 0.0)),           # правая гусеница
-    plates=_rect_plates(1.58, 3.2),
+    coll_half_w_m=1.77, coll_half_l_m=3.15,
+    hit_parts=(_rect(1.25, 2.925, 0.0, 0.125),        # корпус: y от -2.80 до 3.05
+               _rect(0.32, 3.15, -1.45, 0.0),         # левая гусеница
+               _rect(0.32, 3.15, 1.45, 0.0)),         # правая гусеница
+    plates=_rect_plates(1.77, 3.15),
     ring_r_m=0.9, turret_style="oval", hull_style="classic",
-    skirt_outer_x=1.6,
-    skirt_levels=((-2.0, 2.5, 0.34), (-2.8, 3.0, 0.42)),
-    skirt_pitch_m=1.05,
-    front_kit_poly=((-0.66, -2.62), (0.66, -2.62), (0.95, -2.10), (-0.95, -2.10)),
-    front_kit_bar=(-1.0, -2.02, 2.0, 0.18),
-    front_kit_wedge=((1.05, -2.00), (1.05, -1.25), (0.85, -1.96)),
-    screen_x=(-0.8, 0.8), screen_y=-2.72,
-    exhaust_xs=(-0.55, 0.55), exhaust_y=2.85,
-    fender_rects=((1.05, -2.0, 0.18, 4.7), (-1.23, -2.0, 0.18, 4.7)),
-    front_plate=((-0.80, -2.70), (0.80, -2.70), (1.05, -2.05), (-1.05, -2.05)),
-    deck_rect=(-0.95, -2.0, 1.9, 4.3),
+    skirt_outer_x=1.80,
+    skirt_levels=((-2.2, 2.6, 0.36), (-2.9, 3.0, 0.46)),
+    skirt_pitch_m=1.1,
+    front_kit_poly=((-0.85, -2.72), (0.85, -2.72), (1.15, -2.20), (-1.15, -2.20)),
+    front_kit_bar=(-1.20, -2.12, 2.40, 0.18),
+    front_kit_wedge=((1.25, -2.10), (1.25, -1.35), (1.00, -2.06)),
+    screen_x=(-0.90, 0.90), screen_y=-2.82,
+    exhaust_xs=(-0.65, 0.65), exhaust_y=2.90,
+    fender_rects=((1.25, -2.1, 0.20, 4.8), (-1.45, -2.1, 0.20, 4.8)),
+    front_plate=((-1.00, -2.80), (1.00, -2.80), (1.25, -2.15), (-1.25, -2.15)),
+    deck_rect=(-1.10, -2.10, 2.20, 4.40),
     canvas_half_m=3.7,
     scale_range=(0.80, 0.92), scale_step=0.02,
-    hatch=(0.50, -1.75, 0.20),
-    grill_rect=(-0.70, 1.10, 1.40, 1.20),
-    rear_plate=(-0.80, 2.40, 1.60, 0.60),
+    hatch=(0.55, -1.70, 0.20),
+    grill_rect=(-0.80, 1.15, 1.60, 1.20),
+    rear_plate=(-1.00, 2.45, 2.00, 0.60),
     turret_front_m=1.35,
-    area_k=(0.75, 0.88, 0.75),
+    area_k=(0.80, 0.88, 0.80),
 )
 
 MEDIUM_LAYOUT = HullLayout(
@@ -264,14 +270,14 @@ HEAVY_LAYOUT = HullLayout(
     key="heavy", cls=HullClass.HEAVY,
     outline=((-1.55, -2.75), (1.55, -2.75), (1.75, -2.20), (1.75, 2.65),
              (1.60, 2.90), (-1.60, 2.90), (-1.75, 2.65), (-1.75, -2.20)),
-    track_x=1.8, track_w=0.80, track_top=-3.0, track_len=6.0,
-    axis_fwd_m=0.6,
-    coll_half_w_m=2.18, coll_half_l_m=3.0,
+    track_x=1.8, track_w=0.80, track_top=-3.15, track_len=6.3,
+    axis_fwd_m=0.3,
+    coll_half_w_m=2.18, coll_half_l_m=3.15,
     hit_parts=(_rect(1.75, 2.825, 0.0, 0.075),
-               _rect(0.40, 3.0, -1.8, 0.0),
-               _rect(0.40, 3.0, 1.8, 0.0)),
-    plates=_rect_plates(2.18, 3.0),
-    ring_r_m=1.55, turret_style="cast", hull_style="classic",
+               _rect(0.40, 3.15, -1.8, 0.0),
+               _rect(0.40, 3.15, 1.8, 0.0)),
+    plates=_rect_plates(2.18, 3.15),
+    ring_r_m=1.40, turret_style="hex", hull_style="classic",
     skirt_outer_x=2.2,
     skirt_levels=((-2.4, 2.6, 0.55), (-2.95, 2.95, 0.65)),
     skirt_pitch_m=1.3,
@@ -289,7 +295,7 @@ HEAVY_LAYOUT = HullLayout(
     grill_rect=(-1.10, 1.40, 2.20, 1.00),
     rear_plate=(-1.50, 2.40, 3.00, 0.50),
     base_skirt=1,
-    turret_front_m=1.95,
+    turret_front_m=1.85,
     area_k=(1.20, 1.05, 1.20),
 )
 
@@ -379,6 +385,11 @@ CLASS_W_ARMOR = 1.0
 CLASS_W_POWER = 0.5
 CLASS_LIGHT_BELOW = -0.20      # индекс ниже этого: лёгкий
 CLASS_HEAVY_ABOVE = 0.15       # выше этого: тяжёлый (стартовые значения, подгоняются по отладке)
+CLASS_BORDER_EPS = 0.03        # «рядом с порогом»: ещё чуть-чуть, и силуэт сменится
+
+def near_class_border(index):
+    """Индекс в пределах CLASS_BORDER_EPS от порога смены класса."""
+    return min(abs(index - CLASS_LIGHT_BELOW), abs(index - CLASS_HEAVY_ABOVE)) <= CLASS_BORDER_EPS
 
 def class_index(armor_t, power_t):
     """Индекс «тяжести»: много брони и мало мощности = больше."""
@@ -394,3 +405,35 @@ def class_for_index(index):
 def classify(armor_t, power_t):
     """Класс корпуса по нормированным броне и мощности (обе 0..1)."""
     return class_for_index(class_index(armor_t, power_t))
+
+# ==========================================
+# 6. ПОЛОЖЕНИЕ БАШНИ ПО ТЯЖЕСТИ КОРПУСА
+# ==========================================
+TURRET_AXIS_FRONT_M = 0.3      # ось башни у эталона (минус = позади центра корпуса)
+TURRET_AXIS_REAR_M = -0.5      # самое заднее положение
+TURRET_SHIFT_FROM = -0.05      # индекс, с которого башня начинает уезжать назад (эталон ≈ -0.09 стоит на месте)
+TURRET_SHIFT_TO = 0.45         # индекс, на котором башня уже в крайнем заднем положении
+TURRET_AXIS_STEP_M = 0.1       # квантование: ограничивает число вариантов спрайта
+
+def turret_axis_for(cls, index):
+    """Ось башни вдоль корпуса, м (плюс = впереди центра корпуса). Чем тяжелее индекс, тем дальше назад.
+    У лёгкого корпуса башня всегда по центру."""
+    if cls is HullClass.LIGHT:
+        return LIGHT_LAYOUT.axis_fwd_m
+    t = clamp((index - TURRET_SHIFT_FROM) / (TURRET_SHIFT_TO - TURRET_SHIFT_FROM), 0.0, 1.0)
+    axis = round_to(lerp(TURRET_AXIS_FRONT_M, TURRET_AXIS_REAR_M, t), TURRET_AXIS_STEP_M)
+    return round(axis, 3) + 0.0                      # + 0.0 убирает «-0.0»
+
+_AXIS_CACHE = {}
+
+def layout_with_axis(base, axis_fwd_m):
+    """Раскладка с другим положением оси башни. Форма корпуса, гусеницы и плиты те же.
+    Применять ДО layout_with_nose: ключ нового варианта включает ось."""
+    if abs(base.axis_fwd_m - axis_fwd_m) < 1e-9:
+        return base
+    key = (base.key, axis_fwd_m)
+    layout = _AXIS_CACHE.get(key)
+    if layout is None:
+        layout = _AXIS_CACHE[key] = replace(base, key=f"{base.key}@{axis_fwd_m:+.1f}",
+                                            axis_fwd_m=axis_fwd_m)
+    return layout

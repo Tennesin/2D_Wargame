@@ -12,8 +12,7 @@ from .chassis_params import (
     V_AVG_BASE, V_AVG_GAIN, BACK_SPEED_K, V_BACK_CAP_KMH,
     ACCEL_K, ACCEL_MIN, ACCEL_MAX, ACCEL_TAIL_FLOOR, REVERSE_ACCEL_K, COAST_DECEL, BRAKE_DECEL,
     HULL_TURN_CAP, HULL_TURN_MIN, HULL_ALPHA_REF, HULL_ALPHA_MIN, HULL_ALPHA_MAX,
-    HP_EXP, HP_STEP, TRACK_WIDTH_M, TRACK_EDGE_ZONE_M,
-    FRONT_SCREEN, SCREEN_MASS_K, SCREEN_TURN_LOSS,
+    HP_EXP, HP_STEP, TFRONT_SCREEN, SCREEN_MASS_K, SCREEN_TURN_LOSS,
 )
 from .running_gear import RunningGear, TRACKS
 
@@ -38,7 +37,7 @@ class ChassisBody:
     coll_half_l_m: float      # половина длины гусениц, м
     coll_shift_m: float       # на сколько центр корпуса лежит позади оси башни, м
     gear: RunningGear = TRACKS  # тип ходовой части (поле с умолчанием должно быть последним)
-    layout: Optional[HullLayout] = None   # раскладка корпуса; None = старый путь (ПТ-САУ до этапа 11)
+    layout: Optional[HullLayout] = None
 
     @property
     def ref_pw(self):
@@ -48,13 +47,15 @@ class ChassisSpec:
     """Входы уже должны быть в допустимых границах (это делает конкретная спецификация)."""
 
     def __init__(self, body, front, side, rear, power, payload_t, screen_mm=0.0):
+        if body.layout is None:
+            raise ValueError("ChassisBody без раскладки корпуса: задайте layout (vehicles/hulls.py)")
         self.screen_mm = screen_mm
         self.body = body
         self.gear = body.gear
         self.layout = body.layout
         self.front, self.side, self.rear = front, side, rear
         self.power = power
-        self.payload_t = payload_t        # масса того, что стоит на шасси (башня, орудие), т
+        self.payload_t = payload_t
         self._calc_mass()
         self._calc_ratios()
         self._calc_mobility()
@@ -66,8 +67,10 @@ class ChassisSpec:
         self.m_fixed = b.fixed_t
         self.m_engine = b.engine_t_per_hp * self.power
         self.filling = self.m_fixed + self.m_engine + self.payload_t
-        self.size_k = (self.filling / b.ref_filling_t) ** (1.0 / 3.0)   # линейный размер, у эталона 1
-        areas = tuple(a * k for a, k in zip(b.areas_m2, self.layout.area_k))
+        self.size_k = (self.filling / b.ref_filling_t) ** (1.0 / 3.0)
+        layout = self.layout
+        area_k = layout.area_k if layout is not None else (1.0, 1.0, 1.0)
+        areas = tuple(a * k for a, k in zip(b.areas_m2, area_k))
         self.m_front, self.m_side, self.m_rear = armor_masses(
             areas, self.front + self.screen_mm * SCREEN_MASS_K, self.side, self.rear, self.size_k)
         self.m_armor = self.m_front + self.m_side + self.m_rear
@@ -75,7 +78,7 @@ class ChassisSpec:
 
     def _calc_ratios(self):
         b = self.body
-        self.HULL_SCALE = self.size_k if b.layout is None else b.layout.scale_for(self.size_k)
+        self.HULL_SCALE = b.layout.scale_for(self.size_k)
         self.pw = self.power / self.mass                              # удельная мощность
         self.s = 1.0 - math.exp(-self.pw / PW_SCALE)                  # «ходовая отдача» 0..1
         self.q_pw = self.pw / b.ref_pw                                # мощность относительно эталона
@@ -136,5 +139,3 @@ class ChassisSpec:
         self.COLLISION_SHIFT_PX = b.coll_shift_m * k
         self.HULL_REACH_PX = (math.hypot(self.COLLISION_HALF_W_PX, self.COLLISION_HALF_L_PX)
                               + abs(self.COLLISION_SHIFT_PX))
-        self.TRACK_BAND_PX = TRACK_WIDTH_M * k          # полоса гусеницы вдоль борта
-        self.TRACK_EDGE_PX = TRACK_EDGE_ZONE_M * k      # уязвимый конец гусеницы

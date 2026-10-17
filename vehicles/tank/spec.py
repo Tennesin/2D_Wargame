@@ -3,8 +3,11 @@ import itertools
 import math
 import dataclasses
 
-from ..hulls import (classify, class_index, class_for_index, layout_for, HULL_CLASS_RU,
-                     layout_with_nose, NOSE_FLAT, NOSE_PIKE, NOSE_RU, NOSE_MIN_FRONT_MM)
+from ..hulls import (
+    classify, class_index, class_for_index, layout_for, HULL_CLASS_RU,
+    layout_with_nose, NOSE_FLAT, NOSE_PIKE, NOSE_RU, NOSE_MIN_FRONT_MM, near_class_border,
+    layout_with_axis, turret_axis_for
+)
 from engine import clamp, fmt_num, PX_PER_M, round_to
 from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses
 from ..chassis_params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP, FRONT_SCREEN, SCREEN_LOOK_STEPS
@@ -132,7 +135,9 @@ class TankSpec(ChassisSpec):
         # класс корпуса зависит ТОЛЬКО от ползунков (не от массы)
         self.hull_index = class_index(*hull_inputs(front, side, rear, power))
         self.HULL_CLASS = class_for_index(self.hull_index)
-        layout = layout_with_nose(layout_for(self.HULL_CLASS), nose)
+        layout = layout_for(self.HULL_CLASS)
+        layout = layout_with_axis(layout, turret_axis_for(self.HULL_CLASS, self.hull_index))
+        layout = layout_with_nose(layout, nose)
         body = dataclasses.replace(TANK_BODY, layout=layout,
                                    coll_half_w_m=layout.coll_half_w_m,
                                    coll_half_l_m=layout.coll_half_l_m,
@@ -199,7 +204,8 @@ class TankSpec(ChassisSpec):
             "Время производства": f"{self.build_time:.1f} с",
             "HP": fmt_num(self.hp),
             "Масса": f"{self.mass:.1f} т",
-            "Корпус": HULL_CLASS_RU[self.HULL_CLASS],
+            "Корпус": HULL_CLASS_RU[self.HULL_CLASS]
+                      + (" (у границы)" if near_class_border(self.hull_index) else ""),
             "Нос корпуса": NOSE_RU[self.nose],
             "Макс. скорость": f"{self.v_max:.0f} км/ч",
             "Средняя скорость": f"{self.v_avg:.0f} км/ч",

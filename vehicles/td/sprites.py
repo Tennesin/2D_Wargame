@@ -18,9 +18,8 @@ TOOLBOX = (132, 124, 106)
 
 # Рубка/опора: сколько метров корпуса лежит ПОЗАДИ оси орудия, по уровням опоры
 CASEMATE_REACH = (1.9, 2.3, 2.8)
-DECK_TOP = -2.25         # начало палубы сразу за лобовой плитой (в координатах корпуса)
-HULL_FRONT_LIMIT = -2.55
-HULL_REAR_LIMIT = 2.8
+HULL_FRONT_MARGIN = 0.35   # рубка не заходит на лобовую плиту: её край + этот отступ
+HULL_REAR_MARGIN = 0.10    # и не выходит за корму корпуса
 OUTLINE_ANT = (38, 33, 28)
 
 class TDRenderer(GunVehicleRenderer):
@@ -32,13 +31,14 @@ class TDRenderer(GunVehicleRenderer):
     # ==========================================
 
     def _hull_shift_m(self, spec):
-        return spec.MOUNT_FWD_M
+        return spec.layout.axis_fwd_m
 
     def _build_hull(self, paint, look, spec):
         ppm = self._ppm
+        layout = spec.layout
         size = 2 * math.ceil(self.HULL_HALF_M * ppm)
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
-        mount = spec.MOUNT_FWD_M
+        mount = layout.axis_fwd_m
         axis = -mount                                  # ось орудия в координатах корпуса (перед = -y)
         support = spec.SUPPORT
         g = spec.CASE_K
@@ -55,38 +55,40 @@ class TDRenderer(GunVehicleRenderer):
         sup_dark = _paint(SUPPORT_DARK, paint)
         tool = _paint(TOOLBOX, paint)
 
-        # --- границы рубки: передняя грань чуть впереди оси, всё остальное позади неё ---
-        front = max(axis - TD_CASEMATE_AHEAD_M, HULL_FRONT_LIMIT)
-        rear = min(axis + CASEMATE_REACH[support] * g, HULL_REAR_LIMIT)
+        # --- границы рубки: выводятся из раскладки (для TD_LAYOUT это -2.55 и 2.8, как раньше) ---
+        front_limit = min(y for _, y in layout.front_plate) + HULL_FRONT_MARGIN
+        rear_limit = max(y for _, y in layout.outline) - HULL_REAR_MARGIN
+        front = max(axis - TD_CASEMATE_AHEAD_M, front_limit)
+        rear = min(axis + CASEMATE_REACH[support] * g, rear_limit)
         rear = max(rear, front + 1.3)
-        wf = 0.65 + 0.30 * g                                   # полуширина передней грани (g=1 даёт прежние 0.95)
-        wr = 0.80 + 0.35 * g + (0.10 if support >= 2 else 0.0)  # полуширина основной части
+        wf = 0.65 + 0.30 * g
+        wr = 0.80 + 0.35 * g + (0.10 if support >= 2 else 0.0)
 
         # Корпус и подкрылки
-        pen.poly(hull_main, [(-1.15, -2.9), (1.15, -2.9), (1.35, -2.3), (1.35, 2.65),
-                             (1.15, 2.9), (-1.15, 2.9), (-1.35, 2.65), (-1.35, -2.3)])
-        pen.rect(hull_dark, 1.35, -2.1, 0.22, 4.75)
-        pen.rect(hull_dark, -1.57, -2.1, 0.22, 4.75)
+        pen.poly(hull_main, layout.outline)
+        for fx, fy, fw, fh in layout.fender_rects:
+            pen.rect(hull_dark, fx, fy, fw, fh)
 
-        # Детали на крыльях: ящики ЗИП слева, буксирный трос справа
-        pen.rect(tool, -1.57, 0.45, 0.22, 0.95, r=0.04)
-        pen.rect(tool, -1.57, -1.75, 0.22, 0.55, r=0.04)
-        pen.line(GRILL_LINE, -1.46, 0.60, -1.46, 1.30, 0.04)
-        pen.line(CABLE, 1.46, -1.85, 1.46, 2.35, 0.07)
+        # Детали на крыльях: ящики ЗИП слева, буксирный трос справа (от положения подкрылков)
+        (rfx, _, rfw, _), (lfx, _, lfw, _) = layout.fender_rects
+        pen.rect(tool, lfx, 0.45, lfw, 0.95, r=0.04)
+        pen.rect(tool, lfx, -1.75, lfw, 0.55, r=0.04)
+        pen.line(GRILL_LINE, lfx + lfw / 2, 0.60, lfx + lfw / 2, 1.30, 0.04)
+        pen.line(CABLE, rfx + rfw / 2, -1.85, rfx + rfw / 2, 2.35, 0.07)
         for cy in (-1.3, 0.2, 1.7):
-            pen.rect(GRILL, 1.40, cy, 0.12, 0.14, outline=None)
+            pen.rect(GRILL, rfx + 0.05, cy, 0.12, 0.14, outline=None)
 
-        self._draw_skirts(pen, look.side, paint)
+        self._draw_skirts(pen, look.side + layout.base_skirt, paint, layout)
 
-        # Лобовая плита, палуба, накладная броня
-        pen.poly(hull_light, [(-1.15, -2.9), (1.15, -2.9), (1.35, -2.3), (-1.35, -2.3)])
-        pen.rect(deck, -1.25, -2.25, 2.50, 4.60)
-
-        self._draw_front_kit(pen, look.front, paint)
-        self._draw_front_screen(pen, look.screen, paint)
+        # Лобовая плита, палуба, накладная броня и экраны
+        pen.poly(hull_light, layout.front_plate)
+        pen.rect(deck, *layout.deck_rect)
+        self._draw_front_kit(pen, look.front, paint, layout)
+        self._draw_front_screen(pen, look.screen, paint, layout)
 
         # Детали лба: только люк механика-водителя
-        pen.ellipse(hull_dark, 0.78, -2.52, 0.20, 0.20)
+        hx, hy, hr = layout.hatch
+        pen.ellipse(hull_dark, hx, hy, hr, hr)
 
         # Моторная часть позади рубки (только когда орудие на лбу)
         if support == 0 and rear < 2.0:
@@ -103,7 +105,7 @@ class TDRenderer(GunVehicleRenderer):
                 pen.line(GRILL_LINE, -0.80, ly, 0.80, ly, 0.05)
                 ly += 0.25
             pen.rect(hull_dark, -0.95, 2.50, 1.90, 0.25)  # кормовая планка
-        self._draw_deck(pen, front, hull_dark)
+        self._draw_deck(pen, front, hull_dark, layout.deck_rect[1])
 
         # Опора (уровни 1 и 2): цоколь под рубкой; на уровне 2 ещё гладкий кормовой короб
         if support >= 1:
@@ -159,14 +161,14 @@ class TDRenderer(GunVehicleRenderer):
             pen.line(OUTLINE_ANT, -0.80, ay, -0.95, min(ay + 0.6, rear - 0.1), 0.04)
             pen.ellipse(case_dark, -0.80, ay, 0.09, 0.09)
 
-        self._draw_exhaust(pen, look.speed)
+        self._draw_exhaust(pen, look.speed, layout)
         return pygame.transform.smoothscale(big, (size, size))
 
     @staticmethod
-    def _draw_deck(pen, y_end, hull_dark):
+    def _draw_deck(pen, y_end, hull_dark, deck_top):
         """Моторная крышка на палубе между лобовой плитой и рубкой.
-        y_end: передний край рубки. Если места мало (орудие на лбу), палуба остаётся гладкой."""
-        y0 = DECK_TOP + 0.45
+        y_end: передний край рубки; deck_top: начало палубы по раскладке."""
+        y0 = deck_top + 0.45
         free = y_end - 0.15 - y0
         if free < 0.9:
             return

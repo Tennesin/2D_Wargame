@@ -68,6 +68,7 @@ class TankRenderer(GunVehicleRenderer):
                     layout.ring_r_m, layout.ring_r_m, outline=None)
 
         hx, hy, hr = layout.hatch                            # люк механика-водителя
+        hy = max(hy, layout.deck_rect[1] + hr + 0.12)        # не заходит на лобовую плиту и скаты носа
         pen.ellipse(hull_dark, hx, hy, hr, hr)
 
         gx, gy, gw, gh = layout.grill_rect                   # МТО: решётка и жалюзи

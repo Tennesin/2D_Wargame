@@ -12,10 +12,10 @@ from .hulls import NOSE_PIKE, NOSE_RU
 from combat import resolve_hit, Damageable
 from .chassis_params import (
     KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, ARMOR_K, TERRAIN_MIN_K, TERRAIN_BRAKE,
-    TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY, TRACK_LINK_M, TRACK_OFFSET_M, ONE_TRACK_SPEED_K,
+    TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY, TRACK_LINK_M, ONE_TRACK_SPEED_K,
     CONTACT_TURN_STEPS, CONTACT_PUSH_STEPS, SLIDE_ANGLES_DEG, SLIDE_MIN_PX, CONTACT_SCRUB,
     CONTACT_STOP_PROGRESS, PUSH_FRICTION_MS2, PUSH_STOP_PX, TERRAIN_SAMPLE_REACH,
-    SCREEN_HALF_W_M, SCREEN_FACE_EPS_PX, TRACK_EDGE_ZONE_M, TRACK_HIT_TOL_M
+    SCREEN_FACE_EPS_PX, TRACK_EDGE_ZONE_M, TRACK_HIT_TOL_M,
 )
 from .running_gear import TrackState, LEFT, RIGHT, TRACK_SIDES
 
@@ -33,8 +33,7 @@ class Vehicle(Damageable):
     @property
     def TRACK_RADIUS(self):
         """Расстояние от центра до гусеницы, px эталонного спрайта: колея берётся из раскладки."""
-        layout = self.spec.layout
-        return (layout.track_x if layout is not None else TRACK_OFFSET_M) * PX_PER_M
+        return self.spec.layout.track_x * PX_PER_M
 
     def __init__(self, x=0.0, y=0.0, *, spec, team_color=(200, 40, 40),
                  team=Team.PLAYER, label="техника", emblem=""):
@@ -126,14 +125,8 @@ class Vehicle(Damageable):
     # ---------- попадания снарядов (универсальный интерфейс цели) ----------
 
     def _local_parts(self):
-        """Выпуклые участки для попаданий в метрах корпуса (центр корпуса = (0, 0), перед = -v).
-        Без раскладки это прямоугольник хитбокса: те же числа, что у hull_obb."""
-        layout = self.spec.layout
-        if layout is not None:
-            return layout.hit_parts
-        b = self.spec.body
-        hw, hl = b.coll_half_w_m, b.coll_half_l_m
-        return (((-hw, -hl), (hw, -hl), (hw, hl), (-hw, hl)),)
+        """Выпуклые участки для попаданий в метрах корпуса (центр корпуса = (0, 0), перед = -v)."""
+        return self.spec.layout.hit_parts
 
     def _to_hull_local(self, x, y):
         """Мировая точка -> метры корпуса (u вправо, v назад)."""
@@ -174,10 +167,8 @@ class Vehicle(Damageable):
 
     def plate_at(self, normal, hull_angle=None):
         """Плита брони, принявшая удар: та, чья наружная нормаль ближе всего к normal (мировая).
-        None, если у техники нет раскладки. Нормаль None (выстрел начался внутри) = боковая плита."""
+        Нормаль None (выстрел начался внутри) = боковая плита."""
         layout = self.spec.layout
-        if layout is None:
-            return None
         if normal is None:
             return next((p for p in layout.plates if p.zone == "side"), layout.plates[0])
         ang = self.hull_angle if hull_angle is None else hull_angle
@@ -191,6 +182,7 @@ class Vehicle(Damageable):
         s = self.spec
         zone = self.zone_at(normal, hull_angle)
         base = {"front": s.front, "side": s.side, "rear": s.rear}[zone]
+        base *= self.plate_at(normal, hull_angle).k
         plate = self.plate_at(normal, hull_angle)
         if plate is not None:
             base *= plate.k
@@ -251,8 +243,6 @@ class Vehicle(Damageable):
         """Какую гусеницу задевает точка попадания (x, y): "left" / "right" или None.
         Сбить можно только передний или задний конец гусеницы (TRACK_EDGE_ZONE_M)."""
         layout = self.spec.layout
-        if layout is None:
-            return self._track_at_legacy(x, y)
         u, v = self._to_hull_local(x, y)
         tol = TRACK_HIT_TOL_M
         for side, (x0, y0, x1, y1) in zip((LEFT, RIGHT), layout.track_rects):
@@ -262,21 +252,6 @@ class Vehicle(Damageable):
                 return side
         return None
 
-    def _track_at_legacy(self, x, y):
-        """Старая логика по прямоугольнику хитбокса. Нужна технике без раскладки (удалить на этапе 11)."""
-        cx, cy, hw, hl, ang = self.hull_obb()
-        rad = math.radians(ang)
-        c, sn = math.cos(rad), math.sin(rad)
-        dx, dy = x - cx, y - cy
-        u = dx * c + dy * sn            # поперёк корпуса (+ вправо)
-        v = -dx * sn + dy * c           # вдоль корпуса (минус = нос)
-        s = self.spec
-        if abs(u) < hw - s.TRACK_BAND_PX:       # не в полосе гусеницы
-            return None
-        if abs(v) < hl - s.TRACK_EDGE_PX:       # не у переднего или заднего края
-            return None
-        return LEFT if u < 0.0 else RIGHT
-
     def screen_at(self, x, y):
         """Попала ли точка (x, y) в лобовые экраны: передняя грань корпуса, средняя часть по ширине.
         Если экранов нет (screen_mm = 0), всегда False."""
@@ -284,24 +259,10 @@ class Vehicle(Damageable):
         if s.screen_mm <= 0.0:
             return False
         layout = s.layout
-        if layout is None:
-            return self._screen_at_legacy(x, y)
         u, v = self._to_hull_local(x, y)
         k = s.HULL_SCALE * PX_PER_M
         x0, x1 = layout.screen_x
         return v <= layout.screen_y + SCREEN_FACE_EPS_PX / k and x0 <= u <= x1
-
-    def _screen_at_legacy(self, x, y):
-        """Старая логика (удалить на этапе 11)."""
-        s = self.spec
-        cx, cy, hw, hl, ang = self.hull_obb()
-        rad = math.radians(ang)
-        c, sn = math.cos(rad), math.sin(rad)
-        dx, dy = x - cx, y - cy
-        u = dx * c + dy * sn            # поперёк корпуса
-        v = -dx * sn + dy * c           # вдоль корпуса (минус = нос)
-        half = SCREEN_HALF_W_M * s.HULL_SCALE * PX_PER_M
-        return v <= -hl + SCREEN_FACE_EPS_PX and abs(u) <= half
 
     def module_at(self, x, y):
         """Внешний модуль, который первым задевает точка попадания (x, y).
