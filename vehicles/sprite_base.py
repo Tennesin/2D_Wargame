@@ -3,12 +3,13 @@
 (tank/sprites.py, td/sprites.py). Все размеры здесь в МЕТРАХ эталонного спрайта
 (x вправо, y вниз, перед = -y)."""
 import math
+import random
 
 import pygame
 
-from engine import LRUCache, SHADOW_ALPHA, heading_vector, clamp, Team, PX_PER_M
+from engine import LRUCache, SHADOW_ALPHA, heading_vector, clamp, Team, PX_PER_M, lerp_color
 from .chassis_params import TRACK_LINK_M
-from .hulls import NOSE_FLAT, screen_pieces, SCREEN_OFFSET_M, SCREEN_THICK_M
+from .hulls import NOSE_FLAT, screen_pieces, SCREEN_OFFSET_M, SCREEN_THICK_M, PIKE_BAND_M
 from .running_gear import LEFT, RIGHT
 from .gun_params import BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M
 
@@ -55,6 +56,18 @@ EMBLEM_COLOR = (245, 215, 80)
 ANGLE_STEPS = 480
 ANGLE_STEP = 360.0 / ANGLE_STEPS
 ROT_CACHE_BYTES = 48 * 1024 * 1024       # бюджет памяти под кэш повёрнутых поверхностей
+# --- фактура корпуса ---
+GRAIN_TILE_PX = 128          # сторона бесшовного тайла зерна, px
+GRAIN_DOTS = 2600            # сколько точек зерна на тайл
+GRAIN_DEPTH = 0.09           # самая тёмная точка затемняет цвет на столько (0.09 = 9%)
+GRAIN_BASE = 0.015           # общее лёгкое затемнение тайла
+GRAIN_SCRATCHES = 40         # короткие царапины на тайл
+GRAIN_MIN_PPM = 16.0         # при меньшем масштабе (пикселей на метр) зерно не накладываем: оно мерцает
+
+SEAM_FRACS = (0.30, 0.62)    # где на палубе идут поперечные швы (доли длины палубы)
+SEAM_W_M = 0.05              # толщина шва, м
+RIVET_R_M = 0.04             # радиус заклёпки, м
+RIVET_STEP_M = 0.5           # примерный шаг заклёпок вдоль шва, м
 
 def apply_paint(color, paint):
     """Подмешивает цвет команды к цвету детали. paint=None: деталь остаётся как есть."""
@@ -65,6 +78,57 @@ def apply_paint(color, paint):
 def layout_of(spec):
     """Раскладка корпуса техники (она есть у всей техники)."""
     return spec.layout
+
+_grain_tile = None
+
+def _make_grain_tile():
+    """Бесшовный тайл: светлый фон с редкими тёмными точками и короткими царапинами.
+    Каждая точка занимает один пиксель, поэтому швов на стыках тайлов нет;
+    царапины заворачиваются по модулю, чтобы они тоже не рвались на краю."""
+    rng = random.Random(20240)
+    T = GRAIN_TILE_PX
+    tile = pygame.Surface((T, T))
+    base = round(255 * (1.0 - GRAIN_BASE))
+    tile.fill((base, base, base))
+    for _ in range(GRAIN_DOTS):
+        x, y = rng.randrange(T), rng.randrange(T)
+        v = 255 - round(255 * GRAIN_DEPTH * rng.random() ** 1.5)    # чаще слабые, изредка сильные
+        tile.set_at((x, y), (v, v, v))
+    for _ in range(GRAIN_SCRATCHES):
+        x, y = rng.randrange(T), rng.randrange(T)
+        sx, sy = rng.choice(((1, 0), (0, 1), (1, 1), (1, -1)))
+        v = 255 - round(255 * GRAIN_DEPTH * 0.9)
+        for i in range(rng.randint(3, 8)):
+            tile.set_at(((x + sx * i) % T, (y + sy * i) % T), (v, v, v))
+    return tile.convert()
+
+def apply_grain(surf, ppm, offset=(0, 0)):
+    """Накладывает зерно на готовый спрайт (после smoothscale). BLEND_RGB_MULT меняет только цвет,
+    альфа-канал (прозрачность вокруг корпуса) остаётся прежним. offset разводит узор корпуса и башни."""
+    global _grain_tile
+    if ppm < GRAIN_MIN_PPM:
+        return
+    if _grain_tile is None:
+        _grain_tile = _make_grain_tile()
+    T = GRAIN_TILE_PX
+    w, h = surf.get_size()
+    ox, oy = offset
+    for y in range(-(oy % T), h, T):
+        for x in range(-(ox % T), w, T):
+            surf.blit(_grain_tile, (x, y), special_flags=pygame.BLEND_RGB_MULT)
+
+def _outline_x_at(outline, y):
+    """Левый и правый край выпуклого контура на высоте y: (x_мин, x_макс) или (None, None)."""
+    xs = []
+    n = len(outline)
+    for i in range(n):
+        (x0, y0), (x1, y1) = outline[i], outline[(i + 1) % n]
+        if min(y0, y1) <= y <= max(y0, y1):
+            if y1 == y0:
+                xs += [x0, x1]
+            else:
+                xs.append(x0 + (x1 - x0) * (y - y0) / (y1 - y0))
+    return (min(xs), max(xs)) if xs else (None, None)
 
 # ==========================================
 # 2. «РУЧКА» ДЛЯ РИСОВАНИЯ В МЕТРАХ
@@ -269,6 +333,11 @@ class GunVehicleRenderer:
             self._shadow_buf.set_alpha(SHADOW_ALPHA)
         return self._shadow_buf
 
+    def _finish(self, surf, offset=(0, 0)):
+        """Финальная обработка готового спрайта корпуса, башни или маски: зерно."""
+        apply_grain(surf, self._ppm, offset)
+        return surf
+
     def _get_sil(self, key, surface):
         return self._sil_cache.get_or_build(key, lambda: self._make_silhouette(surface))
 
@@ -368,6 +437,24 @@ class GunVehicleRenderer:
                 pen.rect(color, x, y0 + i * step + 0.03, width, step - 0.06)
 
     @staticmethod
+    def _draw_seams(pen, layout, color):
+        """Поперечные швы листов палубы от борта до борта, с рядом заклёпок.
+        Шов доходит до самого контура корпуса, поэтому пересекает палубу и стыкуется с бортами:
+        это «сшивает» части корпуса. Рисовать ПОСЛЕ палубы и ДО решёток, люков и башни."""
+        dx, dy, dw, dh = layout.deck_rect
+        for t in SEAM_FRACS:
+            y = dy + dh * t
+            lo, hi = _outline_x_at(layout.outline, y)
+            if lo is None:
+                continue
+            x0, x1 = lo + 0.06, hi - 0.06
+            pen.line(color, x0, y, x1, y, SEAM_W_M)
+            n = max(2, round((x1 - x0) / RIVET_STEP_M))
+            for i in range(1, n):
+                pen.ellipse(color, x0 + (x1 - x0) * i / n, y + 0.11,
+                            RIVET_R_M, RIVET_R_M, outline=None)
+
+    @staticmethod
     def _draw_front_kit(pen, level, paint, layout):
         """Накладная броня на лобовой плите."""
         if level <= 0:
@@ -407,12 +494,58 @@ class GunVehicleRenderer:
             pen.ellipse(GRILL, x, layout.exhaust_y, r, r)
 
     @staticmethod
-    def _draw_pike_plate(pen, layout, light, main):
-        """Щучий нос: два ската от острия к плечам, левый светлее правого."""
+    def _draw_deck(pen, y_end, hull_dark, deck_top, half_w=1.05, lead=0.45, min_free=0.9):
+        """Моторная крышка на палубе между носом и башней."""
+        y0 = deck_top + lead
+        free = y_end - 0.15 - y0
+        if free < min_free:
+            return
+        gw = half_w - 0.15
+        pen.rect(hull_dark, -half_w, y0, 2.0 * half_w, free, r=0.05)        # рама крышки
+        pen.rect(GRILL, -gw, y0 + 0.12, 2.0 * gw, free - 0.24)              # решётка
+        ly = y0 + 0.32
+        while ly < y0 + free - 0.2:                                         # жалюзи
+            pen.line(GRILL_LINE, -(gw - 0.14), ly, gw - 0.14, ly, 0.05)
+            ly += 0.26
+        if free >= 2.2:                                                     # длинная палуба: два люка
+            pen.rect(hull_dark, -gw, y0 + free / 2.0 - 0.05, 2.0 * gw, 0.10, outline=None)
+
+    @staticmethod
+    def _draw_pike_plate(pen, layout, paint):
+        """Щучий нос: две полосы вдоль скатов (близкие тона) и клин палубы с V-образным передним краем.
+        Рисовать ПОСЛЕ прямоугольника палубы: клин и полосы перекрывают его верхний контур."""
         left, tip, right = layout.front_plate
-        mid = (0.0, left[1])
-        pen.poly(light, [left, tip, mid])
-        pen.poly(main, [tip, right, mid])
+        hw = right[0]
+        sh_y, tip_y = left[1], tip[1]
+        b = PIKE_BAND_M
+        apex = (0.0, tip_y + b)                    # вершина V
+        lo_l, lo_r = (-hw, sh_y + b), (hw, sh_y + b)
+
+        c_left = apply_paint(lerp_color(HULL_MAIN, HULL_LIGHT, 0.45), paint)
+        c_right = apply_paint(lerp_color(HULL_MAIN, DECK, 0.30), paint)
+        c_deck = apply_paint(DECK, paint)
+        seam = apply_paint(HULL_DARK, paint)
+
+        pen.poly(c_left, [left, tip, apex, lo_l], outline=None)
+        pen.poly(c_right, [tip, right, lo_r, apex], outline=None)
+        pen.poly(c_deck, [lo_l, apex, lo_r], outline=None)
+
+        # наружный контур скатов (полосы перекрыли внутреннюю половину обводки корпуса)
+        ow = OUTLINE_W / pen.k
+        pen.line(OUTLINE, left[0], left[1], tip[0], tip[1], ow)
+        pen.line(OUTLINE, tip[0], tip[1], right[0], right[1], ow)
+
+        # гребень: от острия по оси, продолжается на клин палубы
+        pen.line(seam, 0.0, tip_y + 0.06, 0.0, tip_y + b + 0.7, 0.05)
+
+        # V-шов и заклёпки вдоль него
+        for a, c in ((lo_l, apex), (apex, lo_r)):
+            pen.line(seam, a[0], a[1], c[0], c[1], 0.05)
+            n = max(2, round(math.hypot(c[0] - a[0], c[1] - a[1]) / 0.45))
+            for i in range(1, n):
+                t = i / n
+                pen.ellipse(seam, a[0] + (c[0] - a[0]) * t, a[1] + (c[1] - a[1]) * t - 0.10,
+                            RIVET_R_M, RIVET_R_M, outline=None)
 
     # ---------- ствол (одинаковый у всех) ----------
     def _build_barrel(self, bl, bt, look):

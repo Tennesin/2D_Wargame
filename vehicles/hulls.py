@@ -17,6 +17,9 @@ NOSE_MIN_FRONT_MM = 250.0   # щучий нос доступен при лобо
 NOSE_ANGLE_DEG = 38.0       # угол плит к направлению «в лоб»; строго меньше 60°
 NOSE_COMP = 0.5             # 0: плиты полной толщины (лоб сильнее ползунка), 1: ровно «ползунок» в лоб
 NOSE_TIP_MARGIN_M = 0.05    # остриё не доходит до переднего края хитбокса на столько
+PIKE_BAND_M = 0.55          # толщина «плиты носа» вдоль скатов; за ней идёт V-образный клин палубы
+HULL_STYLE_CLASSIC = "classic"              # люк механика и решётка МТО сзади от башни
+HULL_STYLE_FRONT_ENGINE = "front_engine"    # МТО спереди (моторная крышка), люка нет
 
 # ==========================================
 # 1. КЛАССЫ И ПЛИТЫ
@@ -215,9 +218,9 @@ LIGHT_LAYOUT = HullLayout(
     outline=((-1.00, -2.80), (1.00, -2.80), (1.25, -2.15), (1.25, 1.90),
              (1.00, 3.05), (-1.00, 3.05), (-1.25, 1.90), (-1.25, -2.15)),
     track_x=1.45, track_w=0.64, track_top=-3.15, track_len=6.3,
-    axis_fwd_m=0.0,                                   # башня по центру
+    axis_fwd_m=0.4,
     coll_half_w_m=1.77, coll_half_l_m=3.15,
-    hit_parts=(_rect(1.25, 2.925, 0.0, 0.125),        # корпус: y от -2.80 до 3.05
+    hit_parts=(_rect(1.25, 2.925, 0.0, 0.125),        # корпус
                _rect(0.32, 3.15, -1.45, 0.0),         # левая гусеница
                _rect(0.32, 3.15, 1.45, 0.0)),         # правая гусеница
     plates=_rect_plates(1.77, 3.15),
@@ -235,12 +238,12 @@ LIGHT_LAYOUT = HullLayout(
     deck_rect=(-1.10, -2.10, 2.20, 4.40),
     canvas_half_m=3.7,
     scale_range=(0.80, 0.92), scale_step=0.02,
-    hatch=(0.55, -1.70, 0.20),
+    hatch=(0.85, -1.70, 0.20),
     grill_rect=(-0.80, 1.15, 1.60, 1.20),
     rear_plate=(-1.00, 2.45, 2.00, 0.60),
     turret_front_m=1.35,
     turret_scale_range=(0.95, 1.15),
-    turret_k=1.0,
+    turret_k=0.92,
     area_k=(0.80, 0.88, 0.80),
 )
 
@@ -281,7 +284,7 @@ HEAVY_LAYOUT = HullLayout(
                _rect(0.40, 3.15, -1.8, 0.0),
                _rect(0.40, 3.15, 1.8, 0.0)),
     plates=_rect_plates(2.18, 3.15),
-    ring_r_m=1.40, turret_style="cast", hull_style="classic",
+    ring_r_m=1.40, turret_style="cast", hull_style=HULL_STYLE_FRONT_ENGINE,
     skirt_outer_x=2.2,
     skirt_levels=((-2.4, 2.6, 0.55), (-2.95, 2.95, 0.65)),
     skirt_pitch_m=1.3,
@@ -398,7 +401,7 @@ def _make_pike(base):
 
     fenders = []                                             # подкрылки не должны висеть перед плечами
     for fx, fy, fw, fh in base.fender_rects:
-        y0 = max(fy, sh_y)
+        y0 = max(fy, sh_y + PIKE_BAND_M)                     # подкрылок начинается там, где кончается плита носа
         fenders.append((fx, y0, fw, fy + fh - y0))
 
     centroid_y = (tip_y + 2.0 * sh_y) / 3.0                  # накладная броня: вписана в треугольник

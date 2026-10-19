@@ -3,7 +3,7 @@
 import math
 import pygame
 
-from ..hulls import NOSE_PIKE
+from ..hulls import NOSE_PIKE, PIKE_BAND_M
 from ..sprite_base import (
     GunVehicleRenderer, Pen as _Pen, apply_paint as _paint, SS,
     HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, GRILL, GRILL_LINE,
@@ -82,10 +82,12 @@ class TDRenderer(GunVehicleRenderer):
 
         # Лобовая плита, палуба, накладная броня и экраны
         if layout.nose == NOSE_PIKE:
-            self._draw_pike_plate(pen, layout, hull_light, hull_main)
+            pen.rect(deck, *layout.deck_rect)
+            self._draw_pike_plate(pen, layout, paint)
         else:
             pen.poly(hull_light, layout.front_plate)
-        pen.rect(deck, *layout.deck_rect)
+            pen.rect(deck, *layout.deck_rect)
+        self._draw_seams(pen, layout, hull_dark)
         self._draw_front_kit(pen, look.front, paint, layout)
         self._draw_front_screen(pen, look.screen, paint, layout)
 
@@ -104,7 +106,8 @@ class TDRenderer(GunVehicleRenderer):
                 pen.line(GRILL_LINE, -0.80, ly, 0.80, ly, 0.05)
                 ly += 0.25
             pen.rect(hull_dark, -0.95, 2.50, 1.90, 0.25)  # кормовая планка
-        self._draw_deck(pen, front, hull_dark, layout.deck_rect[1])
+        lead = PIKE_BAND_M + 0.10 if layout.nose == NOSE_PIKE else 0.45
+        self._draw_deck(pen, front, hull_dark, layout.deck_rect[1], lead=lead)
 
         # Опора (уровни 1 и 2): цоколь под рубкой; на уровне 2 ещё гладкий кормовой короб
         if support >= 1:
@@ -161,24 +164,7 @@ class TDRenderer(GunVehicleRenderer):
             pen.ellipse(case_dark, -0.80, ay, 0.09, 0.09)
 
         self._draw_exhaust(pen, look.speed, layout)
-        return pygame.transform.smoothscale(big, (size, size))
-
-    @staticmethod
-    def _draw_deck(pen, y_end, hull_dark, deck_top):
-        """Моторная крышка на палубе между лобовой плитой и рубкой.
-        y_end: передний край рубки; deck_top: начало палубы по раскладке."""
-        y0 = deck_top + 0.45
-        free = y_end - 0.15 - y0
-        if free < 0.9:
-            return
-        pen.rect(hull_dark, -1.05, y0, 2.10, free, r=0.05)             # рама крышки
-        pen.rect(GRILL, -0.90, y0 + 0.12, 1.80, free - 0.24)           # решётка
-        ly = y0 + 0.32
-        while ly < y0 + free - 0.2:                                    # жалюзи
-            pen.line(GRILL_LINE, -0.76, ly, 0.76, ly, 0.05)
-            ly += 0.26
-        if free >= 2.2:                                                # длинная палуба: делим на два люка
-            pen.rect(hull_dark, -0.90, y0 + free / 2.0 - 0.05, 1.80, 0.10, outline=None)
+        return self._finish(pygame.transform.smoothscale(big, (size, size)))
 
     # ==========================================
     # ЛАФЕТ ОРУДИЯ
@@ -210,7 +196,7 @@ class TDRenderer(GunVehicleRenderer):
             (-wf, -front + 0.12),
         ])
 
-        return pygame.transform.smoothscale(big, (size, size))
+        return self._finish(pygame.transform.smoothscale(big, (size, size)), (41, 67))
 
     def _draw_front_layer(self, screen, tank, cx, cy, hull_k, hull_scale, team, paint, look):
         """Маска вращается вместе с корпусом (hull_k), а не с орудием, и лежит поверх ствола."""
