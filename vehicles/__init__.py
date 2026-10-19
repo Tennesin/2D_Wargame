@@ -9,7 +9,7 @@ from .gun_tuning import (damage_range, pen_range, remap, nominal_damage, nominal
                          GunProfile, MBT_GUN, TD_GUN, default_tuning)
 from .ammo import AmmoType, AMMO_TYPES, AMMO_ORDER, ammo_stats
 from .tank import (Tank, TankSpec, TankRenderer, PARAMS as TANK_PARAMS, COST_REF, cost_for,
-                   LOOK_FRONT_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO)
+                   caliber_range_for, LOOK_FRONT_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO)
 from .td import TDSpec, TankDestroyer, TDRenderer, TD_PARAMS, gun_arc_deg
 from .registry import VehicleType, VEHICLE_TYPES, RENDERERS, make_vehicle
 from .running_gear import RunningGear, TRACKS, TRACK_SIDES
@@ -18,7 +18,7 @@ from .hulls import (HullClass, HullLayout, ArmorPlate, LAYOUTS, layout_for, MEDI
                     nose_front_factor)
 
 __all__ = ["Vehicle", "GunVehicle", "Tank", "TankSpec", "TankRenderer", "TANK_PARAMS", "COST_REF",
-           "LOOK_FRONT_RATIO", "LOOK_GUN_RATIO", "LOOK_SPEED_RATIO", "cost_for",
+           "LOOK_FRONT_RATIO", "LOOK_GUN_RATIO", "LOOK_SPEED_RATIO", "cost_for", "caliber_range_for",
            "GUN_TUNE_PARAMS", "damage_range", "pen_range", "remap", "TRACKS", "TRACK_SIDES",
            "nominal_damage", "nominal_pen", "GunProfile", "MBT_GUN", "TD_GUN", "default_tuning",
            "TDSpec", "TankDestroyer", "TDRenderer", "TD_PARAMS", "gun_arc_deg",

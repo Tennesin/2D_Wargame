@@ -41,7 +41,8 @@ class GunSpec:
 
     def __init__(self, cal, size_k, power, m_gun, m_turret, arc_deg=360.0,
                  damage=None, penetration=None, profile=MBT_GUN,
-                 front_m=TURRET_FRONT_M, barrel_ref_m=BARREL_VIS_REF_M):
+                 front_m=TURRET_FRONT_M, barrel_ref_m=BARREL_VIS_REF_M,
+                 turret_scale_range=None):
         """profile — профиль орудия (бонус урона и пробития); front_m — на сколько метров вперёд
         от оси выступает маска орудия; barrel_ref_m — визуальная длина ствола эталона."""
         self.cal = cal
@@ -49,6 +50,8 @@ class GunSpec:
         self.profile = profile
         self.GUN_FRONT_M = front_m
         self.BARREL_REF_M = barrel_ref_m
+        if turret_scale_range is not None:
+            self.TURRET_SCALE_RANGE = turret_scale_range
         self._calc_basics(size_k)
         self._calc_turret(size_k, power, m_gun, m_turret)
         self._calc_gun(damage, penetration)

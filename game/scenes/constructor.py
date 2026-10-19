@@ -1,12 +1,12 @@
 """game/scenes/constructor.py — конструктор: настройка техники (ОБТ или ПТ-САУ) без езды, стрельбы и стен."""
 import pygame
 
-from engine import PX_PER_M, VehicleCommand, VehicleKind
+from engine import PX_PER_M, VehicleCommand, VehicleKind, clamp
 from inputs import InputHandler, Action
 from ui import SidePanel, Button, ACTIVE_BUTTON_COLORS
 from ui.theme import PANEL_WIDTH
 from vehicles import (GUN_TUNE_PARAMS, damage_range, pen_range, remap,
-                      VEHICLE_TYPES, RENDERERS, make_vehicle,
+                      VEHICLE_TYPES, RENDERERS, make_vehicle, caliber_range_for,
                       NOSE_FLAT, NOSE_PIKE, NOSE_MIN_FRONT_MM)
 from world import Camera
 from ..panels import PanelMode, PANEL_OF, build_tank_panel, build_td_panel
@@ -44,6 +44,8 @@ class ConstructorScene(Scene):
 
         # коридоры урона и пробития зависят от калибра и профиля: СНАЧАЛА границы, ПОТОМ значения
         values = session.values[kind]
+        self._cal = self._want_cal = values["gun_caliber_mm"]
+        values = self._apply_class_rules(values)
         self._cal = values["gun_caliber_mm"]
         self._ranges = (damage_range(self._cal, self._profile), pen_range(self._cal, self._profile))
         self.ui.set_range(self._mode, "gun_damage", *self._ranges[0])
@@ -89,6 +91,8 @@ class ConstructorScene(Scene):
         self._mode = PANEL_OF[kind]
         self._profile = VEHICLE_TYPES[kind].gun_profile
         values = self.session.values[kind]
+        self._cal = self._want_cal = values["gun_caliber_mm"]
+        values = self._apply_class_rules(values)
         self._cal = values["gun_caliber_mm"]
         self._ranges = (damage_range(self._cal, self._profile), pen_range(self._cal, self._profile))
         self.ui.set_range(self._mode, "gun_damage", *self._ranges[0])
@@ -102,8 +106,7 @@ class ConstructorScene(Scene):
 
     # ---------- конструктор ----------
     def _on_change(self, values):
-        """Ползунок сдвинут: при смене калибра пересчитываем коридоры, затем запоминаем значения
-        в сессии (для текущего типа) и пересчитываем машину."""
+        values = self._apply_class_rules(values)       # сначала подрезаем калибр по классу
         cal = values["gun_caliber_mm"]
         if cal != self._cal:
             values = self._change_caliber(cal, values)
@@ -130,6 +133,22 @@ class ConstructorScene(Scene):
             values["front_nose"] = NOSE_FLAT
         self.ui.set_enabled(self._mode, "front_nose", allowed)
         self.ui.set_values(self._mode, values)
+        return values
+
+    def _apply_class_rules(self, values):
+        """Калибр зависит от тяжести корпуса (броня и мощность). Для ПТ-САУ правило не действует.
+        _want_cal: калибр, который игрок выбрал сам; границы могут его временно срезать,
+        а при возврате диапазона он восстанавливается."""
+        if self.session.kind is not VehicleKind.MBT:
+            return values
+        values = dict(values)
+        if values["gun_caliber_mm"] != self._cal:          # калибр двинул сам игрок
+            self._want_cal = values["gun_caliber_mm"]
+        lo, hi = caliber_range_for(values["front_armor_mm"], values["side_armor_mm"],
+                                   values["rear_armor_mm"], values["engine_power_hp"])
+        values["gun_caliber_mm"] = clamp(self._want_cal, lo, hi)
+        self.ui.set_range(self._mode, "gun_caliber_mm", lo, hi)
+        self.ui.set_values(self._mode, {"gun_caliber_mm": values["gun_caliber_mm"]})
         return values
 
     def _change_caliber(self, cal, values):

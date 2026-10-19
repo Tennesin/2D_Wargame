@@ -6,7 +6,7 @@ import dataclasses
 from ..hulls import (
     classify, class_index, class_for_index, layout_for, HULL_CLASS_RU,
     layout_with_nose, NOSE_FLAT, NOSE_PIKE, NOSE_RU, NOSE_MIN_FRONT_MM, near_class_border,
-    layout_with_axis, turret_axis_for
+    layout_with_axis, turret_axis_for, caliber_limits
 )
 from engine import clamp, fmt_num, PX_PER_M, round_to
 from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses
@@ -62,6 +62,11 @@ def hull_inputs(front, side, rear, power):
                     / (_ARMOR_IDX_MAX - _ARMOR_IDX_MIN), 0.0, 1.0)
     power_t = clamp((power - _POWER.min) / (_POWER.max - _POWER.min), 0.0, 1.0)
     return armor_t, power_t
+
+def caliber_range_for(front, side, rear, power):
+    """(мин, макс) калибра, допустимые для корпуса, который получится при таких броне и мощности.
+    Нужна конструктору (границы ползунка) и подбору сборок ботов."""
+    return caliber_limits(class_index(*hull_inputs(front, side, rear, power)))
 
 # ==========================================
 # 2. СТОИМОСТЬ: индекс ценности -> цена
@@ -127,12 +132,15 @@ class TankSpec(ChassisSpec):
             nose = NOSE_FLAT                    # щучий нос только при лобовой броне больше порога
         self.nose = nose
 
+        # класс корпуса зависит ТОЛЬКО от брони и мощности (не от массы и не от калибра)
+        self.hull_index = class_index(*hull_inputs(front, side, rear, power))
+        self.HULL_CLASS = class_for_index(self.hull_index)
+
+        lo, hi = caliber_limits(self.hull_index)    # страховка: даже в обход интерфейса калибр подрежется
+        cal = clamp(cal, lo, hi)
         self.cal = cal
         self.m_gun, self.m_turret = turret_masses(cal)
 
-        # класс корпуса зависит ТОЛЬКО от ползунков (не от массы)
-        self.hull_index = class_index(*hull_inputs(front, side, rear, power))
-        self.HULL_CLASS = class_for_index(self.hull_index)
         layout = layout_for(self.HULL_CLASS)
         layout = layout_with_axis(layout, turret_axis_for(self.HULL_CLASS, self.hull_index))
         layout = layout_with_nose(layout, nose)
@@ -146,7 +154,8 @@ class TankSpec(ChassisSpec):
         # arc_deg=360: круговая башня. У будущей ПТ-САУ здесь будет маленький сектор.
         self.gun = GunSpec(cal, self.size_k, power, self.m_gun, self.m_turret, arc_deg=360.0,
                            damage=damage, penetration=penetration,
-                           front_m=layout.turret_front_m)
+                           front_m=layout.turret_front_m,
+                           turret_scale_range=layout.turret_scale_range)
         self.__dict__.update(vars(self.gun))
         self.HULL_VARIANT = (self.layout.key,)
 

@@ -32,6 +32,7 @@ class Archetype:
     emblem: str = ""                    # деталь на башне для узнавания: "" нет, "chevron" и т.д.
     kind: VehicleKind = VehicleKind.MBT # тип техники: ОБТ или ПТ-САУ
     nose: str = NOSE_FLAT               # нос корпуса
+    screen_mm: tuple = (0.0, 0.0)       # (мин, макс) толщины лобовых экранов, мм; кратно шагу ползунка
 
 @dataclass(frozen=True)
 class Skill:
@@ -60,12 +61,12 @@ BUNKER = Archetype(
     budget_k=1.4, spawn_weight=0.5, edge_k=0.3,
     aspect_deg=0.0, aspect_tol_deg=35.0, aspect_drive=3.0,
     damage_band=(0.40, 0.60), pen_band=(0.40, 0.60),
-    nose=NOSE_PIKE)
+    screen_mm=(15.0, 45.0))
 
 DESTROYER = Archetype(
     "Уничтожитель",
-    {"gun_caliber_mm": 1.0, "front_armor_mm": 0.30, "side_armor_mm": 0.10,
-     "rear_armor_mm": 0.08, "engine_power_hp": 0.7},
+    {"gun_caliber_mm": 1.0, "front_armor_mm": 0.65, "side_armor_mm": 0.10,
+     "rear_armor_mm": 0.08, "engine_power_hp": 0.5},
     (96, 72, 214),
     engage_dist_m=28.0, flank_bias=0.2,
     retreat_hp=0.5, cover_bias=0.8,

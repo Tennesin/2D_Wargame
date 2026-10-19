@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 from enum import Enum, auto
 
 from engine import edge_normal_away, is_convex, shrink_polygon, clamp, lerp, round_to
-from .gun_params import TURRET_FRONT_M
+from .gun_params import TURRET_FRONT_M, CALIBER
 
 # ==========================================
 # 0. ВАРИАНТЫ ЛБА
@@ -131,6 +131,7 @@ class HullLayout:
     turret_front_m: float = TURRET_FRONT_M         # где из башни выходит ствол, м вперёд от оси
     nose: str = NOSE_FLAT                          # вариант лба: NOSE_FLAT или NOSE_PIKE
     area_k: tuple = (1.0, 1.0, 1.0)                # множители площадей брони (лоб, борт, корма) к эталонным
+    turret_scale_range: tuple = (0.8, 1.15)        # границы поправки масштаба башни на калибр
 
     # ---------- проверка при создании ----------
     def __post_init__(self):
@@ -237,6 +238,7 @@ LIGHT_LAYOUT = HullLayout(
     grill_rect=(-0.80, 1.15, 1.60, 1.20),
     rear_plate=(-1.00, 2.45, 2.00, 0.60),
     turret_front_m=1.35,
+    turret_scale_range=(0.95, 1.15),
     area_k=(0.80, 0.88, 0.80),
 )
 
@@ -496,3 +498,19 @@ def layout_with_axis(base, axis_fwd_m):
         layout = _AXIS_CACHE[key] = replace(base, key=f"{base.key}@{axis_fwd_m:+.1f}",
                                             axis_fwd_m=axis_fwd_m)
     return layout
+
+# ==========================================
+# 7. ОГРАНИЧЕНИЕ КАЛИБРА ПО ТЯЖЕСТИ КОРПУСА
+# ==========================================
+CAL_INDEX_FROM = -0.40         # индекс «тяжести», при котором корпус считается самым лёгким
+CAL_INDEX_TO = 0.40            # и самым тяжёлым (дальше значения не меняются)
+CAL_MIN_AT_LIGHT = CALIBER.min     # самый лёгкий корпус: калибр от этого
+CAL_MAX_AT_LIGHT = 105.0           # ... до этого
+CAL_MIN_AT_HEAVY = 105.0           # самый тяжёлый корпус: калибр от этого
+CAL_MAX_AT_HEAVY = CALIBER.max     # ... до этого
+
+def caliber_limits(index):
+    """(мин, макс) калибра, мм, для корпуса с индексом тяжести index. Работает и при HEAVY_ENABLED = False."""
+    t = clamp((index - CAL_INDEX_FROM) / (CAL_INDEX_TO - CAL_INDEX_FROM), 0.0, 1.0)
+    return (round(lerp(CAL_MIN_AT_LIGHT, CAL_MIN_AT_HEAVY, t)),
+            round(lerp(CAL_MAX_AT_LIGHT, CAL_MAX_AT_HEAVY, t)))

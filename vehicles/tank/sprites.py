@@ -124,20 +124,21 @@ class TankRenderer(GunVehicleRenderer):
             pen.ellipse(dark, -0.75, 1.0, 0.10, 0.10)
 
     def _turret_oval(self, pen, team, look, emblem, spec, main, light, dark):
-        """Лёгкий корпус: небольшая овальная башня по центру."""
-        if look.front > 0:
-            k = 1.0 + 0.10 * look.front
-            pen.ellipse(dark, 0.0, 0.10, 0.85 * k, 1.15 * k)
-        pen.ellipse(main, 0.0, 0.10, 0.85, 1.15)
-        pen.ellipse(light, 0.0, 0.05, 0.55, 0.78, outline=dark)
+        """Лёгкий корпус: широкая башня со скруглёнными углами, ширина одинакова по всей длине.
+        Тело: x от -1.0 до 1.0, y от -1.15 до 1.55 (центр по y = 0.20)."""
+        if look.front > 0:                              # утолщённая броня: тёмный «обод»
+            k = 1.0 + 0.08 * look.front
+            pen.rect(dark, -1.00 * k, 0.20 - 1.35 * k, 2.00 * k, 2.70 * k, r=0.45)
+        pen.rect(main, -1.00, -1.15, 2.00, 2.70, r=0.45)
+        pen.rect(light, -0.70, -0.85, 1.40, 2.10, outline=dark, r=0.30)
         if emblem == "chevron":
-            self._chevrons(pen, 0.7, 0.20)
-        pen.rect(team, -0.40, -spec.GUN_FRONT_M, 0.80, 0.50, r=0.08)
-        pen.ellipse(dark, 0.32, 0.45, 0.28, 0.28)
-        pen.ellipse(team, 0.32, 0.45, 0.20, 0.20)
-        if look.speed > 0:
-            pen.line(OUTLINE, -0.50, 0.55, -0.65, 1.35, 0.04)
-            pen.ellipse(dark, -0.50, 0.55, 0.09, 0.09)
+            self._chevrons(pen, 0.85, 0.25)
+        pen.rect(team, -0.50, -spec.GUN_FRONT_M, 1.00, 0.50, r=0.08)    # маска орудия
+        pen.ellipse(dark, 0.45, 0.55, 0.32, 0.32)                       # люк командира
+        pen.ellipse(team, 0.45, 0.55, 0.23, 0.23)
+        if look.speed > 0:                                              # антенна
+            pen.line(OUTLINE, -0.75, 0.90, -0.90, 1.75, 0.04)
+            pen.ellipse(dark, -0.75, 0.90, 0.09, 0.09)
 
     def _turret_cast(self, pen, team, look, emblem, spec, main, light, dark):
         """Тяжёлый корпус: крупная литая башня каплей, широкая маска."""
