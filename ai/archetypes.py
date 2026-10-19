@@ -95,7 +95,8 @@ ASSAULT = Archetype(
     budget_k=1.35, spawn_weight=0.6, edge_k=0.0,
     aspect_deg=0.0, aspect_tol_deg=35.0, aspect_drive=2.5,
     damage_band=(0.55, 0.75), pen_band=(0.55, 0.75),
-    kind=VehicleKind.TD, nose=NOSE_PIKE)
+    kind=VehicleKind.TD, nose=NOSE_PIKE,
+    screen_mm=(15.0, 45.0))
 
 SNIPER = Archetype(
     "Дальнобой",

@@ -131,7 +131,8 @@ class HullLayout:
     turret_front_m: float = TURRET_FRONT_M         # где из башни выходит ствол, м вперёд от оси
     nose: str = NOSE_FLAT                          # вариант лба: NOSE_FLAT или NOSE_PIKE
     area_k: tuple = (1.0, 1.0, 1.0)                # множители площадей брони (лоб, борт, корма) к эталонным
-    turret_scale_range: tuple = (0.8, 1.15)        # границы поправки масштаба башни на калибр
+    turret_scale_range: tuple = (0.8, 1.15)        # (это уже есть)
+    turret_k: float = 1.0                          # множитель размера башни относительно корпуса (только визуал)
 
     # ---------- проверка при создании ----------
     def __post_init__(self):
@@ -239,6 +240,7 @@ LIGHT_LAYOUT = HullLayout(
     rear_plate=(-1.00, 2.45, 2.00, 0.60),
     turret_front_m=1.35,
     turret_scale_range=(0.95, 1.15),
+    turret_k=0.88,
     area_k=(0.80, 0.88, 0.80),
 )
 
@@ -279,7 +281,7 @@ HEAVY_LAYOUT = HullLayout(
                _rect(0.40, 3.15, -1.8, 0.0),
                _rect(0.40, 3.15, 1.8, 0.0)),
     plates=_rect_plates(2.18, 3.15),
-    ring_r_m=1.40, turret_style="hex", hull_style="classic",
+    ring_r_m=1.40, turret_style="cast", hull_style="classic",
     skirt_outer_x=2.2,
     skirt_levels=((-2.4, 2.6, 0.55), (-2.95, 2.95, 0.65)),
     skirt_pitch_m=1.3,
@@ -298,8 +300,56 @@ HEAVY_LAYOUT = HullLayout(
     rear_plate=(-1.50, 2.40, 3.00, 0.50),
     base_skirt=1,
     turret_front_m=1.85,
+    turret_scale_range=(0.95, 1.15),
+    turret_k=1.0,
     area_k=(1.20, 1.05, 1.20),
 )
+
+# ==========================================
+# 3а. РАСТЯЖЕНИЕ КОРПУСА ВДОЛЬ
+# ==========================================
+LIGHT_LENGTH_K = 0.80      # лёгкий корпус короче на 20%
+HEAVY_LENGTH_K = 1.20      # тяжёлый корпус длиннее на 20%
+
+def stretch_layout(base, k):
+    """Копия раскладки, у которой все продольные размеры (ось y корпуса) умножены на k.
+    Ширина, положение оси башни и толщины деталей не меняются."""
+    def pts(seq):                      # [(x, y), ...]
+        return tuple((x, y * k) for x, y in seq)
+
+    def box(r):                        # (x, y, w, h): растягивается и положение, и высота
+        x, y, w, h = r
+        return (x, y * k, w, h * k)
+
+    half_l = base.coll_half_l_m * k
+    ar_front, ar_side, ar_rear = base.area_k
+    return replace(
+        base,
+        outline=pts(base.outline),
+        track_top=base.track_top * k,
+        track_len=base.track_len * k,
+        coll_half_l_m=half_l,
+        hit_parts=tuple(pts(p) for p in base.hit_parts),
+        plates=_rect_plates(base.coll_half_w_m, half_l),
+        skirt_levels=tuple((y0 * k, y1 * k, w) for y0, y1, w in base.skirt_levels),
+        front_kit_poly=pts(base.front_kit_poly),
+        front_kit_bar=(base.front_kit_bar[0], base.front_kit_bar[1] * k,
+                       base.front_kit_bar[2], base.front_kit_bar[3]),   # планка тонкая: толщину не трогаем
+        front_kit_wedge=pts(base.front_kit_wedge),
+        screen_y=base.screen_y * k,
+        exhaust_y=base.exhaust_y * k,
+        fender_rects=tuple(box(r) for r in base.fender_rects),
+        front_plate=pts(base.front_plate),
+        deck_rect=box(base.deck_rect),
+        hatch=(base.hatch[0], base.hatch[1] * k, base.hatch[2]),
+        grill_rect=box(base.grill_rect),
+        rear_plate=box(base.rear_plate),
+        area_k=(ar_front, ar_side * k, ar_rear),          # площадь борта растёт вместе с длиной
+        canvas_half_m=base.canvas_half_m * max(1.0, k),   # иначе удлинённый корпус не влезет в холст
+    )
+
+LIGHT_LAYOUT = stretch_layout(LIGHT_LAYOUT, LIGHT_LENGTH_K)
+HEAVY_LAYOUT = stretch_layout(HEAVY_LAYOUT, HEAVY_LENGTH_K)
 
 # ==========================================
 # 4. ТАБЛИЦА
@@ -443,7 +493,7 @@ CLASS_LIGHT_BELOW = -0.20      # индекс ниже этого: лёгкий
 CLASS_HEAVY_ABOVE = 0.15       # выше этого: тяжёлый (стартовые значения, подгоняются по отладке)
 CLASS_BORDER_EPS = 0.03        # «рядом с порогом»: ещё чуть-чуть, и силуэт сменится
 
-HEAVY_ENABLED = False          # True вернёт тяжёлый корпус (скачок формы при индексе > CLASS_HEAVY_ABOVE)
+HEAVY_ENABLED = True          # True вернёт тяжёлый корпус (скачок формы при индексе > CLASS_HEAVY_ABOVE)
 
 def near_class_border(index):
     """Индекс в пределах CLASS_BORDER_EPS от порога смены класса."""

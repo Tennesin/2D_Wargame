@@ -42,7 +42,7 @@ class GunSpec:
     def __init__(self, cal, size_k, power, m_gun, m_turret, arc_deg=360.0,
                  damage=None, penetration=None, profile=MBT_GUN,
                  front_m=TURRET_FRONT_M, barrel_ref_m=BARREL_VIS_REF_M,
-                 turret_scale_range=None):
+                 turret_scale_range=None, visual_k=None):
         """profile — профиль орудия (бонус урона и пробития); front_m — на сколько метров вперёд
         от оси выступает маска орудия; barrel_ref_m — визуальная длина ствола эталона."""
         self.cal = cal
@@ -52,6 +52,7 @@ class GunSpec:
         self.BARREL_REF_M = barrel_ref_m
         if turret_scale_range is not None:
             self.TURRET_SCALE_RANGE = turret_scale_range
+        self._visual_k = visual_k
         self._calc_basics(size_k)
         self._calc_turret(size_k, power, m_gun, m_turret)
         self._calc_gun(damage, penetration)
@@ -90,9 +91,10 @@ class GunSpec:
     def _calc_visual(self, size_k):
         cal = self.cal
         cr = cal / REF_CAL
-        self.TURRET_SCALE = size_k * clamp(cr ** 0.35, *self.TURRET_SCALE_RANGE)
+        base = size_k if self._visual_k is None else self._visual_k
+        self.TURRET_SCALE = base * clamp(cr ** 0.35, *self.TURRET_SCALE_RANGE)
 
-        world_len = self.BARREL_REF_M * size_k * clamp(cr ** BARREL_VIS_EXP, *BARREL_VIS_K_RANGE)
+        world_len = self.BARREL_REF_M * base * clamp(cr ** BARREL_VIS_EXP, *BARREL_VIS_K_RANGE)
         raw = world_len / self.TURRET_SCALE
         self.BARREL_LEN_M = max(4 * BARREL_LEN_STEP_M,
                                 round(raw / BARREL_LEN_STEP_M) * BARREL_LEN_STEP_M)

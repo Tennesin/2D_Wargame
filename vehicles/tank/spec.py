@@ -155,7 +155,8 @@ class TankSpec(ChassisSpec):
         self.gun = GunSpec(cal, self.size_k, power, self.m_gun, self.m_turret, arc_deg=360.0,
                            damage=damage, penetration=penetration,
                            front_m=layout.turret_front_m,
-                           turret_scale_range=layout.turret_scale_range)
+                           turret_scale_range=layout.turret_scale_range,
+                           visual_k=self.HULL_SCALE * layout.turret_k)
         self.__dict__.update(vars(self.gun))
         self.HULL_VARIANT = (self.layout.key,)
 
