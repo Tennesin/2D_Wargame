@@ -240,7 +240,7 @@ LIGHT_LAYOUT = HullLayout(
     rear_plate=(-1.00, 2.45, 2.00, 0.60),
     turret_front_m=1.35,
     turret_scale_range=(0.95, 1.15),
-    turret_k=0.88,
+    turret_k=1.0,
     area_k=(0.80, 0.88, 0.80),
 )
 

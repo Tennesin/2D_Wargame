@@ -151,7 +151,6 @@ class TankSpec(ChassisSpec):
         super().__init__(body, front, side, rear, power,
                          payload_t=self.m_gun + self.m_turret, screen_mm=screen)
 
-        # arc_deg=360: круговая башня. У будущей ПТ-САУ здесь будет маленький сектор.
         self.gun = GunSpec(cal, self.size_k, power, self.m_gun, self.m_turret, arc_deg=360.0,
                            damage=damage, penetration=penetration,
                            front_m=layout.turret_front_m,
