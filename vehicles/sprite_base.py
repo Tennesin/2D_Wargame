@@ -9,7 +9,7 @@ import pygame
 
 from engine import LRUCache, SHADOW_ALPHA, heading_vector, clamp, Team, PX_PER_M, lerp_color
 from .chassis_params import TRACK_LINK_M
-from .hulls import NOSE_FLAT, screen_pieces, SCREEN_OFFSET_M, SCREEN_THICK_M, PIKE_BAND_M
+from .hulls import NOSE_FLAT, NOSE_PIKE, screen_pieces, SCREEN_OFFSET_M, SCREEN_THICK_M, PIKE_BAND_M
 from .running_gear import LEFT, RIGHT
 from .gun_params import BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M
 
@@ -456,17 +456,33 @@ class GunVehicleRenderer:
 
     @staticmethod
     def _draw_front_kit(pen, level, paint, layout):
-        """Накладная броня на лобовой плите."""
+        """Накладная броня на лбу. Тон берётся из ряда корпуса (чуть светлее плиты: она «толще»),
+        обводка цветом шва, а не чёрная; по углам заклёпки, как у остальных стыков."""
         if level <= 0:
             return
-        color = apply_paint(APPLIQUE, paint)
-        pen.poly(color, layout.front_kit_poly)
+        color = apply_paint(lerp_color(HULL_LIGHT, HULL_MAIN, 0.5), paint)
+        edge = apply_paint(HULL_DARK, paint)
+
+        poly = layout.front_kit_poly
+        pen.poly(color, poly, outline=edge)
+        cx = sum(x for x, _ in poly) / len(poly)
+        cy = sum(y for _, y in poly) / len(poly)
+        for x, y in poly:                                   # заклёпка в 0.14 м от каждого угла к центру
+            dx, dy = cx - x, cy - y
+            ln = math.hypot(dx, dy) or 1.0
+            pen.ellipse(edge, x + dx / ln * 0.14, y + dy / ln * 0.14,
+                        RIVET_R_M, RIVET_R_M, outline=None)
+
         if level >= 2:
             bx, by, bw, bh = layout.front_kit_bar
-            pen.rect(color, bx, by, bw, bh, r=0.05)
-            if layout.nose == NOSE_FLAT:                   # у щучьего носа боковых клиньев нет
-                for sx in (-1, 1):  # боковые клинья (в раскладке задан правый)
-                    pen.poly(color, [(sx * x, y) for x, y in layout.front_kit_wedge])
+            pen.rect(color, bx, by, bw, bh, outline=edge, r=0.05)
+            if layout.nose == NOSE_FLAT:                    # у щучьего носа боковых клиньев нет
+                for sx in (-1, 1):                          # в раскладке задан правый клин
+                    pen.poly(color, [(sx * x, y) for x, y in layout.front_kit_wedge], outline=edge)
+
+        if layout.nose == NOSE_PIKE:                        # гребень носа поверх накладки
+            tip_y = layout.front_plate[1][1]
+            pen.line(edge, 0.0, tip_y + 0.06, 0.0, tip_y + PIKE_BAND_M + 0.7, 0.05)
 
     @staticmethod
     def _draw_front_screen(pen, level, paint, layout):
