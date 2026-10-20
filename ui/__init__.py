@@ -8,7 +8,9 @@ from .panel import Panel, SidePanel
 from .hud import TankHud
 from .info_card import InfoCard
 from .ammo_bar import AmmoBar
+from .guide_blocks import IconRow, KeyRow, make_mouse_icon, make_swatch_icon
 
 __all__ = ["DELETE_BUTTON_COLORS", "ACTIVE_BUTTON_COLORS", "Button", "Checkbox", "Slider", "ScrollArea",
            "SectionHeader", "ParamRow", "make_param_row", "StatsBlock", "InfoText", "AmmoBar",
-           "ActionButton", "ToolBar", "Panel", "SidePanel", "TankHud", "InfoCard", "ChoiceRow"]
+           "ActionButton", "ToolBar", "Panel", "SidePanel", "TankHud", "InfoCard", "ChoiceRow",
+           "IconRow", "KeyRow", "make_mouse_icon", "make_swatch_icon"]

@@ -1,17 +1,39 @@
 """game/app.py — окно, главный цикл и смена сцен. Логики игры здесь нет."""
+import sys
 import pygame
 
 from .settings import GAME_TITLE
-from .scenes import MenuScene, ConstructorScene, PlayScene, SettingsScene
+from .scenes import (
+    MenuScene, ConstructorScene, PlayScene, SettingsScene, InstructionScene
+)
 from .session import Session
+
+def _maximize_window():
+    """Разворачивает окно на весь экран, как кнопка «Развернуть» (рамка и кнопки окна остаются).
+    Сначала штатный способ pygame 2, запасной вариант для Windows через WinAPI."""
+    try:
+        from pygame._sdl2.video import Window
+        Window.from_display_module().maximize()
+        return
+    except Exception:
+        pass
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            hwnd = pygame.display.get_wm_info()["window"]
+            ctypes.windll.user32.ShowWindow(hwnd, 3)     # 3 = SW_MAXIMIZE
+        except Exception:
+            pass                                          # не вышло: останется обычное окно
 
 class App:
     MAX_DT = 0.05   # защита от «телепорта» при подвисании окна
 
     def __init__(self, seed=None):
         pygame.init()
-        pygame.display.set_mode((1000, 700), pygame.RESIZABLE)
+        pygame.display.set_mode((1000, 700), pygame.RESIZABLE)   # размер «восстановленного» окна
         pygame.display.set_caption(GAME_TITLE)
+        _maximize_window()
+        pygame.event.pump()                                      # применить новый размер до создания меню
         self.clock = pygame.time.Clock()
         self.seed = seed                 # None: у каждой новой игры свой случайный мир
         self.session = Session()         # настройки техники живут здесь, пока открыто приложение
@@ -27,6 +49,7 @@ class App:
     def show_menu(self):
         self._next = lambda: MenuScene(on_play=self.start_game,
                                        on_constructor=self.show_constructor,
+                                       on_instruction=self.show_instruction,
                                        on_settings=self.show_settings,
                                        on_quit=self.quit)
 
@@ -37,6 +60,9 @@ class App:
     def show_settings(self):
         self._next = lambda: SettingsScene(self.session.prefs,
                                            on_back=self.show_menu, on_quit=self.quit)
+
+    def show_instruction(self):
+        self._next = lambda: InstructionScene(on_back=self.show_menu, on_quit=self.quit)
 
     def start_game(self):
         self._next = lambda: PlayScene(self.seed, self.clock, self.session,

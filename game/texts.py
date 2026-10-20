@@ -3,8 +3,12 @@
 # Главное меню
 MENU_PLAY = "Играть"
 MENU_CONSTRUCTOR = "Конструктор"
+MENU_INSTRUCTION = "Инструкция"
 MENU_SETTINGS = "Настройки"
 MENU_QUIT = "Выйти"
+
+# Инструкция
+INSTRUCTION_TITLE = "Инструкция"
 
 # Настройки
 SETTINGS_TITLE = "Настройки"

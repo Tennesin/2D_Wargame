@@ -12,21 +12,24 @@ BG = BG_COLOR
 TITLE_TEXT = GAME_TITLE
 TITLE_COLOR = (230, 230, 230)
 TITLE_SIZE = 48
-TITLE_OFFSET = 110          # насколько заголовок выше центра окна
+TITLE_OFFSET = 110          # насколько заголовок выше первой кнопки
+BLOCK_SHIFT = 30            # на сколько весь блок поднят выше центра окна (кнопок пять)
 
 BUTTON_W, BUTTON_H = 260, 52
 BUTTON_GAP = 16
 BUTTON_FONT = 24
 
 class MenuScene(Scene):
-    def __init__(self, on_play, on_constructor, on_settings, on_quit):
-        self.on_play = on_play                  # начать игру
-        self.on_constructor = on_constructor    # открыть конструктор
-        self.on_settings = on_settings          # открыть настройки
-        self.on_quit = on_quit                  # закрыть приложение
+    def __init__(self, on_play, on_constructor, on_instruction, on_settings, on_quit):
+        self.on_play = on_play                      # начать игру
+        self.on_constructor = on_constructor        # открыть конструктор
+        self.on_instruction = on_instruction        # открыть инструкцию
+        self.on_settings = on_settings              # открыть настройки
+        self.on_quit = on_quit                      # закрыть приложение
 
         self.play_button = Button((0, 0, BUTTON_W, BUTTON_H), texts.MENU_PLAY)
         self.constructor_button = Button((0, 0, BUTTON_W, BUTTON_H), texts.MENU_CONSTRUCTOR)
+        self.instruction_button = Button((0, 0, BUTTON_W, BUTTON_H), texts.MENU_INSTRUCTION)
         self.settings_button = Button((0, 0, BUTTON_W, BUTTON_H), texts.MENU_SETTINGS)
         self.quit_button = Button((0, 0, BUTTON_W, BUTTON_H), texts.MENU_QUIT)
         self._title_pos = (0, 0)
@@ -36,13 +39,14 @@ class MenuScene(Scene):
     def _layout(self, size):
         """Расставляет элементы по центру окна (вызывается при смене размера)."""
         self._size = size
-        cx, cy = size[0] // 2, size[1] // 2
+        cx, cy = size[0] // 2, size[1] // 2 - BLOCK_SHIFT
         self._title_pos = (cx, cy - TITLE_OFFSET)
         step = BUTTON_H + BUTTON_GAP
         self.play_button.rect.center = (cx, cy)
         self.constructor_button.rect.center = (cx, cy + step)
-        self.settings_button.rect.center = (cx, cy + 2 * step)
-        self.quit_button.rect.center = (cx, cy + 3 * step)
+        self.instruction_button.rect.center = (cx, cy + 2 * step)
+        self.settings_button.rect.center = (cx, cy + 3 * step)
+        self.quit_button.rect.center = (cx, cy + 4 * step)
 
     def update(self, dt):
         size = pygame.display.get_surface().get_size()
@@ -67,6 +71,9 @@ class MenuScene(Scene):
                 if self.constructor_button.collidepoint(event.pos):
                     self.on_constructor()
                     return
+                if self.instruction_button.collidepoint(event.pos):
+                    self.on_instruction()
+                    return
                 if self.settings_button.collidepoint(event.pos):
                     self.on_settings()
                     return
@@ -82,5 +89,6 @@ class MenuScene(Scene):
         mouse = pygame.mouse.get_pos()
         self.play_button.draw(screen, mouse, font_size=BUTTON_FONT)
         self.constructor_button.draw(screen, mouse, font_size=BUTTON_FONT)
+        self.instruction_button.draw(screen, mouse, font_size=BUTTON_FONT)
         self.settings_button.draw(screen, mouse, font_size=BUTTON_FONT)
         self.quit_button.draw(screen, mouse, font_size=BUTTON_FONT, colors=DELETE_BUTTON_COLORS)
