@@ -68,18 +68,18 @@ def caliber_range_for(front, side, rear, power):
     Нужна конструктору (границы ползунка) и подбору сборок ботов."""
     return caliber_limits(class_index(*hull_inputs(front, side, rear, power)))
 
-def estimate_mass(cal, front, side, rear, power, screen=0.0):
-    """Полная масса ОБТ, т, по входным параметрам, без создания TankSpec.
-    Совпадает с TankSpec.mass: форма носа и положение башни на массу не влияют.
-    Нужна, чтобы выбрать щучий нос или клин (и конструктору, чтобы показать нужную кнопку)."""
-    front = clamp(float(front), _FRONT.min, _FRONT.max)
-    side = clamp(float(side), _SIDE.min, _SIDE.max)
-    rear = clamp(float(rear), _REAR.min, _REAR.max)
-    power = clamp(float(power), _POWER.min, _POWER.max)
+def estimate_mass(cal, front, side, rear, power, screen=0.0, unbounded=False):
+    """Полная масса ОБТ, т, по входным параметрам, без создания TankSpec."""
+    front = _FRONT.fit(front, unbounded)
+    side = _SIDE.fit(side, unbounded)
+    rear = _REAR.fit(rear, unbounded)
+    power = _POWER.fit(power, unbounded)
     screen = clamp(float(screen), FRONT_SCREEN.min, FRONT_SCREEN.max)
     index = class_index(*hull_inputs(front, side, rear, power))
-    lo, hi = caliber_limits(index)
-    cal = clamp(clamp(float(cal), _CAL.min, _CAL.max), lo, hi)
+    cal = _CAL.fit(cal, unbounded)
+    if not unbounded:
+        lo, hi = caliber_limits(index)
+        cal = clamp(cal, lo, hi)
     layout = layout_for(class_for_index(index))
     m_gun, m_turret = turret_masses(cal)
     _, filling, _, armor = chassis_masses(TANK_BODY, layout.area_k, front, side, rear,
@@ -137,25 +137,26 @@ class TankSpec(ChassisSpec):
     spec.v_max (шасси), spec.damage (орудие). Имена в ЗАГЛАВНЫХ буквах читают Tank и Renderer."""
 
     def __init__(self, cal, front, side, rear, power, damage=None, penetration=None,
-                 screen=0.0, nose=NOSE_FLAT):
-        # входные параметры (с защитой от выхода за границы)
-        cal = clamp(float(cal), _CAL.min, _CAL.max)
-        front = clamp(float(front), _FRONT.min, _FRONT.max)
-        side = clamp(float(side), _SIDE.min, _SIDE.max)
-        rear = clamp(float(rear), _REAR.min, _REAR.max)
-        power = clamp(float(power), _POWER.min, _POWER.max)
+                 screen=0.0, nose=NOSE_FLAT, unbounded=False):
+        # входные параметры (у ботов unbounded=True: верхних границ нет, ограничивает только бюджет)
+        cal = _CAL.fit(cal, unbounded)
+        front = _FRONT.fit(front, unbounded)
+        side = _SIDE.fit(side, unbounded)
+        rear = _REAR.fit(rear, unbounded)
+        power = _POWER.fit(power, unbounded)
         screen = clamp(float(screen), FRONT_SCREEN.min, FRONT_SCREEN.max)
 
         # класс корпуса зависит ТОЛЬКО от брони и мощности (не от массы и не от калибра)
         self.hull_index = class_index(*hull_inputs(front, side, rear, power))
         self.HULL_CLASS = class_for_index(self.hull_index)
 
-        lo, hi = caliber_limits(self.hull_index)
-        cal = clamp(cal, lo, hi)
+        if not unbounded:
+            lo, hi = caliber_limits(self.hull_index)
+            cal = clamp(cal, lo, hi)
         self.cal = cal
         self.m_gun, self.m_turret = turret_masses(cal)
 
-        nose = resolve_nose(nose, front, estimate_mass(cal, front, side, rear, power, screen))
+        nose = resolve_nose(nose, front, estimate_mass(cal, front, side, rear, power, screen, unbounded))
         self.nose = nose
 
         layout = layout_for(self.HULL_CLASS)
@@ -181,14 +182,15 @@ class TankSpec(ChassisSpec):
         self._calc_look()
 
     # ---------- фабрики ----------
+
     @classmethod
-    def from_values(cls, v):
-        """v — словарь значений ползунков. Ключи тюнинга необязательны: нет ключа = номинал калибра
-        (так работают боты, у которых этих значений нет)."""
+    def from_values(cls, v, unbounded=False):
+        """v — словарь значений ползунков."""
         return cls(v["gun_caliber_mm"], v["front_armor_mm"], v["side_armor_mm"],
                    v["rear_armor_mm"], v["engine_power_hp"],
                    damage=v.get("gun_damage"), penetration=v.get("gun_penetration"),
-                   screen=v.get("front_screen_mm", 0.0), nose=v.get("front_nose", NOSE_FLAT))
+                   screen=v.get("front_screen_mm", 0.0), nose=v.get("front_nose", NOSE_FLAT),
+                   unbounded=unbounded)
 
     @classmethod
     def from_config(cls):

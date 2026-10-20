@@ -108,12 +108,12 @@ class TDGunSpec(GunSpec):
 
 class TDSpec(ChassisSpec):
     def __init__(self, cal, front, side, rear, power, damage=None, penetration=None,
-                 screen=0.0, nose=NOSE_FLAT):
-        cal = clamp(float(cal), _CAL.min, _CAL.max)
-        front = clamp(float(front), _FRONT.min, _FRONT.max)
-        side = clamp(float(side), _SIDE.min, _SIDE.max)
-        rear = clamp(float(rear), _REAR.min, _REAR.max)
-        power = clamp(float(power), _POWER.min, _POWER.max)
+                 screen=0.0, nose=NOSE_FLAT, unbounded=False):
+        cal = _CAL.fit(cal, unbounded)
+        front = _FRONT.fit(front, unbounded)
+        side = _SIDE.fit(side, unbounded)
+        rear = _REAR.fit(rear, unbounded)
+        power = _POWER.fit(power, unbounded)
         screen = clamp(float(screen), FRONT_SCREEN.min, FRONT_SCREEN.max)
         if nose != NOSE_PIKE or front <= NOSE_MIN_FRONT_MM:
             nose = NOSE_FLAT                    # щучий нос только при лобовой броне больше порога
@@ -144,12 +144,14 @@ class TDSpec(ChassisSpec):
         self._calc_look()
 
     # ---------- фабрики ----------
+
     @classmethod
-    def from_values(cls, v):
+    def from_values(cls, v, unbounded=False):
         return cls(v["gun_caliber_mm"], v["front_armor_mm"], v["side_armor_mm"],
                    v["rear_armor_mm"], v["engine_power_hp"],
                    damage=v.get("gun_damage"), penetration=v.get("gun_penetration"),
-                   screen=v.get("front_screen_mm", 0.0), nose=v.get("front_nose", NOSE_FLAT))
+                   screen=v.get("front_screen_mm", 0.0), nose=v.get("front_nose", NOSE_FLAT),
+                   unbounded=unbounded)
 
     @classmethod
     def from_config(cls):
