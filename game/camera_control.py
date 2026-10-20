@@ -1,7 +1,6 @@
 """game/camera_control.py — зум, размер окна, свободная камера, следование за танком
 и плавное смещение обзора в сторону курсора."""
 import math
-
 import pygame
 
 from inputs import Action, MouseOwner
