@@ -32,6 +32,8 @@ class InputHandler:
         self.mouse_buttons = (False, False, False)   # (ЛКМ, СКМ, ПКМ) на момент снимка
         self.mouse_over_ui = False         # лежит ли курсор на интерфейсе
         self.shift = False
+        self.lctrl = False                 # левый Ctrl (для служебных сочетаний)
+        self.lshift = False                # левый Shift
 
     # ==========================================
     # ВЛАДЕЛЕЦ МЫШИ
@@ -103,7 +105,10 @@ class InputHandler:
         keys = pygame.key.get_pressed()
         self.mouse_pos = pygame.mouse.get_pos()
         self.mouse_buttons = pygame.mouse.get_pressed()
-        self.shift = bool(pygame.key.get_mods() & pygame.KMOD_SHIFT)
+        mods = pygame.key.get_mods()
+        self.shift = bool(mods & pygame.KMOD_SHIFT)
+        self.lctrl = bool(mods & pygame.KMOD_LCTRL)
+        self.lshift = bool(mods & pygame.KMOD_LSHIFT)
 
         # страховка: владеющая кнопка уже отпущена, а событие отпускания потерялось
         if self.mouse_owner is not None and not self.mouse_buttons[self._owner_button - 1]:

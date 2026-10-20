@@ -1,7 +1,10 @@
 """game/scenes/constructor.py — конструктор: настройка техники (ОБТ или ПТ-САУ) без езды, стрельбы и стен."""
+import os
+import traceback
+
 import pygame
 
-from engine import PX_PER_M, VehicleCommand, VehicleKind, clamp
+from engine import PX_PER_M, VehicleCommand, VehicleKind, clamp, get_text, FONT_SIZE_LABEL
 from inputs import InputHandler, Action
 from ui import SidePanel, Button, ACTIVE_BUTTON_COLORS
 from ui.theme import PANEL_WIDTH
@@ -11,6 +14,7 @@ from vehicles import (GUN_TUNE_PARAMS, damage_range, pen_range, remap,
 from world import Camera
 from ..panels import PanelMode, PANEL_OF, build_tank_panel, build_td_panel
 from .base import Scene
+from tools.tank_snapshot import save_snapshot
 
 BG = (36, 40, 46)
 PREVIEW_ZOOM_STEPS = 8          # на сколько ступеней приблизить камеру относительно стандартной
@@ -70,6 +74,7 @@ class ConstructorScene(Scene):
         self._place_kind_buttons(size)
 
         self._show_stats()
+        self._toast = None                 # всплывающее сообщение: [текст, цвет, секунд осталось]
 
     # ---------- тип техники ----------
     def _make_renderer(self, kind):
@@ -172,7 +177,20 @@ class ConstructorScene(Scene):
         for name, text in {**spec.main_stats(), **spec.internal_stats()}.items():
             self.ui.set_stat(self._mode, name, text)
 
+    # ---------- снимок для разбора внешнего вида ----------
+    def _save_snapshot(self):
+        """LCtrl + LShift + V: текстовый снимок всего, что нарисовано для текущей техники."""
+        try:
+            path = save_snapshot(self.vehicle, self.renderer)
+        except Exception:
+            traceback.print_exc()
+            self._toast = ["Снимок НЕ сохранён: подробности в консоли", (240, 80, 70), 5.0]
+            return
+        print(f"Снимок техники: {path}")
+        self._toast = [f"Снимок сохранён: {os.path.basename(path)}", (110, 220, 110), 4.0]
+
     # ---------- кадр ----------
+
     def update(self, dt):
         self.input.process_events()
         if self.input.quit_requested:
@@ -202,6 +220,13 @@ class ConstructorScene(Scene):
         if self.input.was_pressed(Action.CANCEL):
             self.on_menu()
             return
+        if (self.input.was_pressed(Action.SNAPSHOT)
+                and self.input.lctrl and self.input.lshift):
+            self._save_snapshot()
+        if self._toast is not None:
+            self._toast[2] -= dt
+            if self._toast[2] <= 0.0:
+                self._toast = None
 
         # орудие превью следит за мышью (у ПТ-САУ в пределах УГН); ездить и стрелять нельзя
         aim = None

@@ -7,7 +7,8 @@ import random
 
 import pygame
 
-from engine import LRUCache, SHADOW_ALPHA, heading_vector, clamp, Team, PX_PER_M, lerp_color
+from engine import (LRUCache, SHADOW_ALPHA, heading_vector, clamp, Team, PX_PER_M, lerp_color,
+                    shrink_polygon)
 from .chassis_params import TRACK_LINK_M
 from .hulls import NOSE_FLAT, NOSE_PIKE, screen_pieces, SCREEN_OFFSET_M, SCREEN_THICK_M, PIKE_BAND_M
 from .running_gear import LEFT, RIGHT
@@ -456,10 +457,14 @@ class GunVehicleRenderer:
 
     @staticmethod
     def _draw_front_kit(pen, level, paint, layout):
-        """Накладная броня на лбу. Тон берётся из ряда корпуса (чуть светлее плиты: она «толще»),
-        обводка цветом шва, а не чёрная; по углам заклёпки, как у остальных стыков."""
+        """Накладная броня на лбу. Плоский лоб: один многоугольник (+ планка и клинья на уровне 2).
+        Щучий нос: отдельные пластины на скатах (см. _draw_pike_kit)."""
         if level <= 0:
             return
+        if layout.nose == NOSE_PIKE:
+            GunVehicleRenderer._draw_pike_kit(pen, paint, layout)
+            return
+
         color = apply_paint(lerp_color(HULL_LIGHT, HULL_MAIN, 0.5), paint)
         edge = apply_paint(HULL_DARK, paint)
 
@@ -476,13 +481,38 @@ class GunVehicleRenderer:
         if level >= 2:
             bx, by, bw, bh = layout.front_kit_bar
             pen.rect(color, bx, by, bw, bh, outline=edge, r=0.05)
-            if layout.nose == NOSE_FLAT:                    # у щучьего носа боковых клиньев нет
-                for sx in (-1, 1):                          # в раскладке задан правый клин
-                    pen.poly(color, [(sx * x, y) for x, y in layout.front_kit_wedge], outline=edge)
+            for sx in (-1, 1):                              # в раскладке задан правый клин
+                pen.poly(color, [(sx * x, y) for x, y in layout.front_kit_wedge], outline=edge)
 
-        if layout.nose == NOSE_PIKE:                        # гребень носа поверх накладки
-            tip_y = layout.front_plate[1][1]
-            pen.line(edge, 0.0, tip_y + 0.06, 0.0, tip_y + PIKE_BAND_M + 0.7, 0.05)
+    PIKE_KIT_INSET = 0.78       # во сколько раз пластина меньше полосы ската (остаётся рамка вокруг)
+    PIKE_KIT_LIGHTEN = 0.25     # насколько пластина светлее своей полосы
+
+    @staticmethod
+    def _draw_pike_kit(pen, paint, layout):
+        """Накладка щучьего носа: по одной пластине на каждый скат. Пластина лежит внутри своей
+        полосы (те же четыре угла, что в _draw_pike_plate), поэтому гребень по оси и V-шов остаются
+        видны. Цвет = цвет полосы, чуть светлее: сохраняется свет слева."""
+        left, tip, right = layout.front_plate
+        b = PIKE_BAND_M
+        apex = (0.0, tip[1] + b)
+        bands = (
+            ([left, tip, apex, (left[0], left[1] + b)], lerp_color(HULL_MAIN, HULL_LIGHT, 0.45)),
+            ([tip, right, (right[0], right[1] + b), apex], lerp_color(HULL_MAIN, DECK, 0.30)),
+        )
+        edge = apply_paint(HULL_DARK, paint)
+        for band, band_color in bands:
+            cx = sum(x for x, _ in band) / 4.0
+            cy = sum(y for _, y in band) / 4.0
+            plate = shrink_polygon(band, cx, cy, GunVehicleRenderer.PIKE_KIT_INSET)
+            color = apply_paint(lerp_color(band_color, HULL_LIGHT, GunVehicleRenderer.PIKE_KIT_LIGHTEN), paint)
+            pen.poly(color, plate, outline=edge)
+            px = sum(x for x, _ in plate) / 4.0
+            py = sum(y for _, y in plate) / 4.0
+            for x, y in plate:                              # заклёпка в 0.10 м от угла к центру пластины
+                dx, dy = px - x, py - y
+                ln = math.hypot(dx, dy) or 1.0
+                pen.ellipse(edge, x + dx / ln * 0.10, y + dy / ln * 0.10,
+                            RIVET_R_M, RIVET_R_M, outline=None)
 
     @staticmethod
     def _draw_front_screen(pen, level, paint, layout):

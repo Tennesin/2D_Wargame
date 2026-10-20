@@ -23,6 +23,7 @@ class Action(Enum):
     AMMO_2 = auto()
     AMMO_3 = auto()
     REPAIR = auto()
+    SNAPSHOT = auto()
 
 class MouseOwner(Enum):
     """Кому сейчас принадлежит нажатая кнопка мыши (до её отпускания)."""
@@ -55,6 +56,7 @@ PRESS_KEYMAP = {
     Action.AMMO_2:          (pygame.K_2, pygame.K_KP2),
     Action.AMMO_3:          (pygame.K_3, pygame.K_KP3),
     Action.REPAIR:          (pygame.K_r,),
+    Action.SNAPSHOT:        (pygame.K_v,),
 }
 
 # Обратная таблица для быстрого поиска по событию KEYDOWN: клавиша -> действие
