@@ -22,6 +22,16 @@ def armor_masses(areas_m2, front, side, rear, size_k):
     return tuple(mm / 1000.0 * area * STEEL_T_PER_M3 * k2
                  for mm, area in zip((front, side, rear), areas_m2))
 
+def chassis_masses(body, area_k, front, side, rear, power, payload_t, screen_mm=0.0):
+    """Массы шасси: (двигатель, «начинка», size_k, (лоб, борт, корма)), т.
+    Единственное место формул: им пользуются ChassisSpec и оценка массы до выбора носа."""
+    m_engine = body.engine_t_per_hp * power
+    filling = body.fixed_t + m_engine + payload_t
+    size_k = (filling / body.ref_filling_t) ** (1.0 / 3.0)
+    areas = tuple(a * k for a, k in zip(body.areas_m2, area_k))
+    armor = armor_masses(areas, front + screen_mm * SCREEN_MASS_K, side, rear, size_k)
+    return m_engine, filling, size_k, armor
+
 @dataclass(frozen=True)
 class ChassisBody:
     """Описание конкретного типа шасси и его эталона."""
@@ -65,14 +75,11 @@ class ChassisSpec:
     def _calc_mass(self):
         b = self.body
         self.m_fixed = b.fixed_t
-        self.m_engine = b.engine_t_per_hp * self.power
-        self.filling = self.m_fixed + self.m_engine + self.payload_t
-        self.size_k = (self.filling / b.ref_filling_t) ** (1.0 / 3.0)
         layout = self.layout
         area_k = layout.area_k if layout is not None else (1.0, 1.0, 1.0)
-        areas = tuple(a * k for a, k in zip(b.areas_m2, area_k))
-        self.m_front, self.m_side, self.m_rear = armor_masses(
-            areas, self.front + self.screen_mm * SCREEN_MASS_K, self.side, self.rear, self.size_k)
+        (self.m_engine, self.filling, self.size_k,
+         (self.m_front, self.m_side, self.m_rear)) = chassis_masses(
+            b, area_k, self.front, self.side, self.rear, self.power, self.payload_t, self.screen_mm)
         self.m_armor = self.m_front + self.m_side + self.m_rear
         self.mass = self.filling + self.m_armor
 
@@ -94,12 +101,13 @@ class ChassisSpec:
         # момент сопротивления ~ M * size_k, момент тяги ~ P * size_k, инерция ~ M * size_k²
         self.q_turn = self.q_pw / self.size_k
         screen_k = 1.0 - SCREEN_TURN_LOSS * self.screen_mm / FRONT_SCREEN.max
+        turn_k = screen_k * self.layout.turn_k                 # экраны и форма носа (клин)
         self.hull_turn = max(
             HULL_TURN_MIN,
-            screen_k * HULL_TURN_CAP * (1.0 - math.exp(-math.log(2.0) * self.q_turn)))
-        self.hull_alpha = clamp(HULL_ALPHA_REF * self.q_turn * screen_k, HULL_ALPHA_MIN, HULL_ALPHA_MAX)
+            turn_k * HULL_TURN_CAP * (1.0 - math.exp(-math.log(2.0) * self.q_turn)))
+        self.hull_alpha = clamp(HULL_ALPHA_REF * self.q_turn * turn_k, HULL_ALPHA_MIN, HULL_ALPHA_MAX)
 
-        self.accel = clamp(ACCEL_K * self.pw, ACCEL_MIN, ACCEL_MAX)
+        self.accel = clamp(ACCEL_K * self.pw * self.layout.accel_k, ACCEL_MIN, ACCEL_MAX)
         self.accel_back = self.accel * REVERSE_ACCEL_K
         self.decel_coast = COAST_DECEL
         self.decel_brake = BRAKE_DECEL

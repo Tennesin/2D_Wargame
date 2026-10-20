@@ -31,6 +31,13 @@ class Panel:
                 it.enabled = enabled
                 return
 
+    def set_options(self, key, options):
+        """Сменить варианты переключателя key. Возвращает True, если что-то изменилось."""
+        for it in self.items:
+            if isinstance(it, ChoiceRow) and it.key == key:
+                return it.set_options(options)
+        return False
+
     def set_range(self, key, lo, hi):
         """Сменить границы ползунка с ключом key (без вызова on_change)."""
         for it in self.items:
@@ -79,6 +86,11 @@ class SidePanel:
     def set_enabled(self, mode, key, enabled):
         """Доступность переключателя key на панели mode."""
         self.panels[mode].set_enabled(key, enabled)
+
+    def set_choice_options(self, mode, key, options):
+        """Варианты переключателя key на панели mode (например, «Щучий» или «Клин» по массе)."""
+        if self.panels[mode].set_options(key, options) and mode == self.mode:
+            self._layout()
 
     def _index_stats(self):
         """Один раз связывает (режим, название характеристики) с блоком, где она показана."""

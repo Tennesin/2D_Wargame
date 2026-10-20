@@ -6,9 +6,11 @@ from functools import partial
 from combat import RICOCHET_ANGLE
 from engine import VehicleKind
 from inputs import Action, key_label
-from vehicles import (TankSpec, TDSpec, TANK_PARAMS, TD_PARAMS, GUN_TUNE_PARAMS,
-                      VEHICLE_TYPES, gun_arc_deg, FRONT_SCREEN, nose_front_factor,
-                      NOSE_FLAT, NOSE_PIKE, NOSE_MIN_FRONT_MM)
+from vehicles import (
+    TankSpec, TDSpec, TANK_PARAMS, TD_PARAMS, GUN_TUNE_PARAMS, VEHICLE_TYPES, gun_arc_deg,
+    FRONT_SCREEN, nose_front_factor, NOSE_FLAT, NOSE_PIKE, NOSE_MIN_FRONT_MM,
+    SUPERHEAVY_MASS_T, WEDGE_ACCEL_K, WEDGE_TURN_K, wedge_front_factor
+)
 from structures import WALL_PARAMS, ROTATE_SNAP_DEG
 from ui import (Panel, SectionHeader, StatsBlock, InfoText, ActionButton, ChoiceRow,
                 make_param_row, DELETE_BUTTON_COLORS)
@@ -67,13 +69,14 @@ def _build_vehicle_panel(title, params, spec0, note=None, with_nose=False):
 
 def build_tank_panel():
     gain = nose_front_factor() * 100.0
-    note = (f"Щучий нос: двускатный лоб, доступен при лобовой броне больше {NOSE_MIN_FRONT_MM:.0f} мм. "
-            f"При ударе строго по оси приведённая броня носа составляет около {gain:.0f}% от значения «Лоб»; "
-            "под углом одна плита становится тоньше, другая толще. "
-            "Лобовые экраны: четыре тонких листа; КС срабатывает на них только при прямом попадании."
-            "Щучий нос (двускатный лоб) доступен при лобовой броне больше "
-            f"{NOSE_MIN_FRONT_MM:.0f} мм. "
-            )
+    wedge = wedge_front_factor() * 100.0
+    note = (f"Скошенный нос зависит от массы. До {SUPERHEAVY_MASS_T:.0f} т это щучий нос: двускатный лоб, "
+            f"при ударе строго по оси приведённая броня составляет около {gain:.0f}% от значения «Лоб». "
+            f"От {SUPERHEAVY_MASS_T:.0f} т ставится клин: плоская плита по центру (ровно «Лоб») и два скоса "
+            f"по бокам (около {wedge:.0f}%). Клин тяжелее: начальный разгон хуже на "
+            f"{(1.0 - WEDGE_ACCEL_K) * 100:.0f}%, поворот корпуса на {(1.0 - WEDGE_TURN_K) * 100:.0f}%. "
+            f"Доступен при лобовой броне больше {NOSE_MIN_FRONT_MM:.0f} мм. "
+            "Лобовые экраны: четыре тонких листа; КС срабатывает на них только при прямом попадании.")
     return _build_vehicle_panel(_title(VehicleKind.MBT), TANK_PARAMS, TankSpec.from_config(),
                                 note=note, with_nose=True)
 

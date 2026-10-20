@@ -11,7 +11,8 @@ from .gun_params import TURRET_FRONT_M, CALIBER
 # ==========================================
 NOSE_FLAT = "flat"
 NOSE_PIKE = "pike"
-NOSE_RU = {NOSE_FLAT: "плоский", NOSE_PIKE: "щучий"}
+NOSE_WEDGE = "wedge"
+NOSE_RU = {NOSE_FLAT: "плоский", NOSE_PIKE: "щучий", NOSE_WEDGE: "клин"}
 
 NOSE_MIN_FRONT_MM = 250.0   # щучий нос доступен при лобовой броне СТРОГО больше этого
 NOSE_ANGLE_DEG = 38.0       # угол плит к направлению «в лоб»; строго меньше 60°
@@ -20,6 +21,15 @@ NOSE_TIP_MARGIN_M = 0.05    # остриё не доходит до передн
 PIKE_BAND_M = 0.55          # толщина «плиты носа» вдоль скатов; за ней идёт V-образный клин палубы
 HULL_STYLE_CLASSIC = "classic"              # люк механика и решётка МТО сзади от башни
 HULL_STYLE_FRONT_ENGINE = "front_engine"    # МТО спереди (моторная крышка), люка нет
+# --- клин: скошенный нос сверхтяжёлых машин ---
+SUPERHEAVY_MASS_T = 90.0     # от этой массы скошенный нос = «клин», легче = «щучий»
+WEDGE_FACE_HALF_M = 0.70     # полуширина плоской лобовой плиты по центру
+WEDGE_ANGLE_DEG = 35.0       # угол боковых скосов к поперечной линии (нормаль скоса отклонена на столько от «вперёд»)
+WEDGE_FACE_MARGIN_M = 0.20   # лобовая плита не доходит до переднего края хитбокса на столько
+WEDGE_FACE_K = 1.0           # коэффициент толщины центральной плиты (как у плоского лба)
+WEDGE_SLOPE_K = 0.92         # коэффициент толщины боковых скосов (литые, чуть тоньше)
+WEDGE_ACCEL_K = 0.85         # начальный разгон: -15%
+WEDGE_TURN_K = 0.90          # поворот корпуса (скорость и угловое ускорение): -10%
 
 # ==========================================
 # 1. КЛАССЫ И ПЛИТЫ
@@ -136,6 +146,8 @@ class HullLayout:
     area_k: tuple = (1.0, 1.0, 1.0)                # множители площадей брони (лоб, борт, корма) к эталонным
     turret_scale_range: tuple = (0.8, 1.15)        # (это уже есть)
     turret_k: float = 1.0                          # множитель размера башни относительно корпуса (только визуал)
+    accel_k: float = 1.0                           # множитель начального разгона (клин < 1)
+    turn_k: float = 1.0                            # множитель поворота корпуса (клин < 1)
 
     # ---------- проверка при создании ----------
     def __post_init__(self):
@@ -151,7 +163,7 @@ class HullLayout:
         lo, hi = self.scale_range
         if not (0.0 < lo < hi) or self.scale_step < 0.0:
             raise ValueError(f"{self.key}: неверный scale_range / scale_step")
-        if self.nose not in (NOSE_FLAT, NOSE_PIKE):
+        if self.nose not in (NOSE_FLAT, NOSE_PIKE, NOSE_WEDGE):
             raise ValueError(f"{self.key}: неизвестный вариант носа {self.nose!r}")
         if self.sprite_reach_m() > self.canvas_half_m:
             raise ValueError(f"{self.key}: форма ({self.sprite_reach_m():.2f} м) не влезает в холст "
@@ -272,35 +284,34 @@ MEDIUM_LAYOUT = HullLayout(
     scale_range=(0.88, 1.06), scale_step=0.02,
 )
 
-# Тяжёлый: широкий (4.4 x 6.0, отношение 1.36), сплошные бортовые экраны, башня сдвинута вперёд
 HEAVY_LAYOUT = HullLayout(
     key="heavy", cls=HullClass.HEAVY,
-    outline=((-1.55, -2.75), (1.55, -2.75), (1.75, -2.20), (1.75, 2.65),
-             (1.60, 2.90), (-1.60, 2.90), (-1.75, 2.65), (-1.75, -2.20)),
+    outline=((-1.35, -2.75), (1.35, -2.75), (1.55, -2.20), (1.55, 2.65),
+             (1.40, 2.90), (-1.40, 2.90), (-1.55, 2.65), (-1.55, -2.20)),
     track_x=1.8, track_w=0.80, track_top=-3.15, track_len=6.3,
-    axis_fwd_m=0.3,
+    axis_fwd_m=-0.6,
     coll_half_w_m=2.18, coll_half_l_m=3.15,
-    hit_parts=(_rect(1.75, 2.825, 0.0, 0.075),
+    hit_parts=(_rect(1.55, 2.825, 0.0, 0.075),
                _rect(0.40, 3.15, -1.8, 0.0),
                _rect(0.40, 3.15, 1.8, 0.0)),
     plates=_rect_plates(2.18, 3.15),
-    ring_r_m=1.40, turret_style="cast", hull_style=HULL_STYLE_FRONT_ENGINE,
+    ring_r_m=1.15, turret_style="slab", hull_style=HULL_STYLE_FRONT_ENGINE,
     skirt_outer_x=2.2,
     skirt_levels=((-2.4, 2.6, 0.55), (-2.95, 2.95, 0.65)),
     skirt_pitch_m=1.3,
-    front_kit_poly=((-1.35, -2.67), (1.35, -2.67), (1.65, -2.25), (-1.65, -2.25)),
-    front_kit_bar=(-1.7, -2.17, 3.4, 0.22),
-    front_kit_wedge=((1.75, -2.20), (1.75, -1.30), (1.45, -2.15)),
-    screen_x=(-1.3, 1.3), screen_y=-2.77,
-    exhaust_xs=(-1.1, 1.1), exhaust_y=2.75,
-    fender_rects=((1.75, -2.2, 0.30, 4.85), (-2.05, -2.2, 0.30, 4.85)),
-    front_plate=((-1.55, -2.75), (1.55, -2.75), (1.75, -2.20), (-1.75, -2.20)),
-    deck_rect=(-1.55, -2.15, 3.1, 4.5),
+    front_kit_poly=((-1.15, -2.67), (1.15, -2.67), (1.45, -2.25), (-1.45, -2.25)),
+    front_kit_bar=(-1.5, -2.17, 3.0, 0.22),
+    front_kit_wedge=((1.55, -2.20), (1.55, -1.30), (1.25, -2.15)),
+    screen_x=(-1.15, 1.15), screen_y=-2.77,
+    exhaust_xs=(-1.0, 1.0), exhaust_y=2.75,
+    fender_rects=(),
+    front_plate=((-1.35, -2.75), (1.35, -2.75), (1.55, -2.20), (-1.55, -2.20)),
+    deck_rect=(-1.40, -2.15, 2.80, 4.5),
     canvas_half_m=3.7,
     scale_range=(1.00, 1.12), scale_step=0.02,
-    hatch=(1.20, -2.00, 0.24),
-    grill_rect=(-1.10, 1.40, 2.20, 1.00),
-    rear_plate=(-1.50, 2.40, 3.00, 0.50),
+    hatch=(1.05, -2.00, 0.24),
+    grill_rect=(-1.00, 1.40, 2.00, 1.00),
+    rear_plate=(-1.30, 2.40, 2.60, 0.50),
     base_skirt=1,
     turret_front_m=1.85,
     turret_scale_range=(0.95, 1.15),
@@ -415,16 +426,70 @@ def _make_pike(base):
                    deck_rect=deck, fender_rects=tuple(fenders),
                    front_kit_poly=kit, front_kit_bar=bar)
 
+def _make_wedge(base):
+    """Производная раскладка с клином: плоская лобовая плита по центру и два боковых скоса,
+    плечи стоят на полной ширине корпуса (она у раскладки не больше внутреннего края гусениц).
+    Сам нос тяжелее щучьего: штрафы к разгону и повороту лежат в accel_k / turn_k."""
+    half_w = base.outline[2][0]
+    if abs(base.outline[3][0] - half_w) > 1e-9 or abs(base.outline[-1][0] + half_w) > 1e-9:
+        raise ValueError(f"{base.key}: для клина боковые грани контура должны быть вертикальными")
+
+    f = min(WEDGE_FACE_HALF_M, 0.6 * half_w)
+    face_y = -(base.coll_half_l_m - WEDGE_FACE_MARGIN_M)
+    sh_y = face_y + (half_w - f) * math.tan(math.radians(WEDGE_ANGLE_DEG))   # y плеч
+    face_l, face_r = (-f, face_y), (f, face_y)
+    left, right = (-half_w, sh_y), (half_w, sh_y)
+
+    outline = (face_l, face_r, right, *base.outline[3:-1], left)
+
+    plates = (ArmorPlate.make(left, face_l, "front", WEDGE_SLOPE_K),
+              ArmorPlate.make(face_l, face_r, "front", WEDGE_FACE_K),
+              ArmorPlate.make(face_r, right, "front", WEDGE_SLOPE_K)) + base.plates
+    hit_parts = (outline, *base.track_polys)
+
+    ox, oy, ow, oh = base.deck_rect                          # палуба начинается сразу за плечами
+    deck_y = sh_y + 0.05
+    deck = (ox, deck_y, ow, oy + oh - deck_y)
+
+    fenders = []
+    for fx, fy, fw, fh in base.fender_rects:                 # у тяжёлого их нет, но код общий
+        y0 = max(fy, sh_y + 0.20)
+        fenders.append((fx, y0, fw, fy + fh - y0))
+
+    quad = [left, face_l, face_r, right]                     # накладка: вписана в трапецию носа
+    kit_cy = sum(y for _, y in quad) / 4.0
+    kit = tuple(shrink_polygon(quad, 0.0, kit_cy, 0.80))
+    bar = (-(half_w - 0.08), sh_y + 0.12, 2.0 * (half_w - 0.08), 0.20)
+    wedge = ((half_w, sh_y + 0.12), (half_w, sh_y + 1.12), (half_w - 0.30, sh_y + 0.17))
+
+    return replace(base, key=f"{base.key}+wedge", nose=NOSE_WEDGE, outline=outline,
+                   hit_parts=hit_parts, plates=plates, front_plate=(left, face_l, face_r, right),
+                   deck_rect=deck, fender_rects=tuple(fenders),
+                   front_kit_poly=kit, front_kit_bar=bar, front_kit_wedge=wedge,
+                   accel_k=WEDGE_ACCEL_K, turn_k=WEDGE_TURN_K)
+
 _NOSE_CACHE = {}
 
 def layout_with_nose(base, nose):
-    """Раскладка с выбранным носом. Плоский нос: сама базовая раскладка."""
-    if nose != NOSE_PIKE or base.nose == NOSE_PIKE:
+    """Раскладка с выбранным носом. Плоский нос (и уже скошенная раскладка): сама базовая."""
+    if nose not in (NOSE_PIKE, NOSE_WEDGE) or base.nose != NOSE_FLAT:
         return base
-    layout = _NOSE_CACHE.get(base.key)
+    key = (base.key, nose)
+    layout = _NOSE_CACHE.get(key)
     if layout is None:
-        layout = _NOSE_CACHE[base.key] = _make_pike(base)
+        builder = _make_wedge if nose == NOSE_WEDGE else _make_pike
+        layout = _NOSE_CACHE[key] = builder(base)
     return layout
+
+def sloped_nose_for_mass(mass_t):
+    """Какой скошенный нос положен машине такой массы."""
+    return NOSE_WEDGE if mass_t >= SUPERHEAVY_MASS_T else NOSE_PIKE
+
+def resolve_nose(requested, front_mm, mass_t):
+    """Итоговый нос: плоский, щучий или клин. Скос доступен только при лобовой броне больше порога."""
+    if requested not in (NOSE_PIKE, NOSE_WEDGE) or front_mm <= NOSE_MIN_FRONT_MM:
+        return NOSE_FLAT
+    return sloped_nose_for_mass(mass_t)
 
 def nose_front_factor():
     """Во сколько раз приведённая броня щучьего носа при ударе строго в лоб
@@ -432,6 +497,11 @@ def nose_front_factor():
     theta = math.radians(NOSE_ANGLE_DEG)
     k = 1.0 - NOSE_COMP * (1.0 - math.cos(theta))
     return k / math.cos(theta)
+
+def wedge_front_factor():
+    """Приведённая броня боковых скосов клина при ударе строго по оси относительно ползунка «Лоб».
+    Центральная плита даёт ровно 1.0."""
+    return WEDGE_SLOPE_K / math.cos(math.radians(WEDGE_ANGLE_DEG))
 
 # ==========================================
 # 4б. ЛОБОВЫЕ ЭКРАНЫ
@@ -444,20 +514,21 @@ SCREEN_HIT_DEPTH_M = 0.40    # насколько впереди плиты (м)
                              # (у плоского лба хитбокс чуть шире спрайта)
 
 def _front_edges(layout):
-    """Рёбра, вдоль которых стоят экраны: одно для плоского лба, два ската для щучьего."""
+    """Рёбра, вдоль которых стоят экраны: (a, b, сколько листов). Всего SCREEN_COUNT."""
     fp = layout.front_plate
     if layout.nose == NOSE_PIKE:
         left, tip, right = fp
-        return ((left, tip), (tip, right))
-    return ((fp[0], fp[1]),)
+        return ((left, tip, 2), (tip, right, 2))
+    if layout.nose == NOSE_WEDGE:
+        left, face_l, face_r, right = fp
+        return ((left, face_l, 1), (face_l, face_r, 2), (face_r, right, 1))
+    return ((fp[0], fp[1], SCREEN_COUNT),)
 
 def screen_pieces(layout):
     """Листы экранов: ((a, b, (nx, ny)), ...). a и b лежат на самой плите, (nx, ny) смотрит наружу.
     На каждом ребре листы расставлены с равными просветами; по краям ребра полпросвета."""
-    edges = _front_edges(layout)
-    per_edge = SCREEN_COUNT // len(edges)
     pieces = []
-    for a, b in edges:
+    for a, b, per_edge in _front_edges(layout):
         dx, dy = b[0] - a[0], b[1] - a[1]
         length = math.hypot(dx, dy)
         ux, uy = dx / length, dy / length
@@ -534,6 +605,8 @@ def turret_axis_for(cls, index):
     У лёгкого корпуса башня всегда по центру."""
     if cls is HullClass.LIGHT:
         return LIGHT_LAYOUT.axis_fwd_m
+    if cls is HullClass.HEAVY:
+        return HEAVY_LAYOUT.axis_fwd_m
     t = clamp((index - TURRET_SHIFT_FROM) / (TURRET_SHIFT_TO - TURRET_SHIFT_FROM), 0.0, 1.0)
     axis = round_to(lerp(TURRET_AXIS_FRONT_M, TURRET_AXIS_REAR_M, t), TURRET_AXIS_STEP_M)
     return round(axis, 3) + 0.0                      # + 0.0 убирает «-0.0»

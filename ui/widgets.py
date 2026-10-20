@@ -229,6 +229,17 @@ class ChoiceRow:
         if any(value == v for v, _ in self.options):
             self.value = value
 
+    def set_options(self, options):
+        """Сменить набор вариантов. Если выбранного значения в новом наборе нет, берётся первое.
+        Возвращает True, если набор изменился (тогда панель должна пересчитать раскладку)."""
+        options = list(options)
+        if options == self.options:
+            return False
+        self.options = options
+        if not any(self.value == v for v, _ in options):
+            self.value = options[0][0]
+        return True
+
     def layout(self, x, y, w):
         self.rect = pygame.Rect(x, y, w, self.height)
         gap = 6

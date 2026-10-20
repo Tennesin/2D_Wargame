@@ -8,9 +8,11 @@ from engine import PX_PER_M, VehicleCommand, VehicleKind, clamp, get_text, FONT_
 from inputs import InputHandler, Action
 from ui import SidePanel, Button, ACTIVE_BUTTON_COLORS
 from ui.theme import PANEL_WIDTH
-from vehicles import (GUN_TUNE_PARAMS, damage_range, pen_range, remap,
-                      VEHICLE_TYPES, RENDERERS, make_vehicle, caliber_range_for,
-                      NOSE_FLAT, NOSE_PIKE, NOSE_MIN_FRONT_MM)
+from vehicles import (
+    GUN_TUNE_PARAMS, damage_range, pen_range, remap, VEHICLE_TYPES, RENDERERS,
+    make_vehicle, caliber_range_for, NOSE_FLAT, NOSE_PIKE, NOSE_MIN_FRONT_MM,
+    estimate_mass, sloped_nose_for_mass
+)
 from world import Camera
 from ..panels import PanelMode, PANEL_OF, build_tank_panel, build_td_panel
 from .base import Scene
@@ -129,11 +131,21 @@ class ConstructorScene(Scene):
                         remap(values["gun_penetration"], p_rng, (0.0, 1.0)))
 
     def _apply_nose_rules(self, values):
-        """Правило носа: щучий только при лобовой броне больше порога (для ОБТ и ПТ-САУ).
-        Экраны теперь сочетаются с любым носом. Обновляет доступность переключателя
-        и ползунки панели, возвращает исправленные значения."""
+        """Правило носа."""
         values = dict(values)
         allowed = values["front_armor_mm"] > NOSE_MIN_FRONT_MM
+
+        if self.session.kind is VehicleKind.MBT:
+            mass = estimate_mass(values["gun_caliber_mm"], values["front_armor_mm"],
+                                 values["side_armor_mm"], values["rear_armor_mm"],
+                                 values["engine_power_hp"], values.get("front_screen_mm", 0.0))
+            sloped = sloped_nose_for_mass(mass)
+            self.ui.set_choice_options(self._mode, "front_nose",
+                                       [(NOSE_FLAT, NOSE_RU[NOSE_FLAT].capitalize()),
+                                        (sloped, NOSE_RU[sloped].capitalize())])
+            if values["front_nose"] != NOSE_FLAT:
+                values["front_nose"] = sloped            # масса перешагнула 90 т: щучий <-> клин
+
         if not allowed:
             values["front_nose"] = NOSE_FLAT
         self.ui.set_enabled(self._mode, "front_nose", allowed)

@@ -6,10 +6,10 @@ import dataclasses
 from ..hulls import (
     classify, class_index, class_for_index, layout_for, HULL_CLASS_RU,
     layout_with_nose, NOSE_FLAT, NOSE_PIKE, NOSE_RU, NOSE_MIN_FRONT_MM, near_class_border,
-    layout_with_axis, turret_axis_for, caliber_limits
+    layout_with_axis, turret_axis_for, caliber_limits, resolve_nose
 )
 from engine import clamp, fmt_num, PX_PER_M, round_to
-from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses
+from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses, chassis_masses
 from ..chassis_params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP, FRONT_SCREEN, SCREEN_LOOK_STEPS
 from ..gun_spec import GunSpec, turret_masses, REF_CAL, REF_POWER
 from ..gun_tuning import tuning_k_bounds
@@ -67,6 +67,24 @@ def caliber_range_for(front, side, rear, power):
     """(мин, макс) калибра, допустимые для корпуса, который получится при таких броне и мощности.
     Нужна конструктору (границы ползунка) и подбору сборок ботов."""
     return caliber_limits(class_index(*hull_inputs(front, side, rear, power)))
+
+def estimate_mass(cal, front, side, rear, power, screen=0.0):
+    """Полная масса ОБТ, т, по входным параметрам, без создания TankSpec.
+    Совпадает с TankSpec.mass: форма носа и положение башни на массу не влияют.
+    Нужна, чтобы выбрать щучий нос или клин (и конструктору, чтобы показать нужную кнопку)."""
+    front = clamp(float(front), _FRONT.min, _FRONT.max)
+    side = clamp(float(side), _SIDE.min, _SIDE.max)
+    rear = clamp(float(rear), _REAR.min, _REAR.max)
+    power = clamp(float(power), _POWER.min, _POWER.max)
+    screen = clamp(float(screen), FRONT_SCREEN.min, FRONT_SCREEN.max)
+    index = class_index(*hull_inputs(front, side, rear, power))
+    lo, hi = caliber_limits(index)
+    cal = clamp(clamp(float(cal), _CAL.min, _CAL.max), lo, hi)
+    layout = layout_for(class_for_index(index))
+    m_gun, m_turret = turret_masses(cal)
+    _, filling, _, armor = chassis_masses(TANK_BODY, layout.area_k, front, side, rear,
+                                          power, m_gun + m_turret, screen)
+    return filling + sum(armor)
 
 # ==========================================
 # 2. СТОИМОСТЬ: индекс ценности -> цена
@@ -128,18 +146,17 @@ class TankSpec(ChassisSpec):
         power = clamp(float(power), _POWER.min, _POWER.max)
         screen = clamp(float(screen), FRONT_SCREEN.min, FRONT_SCREEN.max)
 
-        if nose != NOSE_PIKE or front <= NOSE_MIN_FRONT_MM:
-            nose = NOSE_FLAT                    # щучий нос только при лобовой броне больше порога
-        self.nose = nose
-
         # класс корпуса зависит ТОЛЬКО от брони и мощности (не от массы и не от калибра)
         self.hull_index = class_index(*hull_inputs(front, side, rear, power))
         self.HULL_CLASS = class_for_index(self.hull_index)
 
-        lo, hi = caliber_limits(self.hull_index)    # страховка: даже в обход интерфейса калибр подрежется
+        lo, hi = caliber_limits(self.hull_index)
         cal = clamp(cal, lo, hi)
         self.cal = cal
         self.m_gun, self.m_turret = turret_masses(cal)
+
+        nose = resolve_nose(nose, front, estimate_mass(cal, front, side, rear, power, screen))
+        self.nose = nose
 
         layout = layout_for(self.HULL_CLASS)
         layout = layout_with_axis(layout, turret_axis_for(self.HULL_CLASS, self.hull_index))
@@ -214,6 +231,7 @@ class TankSpec(ChassisSpec):
             "Корпус": HULL_CLASS_RU[self.HULL_CLASS]
                       + (" (у границы)" if near_class_border(self.hull_index) else ""),
             "Нос корпуса": NOSE_RU[self.nose],
+            "Нос: разгон / поворот": f"×{self.layout.accel_k:.2f} / ×{self.layout.turn_k:.2f}",
             "Макс. скорость": f"{self.v_max:.0f} км/ч",
             "Средняя скорость": f"{self.v_avg:.0f} км/ч",
             "Скорость назад": f"{self.v_back:.0f} км/ч",

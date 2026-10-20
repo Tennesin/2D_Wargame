@@ -593,6 +593,34 @@ class GunVehicleRenderer:
                 pen.ellipse(seam, a[0] + (c[0] - a[0]) * t, a[1] + (c[1] - a[1]) * t - 0.10,
                             RIVET_R_M, RIVET_R_M, outline=None)
 
+    @staticmethod
+    def _draw_wedge_plate(pen, layout, paint):
+        """Клин: центральная плоская плита и два боковых скоса (слева светлее, справа темнее,
+        как у щучьего носа). Рисовать ПОСЛЕ прямоугольника палубы."""
+        left, face_l, face_r, right = layout.front_plate
+        sh_y = left[1]                                   # линия плеч
+        c_face = apply_paint(HULL_LIGHT, paint)
+        c_left = apply_paint(lerp_color(HULL_MAIN, HULL_LIGHT, 0.45), paint)
+        c_right = apply_paint(lerp_color(HULL_MAIN, DECK, 0.30), paint)
+        seam = apply_paint(HULL_DARK, paint)
+
+        pen.poly(c_left, [left, face_l, (face_l[0], sh_y)], outline=None)
+        pen.poly(c_right, [face_r, right, (face_r[0], sh_y)], outline=None)
+        pen.poly(c_face, [face_l, face_r, (face_r[0], sh_y), (face_l[0], sh_y)], outline=None)
+
+        ow = OUTLINE_W / pen.k                           # наружный контур носа
+        for a, b in ((left, face_l), (face_l, face_r), (face_r, right)):
+            pen.line(OUTLINE, a[0], a[1], b[0], b[1], ow)
+
+        for x in (face_l[0], face_r[0]):                 # швы между плитами и стык с палубой
+            pen.line(seam, x, face_l[1] + 0.04, x, sh_y, 0.05)
+        pen.line(seam, left[0] + 0.04, sh_y, right[0] - 0.04, sh_y, 0.05)
+
+        n = max(2, round((face_r[0] - face_l[0]) / 0.45))   # заклёпки вдоль лобового края
+        for i in range(1, n):
+            x = face_l[0] + (face_r[0] - face_l[0]) * i / n
+            pen.ellipse(seam, x, face_l[1] + 0.14, RIVET_R_M, RIVET_R_M, outline=None)
+
     # ---------- ствол (одинаковый у всех) ----------
     def _build_barrel(self, bl, bt, look):
         """Ствол: узкая вертикальная картинка (дульный срез сверху). Центр — середина видимой длины."""

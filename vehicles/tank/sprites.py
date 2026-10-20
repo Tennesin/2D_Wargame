@@ -1,10 +1,10 @@
 """tank/sprites.py — отрисовка ОБТ: корпус и башня строятся из раскладки (vehicles/hulls.py).
 Общая часть (гусеницы, ствол, тень, кэши) лежит в vehicles/sprite_base.py."""
 import math
-
 import pygame
 
-from ..hulls import max_canvas_half_m, NOSE_PIKE, HULL_STYLE_FRONT_ENGINE, PIKE_BAND_M
+from engine import clamp, lerp_color
+from ..hulls import max_canvas_half_m, NOSE_PIKE, NOSE_WEDGE, HULL_STYLE_FRONT_ENGINE, PIKE_BAND_M
 from ..sprite_base import (
     GunVehicleRenderer, Pen as _Pen, apply_paint as _paint, layout_of, SS, OUTLINE,
     HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, RING, GRILL, GRILL_LINE,
@@ -17,12 +17,14 @@ TURRET_HALF_M = 2.4                 # заготовка башни (без ст
 # Шестиугольная башня (средний корпус)
 HEX_POINTS = [(-0.70, -1.55), (0.70, -1.55), (1.30, 0.00), (0.70, 1.65), (-0.70, 1.65), (-1.30, 0.00)]
 HEX_INNER = [(-0.48, -1.05), (0.48, -1.05), (0.88, 0.00), (0.48, 1.12), (-0.48, 1.12), (-0.88, 0.00)]
-
-# Литая каплевидная башня (тяжёлый корпус): узкая спереди, широкая сзади
-CAST_POINTS = [(-0.60, -1.70), (0.60, -1.70), (1.05, -1.10), (1.45, 0.20), (1.30, 1.35),
-               (0.75, 1.90), (-0.75, 1.90), (-1.30, 1.35), (-1.45, 0.20), (-1.05, -1.10)]
-CAST_INNER = [(-0.40, -1.25), (0.40, -1.25), (0.70, -0.75), (1.00, 0.20), (0.90, 1.00),
-              (0.50, 1.40), (-0.50, 1.40), (-0.90, 1.00), (-1.00, 0.20), (-0.70, -0.75)]
+# Плитчатая башня тяжёлого корпуса (ось башни = (0, 0), перёд = -y), метры эталонного спрайта
+SLAB_HALF_W = 1.30                  # полуширина
+SLAB_FRONT = 1.55                   # передняя грань впереди оси (маска торчит ещё на 0.30)
+SLAB_REAR = 1.45                    # задняя грань позади оси
+SLAB_FRONT_CHAMFER = (0.55, 0.60)   # передняя фаска: (по x, по y)
+SLAB_REAR_CHAMFER = (0.30, 0.30)    # задняя фаска
+SLAB_RIM = 0.20                     # ширина боковых граней (рамка вокруг верхней плиты)
+SLAB_LIGHT_DIR = (-0.55, -0.83)     # откуда падает свет: слева-сверху
 
 CHEVRON = [(0.00, -0.95), (0.40, -0.55), (0.40, -0.38), (0.00, -0.78), (-0.40, -0.38), (-0.40, -0.55)]
 TOOLBOX = (132, 124, 106)    # ящики ЗИП на крыльях
@@ -59,6 +61,9 @@ class TankRenderer(GunVehicleRenderer):
         if layout.nose == NOSE_PIKE:
             pen.rect(deck, *layout.deck_rect)
             self._draw_pike_plate(pen, layout, paint)
+        elif layout.nose == NOSE_WEDGE:
+            pen.rect(deck, *layout.deck_rect)
+            self._draw_wedge_plate(pen, layout, paint)
         else:
             pen.poly(hull_light, layout.front_plate)
             pen.rect(deck, *layout.deck_rect)
@@ -94,22 +99,29 @@ class TankRenderer(GunVehicleRenderer):
         return self._finish(pygame.transform.smoothscale(big, (size, size)))
 
     def _draw_front_engine(self, pen, layout, hull_dark):
-        """Моторная крышка на носу тяжёлого корпуса: от начала палубы до переднего края погона.
-        Места зависит от положения башни: чем дальше она уехала назад, тем длиннее крышка."""
-        y_end = -layout.axis_fwd_m - layout.ring_r_m
-        lead = PIKE_BAND_M + 0.10 if layout.nose == NOSE_PIKE else 0.25
+        """Моторная крышка на носу тяжёлого корпуса: от начала палубы до передней кромки башни."""
+        reach = layout.turret_front_m * layout.turret_k * layout.turret_scale_range[1]
+        y_end = -layout.axis_fwd_m - reach
+        if layout.nose == NOSE_PIKE:
+            lead = PIKE_BAND_M + 0.10
+        elif layout.nose == NOSE_WEDGE:
+            lead = 0.20
+        else:
+            lead = 0.25
         half_w = layout.deck_rect[2] / 2.0 - 0.30
         self._draw_deck(pen, y_end, hull_dark, layout.deck_rect[1],
                         half_w=half_w, lead=lead, min_free=0.6)
 
     @staticmethod
     def _draw_stowage(pen, layout, paint):
-        """Ящики ЗИП на левом крыле и трос на правом (как у ПТ-САУ)."""
-        (rfx, rfy, rfw, rfh), (lfx, lfy, lfw, lfh) = layout.fender_rects
+        """Ящики ЗИП слева и трос справа лежат на бортовых экранах."""
         tool = _paint(TOOLBOX, paint)
-        pen.rect(tool, lfx, lfy + lfh * 0.45, lfw, 0.95, r=0.04)
-        pen.rect(tool, lfx, lfy + lfh * 0.20, lfw, 0.60, r=0.04)
-        pen.line(CABLE, rfx + rfw / 2.0, rfy + 0.4, rfx + rfw / 2.0, rfy + rfh - 0.4, 0.07)
+        y0, y1, w = layout.skirt_levels[0]
+        cx = layout.skirt_outer_x - w / 2.0              # середина полосы экрана
+        span = y1 - y0
+        pen.rect(tool, -cx - 0.15, y0 + span * 0.50, 0.30, 0.95, r=0.04)
+        pen.rect(tool, -cx - 0.15, y0 + span * 0.20, 0.30, 0.60, r=0.04)
+        pen.line(CABLE, cx, y0 + 0.5, cx, y1 - 0.5, 0.07)
 
     # ---------- башня ----------
 
@@ -123,6 +135,8 @@ class TankRenderer(GunVehicleRenderer):
         colors = (_paint(TURRET_MAIN, paint), _paint(TURRET_LIGHT, paint), _paint(TURRET_DARK, paint))
         if style == "oval":
             self._turret_oval(pen, team_color, look, emblem, spec, *colors)
+        elif style == "slab":
+            self._turret_slab(pen, team_color, look, emblem, spec, *colors)
         elif style == "cast":
             self._turret_cast(pen, team_color, look, emblem, spec, *colors)
         else:
@@ -168,19 +182,45 @@ class TankRenderer(GunVehicleRenderer):
             pen.line(OUTLINE, -0.75, 0.90, -0.90, 1.75, 0.04)
             pen.ellipse(dark, -0.75, 0.90, 0.09, 0.09)
 
-    def _turret_cast(self, pen, team, look, emblem, spec, main, light, dark):
-        """Тяжёлый корпус: крупная литая башня каплей, широкая маска."""
-        if look.front > 0:
-            k = 1.0 + 0.07 * look.front     # максимум 1.14: помещается в заготовку
-            pen.poly(dark, [(x * k, y * k) for x, y in CAST_POINTS])
-        pen.poly(main, CAST_POINTS)
-        pen.poly(light, CAST_INNER, outline=dark)
+    @staticmethod
+    def _slab_points(inset=0.0, front_extra=0.0):
+        """Контур плитчатой башни: плоский лоб, срезанные передние углы, параллельные борта,
+        плоская корма. inset сжимает контур внутрь (для верхней плиты), front_extra утолщает лоб."""
+        w = SLAB_HALF_W - inset
+        f = SLAB_FRONT - inset - front_extra
+        r = SLAB_REAR - inset
+        fcx, fcy = SLAB_FRONT_CHAMFER
+        rcx, rcy = SLAB_REAR_CHAMFER
+        return [(-(w - fcx), -f), (w - fcx, -f), (w, -f + fcy), (w, r - rcy),
+                (w - rcx, r), (-(w - rcx), r), (-w, r - rcy), (-w, -f + fcy)]
+
+    def _turret_slab(self, pen, team, look, emblem, spec, main, light, dark):
+        """Тяжёлый корпус: башня-«плита» (ориентир: башня Мауса в плане)."""
+        outer = self._slab_points()
+        inner = self._slab_points(SLAB_RIM, 0.07 * look.front)   # броня: толще лобовая грань
+        pen.poly(main, outer)
+
+        lx, ly = SLAB_LIGHT_DIR
+        n = len(outer)
+        for i in range(n):                                       # боковые грани: тон по освещению
+            a, b = outer[i], outer[(i + 1) % n]
+            ia, ib = inner[i], inner[(i + 1) % n]
+            ex, ey = b[0] - a[0], b[1] - a[1]
+            ln = math.hypot(ex, ey)
+            nx, ny = ey / ln, -ex / ln                           # наружная нормаль грани
+            t = clamp(0.5 + 0.5 * (nx * lx + ny * ly), 0.0, 1.0)
+            pen.poly(lerp_color(dark, light, t), [a, b, ib, ia], outline=None)
+        pen.poly(light, inner, outline=dark)                     # верхняя плита
+
+        for sy in (0.0, 1.0):                                    # швы листов крыши
+            pen.line(dark, -0.95, sy, 0.95, sy, 0.04)
         if emblem == "chevron":
-            self._chevrons(pen, 1.0, 0.0)
-        pen.rect(team, -0.65, -spec.GUN_FRONT_M, 1.30, 0.60, r=0.08)
-        pen.ellipse(dark, 0.55, 0.50, 0.38, 0.38)                       # люк командира
-        pen.ellipse(team, 0.55, 0.50, 0.28, 0.28)
-        pen.ellipse(dark, -0.60, 0.90, 0.26, 0.26)                      # люк заряжающего
-        if look.speed > 0:
-            pen.line(OUTLINE, -0.90, 1.0, -1.05, 1.95, 0.04)
-            pen.ellipse(dark, -0.90, 1.0, 0.10, 0.10)
+            self._chevrons(pen, 0.9, -0.05)
+
+        pen.rect(team, -0.55, -spec.GUN_FRONT_M, 1.10, 0.50, r=0.08)   # маска уже передней грани
+        pen.ellipse(dark, 0.62, 0.45, 0.36, 0.36)                      # люк командира
+        pen.ellipse(team, 0.62, 0.45, 0.26, 0.26)
+        pen.ellipse(dark, -0.62, 0.62, 0.26, 0.26)                     # люк заряжающего
+        if look.speed > 0:                                             # антенна
+            pen.line(OUTLINE, -0.80, 0.85, -0.92, 1.30, 0.04)
+            pen.ellipse(dark, -0.80, 0.85, 0.09, 0.09)

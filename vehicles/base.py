@@ -8,7 +8,7 @@ from engine import (
     heading_vector, find_free_fraction, Team, TargetType, fmt_num, clamp,
     convex_segment_hit, to_local_frame, vec_to_local, vec_from_local
 )
-from .hulls import NOSE_PIKE, NOSE_RU, screen_hit
+from .hulls import NOSE_PIKE, NOSE_WEDGE, NOSE_RU, screen_hit
 from combat import resolve_hit, Damageable
 from .chassis_params import (
     KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, ARMOR_K, TERRAIN_MIN_K, TERRAIN_BRAKE,
@@ -218,7 +218,8 @@ class Vehicle(Damageable):
         """(заголовок, [(название, значение), ...]) для краткой сводки. Подклассы дополняют."""
         s = self.spec
         title = self.PLAYER_TITLE if self.team is Team.PLAYER else f"Враг: {self.label}"
-        pike = getattr(s, "nose", None) == NOSE_PIKE
+        nose = getattr(s, "nose", None)
+        pike = nose == NOSE_PIKE
         rows = [
             ("Броня: лоб (по оси)" if pike else "Броня: лоб",
              f"{s.front:.0f}" + (f" + {s.screen_mm:.0f}" if s.screen_mm else "") + " мм"),
@@ -227,8 +228,8 @@ class Vehicle(Damageable):
             ("Масса", f"{fmt_num(s.mass, 1)} т"),
             ("Гусеницы", self._track_status()),
         ]
-        if pike:
-            rows.insert(1, ("Нос корпуса", NOSE_RU[NOSE_PIKE]))
+        if nose in (NOSE_PIKE, NOSE_WEDGE):
+            rows.insert(1, ("Нос корпуса", NOSE_RU[nose]))
         return title, rows
 
     def hull_offset_to(self, x, y):
