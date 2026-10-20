@@ -105,7 +105,7 @@ class PlayScene(Scene):
 
         if self.fleet.player.alive:
             self.debug.handle_hotkeys()
-            self.camera_ctrl.handle_hotkeys()
+            self.camera_ctrl.follow(self.fleet.player, dt)
             self.wall_editor.handle_hotkeys()
             self.modes.handle_hotkeys()
             self.tank_ctrl.handle_hotkeys()

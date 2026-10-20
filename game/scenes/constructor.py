@@ -16,7 +16,10 @@ from vehicles import (
 from world import Camera
 from ..panels import PanelMode, PANEL_OF, build_tank_panel, build_td_panel
 from .base import Scene
-from tools.tank_snapshot import save_snapshot
+try:
+    from tools.tank_snapshot import save_snapshot
+except ImportError:
+    save_snapshot = None
 
 BG = (36, 40, 46)
 PREVIEW_ZOOM_STEPS = 8          # на сколько ступеней приблизить камеру относительно стандартной
@@ -192,6 +195,9 @@ class ConstructorScene(Scene):
     # ---------- снимок для разбора внешнего вида ----------
     def _save_snapshot(self):
         """LCtrl + LShift + V: текстовый снимок всего, что нарисовано для текущей техники."""
+        if save_snapshot is None:
+            self._toast = ["Снимки недоступны в этой сборке", (240, 200, 70), 3.0]
+            return
         try:
             path = save_snapshot(self.vehicle, self.renderer)
         except Exception:

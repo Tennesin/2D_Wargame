@@ -6,6 +6,7 @@ from engine import PX_PER_M, Team, bearing_deg
 from vehicles import VEHICLE_TYPES, make_vehicle
 from ai import (Bot, BotBrain, DEFAULT_SKILL, ARCHETYPES, fit_loadout, BASE_BUDGET,
                 threat_profile, counter_multipliers)
+from .camera_control import LOOK_MARGIN_PX
 
 SPAWN_INTERVAL_S = 18.0
 FIRST_SPAWN_S = 3.0
@@ -61,7 +62,10 @@ class BotSpawner:
 
         player = self.fleet.player
         cam = self.camera
-        inner = math.hypot(cam.view_w, cam.view_h) / 2.0 / cam.zoom + SPAWN_MARGIN_M * PX_PER_M
+        half_diag = math.hypot(cam.view_w, cam.view_h) / 2.0
+        look = math.hypot(max(0.0, cam.view_w / 2.0 - LOOK_MARGIN_PX),
+                          max(0.0, cam.view_h / 2.0 - LOOK_MARGIN_PX))
+        inner = (half_diag + look) / cam.zoom + SPAWN_MARGIN_M * PX_PER_M
         outer = inner + SPAWN_BAND_M * PX_PER_M
         for _ in range(RING_TRIES):
             a = self.rng.uniform(0.0, 2.0 * math.pi)
