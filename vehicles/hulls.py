@@ -307,7 +307,7 @@ HEAVY_LAYOUT = HullLayout(
     fender_rects=(),
     front_plate=((-1.35, -2.75), (1.35, -2.75), (1.55, -2.20), (-1.55, -2.20)),
     deck_rect=(-1.40, -2.15, 2.80, 4.5),
-    canvas_half_m=3.7,
+    canvas_half_m=3.8,
     scale_range=(1.00, 1.12), scale_step=0.02,
     hatch=(1.05, -2.00, 0.24),
     grill_rect=(-1.00, 1.40, 2.00, 1.00),

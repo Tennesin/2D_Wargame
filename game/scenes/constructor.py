@@ -11,7 +11,7 @@ from ui.theme import PANEL_WIDTH
 from vehicles import (
     GUN_TUNE_PARAMS, damage_range, pen_range, remap, VEHICLE_TYPES, RENDERERS,
     make_vehicle, caliber_range_for, NOSE_FLAT, NOSE_PIKE, NOSE_MIN_FRONT_MM,
-    estimate_mass, sloped_nose_for_mass
+    estimate_mass, sloped_nose_for_mass, NOSE_RU
 )
 from world import Camera
 from ..panels import PanelMode, PANEL_OF, build_tank_panel, build_td_panel
