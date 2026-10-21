@@ -9,7 +9,7 @@ DMG_STEP = GUN_TUNE_PARAMS["gun_damage"].step
 PEN_STEP = GUN_TUNE_PARAMS["gun_penetration"].step
 
 BUDGET_TOLERANCE = 0.01      # цель подбора = бюджет * случайно от (1 - это) до (1 + это)
-T_LIMIT = 3.0                # потолок «уровня»: 1.0 = ползунки на максимуме, дальше они уже за пределами слайдера
+T_LIMIT = 3.0               # потолок «уровня» t
 T_GROW = 1.5                 # во сколько раз расширяем уровень, пока цена не превысит цель
 BISECT_STEPS = 14
 

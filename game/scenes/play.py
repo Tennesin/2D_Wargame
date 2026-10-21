@@ -16,7 +16,8 @@ from ..combat_control import CombatController
 from ..tank_control import TankController
 from ..wall_editor import WallEditor
 from ..clicks import ClickRouter
-from ..overlays import DebugOverlay, HudOverlay
+from ..overlays import DebugOverlay, HudOverlay, RoundOverlay
+from ..spawn_warning import SpawnWarning
 from ..renderer import Renderer
 from ..fleet import Fleet
 from ..spawner import BotSpawner
@@ -88,6 +89,8 @@ class PlayScene(Scene):
         self.hud = HudOverlay(TankHud(), tank, modes, self.camera_ctrl, fleet)
         self.modes = modes
         self.inspector = HoverInspector(ctx, self.input, modes)
+        self.warning = SpawnWarning(self.spawner, self.camera)
+        self.round_overlay = RoundOverlay(self.spawner, self.ui, tank)
 
     def update(self, dt):
         self.input.process_events()
@@ -141,11 +144,14 @@ class PlayScene(Scene):
     def draw(self, screen):
         self.renderer.draw(screen, self.camera, self.wall_editor.build_preview(), self.combat.aim_info())
         self.markers.draw(screen)
+        if self.fleet.player.alive:
+            self.warning.draw(screen)
         self.debug.draw(screen)
         self.ui.draw(screen, self.input.mouse_pos)
         if self.fleet.player.alive:
             self.toolbar.draw(screen, self.input.mouse_pos)
             self.ammo_bar.draw(screen, self.input.mouse_pos, self.fleet.player.ammo)
         self.hud.draw(screen)
+        self.round_overlay.draw(screen)      # после ui.draw: панель уже знает свой прямоугольник
         self.inspector.draw(screen)
         self.notifier.draw(screen, self.camera)

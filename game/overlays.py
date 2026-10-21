@@ -1,12 +1,14 @@
 """game/overlays.py — текст поверх игры: отладочные строки и подсказки над HUD."""
+import math
 import pygame
 from collections import Counter
 
 from vehicles import TRACK_SIDES
-from engine import PX_PER_M, get_text, FONT_SIZE_LABEL
+from engine import PX_PER_M, get_text, FONT_SIZE_LABEL, FONT_SIZE_TITLE
 from inputs import Action, key_label
 from world import CHUNK_SIZE
 from . import texts
+from .spawner import RoundPhase
 
 class DebugOverlay:
     """Строки отладки (Tab)."""
@@ -61,7 +63,9 @@ class DebugOverlay:
             f"Combat ({k[Action.COMBAT]}): {'ON' if self.modes.combat else 'OFF'}",
             f"Speed: {t.speed_kmh:.1f} km/h",
             f"Terrain speed k: {t.terrain_k:.2f}",
-            f"Bots: {len(self.fleet.bots)}  next in {self.spawner.time_left:.0f}s  "
+            f"Round {self.spawner.round} {self.spawner.phase.name}  left {self.spawner.time_left:.0f}s  "
+            f"bots {len(self.fleet.bots)}  spawned {self.spawner.spawned}",
+            f"Fit: {self.spawner.fit_info}",
             f"spawned {self.spawner.spawned}",
             f"Threat: " + "  ".join(f"{name} {v:.2f}" for name, v in self.spawner.profile.items()),
             f"Spawn mult: " + "  ".join(f"{name} x{v:.1f}" for name, v in self.spawner.multipliers.items()),
@@ -141,3 +145,41 @@ class HudOverlay:
             label = get_text(text, size, color)
             screen.blit(shadow, shadow.get_rect(center=(cx + 2, cy + dy + 2)))
             screen.blit(label, label.get_rect(center=(cx, cy + dy)))
+
+class RoundOverlay:
+    """Правый верхний угол: номер раунда и таймер. Если справа открыта панель, сдвигается влево от неё."""
+    TOP = 12
+    GAP = 12
+    LINE_GAP = 4
+
+    def __init__(self, spawner, ui, player):
+        self.spawner = spawner
+        self.ui = ui
+        self.player = player
+
+    def draw(self, screen):
+        sp = self.spawner
+        if sp.round == 0 or not self.player.alive:
+            return
+
+        rows = [(texts.ROUND_TITLE.format(n=sp.round), FONT_SIZE_TITLE, (235, 235, 235))]
+        if sp.phase is RoundPhase.COUNTDOWN:
+            if sp.time_left > 0.0:
+                rows.append((texts.ROUND_STARTS_IN.format(t=math.ceil(sp.time_left)),
+                             FONT_SIZE_LABEL, (240, 210, 70)))
+            else:
+                rows.append((texts.ROUND_WAITING, FONT_SIZE_LABEL, (240, 210, 70)))
+        else:
+            rows.append((texts.ROUND_TIME_LEFT.format(t=math.ceil(sp.time_left)),
+                         FONT_SIZE_LABEL, (170, 176, 186)))
+            rows.append((texts.ROUND_ENEMIES.format(alive=sp.group_alive, total=sp.group_total),
+                         FONT_SIZE_LABEL, (170, 176, 186)))
+
+        right = (self.ui.panel_rect.left if self.ui.is_open else screen.get_width()) - self.GAP
+        y = self.TOP
+        for text, size, color in rows:
+            shadow = get_text(text, size, (0, 0, 0))
+            label = get_text(text, size, color)
+            screen.blit(shadow, shadow.get_rect(topright=(right + 1, y + 1)))
+            screen.blit(label, label.get_rect(topright=(right, y)))
+            y += label.get_height() + self.LINE_GAP

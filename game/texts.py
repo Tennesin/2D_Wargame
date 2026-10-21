@@ -33,6 +33,13 @@ TRACK_RU = {"left": "левая", "right": "правая"}
 HINT_TRACK_BROKEN = "Гусеница сбита ({sides}): {key} — ремонт"
 HINT_TRACK_REPAIR = "Ремонт: {side} гусеница, {t:.1f} с"
 
+# Раунды
+ROUND_TITLE = "Раунд {n}"
+ROUND_STARTS_IN = "Начало через {t} с"
+ROUND_WAITING = "Группа выходит…"
+ROUND_TIME_LEFT = "До конца раунда: {t} с"
+ROUND_ENEMIES = "Врагов в группе: {alive} / {total}"
+
 # Прочее
 DISTANCE_FMT = "{:.0f} м"
 ZONE_RU = {"front": "в лоб", "side": "в борт", "rear": "в корму"}

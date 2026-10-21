@@ -4,6 +4,7 @@ import pygame
 
 from .settings import BOT_MARKERS_ENABLED
 from engine import PX_PER_M, get_text, clamp, FONT_SIZE_LABEL, hp_color
+from .pointers import edge_point, draw_triangle
 
 EDGE_INSET = 24              # отступ указателя от края экрана, px
 EDGE_SIZE = 13               # размер треугольника у края
@@ -42,18 +43,13 @@ class BotMarkers:
                 # бот на экране: треугольник над танком, остриём вниз
                 lift = (t.spec.COLLISION_HALF_L_PX + 60.0) * zoom + 10.0
                 mx, my = sx, sy - lift
-                self._triangle(screen, mx, my, math.pi / 2.0, ON_SIZE)
+                draw_triangle(screen, mx, my, math.pi / 2.0, ON_SIZE, FILL, OUTLINE)
                 self._hp_bar(screen, mx, my + ON_SIZE + BAR_GAP, t)   # полоска под остриём
                 continue
 
             # бот за экраном: ставим указатель на край, остриё смотрит на бота
-            dx, dy = sx - cx, sy - cy
-            kx = hx / abs(dx) if dx else float("inf")
-            ky = hy / abs(dy) if dy else float("inf")
-            k = min(kx, ky)
-            px, py = cx + dx * k, cy + dy * k
-            ang = math.atan2(dy, dx)
-            self._triangle(screen, px, py, ang, EDGE_SIZE)
+            px, py, ang = edge_point(w, h, sx, sy, EDGE_INSET)
+            draw_triangle(screen, px, py, ang, EDGE_SIZE, FILL, OUTLINE)
 
             # подпись с дистанцией от танка игрока, чуть глубже внутрь экрана
             dist_m = math.hypot(t.x - player.x, t.y - player.y) / PX_PER_M
@@ -64,17 +60,6 @@ class BotMarkers:
             rect = label.get_rect(center=(round(lx), round(ly)))
             rect.clamp_ip(screen.get_rect())
             screen.blit(label, rect)
-
-    @staticmethod
-    def _triangle(screen, x, y, ang, size):
-        """Равнобедренный треугольник с остриём в направлении ang (радианы, экранные оси)."""
-        ux, uy = math.cos(ang), math.sin(ang)
-        vx, vy = -uy, ux
-        tip = (x + ux * size, y + uy * size)
-        b1 = (x - ux * size * 0.6 + vx * size * 0.7, y - uy * size * 0.6 + vy * size * 0.7)
-        b2 = (x - ux * size * 0.6 - vx * size * 0.7, y - uy * size * 0.6 - vy * size * 0.7)
-        pygame.draw.polygon(screen, FILL, (tip, b1, b2))
-        pygame.draw.polygon(screen, OUTLINE, (tip, b1, b2), 2)
 
     @staticmethod
     def _hp_bar(screen, cx, top, tank):
