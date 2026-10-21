@@ -1,11 +1,10 @@
 """game/scenes/play.py — игровая сцена: сборка частей и покадровый порядок вызовов.
 Логики здесь нет: каждая зона живёт в своём классе."""
 import random
-
 import pygame
 
 from world import Camera, WorldGenerator, TerrainMap, SpawnFinder
-from vehicles import make_vehicle, AMMO_TYPES, AMMO_ORDER
+from vehicles import make_vehicle, AMMO_TYPES
 from structures import WallManager
 from inputs import InputHandler, Action, AMMO_HOTKEYS, key_label
 from ui import SidePanel, ToolBar, TankHud, AmmoBar
@@ -15,6 +14,7 @@ from ..camera_control import CameraController
 from ..combat_control import CombatController
 from ..tank_control import TankController
 from ..wall_editor import WallEditor
+from ..stun_indicator import StunIndicator
 from ..clicks import ClickRouter
 from ..overlays import DebugOverlay, HudOverlay, RoundOverlay
 from ..spawn_warning import SpawnWarning
@@ -53,7 +53,7 @@ class PlayScene(Scene):
         self.toolbar = ToolBar()
         tank = make_vehicle(session.kind, session.spec(), team=Team.PLAYER)
         self.ammo_bar = AmmoBar([(kind, AMMO_TYPES[kind].code, key_label(action))
-                                 for kind, action in zip(AMMO_ORDER, AMMO_HOTKEYS)],
+                                 for kind, action in zip(tank.spec.ammo_kinds, AMMO_HOTKEYS)],
                                 tank.select_ammo)
         self.input = InputHandler([self.toolbar, self.ui, self.ammo_bar])
         fleet = Fleet(tank)
@@ -91,6 +91,7 @@ class PlayScene(Scene):
         self.inspector = HoverInspector(ctx, self.input, modes)
         self.warning = SpawnWarning(self.spawner, self.camera)
         self.round_overlay = RoundOverlay(self.spawner, self.ui, tank)
+        self.stun_indicator = StunIndicator(fleet, self.camera)
 
     def update(self, dt):
         self.input.process_events()
@@ -144,6 +145,7 @@ class PlayScene(Scene):
     def draw(self, screen):
         self.renderer.draw(screen, self.camera, self.wall_editor.build_preview(), self.combat.aim_info())
         self.markers.draw(screen)
+        self.stun_indicator.draw(screen)
         if self.fleet.player.alive:
             self.warning.draw(screen)
         self.debug.draw(screen)

@@ -22,7 +22,8 @@ from vehicles import (
 from vehicles.chassis_params import TRACK_REPAIR_S, ONE_TRACK_SPEED_K
 from vehicles.gun_params import (
     CALIBER, HEAT_PEN_K, HEAT_SPEED_K, HEAT_RELOAD_K, HEAT_MODULE_PEN_K, HEAT_SCREEN_PEN_K,
-    HE_DAMAGE_K, HE_PEN_K, HE_MIN_FRAC, HE_RADIUS_PX_PER_MM,
+    HE_DAMAGE_K, HE_PEN_K, HE_MIN_FRAC, HE_RADIUS_PX_PER_MM, HESH_MIN_CAL_MM, HESH_DAMAGE_K,
+    HESH_PEN_K, HESH_RANGE_K, HESH_STUN_S
 )
 from world import Camera
 from .settings import COMBAT_HOLD
@@ -90,7 +91,8 @@ def _controls():
 # ==========================================
 # СТРАНИЦА 2. СНАРЯДЫ
 # ==========================================
-AMMO_NAMES = {AmmoKind.AP: "Бронебойный", AmmoKind.HEAT: "Кумулятивный", AmmoKind.HE: "Осколочно-фугасный"}
+AMMO_NAMES = {AmmoKind.AP: "Бронебойный", AmmoKind.HEAT: "Кумулятивный",
+              AmmoKind.HESH: "HESH (пластичный фугас)", AmmoKind.HE: "Осколочно-фугасный"}
 
 def _ammo_texts():
     cal = CALIBER.default
@@ -104,6 +106,12 @@ def _ammo_texts():
             f"(скорость ×{HEAT_SPEED_K:g}) и перезаряжается дольше (×{HEAT_RELOAD_K:g}). Не рикошетит. "
             f"Чувствителен к экранам: сработав на гусенице, теряет пробитие (×{HEAT_MODULE_PEN_K:g}), "
             f"на лобовом экране (×{HEAT_SCREEN_PEN_K:g}).",
+        AmmoKind.HESH:
+            f"Заменяет кумулятивный при калибре от {HESH_MIN_CAL_MM} мм (переключатель в Конструкторе). "
+            f"Урон выше на {(HESH_DAMAGE_K - 1) * 100:.0f}%, пробитие ниже на {(1 - HESH_PEN_K) * 100:.0f}%, "
+            f"дальность {HESH_RANGE_K * 100:.0f}% от бронебойного. Не рикошетит и даже без пробития наносит "
+            f"осколками часть урона. Прямое попадание оглушает цель на {HESH_STUN_S:g} с: она не может "
+            "двигаться, а её перезарядка стоит.",
         AmmoKind.HE:
             f"Взрывной снаряд: урон выше на {(HE_DAMAGE_K - 1) * 100:.0f}%, но пробитие всего "
             f"{HE_PEN_K * 100:.0f}% от бронебойного. Взрывается и бьёт по области (около {radius_m:.1f} м "
@@ -120,7 +128,7 @@ def _ammo():
                  "Тип можно менять в бою, прогресс перезарядки при этом сохраняется пропорционально."),
         SectionHeader("Виды снарядов"),
     ]
-    for kind in AMMO_ORDER:
+    for kind in (*AMMO_ORDER, AmmoKind.HESH):
         title = f"{AMMO_NAMES[kind]} ({AMMO_TYPES[kind].code})"
         items.append(IconRow(make_ammo_icon(kind, AMMO_ICON_SIZE), title, texts[kind], col_w=AMMO_COL_W))
     return items

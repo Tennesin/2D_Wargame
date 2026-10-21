@@ -155,6 +155,16 @@ class ConstructorScene(Scene):
         self.ui.set_values(self._mode, values)
         return values
 
+    def _apply_ammo_rules(self, values):
+        """HESH доступен только от HESH_MIN_CAL_MM: ниже порога переключатель заблокирован и стоит КС."""
+        values = dict(values)
+        allowed = values["gun_caliber_mm"] >= HESH_MIN_CAL_MM
+        if not allowed:
+            values["special_ammo"] = SPECIAL_HEAT
+        self.ui.set_enabled(self._mode, "special_ammo", allowed)
+        self.ui.set_values(self._mode, values)
+        return values
+
     def _apply_class_rules(self, values):
         """Калибр зависит от тяжести корпуса (броня и мощность). Для ПТ-САУ правило не действует.
         _want_cal: калибр, который игрок выбрал сам; границы могут его временно срезать,

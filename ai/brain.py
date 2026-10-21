@@ -114,7 +114,7 @@ class BotBrain:
 
         throttle, steer = steer_to(me, heading, self._go)
         # «давит» = пытается ехать ИЛИ поворачиваться (иначе заклинивший поворот на месте не виден)
-        reversing = self.stuck.update(dt, me, throttle != 0.0 or steer != 0.0, self.rng)
+        reversing = self.stuck.update(dt, me, (throttle != 0.0 or steer != 0.0) and not me.stunned, self.rng)
         if reversing:
             if not self._was_reversing:
                 self.nav.remember_stuck(me)

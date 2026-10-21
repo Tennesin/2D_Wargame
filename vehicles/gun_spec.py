@@ -1,6 +1,7 @@
 """vehicles/gun_spec.py — расчёт башни и орудия: масса, наводка, урон, пробитие, перезарядка,
 размеры спрайтов, снаряд и эффекты. Шасси не знает: получает от него size_k и мощность."""
 from engine import PX_PER_M, clamp
+from .ammo import ammo_kinds
 from .gun_tuning import resolve_tuning, reload_factor, MBT_GUN
 from .gun_params import (
     CALIBER, REF_POWER_HP, REF_L_CAL, GUN_MASS_T, GUN_MASS_AT_MM, TURRET_MASS_REF_T,
@@ -11,7 +12,7 @@ from .gun_params import (
     SHELL_LEN_K, BARREL_VIS_REF_M, BARREL_VIS_EXP, BARREL_VIS_K_RANGE,
     SHELL_SPEED_REF_PX, SHELL_SPEED_L_EXP, SHELL_SPEED_CAL_EXP, SHELL_SPEED_PEN_EXP,
     SHELL_SPEED_LIMITS, SHELL_RANGE_REF_PX, SHELL_RANGE_SPEED_EXP, SHELL_RANGE_CAL_EXP,
-    SHELL_RANGE_LIMITS, SHELL_SIZE_EXP, SHELL_STRETCH_EXP,
+    SHELL_RANGE_LIMITS, SHELL_SIZE_EXP, SHELL_STRETCH_EXP, HESH_MIN_CAL_MM,
 )
 
 _CAL = CALIBER
@@ -42,10 +43,12 @@ class GunSpec:
     def __init__(self, cal, size_k, power, m_gun, m_turret, arc_deg=360.0,
                  damage=None, penetration=None, profile=MBT_GUN,
                  front_m=TURRET_FRONT_M, barrel_ref_m=BARREL_VIS_REF_M,
-                 turret_scale_range=None, visual_k=None):
+                 turret_scale_range=None, visual_k=None, hesh=False):
         """profile — профиль орудия (бонус урона и пробития); front_m — на сколько метров вперёд
         от оси выступает маска орудия; barrel_ref_m — визуальная длина ствола эталона."""
         self.cal = cal
+        self.hesh = bool(hesh) and cal >= HESH_MIN_CAL_MM  # правило калибра живёт только здесь
+        self.ammo_kinds = ammo_kinds(self.hesh)
         self.TURRET_ARC_DEG = arc_deg
         self.profile = profile
         self.GUN_FRONT_M = front_m

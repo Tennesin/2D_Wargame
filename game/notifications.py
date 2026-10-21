@@ -147,6 +147,16 @@ class Notifier:
         if vehicle is self.player:
             self.say(f"{TRACK_RU[side].capitalize()} гусеница починена", C_GOOD)
 
+    def on_stun(self, owner, target):
+        """Цель оглушена прямым попаданием HESH. Показываем только связанное с игроком."""
+        me = self.player
+        if target is me:
+            self.say("Вы оглушены!", C_BAD)
+            self.float_at(me.x, me.y, "оглушение", C_BAD)
+        elif owner is me:
+            self.say("Враг оглушён", C_GOOD)
+            self.float_at(target.x, target.y, "оглушение", C_GOOD)
+
     def on_module_absorb(self, owner, target, module):
         """Кумулятив сработал на внешнем модуле (гусеница, экран): пробитие упало."""
         me = self.player

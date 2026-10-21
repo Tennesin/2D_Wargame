@@ -3,13 +3,13 @@
 Снаружи: from vehicles import Vehicle, Tank, TankSpec, TankRenderer, TANK_PARAMS, make_vehicle, ..."""
 from .base import Vehicle
 from .gun_vehicle import GunVehicle
-from .gun_params import GUN_TUNE_PARAMS
+from .gun_params import GUN_TUNE_PARAMS, HESH_MIN_CAL_MM
+from .ammo import AmmoType, AMMO_TYPES, AMMO_ORDER, ammo_stats, ammo_kinds, SPECIAL_HEAT, SPECIAL_HESH
 from .chassis_params import FRONT_SCREEN
 from .gun_tuning import (
     damage_range, pen_range, remap, nominal_damage, nominal_pen,
     GunProfile, MBT_GUN, TD_GUN, default_tuning
 )
-from .ammo import AmmoType, AMMO_TYPES, AMMO_ORDER, ammo_stats
 from .tank import (
     Tank, TankSpec, TankRenderer, PARAMS as TANK_PARAMS, COST_REF, cost_for, raw_cost,
     caliber_range_for, LOOK_FRONT_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO, estimate_mass
@@ -34,4 +34,5 @@ __all__ = ["Vehicle", "GunVehicle", "Tank", "TankSpec", "TankRenderer", "TANK_PA
            "HullClass", "HullLayout", "ArmorPlate", "LAYOUTS", "layout_for", "MEDIUM_LAYOUT",
            "NOSE_FLAT", "NOSE_PIKE", "NOSE_RU", "NOSE_MIN_FRONT_MM", "layout_with_nose",
            "NOSE_WEDGE", "SUPERHEAVY_MASS_T", "WEDGE_ACCEL_K", "WEDGE_TURN_K", "wedge_front_factor",
-           "sloped_nose_for_mass", "resolve_nose"]
+           "sloped_nose_for_mass", "resolve_nose", "HESH_MIN_CAL_MM", "ammo_kinds",
+           "SPECIAL_HEAT", "SPECIAL_HESH"]

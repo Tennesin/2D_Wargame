@@ -44,9 +44,12 @@ class CombatController:
             self.notifier.on_module_absorb(im.owner, target, target.module_at(im.x, im.y))
         self.notifier.on_hit(im.owner, target, im.normal, res, dealt, stats.min_frac)
         if target.target_type is TargetType.VEHICLE and target.alive:
-            side = target.knock_track(im.x, im.y)       # точка удара лежит на грани корпуса
+            side = target.knock_track(im.x, im.y)
             if side is not None:
                 self.notifier.on_track_broken(im.owner, target, side)
+            if stats.stun_s > 0.0:
+                target.apply_stun(stats.stun_s)
+                self.notifier.on_stun(im.owner, target)
 
     def _splash(self, im):
         """Осколки по всем целям в радиусе. Прямая цель пропускается: она уже получила

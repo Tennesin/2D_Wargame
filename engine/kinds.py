@@ -12,6 +12,7 @@ class VehicleKind(Enum):
 class AmmoKind(Enum):
     AP = auto()      # бронебойный (ББ)
     HEAT = auto()    # кумулятивный (КС)
+    HESH = auto()  # фугас с пластичным ВВ (оглушение)
     HE = auto()      # фугасный (ФГ)
 
 class TargetType(Enum):

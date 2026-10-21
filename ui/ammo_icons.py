@@ -38,6 +38,13 @@ def make_ammo_icon(kind, size):
         rect(tip, 0.90, 0.98, 0.10)               # воронка
         rect(tip, 0.06, 0.12, 0.30)               # донный поясок
         pygame.draw.line(big, light, (0.16 * W, cy - 0.18 * H), (0.70 * W, cy - 0.10 * H), SS)
+    elif kind is AmmoKind.HESH:                   # короткий корпус и плоская «блин»-головка
+        rect(body, 0.06, 0.66, 0.26)
+        poly(body, [(0.66 * W, cy - 0.26 * H), (0.86 * W, cy - 0.24 * H),
+                    (0.86 * W, cy + 0.24 * H), (0.66 * W, cy + 0.26 * H)])
+        rect(tip, 0.86, 0.97, 0.24)               # плоская головка
+        rect(tip, 0.30, 0.36, 0.26)               # ведущий поясок
+        pygame.draw.line(big, light, (0.12 * W, cy - 0.15 * H), (0.60 * W, cy - 0.15 * H), SS)
     else:                                         # фугас: короткий толстый снаряд с поясом
         rect(body, 0.06, 0.70, 0.28)
         poly(body, [(0.70 * W, cy - 0.28 * H), (0.84 * W, cy - 0.20 * H), (0.96 * W, cy),

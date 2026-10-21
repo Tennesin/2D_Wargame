@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from combat import resolve_hit, impact_cos, pen_after_modules
 from engine import clamp, PX_PER_M
-from vehicles import AMMO_ORDER, ammo_stats
+from vehicles import ammo_stats
 from vehicles.chassis_params import KMH_TO_PX
 
 def lead_point(shooter, target, lead_k=1.0):
@@ -181,7 +181,7 @@ def ammo_value(me, target, kind, normal, cos_i, point):
 
 def best_ammo(me, target, normal, cos_i, point):
     """Лучший тип снаряда по цели. Текущий меняем, только если выигрыш заметный (гистерезис)."""
-    scores = {k: ammo_value(me, target, k, normal, cos_i, point) for k in AMMO_ORDER}
+    scores = {k: ammo_value(me, target, k, normal, cos_i, point) for k in me.spec.ammo_kinds}
     best = max(scores, key=scores.get)
     if scores[best] <= scores[me.ammo] * AMMO_SWITCH_GAIN:
         return me.ammo
@@ -197,7 +197,7 @@ RAY_OVERSHOOT_M = 3.0         # на сколько метров луч захо
 def shot_fraction_now(me, enemy):
     """Максимальная доля урона по броне (любым пробивным снарядом) из текущей позиции.
     Фугас не считаем: его осколочный минимум не должен скрывать «бить нечем»."""
-    rounds = [s for s in (ammo_stats(me.spec, k) for k in AMMO_ORDER) if s.min_frac <= 0.0]
+    rounds = [s for s in ammo_stats(me.spec, k) for k in me.spec.ammo_kinds if s.min_frac <= 0.0]
     ex, ey = enemy.x, enemy.y
     dx, dy = ex - me.x, ey - me.y
     ln = math.hypot(dx, dy)

@@ -9,7 +9,8 @@ from inputs import Action, key_label
 from vehicles import (
     TankSpec, TDSpec, TANK_PARAMS, TD_PARAMS, GUN_TUNE_PARAMS, VEHICLE_TYPES, gun_arc_deg,
     FRONT_SCREEN, nose_front_factor, NOSE_FLAT, NOSE_PIKE, NOSE_MIN_FRONT_MM,
-    SUPERHEAVY_MASS_T, WEDGE_ACCEL_K, WEDGE_TURN_K, wedge_front_factor
+    SUPERHEAVY_MASS_T, WEDGE_ACCEL_K, WEDGE_TURN_K, wedge_front_factor,
+    SPECIAL_HEAT, SPECIAL_HESH, HESH_MIN_CAL_MM
 )
 from structures import WALL_PARAMS, ROTATE_SNAP_DEG
 from ui import (Panel, SectionHeader, StatsBlock, InfoText, ActionButton, ChoiceRow,
@@ -41,6 +42,9 @@ def _build_vehicle_panel(title, params, spec0, note=None, with_nose=False):
         row("gun_caliber_mm"),
         tune_row("gun_damage"),
         tune_row("gun_penetration"),
+        ChoiceRow("special_ammo", "Спецснаряд (слот 2)",
+                  [(SPECIAL_HEAT, "КС"), (SPECIAL_HESH, "HESH")], SPECIAL_HEAT,
+                  note=f"калибр от {HESH_MIN_CAL_MM} мм"),
 
         SectionHeader("Броня"),
         row("front_armor_mm"),

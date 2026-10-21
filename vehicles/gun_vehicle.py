@@ -81,7 +81,8 @@ class GunVehicle(Vehicle):
 
     def _update_gun(self, fire, dt):
         """Перезарядка и выстрел. Возвращает Shot, если выстрел произошёл в этом кадре."""
-        self.reload_left = max(0.0, self.reload_left - dt)
+        if not self.stunned:  # оглушение замораживает перезарядку
+            self.reload_left = max(0.0, self.reload_left - dt)
         self.since_shot += dt
         if not fire or self.reload_left > 0.0:
             return None
@@ -109,6 +110,8 @@ class GunVehicle(Vehicle):
     def select_ammo(self, kind):
         """Сменить тип снаряда. Если идёт перезарядка, прогресс сохраняется пропорционально:
         иначе можно выстрелить ББ, переключиться на КС и получить его раньше положенного."""
+        if kind not in self.spec.ammo_kinds:
+            return
         if kind is self.ammo:
             return
         old_total = self.reload_total

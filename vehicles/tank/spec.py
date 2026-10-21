@@ -3,6 +3,7 @@ import itertools
 import math
 import dataclasses
 
+from ..ammo import SPECIAL_HEAT, SPECIAL_HESH
 from ..hulls import (
     classify, class_index, class_for_index, layout_for, HULL_CLASS_RU,
     layout_with_nose, NOSE_FLAT, NOSE_PIKE, NOSE_RU, NOSE_MIN_FRONT_MM, near_class_border,
@@ -18,7 +19,7 @@ from ..look import Look, level
 from .params import (
     PARAMS, FIXED_MASS_T, FRONT_AREA_M2, SIDE_AREA_M2, REAR_AREA_M2,
     HP_REF, HULL_COLL_HALF_W_M, HULL_COLL_HALF_L_M, HULL_COLL_SHIFT_M,
-    COST_REF, COST_MIN, COST_MAX, COST_STEP, BUILD_TIME_REF, COST_ARMOR_ZONES, COST_PARTS,
+    COST_REF, COST_MIN, COST_MAX, COST_STEP, COST_ARMOR_ZONES, COST_PARTS,
     LOOK_FRONT_RATIO, LOOK_SIDE_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO,
 )
 
@@ -137,7 +138,7 @@ class TankSpec(ChassisSpec):
     spec.v_max (шасси), spec.damage (орудие). Имена в ЗАГЛАВНЫХ буквах читают Tank и Renderer."""
 
     def __init__(self, cal, front, side, rear, power, damage=None, penetration=None,
-                 screen=0.0, nose=NOSE_FLAT, unbounded=False):
+                 screen=0.0, nose=NOSE_FLAT, special_ammo=SPECIAL_HEAT, unbounded=False):
         # входные параметры (у ботов unbounded=True: верхних границ нет, ограничивает только бюджет)
         cal = _CAL.fit(cal, unbounded)
         front = _FRONT.fit(front, unbounded)
@@ -169,11 +170,11 @@ class TankSpec(ChassisSpec):
         super().__init__(body, front, side, rear, power,
                          payload_t=self.m_gun + self.m_turret, screen_mm=screen)
 
-        self.gun = GunSpec(cal, self.size_k, power, self.m_gun, self.m_turret, arc_deg=360.0,
-                           damage=damage, penetration=penetration,
-                           front_m=layout.turret_front_m,
-                           turret_scale_range=layout.turret_scale_range,
-                           visual_k=self.HULL_SCALE * layout.turret_k)
+        self.gun = GunSpec(
+            cal, self.size_k, power, self.m_gun, self.m_turret, arc_deg=360.0,
+            damage=damage, penetration=penetration, front_m=layout.turret_front_m,
+            turret_scale_range=layout.turret_scale_range,
+            visual_k=self.HULL_SCALE * layout.turret_k, hesh=(special_ammo == SPECIAL_HESH))
         self.__dict__.update(vars(self.gun))
         self.HULL_VARIANT = (self.layout.key,)
 
@@ -186,11 +187,11 @@ class TankSpec(ChassisSpec):
     @classmethod
     def from_values(cls, v, unbounded=False):
         """v — словарь значений ползунков."""
-        return cls(v["gun_caliber_mm"], v["front_armor_mm"], v["side_armor_mm"],
-                   v["rear_armor_mm"], v["engine_power_hp"],
-                   damage=v.get("gun_damage"), penetration=v.get("gun_penetration"),
-                   screen=v.get("front_screen_mm", 0.0), nose=v.get("front_nose", NOSE_FLAT),
-                   unbounded=unbounded)
+        return cls(
+            v["gun_caliber_mm"], v["front_armor_mm"], v["side_armor_mm"], v["rear_armor_mm"], v["engine_power_hp"],
+            damage=v.get("gun_damage"), penetration=v.get("gun_penetration"), screen=v.get("front_screen_mm", 0.0),
+            nose=v.get("front_nose", NOSE_FLAT), special_ammo=v.get("special_ammo", SPECIAL_HEAT), unbounded=unbounded
+        )
 
     @classmethod
     def from_config(cls):
@@ -211,7 +212,6 @@ class TankSpec(ChassisSpec):
         raw = raw_cost(self.cal, self.front + self.screen_mm, self.side, self.rear, self.power,
                        self.damage_k, self.pen_k)
         self.cost = round_cost(raw)
-        self.build_time = BUILD_TIME_REF * raw / COST_REF
 
     def _calc_look(self):
         self.LOOK = Look(
@@ -227,7 +227,6 @@ class TankSpec(ChassisSpec):
         """Расчётные характеристики: {название: готовая строка} (порядок = порядок в панели)."""
         return {
             "Стоимость": fmt_num(self.cost),
-            "Время производства": f"{self.build_time:.1f} с",
             "HP": fmt_num(self.hp),
             "Масса": f"{self.mass:.1f} т",
             "Корпус": HULL_CLASS_RU[self.HULL_CLASS]

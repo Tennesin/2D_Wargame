@@ -30,6 +30,7 @@ class AmmoStats:
     explode_at_range: bool = False   # взрывается на пределе дальности (шаг ФГ)
     module_pen_k: float = 1.0        # множитель пробития после внешнего модуля-гусеницы (1.0 = не влияет)
     screen_pen_k: float = 1.0        # то же для лобового экрана
+    stun_s: float = 0.0  # длительность оглушения цели при прямом попадании, с
 
 @dataclass
 class Shot:

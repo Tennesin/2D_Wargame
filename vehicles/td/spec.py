@@ -3,6 +3,7 @@ import dataclasses
 import math
 
 from engine import clamp, lerp, fmt_num, PX_PER_M, round_to
+from ..ammo import SPECIAL_HEAT, SPECIAL_HESH
 from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses
 from ..chassis_params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP, FRONT_SCREEN, SCREEN_LOOK_STEPS
 from ..gun_spec import GunSpec, turret_masses
@@ -14,7 +15,6 @@ from ..gun_params import (
 from ..hulls import NOSE_FLAT, NOSE_PIKE, NOSE_RU, NOSE_MIN_FRONT_MM
 from .layout import td_layout
 from ..look import Look, level
-from ..tank.params import COST_REF, BUILD_TIME_REF       # модель цены общая, привязана к эталону ОБТ
 from ..tank.spec import raw_cost, round_cost
 from .params import (
     TD_PARAMS, TD_FIXED_MASS_T, TD_FRONT_AREA_M2, TD_SIDE_AREA_M2, TD_REAR_AREA_M2, TD_HP_REF,
@@ -108,7 +108,7 @@ class TDGunSpec(GunSpec):
 
 class TDSpec(ChassisSpec):
     def __init__(self, cal, front, side, rear, power, damage=None, penetration=None,
-                 screen=0.0, nose=NOSE_FLAT, unbounded=False):
+                 screen=0.0, nose=NOSE_FLAT, special_ammo=SPECIAL_HEAT, unbounded=False):
         cal = _CAL.fit(cal, unbounded)
         front = _FRONT.fit(front, unbounded)
         side = _SIDE.fit(side, unbounded)
@@ -131,10 +131,12 @@ class TDSpec(ChassisSpec):
                                    coll_shift_m=layout.coll_shift_m)
         super().__init__(body, front, side, rear, power, payload_t=self.m_gun + self.m_casemate, screen_mm=screen)
 
-        self.gun = TDGunSpec(cal, self.size_k, power, self.m_gun, self.m_casemate,
-                             arc_deg=gun_arc_deg(cal), damage=damage, penetration=penetration,
-                             profile=TD_GUN, front_m=TD_GUN_FRONT_M,
-                             barrel_ref_m=TD_BARREL_VIS_REF_M)
+        self.gun = TDGunSpec(
+            cal, self.size_k, power, self.m_gun, self.m_casemate,
+            arc_deg=gun_arc_deg(cal), damage=damage, penetration=penetration,
+            profile=TD_GUN, front_m=TD_GUN_FRONT_M, barrel_ref_m=TD_BARREL_VIS_REF_M,
+            hesh=(special_ammo == SPECIAL_HESH)
+        )
         self.__dict__.update(vars(self.gun))
         self.HULL_VARIANT = (round(self.MOUNT_FWD_M / MOUNT_STEP_M), self.SUPPORT, self.CASE_K,
                              round(self.TURRET_ARC_DEG), nose)
@@ -147,11 +149,12 @@ class TDSpec(ChassisSpec):
 
     @classmethod
     def from_values(cls, v, unbounded=False):
-        return cls(v["gun_caliber_mm"], v["front_armor_mm"], v["side_armor_mm"],
-                   v["rear_armor_mm"], v["engine_power_hp"],
-                   damage=v.get("gun_damage"), penetration=v.get("gun_penetration"),
-                   screen=v.get("front_screen_mm", 0.0), nose=v.get("front_nose", NOSE_FLAT),
-                   unbounded=unbounded)
+        return cls(
+            v["gun_caliber_mm"], v["front_armor_mm"], v["side_armor_mm"], v["rear_armor_mm"],
+            v["engine_power_hp"], damage=v.get("gun_damage"), penetration=v.get("gun_penetration"),
+            screen=v.get("front_screen_mm", 0.0), nose=v.get("front_nose", NOSE_FLAT),
+            unbounded=unbounded, special_ammo=v.get("special_ammo", SPECIAL_HEAT),
+        )
 
     @classmethod
     def from_config(cls):
@@ -174,7 +177,6 @@ class TDSpec(ChassisSpec):
                        self.damage_k * prof.dmg_mult(self.cal),
                        self.pen_k * prof.pen_mult(self.cal))
         self.cost = round_cost(raw)
-        self.build_time = BUILD_TIME_REF * raw / COST_REF
 
     def _calc_look(self):
         self.LOOK = Look(
@@ -192,7 +194,6 @@ class TDSpec(ChassisSpec):
     def main_stats(self):
         return {
             "Стоимость": fmt_num(self.cost),
-            "Время производства": f"{self.build_time:.1f} с",
             "HP": fmt_num(self.hp),
             "Масса": f"{self.mass:.1f} т",
             "Макс. скорость": f"{self.v_max:.0f} км/ч",

@@ -1,6 +1,5 @@
 """game/tank_control.py — танк игрока: команда из ввода и обновление."""
 from inputs import Action, AMMO_HOTKEYS
-from vehicles import AMMO_ORDER
 from .modes import Mode
 
 class TankController:
@@ -20,7 +19,7 @@ class TankController:
         self.ctx.step_vehicle(self.tank, command, dt)
 
     def handle_hotkeys(self):
-        for action, kind in zip(AMMO_HOTKEYS, AMMO_ORDER):
+        for action, kind in zip(AMMO_HOTKEYS, self.tank.spec.ammo_kinds):
             if self.input.was_pressed(action):
                 self.tank.select_ammo(kind)
         if self.input.was_pressed(Action.REPAIR):

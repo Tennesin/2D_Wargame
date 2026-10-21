@@ -57,6 +57,8 @@ class Vehicle(Damageable):
         self.push_vx = 0.0              # скорость, полученная от тарана, px/с мира
         self.push_vy = 0.0
         self.tracks = TrackState()      # сбитые гусеницы и ремонт
+        self.stun_left = 0.0            # сколько секунд осталось оглушения
+        self.stun_total = 0.0           # длительность текущего оглушения (для индикатора)
         self.repaired_track = None      # сторона гусеницы, которую починили в ЭТОМ кадре (для сообщений)
 
     # ---------- параметры ----------
@@ -78,6 +80,15 @@ class Vehicle(Damageable):
         frac = self.hp / self.spec.hp if self.spec.hp > 0 else 1.0
         self.spec = spec
         self.hp = spec.hp * max(0.0, min(1.0, frac))
+
+    @property
+    def stunned(self):
+        return self.stun_left > 0.0
+
+    def apply_stun(self, seconds):
+        """Оглушение не складывается: новое просто заменяет старое, если оно длиннее остатка."""
+        if seconds > self.stun_left:
+            self.stun_left = self.stun_total = seconds
 
     def place_at(self, spot):
         """Поставить технику в найденную точку спавна (любой объект с x, y, angle) и обнулить движение."""
@@ -317,10 +328,16 @@ class Vehicle(Damageable):
         self._sample_terrain()
         self.repaired_track = self.tracks.update(dt)        # ремонт идёт, пока машина жива и обновляется
         throttle, steer = self._track_inputs(command.throttle, command.steer)
+        if self.stun_left > 0.0:  # оглушён: стоим на месте
+            throttle = steer = 0.0
+            self.speed_kmh = 0.0
+            self.hull_rate = 0.0
         delta_hull = self._rotate_hull(steer, dt, obstacles)
         distance = self._drive(throttle, steer, dt, obstacles)
         self._animate_tracks(distance, delta_hull)
-        return self._update_weapons(command, dt)
+        shot = self._update_weapons(command, dt)
+        self.stun_left = max(0.0, self.stun_left - dt)  # таймер в конце кадра: весь кадр оглушение действует
+        return shot
 
     def _update_weapons(self, command, dt):
         """Хук для подклассов: башня, орудие, перезарядка. Возвращает Shot или None."""
