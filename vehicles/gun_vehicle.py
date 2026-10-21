@@ -45,6 +45,7 @@ class GunVehicle(Vehicle):
         return self._update_gun(command.fire, dt)      # Shot или None
 
     def _aim_turret(self, aim_point, dt):
+        if self.stunned: aim_point = None
         s = self.spec
         half = s.TURRET_ARC_DEG / 2.0
         limited = half < 180.0                             # круговая башня или ограниченный сектор
@@ -84,7 +85,7 @@ class GunVehicle(Vehicle):
         if not self.stunned:  # оглушение замораживает перезарядку
             self.reload_left = max(0.0, self.reload_left - dt)
         self.since_shot += dt
-        if not fire or self.reload_left > 0.0:
+        if not fire or self.reload_left > 0.0 or self.stunned:
             return None
 
         stats = self.round_stats()

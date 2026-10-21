@@ -84,11 +84,29 @@ class Damageable:
     def hit_result(self, penetration, cos_impact=1.0, normal=None):
         raise NotImplementedError
 
-    def take_hit(self, penetration, damage, cos_impact=1.0, normal=None, min_frac=0.0):
-        """Попадание снаряда: урон умножается на смягчённую долю, но не меньше min_frac
-        (гарантированный минимум фугаса). Возвращает нанесённый урон."""
-        frac = self.hit_result(penetration, cos_impact, normal).damage_frac
-        dealt = damage * max(frac, min_frac)
+    def frag_armor_bonus(self, normal=None):
+        """Добавка к броне только для осколков (мм до учёта угла). Цели без экранов: 0."""
+        return 0.0
+
+    def frag_damage(self, res, damage, caliber_mm, cos_impact=1.0, normal=None):
+        """Урон осколков при НЕпробитии: ceil(урон * калибр / приведённая броня), от 1 до номинала."""
+        if res.ricochet or res.eff_armor is None:
+            return 0.0
+        eff = res.eff_armor
+        extra = self.frag_armor_bonus(normal)
+        if extra > 0.0:
+            eff += effective_armor(extra, cos_impact)
+        eff = max(eff, 1.0)
+        return float(min(damage, max(1, math.ceil(damage * caliber_mm / eff))))
+
+    def take_hit(self, penetration, damage, cos_impact=1.0, normal=None, min_frac=0.0, caliber_mm=0.0):
+        """Попадание снаряда. min_frac > 0 = снаряд с осколками (ФГ, HESH).
+        Есть хоть частичное пробитие: обычный расчёт. Нет пробития: формула осколков."""
+        res = self.hit_result(penetration, cos_impact, normal)
+        if res.damage_frac > 0.0 or min_frac <= 0.0:
+            dealt = damage * res.damage_frac
+        else:
+            dealt = self.frag_damage(res, damage, caliber_mm, cos_impact, normal)
         self.hp = max(0.0, self.hp - dealt)
         return dealt
 

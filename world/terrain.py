@@ -211,7 +211,7 @@ class Patch:
     def hit_result(self, penetration, cos_impact=1.0, normal=None):
         return resolve_hit(penetration, self.kind.armor_mm, cos_impact)
 
-    def take_hit(self, penetration, damage, cos_impact=1.0, normal=None, min_frac=0.0):
+    def take_hit(self, penetration, damage, cos_impact=1.0, normal=None, min_frac=0.0, caliber_mm=0.0):
         """Камень неразрушаем: урон не наносится."""
         return 0.0
 

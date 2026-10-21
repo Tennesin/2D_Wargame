@@ -25,6 +25,7 @@ class AimInfo:
     result: Optional[HitResult] = None    # результат попадания (None, если линия свободна)
     target: object = None                 # цель, в которую упирается линия (None, если свободна)
     min_frac: float = 0.0                 # гарантированная доля урона (фугас), 0 = нет
+    frag_damage: float = 0.0              # урон осколков при непробитии (0 = не применимо)
 
 def compute_aim(tank, targets):
     """Траектория от дульного среза вдоль башни. Отрезок для проверки начинается в центре танка,
@@ -44,7 +45,11 @@ def compute_aim(tank, targets):
     cos_impact = 1.0 if normal is None else impact_cos(stats, abs(dx * normal[0] + dy * normal[1]))
     min_frac = 0.0 if target.target_type is TargetType.TERRAIN else stats.min_frac
     pen = pen_after_modules(target, stats.penetration, stats, *point)
-    return AimInfo(start, point, target.hit_result(pen, cos_impact, normal), target, min_frac)
+    res = target.hit_result(pen, cos_impact, normal)
+    frag = 0.0
+    if min_frac > 0.0 and res.damage_frac <= 0.0:
+        frag = target.frag_damage(res, stats.damage, stats.caliber_mm, cos_impact, normal)
+    return AimInfo(start, point, res, target, min_frac, frag)
 
 class AimRenderer:
 
@@ -79,8 +84,8 @@ class AimRenderer:
             result, color = "Рикошет: урона нет", C_NO
         else:
             eff_text = f"Приведённая броня: {res.eff_armor:.0f} мм"
-            if info.min_frac > 0.0 and res.damage_frac < info.min_frac:
-                result, color = f"Осколки: {round(info.min_frac * 100)}% урона", C_CHANCE
+            if info.frag_damage > 0.0:
+                result, color = f"Осколки: {info.frag_damage:.0f} урона", C_CHANCE
             elif res.damage_frac >= 1.0:
                 result, color = "Урон: 100%", C_YES
             elif res.damage_frac <= 0.0:

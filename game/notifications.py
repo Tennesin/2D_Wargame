@@ -70,7 +70,7 @@ class Notifier:
             self.on_ricochet(owner, target)
             return
         me = self.player
-        frag = dealt > 0.0 and res.damage_frac < min_frac
+        frag = dealt > 0.0 and res.damage_frac <= 0.0
         if target is me:
             self._hit_on_player(normal, res, dealt, frag)
         elif owner is me and target.target_type is TargetType.VEHICLE:

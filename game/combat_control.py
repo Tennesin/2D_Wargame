@@ -37,9 +37,10 @@ class CombatController:
     def _direct_hit(self, im):
         stats, target = im.stats, im.target
         full_pen = stats.penetration * im.power
-        pen = pen_after_modules(target, full_pen, stats, im.x, im.y)   # КС на гусенице: пробитие ×0.5
+        pen = pen_after_modules(target, full_pen, stats, im.x, im.y)
         res = target.hit_result(pen, im.cos, im.normal)
-        dealt = target.take_hit(pen, stats.damage * im.power, im.cos, im.normal, stats.min_frac)
+        dealt = target.take_hit(pen, stats.damage * im.power, im.cos, im.normal,
+                                stats.min_frac, stats.caliber_mm)
         if pen < full_pen:
             self.notifier.on_module_absorb(im.owner, target, target.module_at(im.x, im.y))
         self.notifier.on_hit(im.owner, target, im.normal, res, dealt, stats.min_frac)

@@ -75,4 +75,5 @@ def ammo_stats(spec, kind):
         module_pen_k=t.module_pen_k,
         screen_pen_k=t.screen_pen_k,
         stun_s=t.stun_s,
+        caliber_mm=spec.cal,
     )

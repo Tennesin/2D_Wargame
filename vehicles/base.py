@@ -225,6 +225,12 @@ class Vehicle(Damageable):
     def hit_result(self, penetration, cos_impact=1.0, normal=None):
         return resolve_hit(penetration, self.armor_at(normal), cos_impact)
 
+    def frag_armor_bonus(self, normal=None):
+        """Экраны для осколков считаются втрое: 1x уже есть в armor_at, добавляем ещё 2x (только на лбу)."""
+        if self.spec.screen_mm > 0.0 and self.zone_at(normal) == "front":
+            return 2.0 * self.spec.screen_mm * ARMOR_K
+        return 0.0
+
     def describe(self):
         """(заголовок, [(название, значение), ...]) для краткой сводки. Подклассы дополняют."""
         s = self.spec
@@ -328,12 +334,12 @@ class Vehicle(Damageable):
         self._sample_terrain()
         self.repaired_track = self.tracks.update(dt)        # ремонт идёт, пока машина жива и обновляется
         throttle, steer = self._track_inputs(command.throttle, command.steer)
-        if self.stun_left > 0.0:  # оглушён: стоим на месте
+        braking = False
+        if self.stun_left > 0.0:
             throttle = steer = 0.0
-            self.speed_kmh = 0.0
-            self.hull_rate = 0.0
+            braking = True
         delta_hull = self._rotate_hull(steer, dt, obstacles)
-        distance = self._drive(throttle, steer, dt, obstacles)
+        distance = self._drive(throttle, steer, dt, obstacles, braking)
         self._animate_tracks(distance, delta_hull)
         shot = self._update_weapons(command, dt)
         self.stun_left = max(0.0, self.stun_left - dt)  # таймер в конце кадра: весь кадр оглушение действует
@@ -425,8 +431,8 @@ class Vehicle(Damageable):
         return None
 
     # ---------- движение ----------
-    def _drive(self, throttle, steer, dt, obstacles=()):
-        self._update_speed(throttle, steer, dt)
+    def _drive(self, throttle, steer, dt, obstacles=(), brake=False):
+        self._update_speed(throttle, steer, dt, brake)
         distance = self.speed_kmh * KMH_TO_PX * dt  # со знаком: минус = назад
         if distance == 0.0:
             return 0.0
@@ -482,7 +488,7 @@ class Vehicle(Damageable):
         loss = 1.0 - progress
         self.speed_kmh *= math.exp(-CONTACT_SCRUB * loss * loss * dt)
 
-    def _update_speed(self, throttle, steer, dt):
+    def _update_speed(self, throttle, steer, dt, brake=False):
         """Приближает текущую скорость к целевой с учётом разгона, наката и торможения."""
         s = self.spec
         cap_fwd, cap_back = s.v_max, s.v_back
@@ -501,16 +507,16 @@ class Vehicle(Damageable):
 
         v = self.speed_kmh
         if v > target:
-            if v > 0:                                        # едем вперёд, а надо медленнее или назад
-                rate = s.decel_brake if target < 0 else s.decel_coast
-                v = max(v - rate * dt, max(target, 0.0))     # назад через ноль переходим на следующем кадре
-            else:                                            # едем назад и хотим ещё быстрее назад
+            if v > 0:
+                rate = s.decel_brake if (target < 0 or brake) else s.decel_coast
+                v = max(v - rate * dt, max(target, 0.0))
+            else:
                 v = max(v - s.accel_back * dt, target)
         elif v < target:
-            if v < 0:                                        # едем назад, а надо медленнее или вперёд
-                rate = s.decel_brake if target > 0 else s.decel_coast
+            if v < 0:
+                rate = s.decel_brake if (target > 0 or brake) else s.decel_coast
                 v = min(v + rate * dt, min(target, 0.0))
-            else:                                            # разгон вперёд
+            else:
                 v = min(v + s.accel_at(v) * dt, target)
 
         if self.terrain_k < 1.0:
