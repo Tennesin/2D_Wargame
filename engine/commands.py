@@ -22,7 +22,7 @@ class AmmoStats:
     damage: float                    # заявленный урон
     penetration: float               # пробитие, мм
     speed_px: float                  # скорость снаряда, px/с
-    range_px: float                  # дальность, px (у всех типов одинаковая)
+    range_px: float                  # дальность, px
     reload: float                    # перезарядка после выстрела этим снарядом, с
     ricochet: bool = True            # может ли рикошетить (шаг КС)
     aoe_radius_px: float = 0.0       # радиус взрыва по площади, 0 = нет (шаг ФГ)
@@ -30,7 +30,7 @@ class AmmoStats:
     explode_at_range: bool = False   # взрывается на пределе дальности (шаг ФГ)
     module_pen_k: float = 1.0        # множитель пробития после внешнего модуля-гусеницы (1.0 = не влияет)
     screen_pen_k: float = 1.0        # то же для лобового экрана
-    stun_s: float = 0.0  # длительность оглушения цели при прямом попадании, с
+    stun_s: float = 0.0             # длительность оглушения цели при прямом попадании, с
 
 @dataclass
 class Shot:

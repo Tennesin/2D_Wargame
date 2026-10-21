@@ -7,8 +7,6 @@ from .theme import BUTTON_COLORS, PANEL_BORDER, TEXT_COLOR, TEXT_DIM
 from .hud import MARGIN, WIDTH, HEIGHT
 from .ammo_icons import make_ammo_icon
 
-BTN = 44                    # сторона кнопки; 3 кнопки + 2 зазора = HEIGHT мини-панели
-GAP = 6
 OFFSET_X = 8                # зазор между мини-панелью и столбиком
 ICON_SIZE = (28, 16)
 SELECT_COLOR = COLOR_GOOD

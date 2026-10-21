@@ -10,8 +10,8 @@ from ui import SidePanel, Button, ACTIVE_BUTTON_COLORS
 from ui.theme import PANEL_WIDTH
 from vehicles import (
     GUN_TUNE_PARAMS, damage_range, pen_range, remap, VEHICLE_TYPES, RENDERERS,
-    make_vehicle, caliber_range_for, NOSE_FLAT, NOSE_PIKE, NOSE_MIN_FRONT_MM,
-    estimate_mass, sloped_nose_for_mass, NOSE_RU
+    make_vehicle, caliber_range_for, NOSE_FLAT, NOSE_MIN_FRONT_MM, NOSE_RU,
+    estimate_mass, sloped_nose_for_mass, SPECIAL_HEAT, HESH_MIN_CAL_MM
 )
 from world import Camera
 from ..panels import PanelMode, PANEL_OF, build_tank_panel, build_td_panel
@@ -60,6 +60,7 @@ class ConstructorScene(Scene):
         self.ui.set_range(self._mode, "gun_damage", *self._ranges[0])
         self.ui.set_range(self._mode, "gun_penetration", *self._ranges[1])
         self.ui.set_values(self._mode, values)
+        values = session.values[kind] = self._apply_ammo_rules(self._apply_nose_rules(values))
         values = session.values[kind] = self._apply_nose_rules(values)
         self._sync_tune_t(values)
         for mode in (PanelMode.TANK, PanelMode.TD):
@@ -108,6 +109,7 @@ class ConstructorScene(Scene):
         self.ui.set_range(self._mode, "gun_damage", *self._ranges[0])
         self.ui.set_range(self._mode, "gun_penetration", *self._ranges[1])
         self.ui.show(self._mode, values)
+        values = self.session.values[kind] = self._apply_ammo_rules(self._apply_nose_rules(values))
         values = self.session.values[kind] = self._apply_nose_rules(values)
         self._sync_tune_t(values)
         self.vehicle = make_vehicle(kind, self.session.spec())
@@ -122,7 +124,7 @@ class ConstructorScene(Scene):
             values = self._change_caliber(cal, values)
         else:
             self._sync_tune_t(values)
-        values = self._apply_nose_rules(values)
+        values = self._apply_ammo_rules(self._apply_nose_rules(values))
         self.session.values[self.session.kind] = dict(values)
         self.vehicle.set_spec(self.session.spec())
         self._show_stats()

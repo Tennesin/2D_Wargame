@@ -125,6 +125,8 @@ class HudOverlay:
         elif tracks.broken:
             sides = ", ".join(texts.TRACK_RU[s] for s in TRACK_SIDES if tracks.is_broken(s))
             rows.append((texts.HINT_TRACK_BROKEN.format(sides=sides, key=k[Action.REPAIR]), (240, 80, 80)))
+        if self.tank.stunned:
+            rows.append((texts.HINT_STUNNED.format(t=self.tank.stun_left), (240, 210, 70)))
         if not self.modes.turret_follow:
             rows.append((texts.HINT_TURRET_LOCKED.format(key=k[Action.LOCK_TURRET]), (240, 210, 70)))
         if self.fleet is not None:

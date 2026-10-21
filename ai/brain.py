@@ -121,6 +121,7 @@ class BotBrain:
             throttle, steer = -1.0, self.stuck.turn
         self._was_reversing = reversing
 
+        self._pick_ammo(me, enemy)
         fire = self._gunnery(dt, me, enemy, ctx, aim)
         return VehicleCommand(throttle=throttle, steer=steer, aim_point=aim, fire=fire)
 

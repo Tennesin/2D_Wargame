@@ -197,7 +197,8 @@ RAY_OVERSHOOT_M = 3.0         # на сколько метров луч захо
 def shot_fraction_now(me, enemy):
     """Максимальная доля урона по броне (любым пробивным снарядом) из текущей позиции.
     Фугас не считаем: его осколочный минимум не должен скрывать «бить нечем»."""
-    rounds = [s for s in ammo_stats(me.spec, k) for k in me.spec.ammo_kinds if s.min_frac <= 0.0]
+    rounds = [s for s in (ammo_stats(me.spec, k) for k in me.spec.ammo_kinds)
+              if s.min_frac <= 0.0]
     ex, ey = enemy.x, enemy.y
     dx, dy = ex - me.x, ey - me.y
     ln = math.hypot(dx, dy)
