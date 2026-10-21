@@ -1,5 +1,5 @@
 """ai/archetypes.py — архетипы: профиль сборки + доктрина поведения."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 from engine import VehicleKind
 from vehicles import TANK_PARAMS, NOSE_FLAT, NOSE_PIKE
@@ -33,6 +33,7 @@ class Archetype:
     kind: VehicleKind = VehicleKind.MBT # тип техники: ОБТ или ПТ-САУ
     nose: str = NOSE_FLAT               # нос корпуса
     screen_mm: tuple = (0.0, 0.0)       # (мин, макс) толщины лобовых экранов, мм; кратно шагу ползунка
+    caps: dict = field(default_factory=dict)   # {ключ ползунка: верхний предел значения}; нет ключа = без предела
 
 @dataclass(frozen=True)
 class Skill:
@@ -49,7 +50,10 @@ UNIVERSAL = Archetype(
     engage_dist_m=22.0, flank_bias=0.3,
     jitter=0.0, t_anchor=_t, retreat_hp=0.35, cover_bias=0.3,
     aspect_deg=150.0, aspect_tol_deg=30.0, aspect_drive=1.6,
-    damage_band=(0.40, 0.60), pen_band=(0.40, 0.60))
+    damage_band=(0.00, 0.25), pen_band=(0.40, 0.60),
+    caps={"gun_caliber_mm": 165, "front_armor_mm": 550, "side_armor_mm": 200,
+          "rear_armor_mm": 75, "engine_power_hp": 2400}
+)
 
 BUNKER = Archetype(
     "Бункер",
@@ -60,8 +64,10 @@ BUNKER = Archetype(
     retreat_hp=0.0, cover_bias=0.0,
     budget_k=1.4, spawn_weight=0.5, edge_k=0.3,
     aspect_deg=0.0, aspect_tol_deg=35.0, aspect_drive=3.0,
-    damage_band=(0.40, 0.60), pen_band=(0.40, 0.60),
-    screen_mm=(15.0, 45.0))
+    damage_band=(0.80, 1.00), pen_band=(0.80, 1.00), emblem="chevron",
+    caps={"gun_caliber_mm": 130, "front_armor_mm": 700, "side_armor_mm": 375,
+          "rear_armor_mm": 200, "engine_power_hp": 1800}
+)
 
 DESTROYER = Archetype(
     "Уничтожитель",
@@ -72,7 +78,10 @@ DESTROYER = Archetype(
     retreat_hp=0.5, cover_bias=0.8,
     budget_k=1.0, spawn_weight=0.8, edge_k=0.3,
     aspect_deg=120.0, aspect_tol_deg=60.0, aspect_drive=0.8,
-    damage_band=(0.80, 1.00), pen_band=(0.80, 1.00), emblem="chevron")
+    damage_band=(0.80, 1.00), pen_band=(0.80, 1.00), emblem="chevron",
+    caps={"gun_caliber_mm": 205, "front_armor_mm": 350, "side_armor_mm": 80,
+          "rear_armor_mm": 60, "engine_power_hp": 1500}
+)
 
 SCOUT = Archetype(
     "Разведчик",
@@ -83,7 +92,10 @@ SCOUT = Archetype(
     retreat_hp=0.3, cover_bias=0.2,
     budget_k=0.6, spawn_weight=1.2, edge_k=1.0,
     aspect_deg=165.0, aspect_tol_deg=25.0, aspect_drive=2.5,
-    damage_band=(0.00, 0.25), pen_band=(0.40, 0.60))
+    damage_band=(0.00, 0.25), pen_band=(0.40, 0.60),
+    caps={"gun_caliber_mm": 105, "front_armor_mm": 150, "side_armor_mm": 100,
+          "rear_armor_mm": 60, "engine_power_hp": 3000}
+)
 
 ASSAULT = Archetype(
     "Штурм",
@@ -95,8 +107,10 @@ ASSAULT = Archetype(
     budget_k=1.35, spawn_weight=0.6, edge_k=0.0,
     aspect_deg=0.0, aspect_tol_deg=35.0, aspect_drive=2.5,
     damage_band=(0.55, 0.75), pen_band=(0.55, 0.75),
-    kind=VehicleKind.TD, nose=NOSE_PIKE,
-    screen_mm=(15.0, 45.0))
+    kind=VehicleKind.TD, nose=NOSE_PIKE, screen_mm=(15.0, 45.0),
+    caps = {"gun_caliber_mm": 155, "front_armor_mm": 550, "side_armor_mm": 120,
+        "rear_armor_mm": 75, "engine_power_hp": 2500}
+)
 
 SNIPER = Archetype(
     "Дальнобой",
@@ -108,7 +122,10 @@ SNIPER = Archetype(
     budget_k=1.2, spawn_weight=0.7, edge_k=0.2,
     aspect_deg=0.0, aspect_tol_deg=180.0, aspect_drive=0.0,
     damage_band=(0.85, 1.0), pen_band=(0.85, 1.0),
-    kind=VehicleKind.TD)
+    kind=VehicleKind.TD,
+    caps={"gun_caliber_mm": 215, "front_armor_mm": 100, "side_armor_mm": 80,
+          "rear_armor_mm": 60, "engine_power_hp": 1800}
+)
 
 ARCHETYPES = {"universal": UNIVERSAL, "bunker": BUNKER,
               "destroyer": DESTROYER, "scout": SCOUT,

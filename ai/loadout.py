@@ -20,7 +20,11 @@ def _values_at(arch, vtype, jitter, tune, screen, t):
     for key, p in vtype.params.items():
         w = min(1.0, arch.weights[key] * jitter[key])
         v = p.min + (p.max - p.min) * w * t
-        out[key] = max(p.min, round(v / p.step) * p.step)      # только нижняя граница
+        v = max(p.min, round(v / p.step) * p.step)
+        cap = arch.caps.get(key)
+        if cap is not None:
+            v = max(p.min, min(v, cap))                        # потолок архетипа (после округления)
+        out[key] = v
 
     # урон и пробитие: то же относительное положение, но в коридоре ТЕКУЩЕГО калибра и профиля орудия
     cal = out["gun_caliber_mm"]
