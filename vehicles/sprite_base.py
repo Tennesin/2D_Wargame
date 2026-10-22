@@ -10,7 +10,8 @@ import pygame
 from engine import (LRUCache, SHADOW_ALPHA, heading_vector, clamp, Team, PX_PER_M, lerp_color,
                     shrink_polygon)
 from .chassis_params import TRACK_LINK_M
-from .hulls import NOSE_FLAT, NOSE_PIKE, screen_pieces, SCREEN_OFFSET_M, SCREEN_THICK_M, PIKE_BAND_M
+from .hulls import NOSE_FLAT, NOSE_PIKE
+from .hull_noses import screen_pieces, SCREEN_OFFSET_M, SCREEN_THICK_M, PIKE_BAND_M
 from .running_gear import LEFT, RIGHT
 from .gun_params import BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M
 

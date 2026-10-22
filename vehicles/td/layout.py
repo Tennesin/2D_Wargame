@@ -3,7 +3,8 @@
 from dataclasses import replace
 from functools import lru_cache
 
-from ..hulls import MEDIUM_LAYOUT, with_box_hitbox, layout_with_nose, NOSE_FLAT
+from ..hulls import MEDIUM_LAYOUT, with_box_hitbox, NOSE_FLAT
+from ..hull_noses import layout_with_nose
 from .params import TD_HULL_COLL_HALF_W_M, TD_HULL_COLL_HALF_L_M, TD_HULL_HALF_M
 
 TD_LAYOUT = with_box_hitbox(

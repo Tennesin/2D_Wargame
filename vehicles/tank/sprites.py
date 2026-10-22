@@ -4,7 +4,8 @@ import math
 import pygame
 
 from engine import clamp, lerp_color
-from ..hulls import max_canvas_half_m, NOSE_PIKE, NOSE_WEDGE, HULL_STYLE_FRONT_ENGINE, PIKE_BAND_M
+from ..hulls import max_canvas_half_m, NOSE_PIKE, NOSE_WEDGE, HULL_STYLE_FRONT_ENGINE
+from ..hull_noses import PIKE_BAND_M
 from ..sprite_base import (
     GunVehicleRenderer, Pen as _Pen, apply_paint as _paint, layout_of, SS, OUTLINE,
     HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, RING, GRILL, GRILL_LINE,

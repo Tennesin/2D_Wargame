@@ -8,7 +8,8 @@ from engine import (
     heading_vector, find_free_fraction, Team, TargetType, fmt_num, clamp,
     convex_segment_hit, to_local_frame, vec_to_local, vec_from_local
 )
-from .hulls import NOSE_PIKE, NOSE_WEDGE, NOSE_RU, screen_hit
+from .hulls import NOSE_PIKE, NOSE_WEDGE, NOSE_RU
+from .hull_noses import screen_hit
 from combat import resolve_hit, Damageable
 from .chassis_params import (
     KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, ARMOR_K, TERRAIN_MIN_K, TERRAIN_BRAKE,

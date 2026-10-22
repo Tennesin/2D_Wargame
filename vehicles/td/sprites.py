@@ -3,7 +3,8 @@
 import math
 import pygame
 
-from ..hulls import NOSE_PIKE, PIKE_BAND_M
+from ..hulls import NOSE_PIKE
+from ..hull_noses import PIKE_BAND_M
 from ..sprite_base import (
     GunVehicleRenderer, Pen as _Pen, apply_paint as _paint, SS,
     HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, GRILL, GRILL_LINE,

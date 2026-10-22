@@ -19,9 +19,11 @@ from .registry import VehicleType, VEHICLE_TYPES, RENDERERS, make_vehicle
 from .running_gear import RunningGear, TRACKS, TRACK_SIDES
 from .hulls import (
     HullClass, HullLayout, ArmorPlate, LAYOUTS, layout_for, MEDIUM_LAYOUT,
-    NOSE_FLAT, NOSE_PIKE, NOSE_RU, NOSE_MIN_FRONT_MM, layout_with_nose,
-    nose_front_factor, NOSE_WEDGE, SUPERHEAVY_MASS_T, WEDGE_ACCEL_K,
-    WEDGE_TURN_K, wedge_front_factor, sloped_nose_for_mass, resolve_nose
+    NOSE_FLAT, NOSE_PIKE, NOSE_RU, NOSE_WEDGE
+)
+from .hull_noses import (
+    NOSE_MIN_FRONT_MM, layout_with_nose, nose_front_factor, SUPERHEAVY_MASS_T,
+    WEDGE_ACCEL_K, WEDGE_TURN_K, wedge_front_factor, sloped_nose_for_mass, resolve_nose
 )
 
 __all__ = ["Vehicle", "GunVehicle", "Tank", "TankSpec", "TankRenderer", "TANK_PARAMS", "COST_REF",

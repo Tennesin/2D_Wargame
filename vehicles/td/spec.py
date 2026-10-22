@@ -12,7 +12,8 @@ from ..gun_params import (
     REF_L_CAL, BARREL_VISIBLE_K, GUN_ARM_BASE_M, GUN_ARM_BARREL_K,
     TURRET_INERTIA_EXP, TURRET_POWER_EXP,
 )
-from ..hulls import NOSE_FLAT, NOSE_PIKE, NOSE_RU, NOSE_MIN_FRONT_MM
+from ..hulls import NOSE_FLAT, NOSE_PIKE, NOSE_RU
+from ..hull_noses import NOSE_MIN_FRONT_MM
 from .layout import td_layout
 from ..look import Look, level
 from ..tank.spec import raw_cost, round_cost
