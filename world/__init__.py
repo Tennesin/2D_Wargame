@@ -1,5 +1,5 @@
-"""world — камера, генератор земли, естественные препятствия и их отрисовка.
-Снаружи: from world import Camera, WorldGenerator, TerrainMap, GroundRenderer, ..."""
+"""world — камера, генератор земли, естественные препятствия, поиск места появления и отрисовка.
+Снаружи: from world import Camera, WorldGenerator, TerrainMap, GroundRenderer, SpawnFinder, ..."""
 from .spawn import SpawnFinder, SpawnPoint
 from .camera import Camera, ZOOM_LEVELS
 from .generator import WorldGenerator, Decoration, CHUNK_SIZE, CELL_SIZE

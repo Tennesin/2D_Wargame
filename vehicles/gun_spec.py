@@ -13,6 +13,14 @@ from .gun_params import (
     SHELL_SPEED_REF_PX, SHELL_SPEED_L_EXP, SHELL_SPEED_CAL_EXP, SHELL_SPEED_PEN_EXP,
     SHELL_SPEED_LIMITS, SHELL_RANGE_REF_PX, SHELL_RANGE_SPEED_EXP, SHELL_RANGE_CAL_EXP,
     SHELL_RANGE_LIMITS, SHELL_SIZE_EXP, SHELL_STRETCH_EXP, HESH_MIN_CAL_MM,
+    L_CAL_SIZE_EXP, L_CAL_LIMITS, TURRET_SCALE_CAL_EXP,
+    BARREL_MIN_STEPS, BARREL_THICK_MIN_M, BARREL_THICK_EXP, SHELL_THICK_K,
+    RECOIL_BASE_M, RECOIL_PER_MM, RECOIL_TIME_BASE_S, RECOIL_TIME_CAL_DIV,
+    FLASH_SIZE_PER_MM, FLASH_TIME_BASE_S, FLASH_TIME_GAIN_S,
+    SMOKE_TIME_BASE_S, SMOKE_TIME_GAIN_S, SMOKE_STREAKS_BASE, SMOKE_STREAKS_CAL_DIV,
+    SMOKE_REACH_BASE_PX, SMOKE_REACH_PER_MM, SMOKE_WIDTH_MIN_PX, SMOKE_WIDTH_CAL_DIV,
+    BLAST_SIZE_PER_MM, BLAST_TIME_BASE_S, BLAST_TIME_GAIN_S, BLAST_DIRT_BASE, BLAST_DIRT_CAL_DIV,
+    SCORCH_RADIUS_PER_MM, SCORCH_TIME_BASE_S, SCORCH_TIME_GAIN_S,
 )
 
 _CAL = CALIBER
@@ -64,7 +72,7 @@ class GunSpec:
 
     def _calc_basics(self, size_k):
         self.q_gun = (self.cal / REF_CAL) / size_k                      # калибр относительно платформы
-        self.l_cal = clamp(REF_L_CAL * size_k ** 0.45, 30.0, 55.0)      # длина ствола, калибров
+        self.l_cal = clamp(REF_L_CAL * size_k ** L_CAL_SIZE_EXP, *L_CAL_LIMITS)   # длина ствола, калибров
 
     def _calc_turret(self, size_k, power, m_gun, m_turret):
         barrel_len = self.cal * self.l_cal / 1000.0 * BARREL_VISIBLE_K
@@ -95,15 +103,15 @@ class GunSpec:
         cal = self.cal
         cr = cal / REF_CAL
         base = size_k if self._visual_k is None else self._visual_k
-        self.TURRET_SCALE = base * clamp(cr ** 0.35, *self.TURRET_SCALE_RANGE)
+        self.TURRET_SCALE = base * clamp(cr ** TURRET_SCALE_CAL_EXP, *self.TURRET_SCALE_RANGE)
 
         world_len = self.BARREL_REF_M * base * clamp(cr ** BARREL_VIS_EXP, *BARREL_VIS_K_RANGE)
         raw = world_len / self.TURRET_SCALE
-        self.BARREL_LEN_M = max(4 * BARREL_LEN_STEP_M,
+        self.BARREL_LEN_M = max(BARREL_MIN_STEPS * BARREL_LEN_STEP_M,
                                 round(raw / BARREL_LEN_STEP_M) * BARREL_LEN_STEP_M)
 
         # тонкий ствол плохо читается: пол толщины выше, рост с калибром мягче
-        self.BARREL_THICK_M = max(0.22, BARREL_THICK_REF_M * cr ** 0.5)
+        self.BARREL_THICK_M = max(BARREL_THICK_MIN_M, BARREL_THICK_REF_M * cr ** BARREL_THICK_EXP)
 
     def _calc_shot(self):
         """Всё, что зависит от калибра (размеры в мировых px, 100 px = 1 м)."""
@@ -131,25 +139,25 @@ class GunSpec:
         size = SHELL_LEN_K * REF_CAL * cr ** SHELL_SIZE_EXP
         stretch = (self.SHELL_SPEED_PX / SHELL_SPEED_REF_PX) ** SHELL_STRETCH_EXP
         self.SHELL_LEN_PX = size * stretch
-        self.SHELL_THICK_PX = 0.15 * REF_CAL * cr ** SHELL_SIZE_EXP
+        self.SHELL_THICK_PX = SHELL_THICK_K * REF_CAL * cr ** SHELL_SIZE_EXP
 
         # откат ствола (метры эталонного спрайта)
-        self.RECOIL_DEPTH_M = 0.12 + 0.0028 * cal
-        self.RECOIL_TIME = 0.25 + cal / 400.0                          # полный цикл «назад и обратно», с
+        self.RECOIL_DEPTH_M = RECOIL_BASE_M + RECOIL_PER_MM * cal
+        self.RECOIL_TIME = RECOIL_TIME_BASE_S + cal / RECOIL_TIME_CAL_DIV  # полный цикл «назад и обратно», с
 
         # вспышка
-        self.FLASH_SIZE_PX = 2.2 * cal
-        self.FLASH_TIME = 0.07 + 0.05 * cal_k
+        self.FLASH_SIZE_PX = FLASH_SIZE_PER_MM * cal
+        self.FLASH_TIME = FLASH_TIME_BASE_S + FLASH_TIME_GAIN_S * cal_k
 
         # дым
-        self.SMOKE_TIME = 1.0 + 0.5 * cal_k
-        self.SMOKE_STREAKS = 5 + int(cal / 20)
-        self.SMOKE_REACH_PX = 160.0 + 3.2 * cal
-        self.SMOKE_WIDTH_PX = max(8.0, cal / 6.0)
+        self.SMOKE_TIME = SMOKE_TIME_BASE_S + SMOKE_TIME_GAIN_S * cal_k
+        self.SMOKE_STREAKS = SMOKE_STREAKS_BASE + int(cal / SMOKE_STREAKS_CAL_DIV)
+        self.SMOKE_REACH_PX = SMOKE_REACH_BASE_PX + SMOKE_REACH_PER_MM * cal
+        self.SMOKE_WIDTH_PX = max(SMOKE_WIDTH_MIN_PX, cal / SMOKE_WIDTH_CAL_DIV)
 
         # взрыв снаряда и след на земле
-        self.BLAST_SIZE_PX = 1.8 * cal
-        self.BLAST_TIME = 0.35 + 0.2 * cal_k
-        self.BLAST_DIRT_COUNT = 6 + int(cal / 15)
-        self.SCORCH_RADIUS_PX = 0.9 * cal
-        self.SCORCH_TIME = 4.0 + 2.0 * cal_k
+        self.BLAST_SIZE_PX = BLAST_SIZE_PER_MM * cal
+        self.BLAST_TIME = BLAST_TIME_BASE_S + BLAST_TIME_GAIN_S * cal_k
+        self.BLAST_DIRT_COUNT = BLAST_DIRT_BASE + int(cal / BLAST_DIRT_CAL_DIV)
+        self.SCORCH_RADIUS_PX = SCORCH_RADIUS_PER_MM * cal
+        self.SCORCH_TIME = SCORCH_TIME_BASE_S + SCORCH_TIME_GAIN_S * cal_k

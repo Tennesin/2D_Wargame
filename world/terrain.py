@@ -1,15 +1,14 @@
 """terrain.py — естественные препятствия: камни, вода, грязь.
-Мир делится на большие ячейки; в каждой по seed создаётся набор «пятен» — многоугольников
-разной формы и размера. У пятна есть вид местности: непроходимый (solid) или замедляющий (speed_k < 1).
-Камни ещё и останавливают снаряды (blocks_shells) и имеют массу (заготовка для тарана).
 Здесь нет pygame: рисует terrain_render.py."""
 import math
 import random
 from dataclasses import dataclass
 
 from combat import resolve_hit
-from engine import (hash_int, PX_PER_M, WORLD_HALF_PX, clamp, obb_hits_convex, TAU,
-                    obb_outside_rect, LRUCache, TargetType, fmt_num, shrink_polygon)
+from engine import (
+    hash_int, PX_PER_M, WORLD_HALF_PX, clamp, obb_hits_convex, TAU,
+    SEED_SALT, obb_outside_rect, LRUCache, TargetType, fmt_num, shrink_polygon
+)
 from .patch_geometry import patches_overlap
 from .rock_physics import RockMover
 
@@ -126,7 +125,7 @@ class Patch:
         """Копия пятна со сдвигом: для проверок «а если камень будет здесь?»."""
         return Patch(self.kind, self.x + dx, self.y + dy, [(px + dx, py + dy) for px, py in self.pts])
 
-    # ---------- вес (заготовка для тарана) ----------
+    # ---------- вес ----------
     @property
     def height_m(self):
         if self.kind.density <= 0.0:
@@ -253,7 +252,7 @@ class TerrainMap:
     # ---------- генерация ----------
     def _make_raw(self, ix, iy):
         """Кандидаты ячейки без учёта соседей: (озеро или None, грязь или None, [камни])."""
-        rng = random.Random(hash_int(ix, iy, self.seed + 4242))
+        rng = random.Random(hash_int(ix, iy, self.seed + SEED_SALT["terrain"]))
         ox, oy = ix * FEATURE_CELL, iy * FEATURE_CELL
 
         def place(kind, radius, n, stretch, rough, jitter):

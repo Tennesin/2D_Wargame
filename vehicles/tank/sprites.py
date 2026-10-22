@@ -137,8 +137,6 @@ class TankRenderer(GunVehicleRenderer):
             self._turret_oval(pen, team_color, look, emblem, spec, *colors)
         elif style == "slab":
             self._turret_slab(pen, team_color, look, emblem, spec, *colors)
-        elif style == "cast":
-            self._turret_cast(pen, team_color, look, emblem, spec, *colors)
         else:
             self._turret_hex(pen, team_color, look, emblem, spec, *colors)
 

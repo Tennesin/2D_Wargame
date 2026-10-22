@@ -9,4 +9,4 @@ from .context import BotContext
 
 __all__ = ["Archetype", "Skill", "DEFAULT_SKILL", "UNIVERSAL", "ARCHETYPES",
            "fit_loadout", "BotBrain", "Bot", "threat_profile", "counter_multipliers",
-           "PlanBudget", "TerrainNavCache", "PlanBudget", "TerrainNavCache", "BotContext"]
+           "PlanBudget", "TerrainNavCache", "BotContext"]

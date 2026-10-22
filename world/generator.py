@@ -3,7 +3,7 @@ import random
 from dataclasses import dataclass
 from typing import List
 
-from engine import clamp, lerp_color, hash_int, hash_float, value_noise
+from engine import clamp, lerp_color, hash_int, hash_float, value_noise, SEED_SALT
 
 # ==========================================
 # НАСТРОЙКИ МИРА
@@ -47,8 +47,8 @@ class WorldGenerator:
     def grass_at(self, wx, wy):
         """Густота травы в точке мира: 0 (сухо) .. 1 (густо)."""
         n = (0.60 * value_noise(wx / 700.0, wy / 700.0, self.seed)
-             + 0.28 * value_noise(wx / 220.0, wy / 220.0, self.seed + 101)
-             + 0.12 * value_noise(wx / 70.0, wy / 70.0, self.seed + 202))
+             + 0.28 * value_noise(wx / 220.0, wy / 220.0, self.seed + SEED_SALT["grass_mid"])
+             + 0.12 * value_noise(wx / 70.0, wy / 70.0, self.seed + SEED_SALT["grass_fine"]))
         # шум кучкуется около 0.5, растягиваем, чтобы были и светлые, и тёмные области
         return clamp((n - 0.5) * 2.0 + 0.5, 0.0, 1.0)
 
@@ -60,12 +60,12 @@ class WorldGenerator:
         """Цвет клетки земли (индексы клеток, не пиксели). cell_size больше обычного — для дальнего зума."""
         g = self.grass_at((cell_x + 0.5) * cell_size, (cell_y + 0.5) * cell_size)
         base = self.grass_color(g)
-        jitter = int((hash_float(cell_x, cell_y, self.seed + 7) - 0.5) * 12)
+        jitter = int((hash_float(cell_x, cell_y, self.seed + SEED_SALT["ground_jitter"]) - 0.5) * 12)
         return tuple(clamp(c + jitter, 0, 255) for c in base)
 
     def chunk_decorations(self, cx, cy) -> List[Decoration]:
         """Декор одного чанка. Одинаков при каждом вызове для одних и тех же cx, cy."""
-        rng = random.Random(hash_int(cx, cy, self.seed + 999))
+        rng = random.Random(hash_int(cx, cy, self.seed + SEED_SALT["decor"]))
         origin_x = cx * CHUNK_SIZE
         origin_y = cy * CHUNK_SIZE
         low, high = DECOR_MARGIN, CHUNK_SIZE - DECOR_MARGIN

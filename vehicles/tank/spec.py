@@ -5,8 +5,8 @@ import dataclasses
 
 from ..ammo import SPECIAL_HEAT, SPECIAL_HESH
 from ..hulls import (
-    classify, class_index, class_for_index, layout_for, HULL_CLASS_RU,
-    layout_with_nose, NOSE_FLAT, NOSE_PIKE, NOSE_RU, NOSE_MIN_FRONT_MM, near_class_border,
+    class_index, class_for_index, layout_for, HULL_CLASS_RU,
+    layout_with_nose, NOSE_FLAT, NOSE_RU, near_class_border,
     layout_with_axis, turret_axis_for, caliber_limits, resolve_nose
 )
 from engine import clamp, fmt_num, PX_PER_M, round_to

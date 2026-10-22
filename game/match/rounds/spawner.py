@@ -3,7 +3,7 @@ import math
 import random
 from enum import Enum, auto
 
-from engine import PX_PER_M, bearing_deg
+from engine import PX_PER_M, bearing_deg, SEED_SALT
 from ai import Bot, BotBrain, DEFAULT_SKILL
 from ...config import LOOK_MARGIN_PX
 from .composer import GroupComposer
@@ -24,7 +24,7 @@ class BotSpawner:
         self.fleet = fleet
         self.finder = finder
         self.camera = camera
-        self.rng = random.Random(seed + 777)
+        self.rng = random.Random(seed + SEED_SALT["spawner"])
         self.composer = GroupComposer(prefs, self.rng)
 
         self.round = 0                     # 0: игра ещё не началась (раунд 1 стартует в первом update)

@@ -19,8 +19,6 @@ from .chassis_params import (
 )
 from .running_gear import TrackState, LEFT, RIGHT, TRACK_SIDES
 
-PLAYER_TITLE = "Ваша техника"            # заголовок сводки, когда это техника игрока
-
 # Направления отодвигания корпуса: (вдоль корпуса, поперёк). Назад, вперёд, в стороны и диагонали.
 _NUDGE_DIRS = ((-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0),
                (-0.7, -0.7), (-0.7, 0.7), (0.7, -0.7), (0.7, 0.7))
@@ -28,6 +26,7 @@ _NUDGE_DIRS = ((-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0),
 class Vehicle(Damageable):
     target_type = TargetType.VEHICLE
     renderer_key = None                         # ключ в реестре рендереров (Renderer.vehicle_renderers)
+    PLAYER_TITLE = "Ваша техника"               # заголовок сводки у техники игрока; потомки переопределяют
     TRACK_STEP = TRACK_LINK_M * PX_PER_M        # шаг между траками, px эталонного мира
 
     @property
