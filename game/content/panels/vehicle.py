@@ -1,34 +1,14 @@
-"""game/panels.py — состав панелей интерфейса: какие ползунки и характеристики показывать
-для танка и для стены. Единственное место, где интерфейс «знакомится» с танком и стеной."""
-from enum import Enum, auto
+"""content/panels/vehicle.py — панели конструктора техники (ОБТ и ПТ-САУ)."""
 from functools import partial
 
-from combat import RICOCHET_ANGLE
 from engine import VehicleKind
-from inputs import Action, key_label
 from vehicles import (
     TankSpec, TDSpec, TANK_PARAMS, TD_PARAMS, GUN_TUNE_PARAMS, VEHICLE_TYPES, gun_arc_deg,
     FRONT_SCREEN, nose_front_factor, NOSE_FLAT, NOSE_PIKE, NOSE_MIN_FRONT_MM,
     SUPERHEAVY_MASS_T, WEDGE_ACCEL_K, WEDGE_TURN_K, wedge_front_factor,
     SPECIAL_HEAT, SPECIAL_HESH, HESH_MIN_CAL_MM
 )
-from structures import WALL_PARAMS, ROTATE_SNAP_DEG
-from ui import (Panel, SectionHeader, StatsBlock, InfoText, ActionButton, ChoiceRow,
-                make_param_row, DELETE_BUTTON_COLORS)
-
-class PanelMode(Enum):
-    TANK = auto()
-    WALL = auto()
-    TD = auto()
-
-PANEL_OF = {VehicleKind.MBT: PanelMode.TANK, VehicleKind.TD: PanelMode.TD}
-
-# Названия характеристик стены: используются и панелью, и WallEditor.update_stats
-STAT_HP = "Текущее HP"
-STAT_THICK = "Толщина"
-STAT_ARMOR = "Эквивалент брони"
-STAT_MASS = "Масса стены"
-STAT_ANGLE = "Угол"
+from ui import Panel, SectionHeader, StatsBlock, InfoText, ChoiceRow, make_param_row
 
 def _title(kind):
     return f"Конструктор: {VEHICLE_TYPES[kind].label}"
@@ -97,32 +77,3 @@ def build_td_panel():
             )
     return _build_vehicle_panel(_title(VehicleKind.TD), TD_PARAMS, TDSpec.from_config(),
                                 note=note, with_nose=True)
-
-def build_wall_panel():
-    """Колбэк красной кнопки здесь не задаётся: его привязывает WallEditor (bind_wall_delete)."""
-    row = partial(make_param_row, WALL_PARAMS)
-    return Panel("Настройки стены", [
-        SectionHeader("Параметры"),
-        row("wall_hp"),
-        row("wall_width_m"),
-        row("wall_length_m"),
-
-        SectionHeader("Расчётные характеристики"),
-        StatsBlock([STAT_HP, STAT_THICK, STAT_ARMOR, STAT_MASS, STAT_ANGLE]),
-        InfoText("Толщина — меньшая из сторон. Эквивалент брони растёт при косом попадании "
-                 f"(броня / cos угла), а при угле больше {RICOCHET_ANGLE:.0f}° снаряд рикошетит. "
-                 f"Белая точка в центре поворачивает стену; с Shift поворот идёт шагом {ROTATE_SNAP_DEG:.0f}°. "
-                 f"{key_label(Action.DELETE_WALL)} — удалить выбранную стену."),
-
-        ActionButton("Удалить стену", DELETE_BUTTON_COLORS),
-    ])
-
-def wall_values(wall):
-    """Значения ползунков панели стены для конкретной стены."""
-    return {"wall_hp": wall.max_hp, "wall_width_m": wall.width_m, "wall_length_m": wall.length_m}
-
-def bind_wall_delete(ui, callback):
-    """Привязать действие к красной кнопке «Удалить стену» панели стены."""
-    for item in ui.panels[PanelMode.WALL].items:
-        if isinstance(item, ActionButton):
-            item.callback = callback

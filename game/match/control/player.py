@@ -1,4 +1,4 @@
-"""game/player.py — танк игрока: команда из ввода и обновление."""
+"""game/match/control/player.py — танк игрока: команда из ввода и обновление."""
 from inputs import Action, AMMO_HOTKEYS
 from ..modes import Mode
 

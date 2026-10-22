@@ -1,4 +1,4 @@
-"""game/world_renderer.py — порядок слоёв: земля, местность, эффекты, стены, танки, прицел."""
+"""game/view/world_renderer.py — порядок слоёв: земля, местность, эффекты, стены, танки, прицел."""
 from engine import PX_PER_M
 from world import GroundRenderer, TerrainRenderer, WorldBoundsRenderer
 from vehicles import RENDERERS

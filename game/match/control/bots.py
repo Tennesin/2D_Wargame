@@ -1,4 +1,4 @@
-"""game/bots.py — кадр ботов: команда от мозга, физика танка, выстрел."""
+"""game/match/control/bots.py — кадр ботов: команда от мозга, физика танка, выстрел."""
 from collections import namedtuple
 
 from ai import PlanBudget, TerrainNavCache

@@ -1,4 +1,4 @@
-"""game/spawner.py — раунды: отсчёт, групповое появление ботов, смена раундов."""
+"""game/match/rounds/spawner.py — раунды: отсчёт, групповое появление ботов, смена раундов."""
 import math
 import random
 from enum import Enum, auto

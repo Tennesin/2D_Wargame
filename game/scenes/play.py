@@ -23,7 +23,9 @@ from ..match.control.clicks import ClickRouter
 from ..match.control.bots import BotController
 from ..match.control.ram import RamController
 from ..match.rounds.spawner import BotSpawner
-from ..hud.overlays import DebugOverlay, HudOverlay, RoundOverlay
+from ..hud.debug import DebugOverlay
+from ..hud.status import HudOverlay
+from ..hud.round_overlay import RoundOverlay
 from ..hud.spawn_warning import SpawnWarning
 from ..hud.stun_indicator import StunIndicator
 from ..hud.bot_markers import BotMarkers

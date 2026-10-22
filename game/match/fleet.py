@@ -1,4 +1,4 @@
-"""game/fleet.py — вся техника на карте: игрок и боты."""
+"""game/match/fleet.py — вся техника на карте: игрок и боты."""
 
 from engine import obb_distance_to_point
 

@@ -1,4 +1,4 @@
-"""game/ram.py — таран: удар танка о камень или другой танк, толчок и урон.
+"""game/match/control/ram.py — таран: удар танка о камень или другой танк, толчок и урон.
 Танк только отмечает «я врезался» (impact_kmh); что именно он задел и что из этого вышло, решаем здесь."""
 from combat import (resolve_ram, can_push, ram_damage,
                     RESTITUTION_ROCK, RESTITUTION_TANK, MIN_CLOSING_MS)

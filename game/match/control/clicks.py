@@ -1,4 +1,4 @@
-"""game/clicks.py — распределяет клики по миру (интерфейс свои уже забрал) между частями игры."""
+"""game/match/control/clicks.py — распределяет клики по миру (интерфейс свои уже забрал) между частями игры."""
 from inputs import MouseOwner
 from ..modes import Mode
 

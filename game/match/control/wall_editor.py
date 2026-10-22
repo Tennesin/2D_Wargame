@@ -1,4 +1,4 @@
-"""game/wall_editor.py — всё, что игрок делает со стенами: ставит, выбирает, вращает, удаляет."""
+"""game/match/control/wall_editor.py — всё, что игрок делает со стенами: ставит, выбирает, вращает, удаляет."""
 import math
 
 from engine import shortest_angle_diff, fmt_num

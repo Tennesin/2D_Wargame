@@ -1,17 +1,15 @@
-"""game/bot_markers.py — синие треугольники-указатели на ботов (на экране и у края экрана)."""
+"""game/hud/bot_markers.py — синие треугольники-указатели на ботов (на экране и у края экрана)."""
 import math
 import pygame
 
 from ..config import BOT_MARKERS_ENABLED
 from engine import PX_PER_M, get_text, clamp, FONT_SIZE_LABEL, hp_color
+from .colors import FILL, OUTLINE, TEXT
 from .pointers import edge_point, draw_triangle
 
 EDGE_INSET = 24              # отступ указателя от края экрана, px
 EDGE_SIZE = 13               # размер треугольника у края
 ON_SIZE = 9                  # размер треугольника над видимым ботом
-FILL = (70, 150, 255)
-OUTLINE = (10, 20, 50)
-TEXT = (150, 195, 255)
 
 BAR_W = 36                   # ширина полоски HP, px
 BAR_H = 5                    # высота полоски HP, px

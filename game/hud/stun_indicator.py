@@ -1,4 +1,4 @@
-"""game/stun_indicator.py — тонкая жёлтая линия над оглушённой техникой: сколько секунд осталось."""
+"""game/hud/stun_indicator.py — тонкая жёлтая линия над оглушённой техникой: сколько секунд осталось."""
 import pygame
 
 from engine import clamp

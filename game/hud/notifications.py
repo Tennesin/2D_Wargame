@@ -1,4 +1,4 @@
-"""game/notifications.py — сообщения о попаданиях: лента сверху и всплывающие числа над целью."""
+"""game/hud/notifications.py — сообщения о попаданиях: лента сверху и всплывающие числа над целью."""
 from engine import get_text, FONT_SIZE_HEADER, TargetType
 from ..content.texts import TRACK_RU, MODULE_ON
 

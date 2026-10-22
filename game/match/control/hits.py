@@ -1,4 +1,4 @@
-"""game/hits.py — попадания снарядов, линия прицела, уведомления о боях."""
+"""game/match/control/hits.py — попадания снарядов, линия прицела, уведомления о боях."""
 
 from engine import TargetType
 from combat import compute_aim, splash_damage, pen_after_modules

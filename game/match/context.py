@@ -1,4 +1,4 @@
-"""game/context.py — общие объекты игровой партии и единый шаг техники."""
+"""game/match/context.py — общие объекты игровой партии и единый шаг техники."""
 from dataclasses import dataclass
 
 @dataclass
