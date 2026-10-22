@@ -62,7 +62,6 @@ class DebugOverlay:
             f"Round {self.spawner.round} {self.spawner.phase.name}  left {self.spawner.time_left:.0f}s  "
             f"bots {len(self.fleet.bots)}  spawned {self.spawner.spawned}",
             f"Fit: {self.spawner.fit_info}",
-            f"spawned {self.spawner.spawned}",
             f"Threat: " + "  ".join(f"{name} {v:.2f}" for name, v in self.spawner.profile.items()),
             f"Spawn mult: " + "  ".join(f"{name} x{v:.1f}" for name, v in self.spawner.multipliers.items()),
         ]

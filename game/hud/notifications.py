@@ -1,6 +1,6 @@
 """game/hud/notifications.py — сообщения о попаданиях: лента сверху и всплывающие числа над целью."""
 from engine import get_text, FONT_SIZE_HEADER, TargetType
-from ..content.texts import TRACK_RU, MODULE_ON
+from ..content.texts import TRACK_RU, MODULE_ON, ZONE_RU
 
 FEED_MAX = 5                 # сколько строк в ленте одновременно
 FEED_LIFE = 3.5              # сколько секунд живёт строка
@@ -20,8 +20,6 @@ C_BAD = (240, 80, 70)
 C_WARN = (240, 200, 70)
 C_DIM = (170, 176, 186)
 C_SHADOW = (0, 0, 0)
-
-ZONE_RU = {"front": "в лоб", "side": "в борт", "rear": "в корму"}
 
 def _faded(surf, alpha):
     """Копия поверхности с прозрачностью alpha (0..255). Исходную менять нельзя: она общая (кэш текста)."""

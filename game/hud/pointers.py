@@ -1,4 +1,4 @@
-"""	game/hud/pointers.py — общая геометрия указателей: проекция на рамку экрана и треугольник."""
+"""game/hud/pointers.py — общая геометрия указателей: проекция на рамку экрана и треугольник."""
 import math
 import pygame
 
@@ -25,3 +25,8 @@ def draw_triangle(screen, x, y, ang, size, fill, outline, width=2):
     b2 = (x - ux * size * 0.6 - vx * size * 0.7, y - uy * size * 0.6 - vy * size * 0.7)
     pygame.draw.polygon(screen, fill, (tip, b1, b2))
     pygame.draw.polygon(screen, outline, (tip, b1, b2), width)
+
+def marker_lift_px(tank, zoom):
+    """На сколько экранных px выше центра техники стоит её указатель.
+    Общая высота для синего маркера бота и для линии оглушения."""
+    return (tank.spec.COLLISION_HALF_L_PX + 60.0) * zoom + 10.0

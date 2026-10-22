@@ -9,7 +9,6 @@ from .keymap import Action, MouseOwner, HELD_KEYMAP, KEY_TO_PRESS
 ZOOM_KEY_DELAY = 0.35     # пауза перед автоповтором при удержании зума с клавиатуры, с
 ZOOM_KEY_REPEAT = 0.08    # интервал автоповтора, с
 
-
 class InputHandler:
     def __init__(self, ui_layers=()):
         # слои интерфейса сверху вниз: у каждого handle_event(event), covers(pos), cancel_drag()
@@ -31,6 +30,7 @@ class InputHandler:
         self.mouse_pos = (0, 0)
         self.mouse_buttons = (False, False, False)   # (ЛКМ, СКМ, ПКМ) на момент снимка
         self.mouse_over_ui = False         # лежит ли курсор на интерфейсе
+        self.mouse_focused = True          # есть ли у окна фокус мыши
         self.shift = False
         self.lctrl = False                 # левый Ctrl (для служебных сочетаний)
         self.lshift = False                # левый Shift
@@ -58,6 +58,11 @@ class InputHandler:
                 layer.cancel_drag()        # на случай, если «отпускание» до интерфейса не дошло
         self.mouse_owner = None
         self._owner_button = 0
+
+    def detach_ui(self):
+        """Отключить слои интерфейса: они больше не получают события и не перехватывают курсор."""
+        self.release_mouse()               # сначала бросаем ползунок, стрельбу, вращение
+        self.ui_layers.clear()
 
     @property
     def pointer_in_world(self):
@@ -105,6 +110,7 @@ class InputHandler:
         keys = pygame.key.get_pressed()
         self.mouse_pos = pygame.mouse.get_pos()
         self.mouse_buttons = pygame.mouse.get_pressed()
+        self.mouse_focused = pygame.mouse.get_focused()
         mods = pygame.key.get_mods()
         self.shift = bool(mods & pygame.KMOD_SHIFT)
         self.lctrl = bool(mods & pygame.KMOD_LCTRL)

@@ -1,29 +1,23 @@
-"""game/match/control/wall_editor.py — всё, что игрок делает со стенами: ставит, выбирает, вращает, удаляет."""
+"""game/match/control/wall_editor.py — всё, что игрок делает со стенами: ставит, выбирает, вращает, удаляет.
+О панели настроек не знает: её связывает с редактором WallPanelLink (game/content/panels/wall.py)."""
 import math
 
-from engine import shortest_angle_diff, fmt_num
+from engine import shortest_angle_diff
 from inputs import Action, MouseOwner
 from structures import (Wall, ROTATE_HANDLE_HIT_PX, ROTATE_DEAD_ZONE_PX, ROTATE_SNAP_DEG)
 from ...config import PLACE_REPEAT
 from ..modes import Mode
-from ...content.panels import (PanelMode, wall_values, bind_wall_delete,
-                               STAT_HP, STAT_THICK, STAT_ARMOR, STAT_MASS, STAT_ANGLE)
 
 class WallEditor:
-    def __init__(self, ctx, input_handler, modes, ui):
+    def __init__(self, ctx, input_handler, modes):
         self.input = input_handler
         self.camera = ctx.camera
         self.modes = modes
         self.walls = ctx.walls
         self.fleet = ctx.fleet
         self.terrain = ctx.terrain
-        self.ui = ui
 
         self._rot_state = None           # при вращении: [последний угол мыши, накопленный угол стены]
-        self._stats_key = None           # последние показанные значения стены
-
-        ui.set_on_change(PanelMode.WALL, self.on_params_change)
-        bind_wall_delete(ui, self.delete_selected)
 
     # ---------- клавиши ----------
     def handle_hotkeys(self):
@@ -75,7 +69,7 @@ class WallEditor:
         self._rot_state = None
         return True
 
-    # ---------- удаление, ползунки, вращение ----------
+    # ---------- удаление, параметры, вращение ----------
     def delete_selected(self):
         """Delete или красная кнопка панели: удалить выбранную стену и вернуться в DRIVE."""
         wall = self.walls.selected
@@ -84,16 +78,15 @@ class WallEditor:
         self.walls.remove(wall)
         self.modes.set_mode(Mode.DRIVE)
 
-    def on_params_change(self, values):
-        """Ползунок стены сдвинут. Если новая стена упёрлась бы в танк, возвращаем прежние значения."""
-        wall = self.walls.selected
-        if wall is None:
-            return
+    def apply_params(self, wall, hp, width_m, length_m):
+        """Применить размеры к стене. False: новая стена упёрлась бы в технику, камень или воду,
+        прежние значения возвращены (панель должна показать их же)."""
         old = (wall.max_hp, wall.width_m, wall.length_m)
-        wall.apply_params(values["wall_hp"], values["wall_width_m"], values["wall_length_m"])
+        wall.apply_params(hp, width_m, length_m)
         if self.is_blocked(wall):
             wall.apply_params(*old)
-            self.ui.set_values(PanelMode.WALL, wall_values(wall))
+            return False
+        return True
 
     def update_rotation(self):
         """Пока мышь принадлежит ROTATE, стена поворачивается вслед за направлением мыши от её центра.
@@ -127,19 +120,3 @@ class WallEditor:
         wall.angle = new_angle
         if self.is_blocked(wall):
             wall.angle = old
-
-    # ---------- статистика ----------
-    def update_stats(self):
-        """Пишем в панель только в режиме WALL_EDIT и только если значения изменились."""
-        wall = self.walls.selected
-        if wall is None or self.modes.mode != Mode.WALL_EDIT:
-            return
-        key = (wall.hp, wall.max_hp, wall.width_m, wall.length_m, wall.angle)
-        if key == self._stats_key:
-            return
-        self._stats_key = key
-        self.ui.set_stat(PanelMode.WALL, STAT_HP, f"{fmt_num(wall.hp)} / {fmt_num(wall.max_hp)}")
-        self.ui.set_stat(PanelMode.WALL, STAT_MASS, f"{fmt_num(wall.mass_t, 1)} т")
-        self.ui.set_stat(PanelMode.WALL, STAT_THICK, f"{wall.thickness_m:.2f} м")
-        self.ui.set_stat(PanelMode.WALL, STAT_ARMOR, f"{wall.armor_mm:.0f} мм")
-        self.ui.set_stat(PanelMode.WALL, STAT_ANGLE, f"{wall.angle:.0f} °")

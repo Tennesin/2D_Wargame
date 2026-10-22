@@ -2,6 +2,7 @@
 import pygame
 
 from engine import clamp, fmt_num, get_text, FONT_SIZE_LABEL, hp_color, COLOR_GOOD
+from .theme import TEXT_COLOR, TEXT_DIM, PANEL_BORDER
 
 MARGIN = 10          # отступ от краёв окна
 WIDTH = 190
@@ -12,9 +13,9 @@ BAR_GAP = 6
 HEIGHT = PAD * 2 + (ROW_H + BAR_H + BAR_GAP) * 2 + ROW_H * 3   # два блока с полоской + три строки
 
 BG = (0, 0, 0, 150)
-BORDER = (70, 76, 86)
-C_TEXT = (230, 230, 230)
-C_DIM = (150, 156, 166)
+BORDER = PANEL_BORDER
+C_TEXT = TEXT_COLOR
+C_DIM = TEXT_DIM
 C_BAR_BG = (45, 49, 56)
 C_LOADING = (230, 170, 60)
 C_READY = COLOR_GOOD

@@ -2,6 +2,7 @@
 import pygame
 
 from engine import clamp
+from .pointers import marker_lift_px
 
 LINE_W = 46               # ширина полной линии, px
 LINE_H = 3
@@ -21,7 +22,7 @@ class StunIndicator:
             if not t.alive or t.stun_left <= 0.0:
                 continue
             sx, sy = self.camera.world_to_screen(t.x, t.y)
-            lift = (t.spec.COLLISION_HALF_L_PX + 60.0) * zoom + 10.0     # та же высота, что у маркера бота
+            lift = marker_lift_px(t, zoom)
             y = sy - lift - LIFT_EXTRA_PX
             if not (-LINE_W <= sx <= w + LINE_W and -LINE_H <= y <= h + LINE_H):
                 continue

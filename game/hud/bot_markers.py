@@ -5,7 +5,8 @@ import pygame
 from ..config import BOT_MARKERS_ENABLED
 from engine import PX_PER_M, get_text, clamp, FONT_SIZE_LABEL, hp_color
 from .colors import FILL, OUTLINE, TEXT
-from .pointers import edge_point, draw_triangle
+from .pointers import edge_point, draw_triangle, marker_lift_px
+from ..content import texts
 
 EDGE_INSET = 24              # отступ указателя от края экрана, px
 EDGE_SIZE = 13               # размер треугольника у края
@@ -39,7 +40,7 @@ class BotMarkers:
 
             if abs(sx - cx) <= hx and abs(sy - cy) <= hy:
                 # бот на экране: треугольник над танком, остриём вниз
-                lift = (t.spec.COLLISION_HALF_L_PX + 60.0) * zoom + 10.0
+                lift = marker_lift_px(t, zoom)
                 mx, my = sx, sy - lift
                 draw_triangle(screen, mx, my, math.pi / 2.0, ON_SIZE, FILL, OUTLINE)
                 self._hp_bar(screen, mx, my + ON_SIZE + BAR_GAP, t)   # полоска под остриём
@@ -51,7 +52,7 @@ class BotMarkers:
 
             # подпись с дистанцией от танка игрока, чуть глубже внутрь экрана
             dist_m = math.hypot(t.x - player.x, t.y - player.y) / PX_PER_M
-            label = get_text(f"{dist_m:.0f} м", FONT_SIZE_LABEL, TEXT)
+            label = get_text(texts.DISTANCE_FMT.format(dist_m), FONT_SIZE_LABEL, TEXT)
             off = EDGE_SIZE + 16
             lx = px - math.cos(ang) * off
             ly = py - math.sin(ang) * off

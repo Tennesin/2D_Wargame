@@ -44,32 +44,13 @@ class ConstructorScene(Scene):
         self.camera.zoom_by(PREVIEW_ZOOM_STEPS)
         self.camera.center_on(PANEL_WIDTH / 2 / self.camera.zoom, 0.0)
 
-        # --- интерфейс: панель каждого типа техники, показана панель выбранного ---
+        # --- интерфейс: панель каждого типа техники ---
         kind = session.kind
-        self._mode = PANEL_OF[kind]
-        self._profile = VEHICLE_TYPES[kind].gun_profile
         self.ui = SidePanel(size, {PanelMode.TANK: build_tank_panel(), PanelMode.TD: build_td_panel()},
-                            self._mode, start_open=True)
-
-        # коридоры урона и пробития зависят от калибра и профиля: СНАЧАЛА границы, ПОТОМ значения
-        values = session.values[kind]
-        self._cal = self._want_cal = values["gun_caliber_mm"]
-        values = self._apply_class_rules(values)
-        self._cal = values["gun_caliber_mm"]
-        self._ranges = (damage_range(self._cal, self._profile), pen_range(self._cal, self._profile))
-        self.ui.set_range(self._mode, "gun_damage", *self._ranges[0])
-        self.ui.set_range(self._mode, "gun_penetration", *self._ranges[1])
-        self.ui.set_values(self._mode, values)
-        values = session.values[kind] = self._apply_ammo_rules(self._apply_nose_rules(values))
-        values = session.values[kind] = self._apply_nose_rules(values)
-        self._sync_tune_t(values)
+                            PANEL_OF[kind], start_open=True)
         for mode in (PanelMode.TANK, PanelMode.TD):
             self.ui.set_on_change(mode, self._on_change)
         self.input = InputHandler([self.ui])
-
-        # --- машина-превью ---
-        self.vehicle = make_vehicle(kind, session.spec())
-        self.renderer = self._make_renderer(kind)
 
         # --- кнопки ---
         self.play_button = Button((10, 10, 150, 36), "В бой")
@@ -78,9 +59,10 @@ class ConstructorScene(Scene):
         self.td_button = Button((KIND_MARGIN + KIND_BTN_W + KIND_GAP, 0, KIND_BTN_W, KIND_BTN_H),
                                 VEHICLE_TYPES[VehicleKind.TD].label)
         self._place_kind_buttons(size)
+        self._toast = None  # всплывающее сообщение: [текст, цвет, секунд осталось]
 
-        self._show_stats()
-        self._toast = None                 # всплывающее сообщение: [текст, цвет, секунд осталось]
+        # --- выбранная техника: границы ползунков, значения, превью, характеристики ---
+        self._load_kind(kind)
 
     # ---------- тип техники ----------
     def _make_renderer(self, kind):
@@ -94,13 +76,19 @@ class ConstructorScene(Scene):
         self.td_button.rect.y = y
 
     def _set_kind(self, kind):
-        """Переключение ОБТ / ПТ-САУ. Порядок важен: сначала границы ползунков, потом значения,
-        иначе set_value обрежет их по старому диапазону."""
+        """Переключение ОБТ / ПТ-САУ кнопками."""
         if kind is self.session.kind:
             return
+        self._load_kind(kind)
+
+    def _load_kind(self, kind):
+        """Единая загрузка типа техники: и при открытии сцены, и при переключении.
+        Порядок важен: сначала границы ползунков, потом значения (иначе set_value
+        обрежет их по старому диапазону)."""
         self.session.kind = kind
         self._mode = PANEL_OF[kind]
         self._profile = VEHICLE_TYPES[kind].gun_profile
+
         values = self.session.values[kind]
         self._cal = self._want_cal = values["gun_caliber_mm"]
         values = self._apply_class_rules(values)
@@ -109,8 +97,8 @@ class ConstructorScene(Scene):
         self.ui.set_range(self._mode, "gun_damage", *self._ranges[0])
         self.ui.set_range(self._mode, "gun_penetration", *self._ranges[1])
         self.ui.show(self._mode, values)
+
         values = self.session.values[kind] = self._apply_ammo_rules(self._apply_nose_rules(values))
-        values = self.session.values[kind] = self._apply_nose_rules(values)
         self._sync_tune_t(values)
         self.vehicle = make_vehicle(kind, self.session.spec())
         self.renderer = self._make_renderer(kind)

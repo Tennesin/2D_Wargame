@@ -1,11 +1,10 @@
 """game/match/modes.py — режимы игры (езда / стройка / правка стены) и боевое состояние.
-Единственное место, где режим меняется; всё, что от него зависит (выбранная стена, кнопка,
-панель, захват мыши), приводится в порядок в set_mode."""
+Единственное место, где режим меняется. О панелях и кнопках интерфейса не знает:
+о смене режима сообщает через on_changed, интерфейс подстраивается сам."""
 from enum import Enum, auto
 
 from inputs import Action, MouseOwner
 from ..config import COMBAT_HOLD
-from ..content.panels import PanelMode, wall_values
 
 class Mode(Enum):
     DRIVE = auto()       # езда и стрельба
@@ -13,18 +12,15 @@ class Mode(Enum):
     WALL_EDIT = auto()   # выбрана стена: открыта её панель, можно вращать
 
 class Modes:
-    def __init__(self, input_handler, walls, toolbar, ui):
+    def __init__(self, input_handler, walls):
         self.input = input_handler
         self.walls = walls
-        self.toolbar = toolbar
-        self.ui = ui
 
         self.mode = Mode.DRIVE           # единственный источник правды о режиме
         self.combat = False              # боевое состояние (Alt): огонь по ЛКМ и красная линия прицела
         self.turret_follow = True        # башня следит за мышью (Q)
-        self.on_exit = None              # колбэк «выйти из игры в меню» (его ставит PlayScene)
-
-        toolbar.on_create_wall = self.toggle_build
+        self.on_exit = None              # колбэк «выйти из партии в меню»
+        self.on_changed = None           # колбэк (mode, wall): режим сменился; wall задан только в WALL_EDIT
 
     # ---------- смена состояния ----------
     def set_mode(self, mode, wall=None):
@@ -37,11 +33,8 @@ class Modes:
             self.set_combat(False)                       # стройка и боевое состояние несовместимы
 
         self.walls.selected = wall if mode == Mode.WALL_EDIT else None
-        self.toolbar.set_active(mode == Mode.BUILD)
-        if mode == Mode.WALL_EDIT:
-            self.ui.show(PanelMode.WALL, wall_values(wall))
-        else:
-            self.ui.close()
+        if self.on_changed is not None:
+            self.on_changed(mode, self.walls.selected)
 
     def set_combat(self, on):
         """В режиме стройки включить нельзя. При выключении стрельба обрывается."""

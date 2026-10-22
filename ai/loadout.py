@@ -1,10 +1,11 @@
 """ai/loadout.py — подбор значений ползунков архетипа под бюджет.
 Для ботов верхние границы ползунков и ограничение калибра по классу корпуса не действуют:
 единственный предел — бюджет (плюс технический потолок T_LIMIT от абсурда)."""
-from vehicles import (VEHICLE_TYPES, GUN_TUNE_PARAMS, COST_REF, FRONT_SCREEN,
-                      damage_range, pen_range, remap, nominal_damage, nominal_pen, raw_cost)
+from vehicles import (
+    VEHICLE_TYPES, GUN_TUNE_PARAMS, FRONT_SCREEN, damage_range,
+    pen_range, remap, nominal_damage, nominal_pen, raw_cost
+)
 
-BASE_BUDGET = COST_REF       # временно: нужен старому спавнеру, на шаге 3 уберём
 DMG_STEP = GUN_TUNE_PARAMS["gun_damage"].step
 PEN_STEP = GUN_TUNE_PARAMS["gun_penetration"].step
 
