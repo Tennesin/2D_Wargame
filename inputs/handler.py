@@ -106,7 +106,7 @@ class InputHandler:
         self._sample_state()
 
     def _sample_state(self):
-        """Единственное место во всей игре, где опрашиваются клавиатура и мышь."""
+        """Единственное место в партии и конструкторе, где опрашиваются клавиатура и мышь."""
         keys = pygame.key.get_pressed()
         self.mouse_pos = pygame.mouse.get_pos()
         self.mouse_buttons = pygame.mouse.get_pressed()

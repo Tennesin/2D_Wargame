@@ -5,8 +5,9 @@ import pygame
 
 from ..hulls import NOSE_PIKE
 from ..hull_noses import PIKE_BAND_M
-from ..sprite_base import (
-    GunVehicleRenderer, Pen as _Pen, apply_paint as _paint, SS,
+from ..sprite_base import GunVehicleRenderer
+from ..sprite_pen import (
+    Pen as _Pen, apply_paint as _paint, SS,
     HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, GRILL, GRILL_LINE,
     TURRET_MAIN, TURRET_LIGHT, TURRET_DARK,
 )

@@ -129,7 +129,7 @@ class HullLayout:
     rear_plate: tuple = (-1.15, 2.40, 2.30, 0.50)  # кормовая плита: x, y, w, h
     base_skirt: int = 0                            # постоянный бортовой экран, прибавляется к look.side
     turret_front_m: float = TURRET_FRONT_M         # где из башни выходит ствол, м вперёд от оси
-    nose: str = NOSE_FLAT                          # вариант лба: NOSE_FLAT или NOSE_PIKE
+    nose: str = NOSE_FLAT                          # вариант лба
     area_k: tuple = (1.0, 1.0, 1.0)                # множители площадей брони (лоб, борт, корма) к эталонным
     turret_scale_range: tuple = (0.8, 1.15)        # границы поправки масштаба башни на калибр
     turret_k: float = 1.0                          # множитель размера башни относительно корпуса (только визуал)
@@ -369,7 +369,7 @@ def max_canvas_half_m():
     return max(layout.canvas_half_m for layout in LAYOUTS.values())
 
 # ==========================================
-# ПОЛОЖЕНИЕ БАШНИ ПО ТЯЖЕСТИ КОРПУСА
+# ПОЛОЖЕНИЕ ОСИ БАШНИ
 # ==========================================
 
 _AXIS_CACHE = {}

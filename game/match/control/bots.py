@@ -1,6 +1,4 @@
 """game/match/control/bots.py — кадр ботов: команда от мозга, физика танка, выстрел."""
-from collections import namedtuple
-
 from ai import PlanBudget, TerrainNavCache, BotContext
 
 PLANS_PER_FRAME = 1          # сколько путей A* можно построить за кадр на всех ботов

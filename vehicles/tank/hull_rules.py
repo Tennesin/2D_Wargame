@@ -1,8 +1,8 @@
 """vehicles/tank/hull_rules.py — правила корпуса ОБТ по ползункам: класс корпуса (лёгкий/средний/тяжёлый),
 положение оси башни и допустимый калибр. У ПТ-САУ и будущей техники свои правила."""
 from engine import clamp, lerp, round_to
-from .gun_params import CALIBER
-from .hulls import HullClass, LIGHT_LAYOUT, HEAVY_LAYOUT
+from vehicles.gun_params import CALIBER
+from ..hulls import HullClass, LIGHT_LAYOUT, HEAVY_LAYOUT
 
 # ==========================================
 # КЛАССИФИКАЦИЯ ПО ПОЛЗУНКАМ
@@ -19,14 +19,9 @@ TURRET_AXIS_STEP_M = 0.1       # квантование: ограничивае�
 TURRET_SHIFT_FROM = -0.05      # индекс, с которого башня начинает уезжать назад (эталон ≈ -0.09 стоит на месте)
 TURRET_SHIFT_TO = 0.45         # индекс, на котором башня уже в крайнем заднем положении
 
-HEAVY_ENABLED = True          # True вернёт тяжёлый корпус (скачок формы при индексе > CLASS_HEAVY_ABOVE)
-
 def near_class_border(index):
     """Индекс в пределах CLASS_BORDER_EPS от порога смены класса."""
-    dist = abs(index - CLASS_LIGHT_BELOW)
-    if HEAVY_ENABLED:
-        dist = min(dist, abs(index - CLASS_HEAVY_ABOVE))
-    return dist <= CLASS_BORDER_EPS
+    return min(abs(index - CLASS_LIGHT_BELOW), abs(index - CLASS_HEAVY_ABOVE)) <= CLASS_BORDER_EPS
 
 def class_index(armor_t, power_t):
     """Индекс «тяжести»: много брони и мало мощности = больше."""
@@ -35,7 +30,7 @@ def class_index(armor_t, power_t):
 def class_for_index(index):
     if index < CLASS_LIGHT_BELOW:
         return HullClass.LIGHT
-    if HEAVY_ENABLED and index > CLASS_HEAVY_ABOVE:
+    if index > CLASS_HEAVY_ABOVE:
         return HullClass.HEAVY
     return HullClass.MEDIUM
 
@@ -65,7 +60,7 @@ CAL_MIN_AT_HEAVY = 105.0           # самый тяжёлый корпус: к�
 CAL_MAX_AT_HEAVY = CALIBER.max     # ... до этого
 
 def caliber_limits(index):
-    """(мин, макс) калибра, мм, для корпуса с индексом тяжести index. Работает и при HEAVY_ENABLED = False."""
+    """(мин, макс) калибра, мм, для корпуса с индексом тяжести index."""
     t = clamp((index - CAL_INDEX_FROM) / (CAL_INDEX_TO - CAL_INDEX_FROM), 0.0, 1.0)
     return (round(lerp(CAL_MIN_AT_LIGHT, CAL_MIN_AT_HEAVY, t)),
             round(lerp(CAL_MAX_AT_LIGHT, CAL_MAX_AT_HEAVY, t)))

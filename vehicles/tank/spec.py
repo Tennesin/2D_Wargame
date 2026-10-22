@@ -6,8 +6,7 @@ import dataclasses
 from ..ammo import SPECIAL_HEAT, SPECIAL_HESH
 from ..hulls import layout_for, HULL_CLASS_RU, NOSE_FLAT, NOSE_RU, layout_with_axis
 from ..hull_noses import layout_with_nose, resolve_nose
-from ..hull_rules import (class_index, class_for_index, near_class_border,
-                         turret_axis_for, caliber_limits)
+from .hull_rules import class_index, class_for_index, near_class_border, turret_axis_for, caliber_limits
 from engine import clamp, fmt_num, PX_PER_M, round_to
 from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses, chassis_masses
 from ..chassis_params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP, FRONT_SCREEN, SCREEN_LOOK_STEPS

@@ -1,10 +1,10 @@
 """vehicles/base.py — Vehicle: шасси любой наземной техники.
 Здесь движение, столкновения, броня по граням, таран и здоровье. Оружия и башни тут нет:
-подкласс переопределяет _update_weapons() и возвращает Shot или None.."""
+подкласс переопределяет _update_weapons() и возвращает Shot или None."""
 import math
 
 from engine import (
-    normalize_angle, obb_hits_obb, obb_segment_hit, VehicleCommand, PX_PER_M,
+    normalize_angle, obb_hits_obb, VehicleCommand, PX_PER_M,
     heading_vector, find_free_fraction, Team, TargetType, fmt_num, clamp,
     convex_segment_hit, to_local_frame, vec_to_local, vec_from_local
 )

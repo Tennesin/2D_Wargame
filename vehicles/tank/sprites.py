@@ -6,8 +6,9 @@ import pygame
 from engine import clamp, lerp_color
 from ..hulls import max_canvas_half_m, NOSE_PIKE, NOSE_WEDGE, HULL_STYLE_FRONT_ENGINE
 from ..hull_noses import PIKE_BAND_M
-from ..sprite_base import (
-    GunVehicleRenderer, Pen as _Pen, apply_paint as _paint, layout_of, SS, OUTLINE,
+from ..sprite_base import GunVehicleRenderer
+from ..sprite_pen import (
+    Pen as _Pen, apply_paint as _paint, SS, OUTLINE,
     HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, RING, GRILL, GRILL_LINE,
     TURRET_MAIN, TURRET_LIGHT, TURRET_DARK, EMBLEM_COLOR,
 )
@@ -37,11 +38,11 @@ class TankRenderer(GunVehicleRenderer):
     # ---------- корпус ----------
 
     def _hull_shift_m(self, spec):
-        return layout_of(spec).axis_fwd_m
+        return spec.layout.axis_fwd_m
 
     def _build_hull(self, paint, look, spec):
         ppm = self._ppm
-        layout = layout_of(spec)
+        layout = spec.layout
         size = 2 * math.ceil(HULL_HALF_M * ppm)
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
         pen = _Pen(big, ppm * SS, 0.0, layout.axis_fwd_m)   # координаты корпуса: центр корпуса = (0, 0)
@@ -128,7 +129,7 @@ class TankRenderer(GunVehicleRenderer):
 
     def _build_turret(self, team_color, paint, look, emblem, spec):
         ppm = self._ppm
-        style = layout_of(spec).turret_style
+        style = spec.layout.turret_style
         size = 2 * math.ceil(TURRET_HALF_M * ppm)
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
         pen = _Pen(big, ppm * SS)                            # центр спрайта = ось башни
