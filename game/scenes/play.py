@@ -8,28 +8,29 @@ from vehicles import make_vehicle, AMMO_TYPES
 from structures import WallManager
 from inputs import InputHandler, Action, AMMO_HOTKEYS, key_label
 from ui import SidePanel, ToolBar, TankHud, AmmoBar
-from ..panels import PanelMode, build_wall_panel
-from ..modes import Modes, Mode
-from ..camera_control import CameraController
-from ..combat_control import CombatController
-from ..tank_control import TankController
-from ..wall_editor import WallEditor
-from ..stun_indicator import StunIndicator
-from ..clicks import ClickRouter
-from ..overlays import DebugOverlay, HudOverlay, RoundOverlay
-from ..spawn_warning import SpawnWarning
-from ..renderer import Renderer
-from ..fleet import Fleet
-from ..spawner import BotSpawner
-from ..bot_control import BotController
-from ..ram_control import RamController
-from ..bot_markers import BotMarkers
-from ..inspector import HoverInspector
-from ..notifications import Notifier
-from .base import Scene
 from combat import EffectsSystem, TargetSet
 from engine import Team
-from ..context import GameContext
+
+from ..content.panels import PanelMode, build_wall_panel
+from ..match.context import GameContext
+from ..match.fleet import Fleet
+from ..match.modes import Modes, Mode
+from ..match.control.camera import CameraController
+from ..match.control.hits import CombatController
+from ..match.control.player import TankController
+from ..match.control.wall_editor import WallEditor
+from ..match.control.clicks import ClickRouter
+from ..match.control.bots import BotController
+from ..match.control.ram import RamController
+from ..match.rounds.spawner import BotSpawner
+from ..hud.overlays import DebugOverlay, HudOverlay, RoundOverlay
+from ..hud.spawn_warning import SpawnWarning
+from ..hud.stun_indicator import StunIndicator
+from ..hud.bot_markers import BotMarkers
+from ..hud.inspector import HoverInspector
+from ..hud.notifications import Notifier
+from ..view.world_renderer import Renderer
+from .base import Scene
 
 class PlayScene(Scene):
     def __init__(self, seed, clock, session, on_menu, on_quit):

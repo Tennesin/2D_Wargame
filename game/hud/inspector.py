@@ -3,8 +3,8 @@
 from engine import obb_distance_to_point
 from ui import InfoCard
 from world import ROCK
-from .modes import Mode
-from .settings import HIDE_IN_BUILD
+from ..match.modes import Mode
+from ..config import HIDE_IN_BUILD
 
 class HoverInspector:
     def __init__(self, ctx, input_handler, modes):

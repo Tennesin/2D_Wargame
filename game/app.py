@@ -2,11 +2,11 @@
 import sys
 import pygame
 
-from .settings import GAME_TITLE
+from .config import GAME_TITLE
 from .scenes import (
     MenuScene, ConstructorScene, PlayScene, SettingsScene, InstructionScene
 )
-from .session import Session
+from .state.session import Session
 
 def _maximize_window():
     """Разворачивает окно на весь экран, как кнопка «Развернуть» (рамка и кнопки окна остаются).

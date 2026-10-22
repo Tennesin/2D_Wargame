@@ -1,8 +1,8 @@
-"""game/combat_control.py — попадания снарядов, линия прицела, уведомления о боях."""
+"""game/hits.py — попадания снарядов, линия прицела, уведомления о боях."""
 
 from engine import TargetType
 from combat import compute_aim, splash_damage, pen_after_modules
-from .modes import Mode
+from ..modes import Mode
 
 class CombatController:
     def __init__(self, ctx, modes):

@@ -8,8 +8,8 @@ from vehicles import VEHICLE_TYPES, make_vehicle
 from ai import (Bot, BotBrain, DEFAULT_SKILL, ARCHETYPES, fit_loadout,
                 threat_profile, counter_multipliers)
 from ai.loadout import loadout_cost
-from .camera_control import LOOK_MARGIN_PX
-from .rounds import ROUND_TIME_S, COUNTDOWN_S, MAX_BOTS, round_budgets
+from ..control.camera import LOOK_MARGIN_PX
+from .schedule import ROUND_TIME_S, COUNTDOWN_S, MAX_BOTS, round_budgets
 
 RETRY_S = 0.5                # пауза между неудачными попытками найти место
 SPAWN_MARGIN_M = 15.0        # запас за краем экрана

@@ -7,7 +7,7 @@ from engine import get_text
 from ui import Button, Checkbox
 from ui.theme import BG_COLOR
 from .base import Scene
-from .. import texts
+from ..content import texts
 
 BG = BG_COLOR
 TITLE_COLOR = (230, 230, 230)

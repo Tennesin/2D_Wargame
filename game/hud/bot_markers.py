@@ -2,7 +2,7 @@
 import math
 import pygame
 
-from .settings import BOT_MARKERS_ENABLED
+from ..config import BOT_MARKERS_ENABLED
 from engine import PX_PER_M, get_text, clamp, FONT_SIZE_LABEL, hp_color
 from .pointers import edge_point, draw_triangle
 

@@ -5,8 +5,8 @@ from engine import get_text
 from ui import Button, DELETE_BUTTON_COLORS
 from ui.theme import BG_COLOR
 from .base import Scene
-from ..settings import GAME_TITLE
-from .. import texts
+from ..config import GAME_TITLE
+from ..content import texts
 
 BG = BG_COLOR
 TITLE_TEXT = GAME_TITLE

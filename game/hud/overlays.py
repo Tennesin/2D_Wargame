@@ -7,8 +7,8 @@ from vehicles import TRACK_SIDES
 from engine import PX_PER_M, get_text, FONT_SIZE_LABEL, FONT_SIZE_TITLE
 from inputs import Action, key_label
 from world import CHUNK_SIZE
-from . import texts
-from .spawner import RoundPhase
+from ..content import texts
+from ..match.rounds.spawner import RoundPhase
 
 class DebugOverlay:
     """Строки отладки (Tab)."""

@@ -1,6 +1,6 @@
 """game/spawn_warning.py — мигающий синий треугольник у рамки экрана: где появится группа врагов."""
-from .bot_markers import FILL, OUTLINE
-from .pointers import edge_point, draw_triangle
+from game.hud.bot_markers import FILL, OUTLINE
+from game.hud.pointers import edge_point, draw_triangle
 
 WARN_SIZE = 34           # крупнее маркеров ботов (13 px)
 WARN_INSET = 56          # отступ от края экрана, px

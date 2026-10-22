@@ -1,8 +1,8 @@
-"""game/ram_control.py — таран: удар танка о камень или другой танк, толчок и урон.
+"""game/ram.py — таран: удар танка о камень или другой танк, толчок и урон.
 Танк только отмечает «я врезался» (impact_kmh); что именно он задел и что из этого вышло, решаем здесь."""
 from combat import (resolve_ram, can_push, ram_damage,
                     RESTITUTION_ROCK, RESTITUTION_TANK, MIN_CLOSING_MS)
-from .settings import ROCK_HURTS_TANK
+from ...config import ROCK_HURTS_TANK
 from engine import PX_PER_M, obb_contact
 
 CONTACT_PAD_PX = 8.0         # на сколько px раздуваем корпус, чтобы поймать касание (физика останавливает танк вплотную)

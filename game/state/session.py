@@ -1,7 +1,7 @@
 """game/session.py — данные, которые переживают смену сцен: выбранный тип техники и настройки каждого типа."""
 from engine import VehicleKind
 from vehicles import VEHICLE_TYPES, default_tuning, FRONT_SCREEN, NOSE_FLAT, SPECIAL_HEAT
-from .preferences import Preferences
+from game.state.preferences import Preferences
 
 class Session:
     def __init__(self):

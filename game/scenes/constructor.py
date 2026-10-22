@@ -4,7 +4,7 @@ import traceback
 
 import pygame
 
-from engine import PX_PER_M, VehicleCommand, VehicleKind, clamp, get_text, FONT_SIZE_LABEL
+from engine import PX_PER_M, VehicleCommand, VehicleKind, clamp
 from inputs import InputHandler, Action
 from ui import SidePanel, Button, ACTIVE_BUTTON_COLORS
 from ui.theme import PANEL_WIDTH
@@ -14,7 +14,7 @@ from vehicles import (
     estimate_mass, sloped_nose_for_mass, SPECIAL_HEAT, HESH_MIN_CAL_MM
 )
 from world import Camera
-from ..panels import PanelMode, PANEL_OF, build_tank_panel, build_td_panel
+from ..content.panels import PanelMode, PANEL_OF, build_tank_panel, build_td_panel
 from .base import Scene
 try:
     from tools.tank_snapshot import save_snapshot

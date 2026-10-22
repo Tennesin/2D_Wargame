@@ -26,7 +26,7 @@ from vehicles.gun_params import (
     HESH_PEN_K, HESH_RANGE_K, HESH_STUN_S
 )
 from world import Camera
-from .settings import COMBAT_HOLD
+from ..config import COMBAT_HOLD
 
 AMMO_ICON_SIZE = (56, 32)
 AMMO_COL_W = 72

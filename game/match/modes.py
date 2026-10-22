@@ -4,8 +4,8 @@
 from enum import Enum, auto
 
 from inputs import Action, MouseOwner
-from .settings import COMBAT_HOLD
-from .panels import PanelMode, wall_values
+from ..config import COMBAT_HOLD
+from ..content.panels import PanelMode, wall_values
 
 class Mode(Enum):
     DRIVE = auto()       # езда и стрельба

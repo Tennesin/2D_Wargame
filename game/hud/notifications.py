@@ -1,6 +1,6 @@
 """game/notifications.py — сообщения о попаданиях: лента сверху и всплывающие числа над целью."""
 from engine import get_text, FONT_SIZE_HEADER, TargetType
-from .texts import TRACK_RU, MODULE_ON
+from ..content.texts import TRACK_RU, MODULE_ON
 
 FEED_MAX = 5                 # сколько строк в ленте одновременно
 FEED_LIFE = 3.5              # сколько секунд живёт строка

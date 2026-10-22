@@ -4,10 +4,10 @@ import math
 from engine import shortest_angle_diff, fmt_num
 from inputs import Action, MouseOwner
 from structures import (Wall, ROTATE_HANDLE_HIT_PX, ROTATE_DEAD_ZONE_PX, ROTATE_SNAP_DEG)
-from .settings import PLACE_REPEAT
-from .modes import Mode
-from .panels import (PanelMode, wall_values, bind_wall_delete,
-                     STAT_HP, STAT_THICK, STAT_ARMOR, STAT_MASS, STAT_ANGLE)
+from ...config import PLACE_REPEAT
+from ..modes import Mode
+from ...content.panels import (PanelMode, wall_values, bind_wall_delete,
+                               STAT_HP, STAT_THICK, STAT_ARMOR, STAT_MASS, STAT_ANGLE)
 
 class WallEditor:
     def __init__(self, ctx, input_handler, modes, ui):

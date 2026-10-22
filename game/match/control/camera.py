@@ -1,10 +1,10 @@
-"""game/camera_control.py — зум, размер окна, свободная камера, следование за танком
+"""game/camera.py — зум, размер окна, свободная камера, следование за танком
 и плавное смещение обзора в сторону курсора."""
 import math
 import pygame
 
 from inputs import Action, MouseOwner
-from .settings import LOOK_AHEAD
+from ...config import LOOK_AHEAD
 
 PAN_DRAG_THRESHOLD_PX = 5     # на сколько px надо сдвинуть мышь с зажатой ПКМ, чтобы это считалось перетаскиванием
 

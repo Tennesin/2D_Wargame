@@ -1,6 +1,5 @@
 """game/pointers.py — общая геометрия указателей: проекция на рамку экрана и треугольник."""
 import math
-
 import pygame
 
 def edge_point(width, height, sx, sy, inset):
