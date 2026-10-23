@@ -25,6 +25,9 @@ NEWGAME_LENGTH = "Длина карты"
 NEWGAME_MAP_HINT = "Размер задаётся отдельно по ширине и длине. Игрок появляется в центре карты."
 NEWGAME_TANK = "Ваша техника"
 NEWGAME_START = "В бой"
+NEWGAME_ENEMIES = "Враги: архетипы"
+NEWGAME_ENEMIES_HINT = "Появляются только отмеченные типы. Минимум один."
+NEWGAME_LOCKED_NOTE = "последний"
 
 # Подсказки над HUD
 HINT_IDLE = "{combat} — боевой режим, {camera} — камера, {debug} — отладка"

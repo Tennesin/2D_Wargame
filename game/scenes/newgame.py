@@ -2,9 +2,10 @@
 Как и меню, сцена сама читает события (у неё нет InputHandler)."""
 import pygame
 
+from ai import ARCHETYPES
 from engine import PX_PER_M, WORLD_MIN_M, WORLD_MAX_M, Param, get_text
-from ui import (Button, SectionHeader, InfoText, StatsBlock, make_param_row,
-                ACTIVE_BUTTON_COLORS)
+from ui import (Button, Checkbox, SectionHeader, InfoText, StatsBlock,
+                make_param_row, ACTIVE_BUTTON_COLORS)
 from ui.theme import BG_COLOR, LINE_COLOR
 from vehicles import VEHICLE_TYPES, RENDERERS, make_vehicle
 from world import Camera
@@ -22,6 +23,9 @@ COL_GAP = 60
 GAP = 12
 
 MAP_STEP = 50.0              # шаг ползунков размера карты, м
+ARCH_ROW_H = 34              # высота строки архетипа (в настройках было 44)
+ARCH_GAP = 6                 # зазор между строками архетипов
+SECTION_GAP = 16             # зазор между блоком карты и блоком врагов
 
 ICON_SIZE = (200, 230)
 ICON_ZOOM_LEVEL = 6          # ступень зума камеры иконки (подбирается на глаз)
@@ -56,6 +60,15 @@ class NewGameScene(Scene):
         self.left_items = [SectionHeader(texts.NEWGAME_MAP), self.row_w, self.row_h,
                            InfoText(texts.NEWGAME_MAP_HINT)]
         self._drag = None                       # ползунок, который сейчас тянут
+
+        # --- враги: допустимые архетипы (хранятся в session.prefs) ---
+        self.arch_header = SectionHeader(texts.NEWGAME_ENEMIES)
+        self.arch_rows = []                      # [(ключ архетипа, Checkbox)]
+        for key, arch in ARCHETYPES.items():
+            box = Checkbox((0, 0, LEFT_W, ARCH_ROW_H), arch.name, swatch=arch.color)
+            self.arch_rows.append((key, box))
+        self.arch_hint = InfoText(texts.NEWGAME_ENEMIES_HINT)
+        self._refresh_arch_rows()
 
         # --- техника ---
         self.tank_header = SectionHeader(texts.NEWGAME_TANK)
@@ -101,12 +114,33 @@ class NewGameScene(Scene):
         return block
 
     # ---------- раскладка ----------
+
+    def _layout_left(self, x, top):
+        """Раскладывает левую колонку (карта и враги). Возвращает её высоту."""
+        y = top
+        for item in self.left_items:
+            item.layout(x, y, LEFT_W)
+            y += item.height
+        y += SECTION_GAP
+
+        self.arch_header.layout(x, y, LEFT_W)
+        y += self.arch_header.height
+        for _, box in self.arch_rows:
+            box.rect.topleft = (x, y)
+            y += ARCH_ROW_H + ARCH_GAP
+        y -= ARCH_GAP                             # после последней строки зазор не нужен
+
+        self.arch_hint.layout(x, y, LEFT_W)
+        return y + self.arch_hint.height - top
+
     def _layout(self, size):
         """Две колонки по центру: слева карта, справа техника; снизу «В бой» и «Назад»."""
         self._size = size
         w, h = size
-        content_h = (SectionHeader.height + 4 + ICON_SIZE[1] + GAP
-                     + CONSTRUCTOR_H + GAP + self.stats.height)
+        left_h = self._layout_left(0, 0)          # пробная раскладка: нужна только высота колонки
+        right_h = (SectionHeader.height + 4 + ICON_SIZE[1] + GAP
+                   + CONSTRUCTOR_H + GAP + self.stats.height)
+        content_h = max(left_h, right_h)
         total = TITLE_BLOCK_H + content_h + BOTTOM_GAP + BTN_H
         y0 = max(20, (h - total) // 2)
 
@@ -114,6 +148,8 @@ class NewGameScene(Scene):
         top = y0 + TITLE_BLOCK_H
         x_left = (w - (LEFT_W + COL_GAP + RIGHT_W)) // 2
         x_right = x_left + LEFT_W + COL_GAP
+
+        self._layout_left(x_left, top)            # окончательная раскладка левой колонки
 
         y = top
         for item in self.left_items:
@@ -131,6 +167,15 @@ class NewGameScene(Scene):
         bottom = top + content_h + BOTTOM_GAP
         self.play_button.rect.midtop = (w // 2 - BTN_W // 2 - BTN_GAP // 2, bottom)
         self.back_button.rect.midtop = (w // 2 + BTN_W // 2 + BTN_GAP // 2, bottom)
+
+    def _refresh_arch_rows(self):
+        """Галочки, доступность и примечания по текущим настройкам."""
+        prefs = self.session.prefs
+        for key, box in self.arch_rows:
+            locked = prefs.is_locked(key)
+            box.checked = prefs.is_enabled(key)
+            box.enabled = not locked
+            box.note = texts.NEWGAME_LOCKED_NOTE if locked else ""
 
     # ---------- логика ----------
     def _save(self):
@@ -176,6 +221,11 @@ class NewGameScene(Scene):
                         self._drag = row
                         self._drag_to(event.pos[0])
                         break
+                for key, box in self.arch_rows:
+                    if box.collidepoint(event.pos):      # у заблокированной строки всегда False
+                        self.session.prefs.toggle(key)
+                        self._refresh_arch_rows()
+                        break
             elif event.type == pygame.MOUSEMOTION:
                 self._drag_to(event.pos[0])
             elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
@@ -189,6 +239,11 @@ class NewGameScene(Scene):
         mouse = pygame.mouse.get_pos()
         for item in self.left_items:
             item.draw(screen, mouse)
+
+        self.arch_header.draw(screen, mouse)
+        for _, box in self.arch_rows:
+            box.draw(screen, mouse)
+        self.arch_hint.draw(screen, mouse)
 
         self.tank_header.draw(screen, mouse)
         screen.blit(self.icon, self.icon_rect)

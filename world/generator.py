@@ -73,3 +73,7 @@ class WorldGenerator:
                     b = c + (bot[k + 1] - c) * fx
                     out[i] += weight * (t + (b - t) * fy)
 
+        for row in total:
+            for i in range(count):
+                row[i] = clamp((row[i] - 0.5) * 2.0 + 0.5, 0.0, 1.0)
+        return total
