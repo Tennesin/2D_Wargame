@@ -2,22 +2,19 @@
 import math
 import dataclasses
 
-from ..ammo import SPECIAL_HEAT, SPECIAL_HESH
+from vehicles.gun.ammo import SPECIAL_HEAT, SPECIAL_HESH
 from ..cost import raw_cost, round_cost
-from ..hulls import layout_for, HULL_CLASS_RU, NOSE_FLAT, NOSE_RU, layout_with_axis
-from ..hull_noses import layout_with_nose, resolve_nose
+from vehicles.chassis.hulls import layout_for, HULL_CLASS_RU, NOSE_FLAT, NOSE_RU, layout_with_axis
+from vehicles.chassis.hull_noses import layout_with_nose, resolve_nose
 from .hull_rules import class_index, class_for_index, near_class_border, turret_axis_for, caliber_limits
 from engine import clamp, fmt_num, PX_PER_M
-from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses, chassis_masses
-from ..chassis_params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP, FRONT_SCREEN, SCREEN_LOOK_STEPS
-from ..gun_spec import GunSpec, turret_masses, REF_CAL, REF_POWER
+from vehicles.chassis.spec import ChassisSpec, ChassisBody, armor_masses, chassis_masses
+from vehicles.chassis.params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP, FRONT_SCREEN, SCREEN_LOOK_STEPS
+from vehicles.gun.spec import GunSpec, turret_masses, REF_CAL, REF_POWER
 from ..look import Look, level
-from ..gun_tuning import tuning_k_bounds
-from ..gun_params import GUN_TUNE_COST_D, GUN_TUNE_COST_P
 from .params import (
     PARAMS, FIXED_MASS_T, FRONT_AREA_M2, SIDE_AREA_M2, REAR_AREA_M2,
     HP_REF, HULL_COLL_HALF_W_M, HULL_COLL_HALF_L_M, HULL_COLL_SHIFT_M,
-    COST_REF, COST_MIN, COST_MAX, COST_STEP, COST_ARMOR_ZONES, COST_PARTS,
     LOOK_FRONT_RATIO, LOOK_SIDE_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO,
 )
 

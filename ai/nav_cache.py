@@ -1,7 +1,7 @@
 """ai/nav_cache.py — кэш рельефа для A*: расстояние до твёрдых пятен и вязкость по клеткам."""
 import math
 
-from vehicles.chassis_params import TERRAIN_MIN_K
+from vehicles.chassis.params import TERRAIN_MIN_K
 from engine import PX_PER_M, LRUCache
 
 CELL_PX = 3.0 * PX_PER_M          # размер клетки, px мира

@@ -4,9 +4,9 @@ import itertools
 import math
 
 from engine import clamp, round_to
-from .gun_params import GUN_TUNE_COST_D, GUN_TUNE_COST_P
-from .gun_spec import turret_masses, REF_CAL, REF_POWER
-from .gun_tuning import tuning_k_bounds
+from vehicles.gun.params import GUN_TUNE_COST_D, GUN_TUNE_COST_P
+from vehicles.gun.spec import turret_masses, REF_CAL, REF_POWER
+from vehicles.gun.tuning import tuning_k_bounds
 from .tank.params import (
     PARAMS, FIXED_MASS_T, COST_REF, COST_MIN, COST_MAX, COST_STEP, COST_ARMOR_ZONES, COST_PARTS,
 )

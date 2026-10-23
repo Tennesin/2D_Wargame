@@ -1,15 +1,15 @@
-"""vehicles/sprite_base.py — общая часть рисования техники с орудием: гусеницы, кэши спрайтов, тень,
-ствол и главный метод draw. Детали корпуса лежат в hull_parts.py, палитра и Pen в sprite_pen.py."""
+"""vehicles/base.py — общая часть рисования техники с орудием: гусеницы, кэши спрайтов, тень,
+ствол и главный метод draw. Детали корпуса лежат в hull_parts.py, палитра и Pen в pen.py."""
 import math
 import pygame
 
 from engine import LRUCache, SHADOW_ALPHA, heading_vector, clamp, Team, PX_PER_M
-from .chassis_params import TRACK_LINK_M
-from .gun_params import BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M
-from .hull_parts import HullPartsMixin
-from .running_gear import LEFT, RIGHT
-from .sprite_pen import (Pen, SS, apply_grain, TRACK_BODY, TRACK_LINK, TRACK_BROKEN,
-                         TRACK_BROKEN_MARK, GUN, GUN_LIGHT, GUN_DARK)
+from vehicles.chassis.params import TRACK_LINK_M
+from vehicles.gun.params import BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M
+from vehicles.render.hull_parts import HullPartsMixin
+from vehicles.chassis.running_gear import LEFT, RIGHT
+from vehicles.render.pen import (Pen, SS, apply_grain, TRACK_BODY, TRACK_LINK, TRACK_BROKEN,
+                                 TRACK_BROKEN_MARK, GUN, GUN_LIGHT, GUN_DARK)
 
 # ==========================================
 # КОНСТАНТЫ РИСОВКИ

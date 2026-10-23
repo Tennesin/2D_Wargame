@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from combat import resolve_hit, impact_cos, pen_after_modules
 from engine import clamp, PX_PER_M
 from vehicles import ammo_stats
-from vehicles.chassis_params import KMH_TO_PX
+from vehicles.chassis.params import KMH_TO_PX
 
 def lead_point(shooter, target, lead_k=1.0):
     """Точка упреждения: где будет цель, когда долетит снаряд. Две итерации."""

@@ -8,7 +8,7 @@ from combat.ram import ZONE_K
 from inputs import Action
 from ui import SectionHeader, InfoText, IconRow, make_swatch_icon
 from vehicles import TRACKS
-from vehicles.chassis_params import TRACK_REPAIR_S, ONE_TRACK_SPEED_K
+from vehicles.chassis.params import TRACK_REPAIR_S, ONE_TRACK_SPEED_K
 from .common import k as _k
 
 def build():

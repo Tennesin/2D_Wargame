@@ -4,7 +4,7 @@ import math
 from dataclasses import replace
 
 from engine import shrink_polygon
-from .hulls import ArmorPlate, NOSE_FLAT, NOSE_PIKE, NOSE_WEDGE
+from vehicles.chassis.hulls import ArmorPlate, NOSE_FLAT, NOSE_PIKE, NOSE_WEDGE
 
 NOSE_MIN_FRONT_MM = 250.0   # щучий нос доступен при лобовой броне СТРОГО больше этого
 NOSE_ANGLE_DEG = 38.0       # угол плит к направлению «в лоб»; строго меньше 60°

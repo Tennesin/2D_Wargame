@@ -1,5 +1,5 @@
 """tank/entity.py — танк: башня и орудие живут в GunVehicle, здесь только то, что отличает ОБТ."""
-from ..gun_vehicle import GunVehicle
+from vehicles.gun.vehicle import GunVehicle
 
 class Tank(GunVehicle):
     renderer_key = "tank"

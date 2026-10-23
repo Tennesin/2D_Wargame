@@ -2,7 +2,7 @@
 from inputs import Action, AMMO_HOTKEYS
 from structures import ROTATE_SNAP_DEG
 from ui import SectionHeader, KeyRow, make_mouse_icon
-from vehicles.chassis_params import TRACK_REPAIR_S
+from vehicles.chassis.params import TRACK_REPAIR_S
 from ...config import COMBAT_HOLD
 from .common import k as _k
 

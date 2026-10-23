@@ -1,7 +1,7 @@
 """tank/params.py — параметры ОБТ: ползунки, площади брони, масса каркаса, здоровье, хитбокс,
-стоимость и пороги оформления. Всё, что про орудие, лежит в vehicles/gun_params.py."""
+стоимость и пороги оформления. Всё, что про орудие, лежит в vehicles/params.py."""
 from engine import Param
-from ..gun_params import CALIBER, REF_POWER_HP
+from vehicles.gun.params import CALIBER, REF_POWER_HP
 
 # ==========================================
 # 1. ВХОДНЫЕ ПАРАМЕТРЫ (то, что крутят ползунки)

@@ -1,11 +1,11 @@
-"""vehicles/gun_vehicle.py — техника с орудием: башня (ОБТ) или лафет с ограниченным сектором (ПТ-САУ).
+"""vehicles/vehicle.py — техника с орудием: башня (ОБТ) или лафет с ограниченным сектором (ПТ-САУ).
 Имена turret_angle / turret_rel_angle сохранены: их читают ai, combat и overlays.
 У техники без башни это угол орудия."""
 import math
 
 from engine import shortest_angle_diff, Shot, heading_vector, bearing_deg, clamp, AmmoKind
-from .base import Vehicle
-from .ammo import ammo_stats
+from vehicles.chassis.vehicle import Vehicle
+from vehicles.gun.ammo import ammo_stats
 
 class GunVehicle(Vehicle):
     AIM_DEAD_ZONE = 100.0   # если курсор ближе к оси орудия (1 м), орудие не дёргается

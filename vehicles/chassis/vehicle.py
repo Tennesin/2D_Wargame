@@ -1,4 +1,4 @@
-"""vehicles/base.py — Vehicle: шасси любой наземной техники.
+"""vehicles/vehicle.py — Vehicle: шасси любой наземной техники.
 Здесь движение, столкновения, броня по граням, таран и здоровье. Оружия и башни тут нет:
 подкласс переопределяет _update_weapons() и возвращает Shot или None."""
 import math
@@ -8,17 +8,17 @@ from engine import (
     heading_vector, find_free_fraction, Team, TargetType, fmt_num, clamp,
     convex_segment_hit, to_local_frame, vec_to_local, vec_from_local
 )
-from .hulls import NOSE_PIKE, NOSE_WEDGE, NOSE_RU
-from .hull_noses import screen_hit
+from vehicles.chassis.hulls import NOSE_PIKE, NOSE_WEDGE, NOSE_RU
+from vehicles.chassis.hull_noses import screen_hit
 from combat import resolve_hit, Damageable
-from .chassis_params import (
+from vehicles.chassis.params import (
     KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, ARMOR_K, TERRAIN_MIN_K, TERRAIN_BRAKE,
     TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY, TRACK_LINK_M, ONE_TRACK_SPEED_K,
     CONTACT_TURN_STEPS, CONTACT_PUSH_STEPS, SLIDE_ANGLES_DEG, SLIDE_MIN_PX, CONTACT_SCRUB,
     CONTACT_STOP_PROGRESS, PUSH_FRICTION_MS2, PUSH_STOP_PX, TERRAIN_SAMPLE_REACH,
     SCREEN_FACE_EPS_PX, TRACK_EDGE_ZONE_M, TRACK_HIT_TOL_M,
 )
-from .running_gear import TrackState, LEFT, RIGHT, TRACK_SIDES
+from vehicles.chassis.running_gear import TrackState, LEFT, RIGHT, TRACK_SIDES
 
 # Направления отодвигания корпуса: (вдоль корпуса, поперёк). Назад, вперёд, в стороны и диагонали.
 _NUDGE_DIRS = ((-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0),

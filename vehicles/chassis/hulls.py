@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 from enum import Enum, auto
 
 from engine import edge_normal_away, is_convex
-from .gun_params import TURRET_FRONT_M
+from vehicles.gun.params import TURRET_FRONT_M
 
 # ==========================================
 # ВАРИАНТЫ ЛБА

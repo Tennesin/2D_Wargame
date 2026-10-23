@@ -1,13 +1,13 @@
 """tank/sprites.py — отрисовка ОБТ: корпус и башня строятся из раскладки (vehicles/hulls.py).
-Общая часть (гусеницы, ствол, тень, кэши) лежит в vehicles/sprite_base.py."""
+Общая часть (гусеницы, ствол, тень, кэши) лежит в vehicles/base.py."""
 import math
 import pygame
 
 from engine import clamp, lerp_color
-from ..hulls import max_canvas_half_m, NOSE_PIKE, NOSE_WEDGE, HULL_STYLE_FRONT_ENGINE
-from ..hull_noses import PIKE_BAND_M
-from ..sprite_base import GunVehicleRenderer
-from ..sprite_pen import (
+from vehicles.chassis.hulls import max_canvas_half_m, NOSE_PIKE, NOSE_WEDGE, HULL_STYLE_FRONT_ENGINE
+from vehicles.chassis.hull_noses import PIKE_BAND_M
+from vehicles.render.base import GunVehicleRenderer
+from vehicles.render.pen import (
     Pen as _Pen, apply_paint as _paint, SS, OUTLINE,
     HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, RING, GRILL, GRILL_LINE,
     TURRET_MAIN, TURRET_LIGHT, TURRET_DARK, EMBLEM_COLOR,

@@ -1,20 +1,20 @@
-"""vehicles/chassis_spec.py — расчёт шасси любой наземной техники: масса, ход, повороты,
+"""vehicles/spec.py — расчёт шасси любой наземной техники: масса, ход, повороты,
 здоровье, размеры для столкновений. Орудия и башни не знает: их масса приходит как payload_t.
 Чем один тип техники отличается от другого, описывает ChassisBody."""
 import math
 from dataclasses import dataclass
 from typing import Optional
 
-from .hulls import HullLayout
+from vehicles.chassis.hulls import HullLayout
 from engine import PX_PER_M, clamp, round_to
-from .chassis_params import (
+from vehicles.chassis.params import (
     STEEL_T_PER_M3, V_CAP_KMH, PW_SCALE, V_MASS_EXP, V_MIN_KMH, V_MAX_CLAMP_KMH,
     V_AVG_BASE, V_AVG_GAIN, BACK_SPEED_K, V_BACK_CAP_KMH,
     ACCEL_K, ACCEL_MIN, ACCEL_MAX, ACCEL_TAIL_FLOOR, REVERSE_ACCEL_K, COAST_DECEL, BRAKE_DECEL,
     HULL_TURN_CAP, HULL_TURN_MIN, HULL_ALPHA_REF, HULL_ALPHA_MIN, HULL_ALPHA_MAX,
     HP_EXP, HP_STEP, FRONT_SCREEN, SCREEN_MASS_K, SCREEN_TURN_LOSS,
 )
-from .running_gear import RunningGear, TRACKS
+from vehicles.chassis.running_gear import RunningGear, TRACKS
 
 def armor_masses(areas_m2, front, side, rear, size_k):
     """Массы брони лба, борта и кормы, т."""

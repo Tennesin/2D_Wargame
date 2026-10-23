@@ -5,7 +5,7 @@
 from dataclasses import dataclass
 
 from engine import AmmoKind, AmmoStats, clamp, lerp
-from .gun_params import (
+from vehicles.gun.params import (
     CALIBER,
     HEAT_MODULE_PEN_K, HEAT_SCREEN_PEN_K, HEAT_DAMAGE_K, HEAT_PEN_K, HEAT_SPEED_K, HEAT_RELOAD_K,
     HE_DAMAGE_K, HE_PEN_K, HE_SPEED_K, HE_RELOAD_K, HE_MIN_FRAC, HE_RADIUS_PX_PER_MM, HESH_STUN_S,

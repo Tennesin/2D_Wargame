@@ -1,9 +1,9 @@
-"""vehicles/gun_spec.py — расчёт башни и орудия: масса, наводка, урон, пробитие, перезарядка,
+"""vehicles/spec.py — расчёт башни и орудия: масса, наводка, урон, пробитие, перезарядка,
 размеры спрайтов, снаряд и эффекты. Шасси не знает: получает от него size_k и мощность."""
 from engine import PX_PER_M, clamp
-from .ammo import ammo_kinds
-from .gun_tuning import resolve_tuning, reload_factor, MBT_GUN
-from .gun_params import (
+from vehicles.gun.ammo import ammo_kinds
+from vehicles.gun.tuning import resolve_tuning, reload_factor, MBT_GUN
+from vehicles.gun.params import (
     CALIBER, REF_POWER_HP, REF_L_CAL, GUN_MASS_T, GUN_MASS_AT_MM, TURRET_MASS_REF_T,
     BARREL_VISIBLE_K, BARREL_THICK_REF_M, BARREL_LEN_STEP_M, TURRET_FRONT_M,
     GUN_RELOAD_REF, GUN_RELOAD_MIN, GUN_OVERLOAD_Q, GUN_OVERLOAD_K, GUN_TUNE_RELOAD_MIN,

@@ -1,9 +1,9 @@
-"""vehicles/gun_tuning.py — тюнинг орудия: номиналы по калибру, профили орудий, коридоры выбора, множитель перезарядки.
+"""vehicles/tuning.py — тюнинг орудия: номиналы по калибру, профили орудий, коридоры выбора, множитель перезарядки.
 Чистые функции без pygame и без знания о танке: их берёт любая техника с орудием."""
 from dataclasses import dataclass
 
 from engine import clamp, lerp, round_to
-from .gun_params import (
+from vehicles.gun.params import (
     CALIBER, GUN_DAMAGE_REF, GUN_PEN_REF,
     GUN_DAMAGE_RANGE, GUN_PEN_RANGE, GUN_DAMAGE_STEP, GUN_PEN_STEP,
     GUN_TUNE_RELOAD_A, GUN_TUNE_RELOAD_B,

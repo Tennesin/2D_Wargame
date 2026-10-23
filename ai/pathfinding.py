@@ -2,10 +2,10 @@
 import heapq
 import math
 
-from vehicles.chassis_params import KMH_TO_PX
+from vehicles.chassis.params import KMH_TO_PX
 from engine import PX_PER_M, WORLD_HALF_PX
 from .gunnery import seconds_to_break, BREACH_MAX_S, MIN_USEFUL_DAMAGE
-from .nav_cache import seg_dist2, CELL_PX, NAV_CAP_PX, CHUNK_CELLS
+from .nav_cache import seg_dist2, CELL_PX, CHUNK_CELLS
 
 # ==========================================
 # НАСТРОЙКИ

@@ -1,5 +1,5 @@
 """td/entity.py — ПТ-САУ: орудие в лафете с ограниченным сектором наводки."""
-from ..gun_vehicle import GunVehicle
+from vehicles.gun.vehicle import GunVehicle
 
 class TankDestroyer(GunVehicle):
     renderer_key = "td"

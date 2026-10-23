@@ -3,17 +3,17 @@ import dataclasses
 import math
 
 from engine import clamp, lerp, fmt_num, PX_PER_M, round_to
-from ..ammo import SPECIAL_HEAT, SPECIAL_HESH
-from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses
-from ..chassis_params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP, FRONT_SCREEN, SCREEN_LOOK_STEPS
-from ..gun_spec import GunSpec, turret_masses
-from ..gun_tuning import TD_GUN
-from ..gun_params import (
+from vehicles.gun.ammo import SPECIAL_HEAT, SPECIAL_HESH
+from vehicles.chassis.spec import ChassisSpec, ChassisBody, armor_masses
+from vehicles.chassis.params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP, FRONT_SCREEN, SCREEN_LOOK_STEPS
+from vehicles.gun.spec import GunSpec, turret_masses
+from vehicles.gun.tuning import TD_GUN
+from vehicles.gun.params import (
     REF_L_CAL, BARREL_VISIBLE_K, GUN_ARM_BASE_M, GUN_ARM_BARREL_K,
     TURRET_INERTIA_EXP, TURRET_POWER_EXP,
 )
-from ..hulls import NOSE_FLAT, NOSE_PIKE, NOSE_RU
-from ..hull_noses import NOSE_MIN_FRONT_MM
+from vehicles.chassis.hulls import NOSE_FLAT, NOSE_PIKE, NOSE_RU
+from vehicles.chassis.hull_noses import NOSE_MIN_FRONT_MM
 from .layout import td_layout
 from ..look import Look, level
 from ..cost import raw_cost, round_cost

@@ -1,7 +1,7 @@
 """td/params.py — параметры ПТ-САУ: ползунки, масса, привод орудия, сектор наводки, геометрия
-крепления и маски. Орудийные числа общие с ОБТ лежат в vehicles/gun_params.py."""
+крепления и маски. Орудийные числа общие с ОБТ лежат в vehicles/params.py."""
 from engine import Param, clamp, lerp
-from ..gun_params import CALIBER
+from vehicles.gun.params import CALIBER
 
 TD_PARAMS = {
     "gun_caliber_mm":  CALIBER,

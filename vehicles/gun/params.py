@@ -1,6 +1,6 @@
-"""vehicles/gun_params.py — числа орудия, общие для любой техники с пушкой:
+"""vehicles/params.py — числа орудия, общие для любой техники с пушкой:
 калибр, массы, наводка, урон и пробитие, ствол и снаряд, тюнинг.
-Формулы лежат в gun_spec.py и gun_tuning.py. Числа, которые отличают конкретный тип техники,
+Формулы лежат в spec.py и tuning.py. Числа, которые отличают конкретный тип техники,
 остаются в его папке (tank/params.py, td/params.py)."""
 from engine import Param
 
@@ -88,7 +88,7 @@ GUN_TUNE_COST_D = 0.4             # степень, с которой выбра
 GUN_TUNE_COST_P = 0.4             # то же для пробития
 
 # Описания ползунков. min/max здесь ЗАГЛУШКИ: реальные границы зависят от калибра,
-# их выдают damage_range / pen_range из gun_tuning.py.
+# их выдают damage_range / pen_range из tuning.py.
 # В PARAMS эти ключи класть нельзя: оттуда читают ai/loadout.py, ai/archetypes.py и ai/counter.py.
 GUN_TUNE_PARAMS = {
     "gun_damage":      Param("Урон",     "",   250, 550, GUN_DAMAGE_REF, GUN_DAMAGE_STEP),

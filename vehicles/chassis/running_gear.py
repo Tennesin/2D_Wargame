@@ -2,7 +2,7 @@
 Про спрайты и физику не знает: Vehicle спрашивает отсюда, какая гусеница цела."""
 from dataclasses import dataclass
 
-from .chassis_params import TRACK_REPAIR_S
+from vehicles.chassis.params import TRACK_REPAIR_S
 
 LEFT = "left"
 RIGHT = "right"

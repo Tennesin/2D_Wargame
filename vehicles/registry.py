@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 
 from engine import VehicleKind
-from .gun_tuning import MBT_GUN, TD_GUN, GunProfile
+from vehicles.gun.tuning import MBT_GUN, TD_GUN, GunProfile
 from .tank import Tank, TankSpec, TankRenderer, PARAMS as TANK_PARAMS
 from .td import TankDestroyer, TDSpec, TDRenderer, TD_PARAMS
 

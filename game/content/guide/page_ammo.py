@@ -5,7 +5,7 @@ from inputs import AMMO_HOTKEYS
 from ui import SectionHeader, InfoText, IconRow
 from ui.ammo_icons import make_ammo_icon
 from vehicles import AMMO_ORDER, AMMO_TYPES
-from vehicles.gun_params import (
+from vehicles.gun.params import (
     CALIBER, HEAT_PEN_K, HEAT_SPEED_K, HEAT_RELOAD_K, HEAT_MODULE_PEN_K, HEAT_SCREEN_PEN_K,
     HE_DAMAGE_K, HE_PEN_K, HE_MIN_FRAC, HE_RADIUS_PX_PER_MM, HESH_MIN_CAL_MM, HESH_DAMAGE_K,
     HESH_PEN_K, HESH_RANGE_K, HESH_STUN_S

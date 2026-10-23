@@ -3,9 +3,9 @@
 import math
 
 from engine import lerp_color, shrink_polygon
-from .hulls import NOSE_PIKE
-from .hull_noses import screen_pieces, SCREEN_OFFSET_M, SCREEN_THICK_M, PIKE_BAND_M
-from .sprite_pen import (
+from vehicles.chassis.hulls import NOSE_PIKE
+from vehicles.chassis.hull_noses import screen_pieces, SCREEN_OFFSET_M, SCREEN_THICK_M, PIKE_BAND_M
+from vehicles.render.pen import (
     OUTLINE, OUTLINE_W, SKIRT_MAIN, SCREEN_MAIN, SCREEN_MESH,
     HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, GRILL, GRILL_LINE,
     apply_paint, outline_x_at,
