@@ -19,7 +19,8 @@ from collections import Counter
 from engine import PX_PER_M, Team, point_in_convex
 from vehicles.chassis.params import TRACK_LINK_M
 from vehicles.gun.params import BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M
-from vehicles.chassis.hulls import ArmorPlate, screen_pieces
+from vehicles.chassis.hulls import ArmorPlate
+from vehicles.chassis.hull_noses import screen_pieces
 from vehicles.render.base import Pen, SHADOW_HULL_M, SHADOW_TURRET_M, GunVehicleRenderer
 
 SNAPSHOT_DIR = r"d:\Akmal\Personal\AI developed Mini-games\2D_Wargame\tank_data"
@@ -141,7 +142,7 @@ def _find_comment(filename, lineno):
 def _color_table():
     """RGB -> имена констант цветов из модулей рисовки."""
     table = {}
-    for modname in ("vehicles.sprite_base", "vehicles.tank.sprites", "vehicles.td.sprites"):
+    for modname in ("vehicles.render.pen", "vehicles.tank.sprites", "vehicles.td.sprites"):
         mod = importlib.import_module(modname)
         for name, val in vars(mod).items():
             if (name.isupper() and isinstance(val, tuple) and len(val) in (3, 4)

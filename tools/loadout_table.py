@@ -1,4 +1,4 @@
-"""Какие классы корпуса и масштабы получаются на практике."""
+"""tools/loadout_table.py — какие классы корпуса и масштабы получаются на практике."""
 import os
 import random
 import sys
@@ -7,8 +7,8 @@ from collections import defaultdict
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from engine import VehicleKind
-from vehicles import TankSpec, TANK_PARAMS
-from ai import ARCHETYPES, fit_loadout, BASE_BUDGET
+from vehicles import TankSpec, TANK_PARAMS, COST_REF
+from ai import ARCHETYPES, fit_loadout
 
 
 def survey(label, specs):
@@ -36,6 +36,6 @@ survey("Случайные ползунки", [TankSpec.from_values(random_value
 for arch in ARCHETYPES.values():
     if arch.kind is not VehicleKind.MBT:
         continue
-    budget = round(BASE_BUDGET * arch.budget_k)
+    budget = round(COST_REF * arch.budget_k)
     survey(f"Архетип {arch.name}",
-           [TankSpec.from_values(fit_loadout(arch, budget, rng)) for _ in range(300)])
+           [TankSpec.from_values(fit_loadout(arch, budget, rng), unbounded=True) for _ in range(300)])

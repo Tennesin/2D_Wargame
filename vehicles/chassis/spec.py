@@ -1,4 +1,4 @@
-"""vehicles/spec.py — расчёт шасси любой наземной техники: масса, ход, повороты,
+"""vehicles/chassis/spec.py — расчёт шасси любой наземной техники: масса, ход, повороты,
 здоровье, размеры для столкновений. Орудия и башни не знает: их масса приходит как payload_t.
 Чем один тип техники отличается от другого, описывает ChassisBody."""
 import math
@@ -47,7 +47,8 @@ class ChassisBody:
     coll_half_l_m: float      # половина длины гусениц, м
     coll_shift_m: float       # на сколько центр корпуса лежит позади оси башни, м
     gear: RunningGear = TRACKS  # тип ходовой части (поле с умолчанием должно быть последним)
-    layout: Optional[HullLayout] = None
+    layout: Optional[HullLayout] = None   # обязателен: эталон строится без него, раскладку подставляет
+                                          # конкретная спецификация через dataclasses.replace
 
     @property
     def ref_pw(self):
@@ -58,7 +59,7 @@ class ChassisSpec:
 
     def __init__(self, body, front, side, rear, power, payload_t, screen_mm=0.0):
         if body.layout is None:
-            raise ValueError("ChassisBody без раскладки корпуса: задайте layout (vehicles/hulls.py)")
+            raise ValueError("ChassisBody без раскладки корпуса: задайте layout (vehicles/chassis/hulls.py)")
         self.screen_mm = screen_mm
         self.body = body
         self.gear = body.gear
@@ -75,17 +76,16 @@ class ChassisSpec:
     def _calc_mass(self):
         b = self.body
         self.m_fixed = b.fixed_t
-        layout = self.layout
-        area_k = layout.area_k if layout is not None else (1.0, 1.0, 1.0)
         (self.m_engine, self.filling, self.size_k,
          (self.m_front, self.m_side, self.m_rear)) = chassis_masses(
-            b, area_k, self.front, self.side, self.rear, self.power, self.payload_t, self.screen_mm)
+            b, self.layout.area_k, self.front, self.side, self.rear,
+            self.power, self.payload_t, self.screen_mm)
         self.m_armor = self.m_front + self.m_side + self.m_rear
         self.mass = self.filling + self.m_armor
 
     def _calc_ratios(self):
         b = self.body
-        self.HULL_SCALE = b.layout.scale_for(self.size_k)
+        self.HULL_SCALE = self.layout.scale_for(self.size_k)
         self.pw = self.power / self.mass                              # удельная мощность
         self.s = 1.0 - math.exp(-self.pw / PW_SCALE)                  # «ходовая отдача» 0..1
         self.q_pw = self.pw / b.ref_pw                                # мощность относительно эталона
