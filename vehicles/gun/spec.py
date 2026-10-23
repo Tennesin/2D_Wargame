@@ -5,7 +5,7 @@ from vehicles.gun.ammo import ammo_kinds
 from vehicles.gun.tuning import resolve_tuning, reload_factor, MBT_GUN
 from vehicles.gun.params import (
     CALIBER, REF_POWER_HP, REF_L_CAL, GUN_MASS_T, GUN_MASS_AT_MM, TURRET_MASS_REF_T,
-    BARREL_VISIBLE_K, BARREL_THICK_REF_M, BARREL_LEN_STEP_M, TURRET_FRONT_M,
+    BARREL_VISIBLE_K, BARREL_THICK_REF_M, BARREL_LEN_STEP_M,
     GUN_RELOAD_REF, GUN_RELOAD_MIN, GUN_OVERLOAD_Q, GUN_OVERLOAD_K, GUN_TUNE_RELOAD_MIN,
     TURRET_TURN_REF, TURRET_TURN_MIN, TURRET_TURN_MAX, TURRET_POWER_EXP,
     TURRET_INERTIA_EXP, TURRET_SPINUP_REF, TURRET_RADIUS_M, GUN_ARM_BASE_M, GUN_ARM_BARREL_K,
@@ -48,10 +48,9 @@ class GunSpec:
 
     TURRET_SCALE_RANGE = (0.8, 1.15)   # границы поправки масштаба башни на калибр
 
-    def __init__(self, cal, size_k, power, m_gun, m_turret, arc_deg=360.0,
+    def __init__(self, cal, size_k, power, m_gun, m_turret, front_m, arc_deg=360.0,
                  damage=None, penetration=None, profile=MBT_GUN,
-                 front_m=TURRET_FRONT_M, barrel_ref_m=BARREL_VIS_REF_M,
-                 turret_scale_range=None, visual_k=None, hesh=False):
+                 barrel_ref_m=BARREL_VIS_REF_M, turret_scale_range=None, visual_k=None, hesh=False):
         """profile — профиль орудия (бонус урона и пробития); front_m — на сколько метров вперёд
         от оси выступает маска орудия; barrel_ref_m — визуальная длина ствола эталона."""
         self.cal = cal
