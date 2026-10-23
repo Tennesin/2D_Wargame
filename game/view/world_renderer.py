@@ -23,7 +23,7 @@ class Renderer:
         self.aim_renderer = AimRenderer()
 
     def draw(self, screen, camera, build_preview=None, aim=None):
-        self._sync_zoom(camera.zoom)
+        self._sync_zoom(camera)
         self.ground_renderer.draw(screen, camera)
         self.terrain_renderer.draw(screen, camera, self.terrain)
         self.effects.draw_ground(screen, camera)         # пятна от взрывов лежат под танками и стенами
@@ -45,12 +45,18 @@ class Renderer:
         r = tank.reach_px() * camera.zoom
         return -r <= sx <= screen.get_width() + r and -r <= sy <= screen.get_height() + r
 
-    def _sync_zoom(self, zoom):
-        """При смене зума сбрасываем всё, что зависит от масштаба (базовые чанки земли остаются)."""
+    def _sync_zoom(self, camera):
+        """При смене зума сбрасываем всё, что зависит от масштаба."""
+        zoom = camera.zoom
         if zoom == self._zoom:
             return
         self._zoom = zoom
         self._ppm = PX_PER_M * zoom
         self.ground_renderer.set_zoom()
+        moving = camera.is_zooming
         for renderer in self.vehicle_renderers.values():
-            renderer.set_zoom(self._ppm)
+            renderer.set_view_zoom(self._ppm, moving)
+
+    def preload(self, camera):
+        """Заранее строит землю вокруг стартовой точки, чтобы на экране не было подгрузки."""
+        self.ground_renderer.preload(camera, (camera.view_w, camera.view_h))

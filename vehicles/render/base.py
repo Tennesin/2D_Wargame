@@ -24,6 +24,8 @@ ANGLE_STEPS = 480
 ANGLE_STEP = 360.0 / ANGLE_STEPS
 ROT_CACHE_BYTES = 48 * 1024 * 1024       # бюджет памяти под кэш повёрнутых поверхностей
 
+REBUILD_TOL = 0.05                       # после остановки зума спрайты пересобираются, если масштаб ушёл дальше этого
+
 # ==========================================
 # ОБЩИЙ ОТРИСОВЩИК
 # ==========================================
@@ -37,6 +39,7 @@ class GunVehicleRenderer(HullPartsMixin):
 
     def __init__(self):
         self._ppm = 0.0
+        self._k = 1.0
         self._hull_cache = LRUCache(240)
         self._turret_cache = LRUCache(40)
         self._barrel_cache = LRUCache(80)
@@ -62,6 +65,7 @@ class GunVehicleRenderer(HullPartsMixin):
         return
 
     # ---------- масштаб ----------
+
     def set_zoom(self, ppm):
         """Вызывается при смене зума: запоминает масштаб и сбрасывает кэши спрайтов."""
         self._ppm = ppm
@@ -73,6 +77,12 @@ class GunVehicleRenderer(HullPartsMixin):
         per_surface = max(1.0, side * side * 4.0)
         self._rot_cache.limit = int(clamp(ROT_CACHE_BYTES / per_surface, 40, 3000))
 
+    def set_view_zoom(self, ppm, moving=False):
+        """Плавный зум в партии."""
+        if self._ppm <= 0.0 or (not moving and abs(ppm / self._ppm - 1.0) > REBUILD_TOL):
+            self.set_zoom(ppm)
+        self._k = ppm / self._ppm
+
     # ---------- главный метод ----------
 
     def draw(self, screen, camera, tank):
@@ -83,7 +93,8 @@ class GunVehicleRenderer(HullPartsMixin):
         spec = tank.spec
         look = spec.LOOK
         var = spec.HULL_VARIANT
-        hs, ts = spec.HULL_SCALE, spec.TURRET_SCALE
+        view_k = self._k
+        hs, ts = spec.HULL_SCALE * view_k, spec.TURRET_SCALE * view_k
         bl = int(round(spec.BARREL_LEN_M / BARREL_LEN_STEP_M))
         bt = int(round(spec.BARREL_THICK_M / BARREL_THICK_STEP_M))
         team = tank.team_color

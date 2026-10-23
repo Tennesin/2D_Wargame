@@ -6,9 +6,6 @@ import pygame
 from engine import VehicleCommand
 from .keymap import Action, MouseOwner, HELD_KEYMAP, KEY_TO_PRESS
 
-ZOOM_KEY_DELAY = 0.35     # пауза перед автоповтором при удержании зума с клавиатуры, с
-ZOOM_KEY_REPEAT = 0.08    # интервал автоповтора, с
-
 class InputHandler:
     def __init__(self, ui_layers=()):
         # слои интерфейса сверху вниз: у каждого handle_event(event), covers(pos), cancel_drag()
@@ -16,8 +13,6 @@ class InputHandler:
         self.quit_requested = False
 
         self.zoom_steps = 0                # накопленные шаги зума
-        self._zoom_dir = 0
-        self._zoom_timer = 0.0
         self.world_clicks = []             # [(кнопка, (x, y))] — нажатия, которые не забрал интерфейс
 
         # ----- владелец мыши -----
@@ -139,22 +134,10 @@ class InputHandler:
     # ==========================================
     # ЗУМ
     # ==========================================
-    def update_zoom_keys(self, dt):
-        """Клавиши зума: шаг сразу при нажатии, затем автоповтор при удержании."""
-        direction = int(Action.ZOOM_IN in self.held) - int(Action.ZOOM_OUT in self.held)
 
-        if direction == 0:
-            self._zoom_dir = 0
-            return
-        if direction != self._zoom_dir:           # новое нажатие
-            self._zoom_dir = direction
-            self._zoom_timer = ZOOM_KEY_DELAY
-            self.zoom_steps += direction
-            return
-        self._zoom_timer -= dt
-        if self._zoom_timer <= 0.0:
-            self._zoom_timer += ZOOM_KEY_REPEAT
-            self.zoom_steps += direction
+    def zoom_key_direction(self):
+        """Что зажато на клавиатуре: +1 приближать, -1 отдалять, 0 ничего (или зажаты обе)."""
+        return int(Action.ZOOM_IN in self.held) - int(Action.ZOOM_OUT in self.held)
 
     def pop_zoom_steps(self):
         steps, self.zoom_steps = self.zoom_steps, 0

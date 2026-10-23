@@ -1,74 +1,87 @@
-"""world/ground_renderer.py — отрисовка земли: чанки с зумом и декор."""
+"""world/ground_renderer.py — отрисовка земли: гладкие текстуры чанков, без декора и без ступеней детализации."""
 import math
 import time
 import pygame
 
-from engine import LRUCache, shade_color, WORLD
-from .generator import CHUNK_SIZE, CELL_SIZE
+from engine import LRUCache, WORLD
+from .generator import CHUNK_SIZE, GRASS_PALETTE
 from .bounds_render import FADE_PX
 
-MIN_CACHED_CHUNKS = 40
-PREFETCH_MS = 3.0           # сколько мс за кадр уходит на предзагрузку чанков за краем экрана
-PREFETCH_RING = 1           # на сколько чанков за экраном готовим запас
+SAMPLES = 16                # узлов цвета на сторону чанка (шаг 512 / 16 = 32 px мира)
+TEX = 64                    # сторона базовой текстуры чанка, px
+UP = TEX // SAMPLES         # во сколько раз smoothscale растягивает сетку узлов (TEX кратно SAMPLES)
 
-def ground_lod(zoom):
-    """Чем дальше камера, тем крупнее клетка земли (меньше расчётов шума): 1, 2, 4, 8."""
-    if zoom >= 0.35:
-        return 1
-    if zoom >= 0.17:
-        return 2
-    if zoom >= 0.12:
-        return 4
-    return 8
+MIN_CACHED_CHUNKS = 1200    # базовые текстуры лёгкие (16 КБ), держим с запасом, чтобы зум туда-сюда не пересчитывал
+BUILD_MS = 6.0              # сколько мс за кадр можно тратить на достройку видимых чанков
+PREFETCH_MS = 2.0           # и на предзагрузку кольца за краем экрана
+PREFETCH_RING = 1
+FALLBACK_COLOR = (102, 148, 74)   # средняя трава: показывается на месте чанка, который не успели построить
 
 class GroundRenderer:
     def __init__(self, world_generator):
         self.world = world_generator
-        self._chunk_cache = LRUCache()    # (cx, cy, lod) -> Surface, как построено (без масштаба)
-        self._scaled_cache = LRUCache()   # (cx, cy) -> Surface, уже под текущий зум
+        self._chunk_cache = LRUCache()    # (cx, cy) -> Surface TEX x TEX
+        self._scaled_cache = LRUCache()   # (cx, cy) -> Surface под текущий зум
 
     def set_zoom(self):
         """Зум сменился: масштабированные чанки устарели, базовые остаются."""
         self._scaled_cache.clear()
 
+    # ==========================================
+    # КАДР
+    # ==========================================
     def draw(self, screen, camera):
-        z = camera.zoom
-        lod = ground_lod(z)
+        rng = self._visible_range(camera, screen.get_size())
+        if rng is None:
+            return                                        # на экране только глухая темнота
+        cx0, cx1, cy0, cy1 = rng
         left, top = camera.origin_px()
-        width, height = screen.get_size()
+        span = CHUNK_SIZE * camera.zoom                   # размер чанка на экране (дробный)
+        size = math.ceil(span)                            # заготовка чуть больше шага: швов нет
 
-        span = CHUNK_SIZE * z                  # размер чанка на экране (дробный)
-        size = math.ceil(span)                 # заготовка чуть больше шага -> швов между чанками нет
+        coords = [(cx, cy) for cy in range(cy0, cy1 + 1) for cx in range(cx0, cx1 + 1)]
+        bases = {c: self._chunk_cache.get(c) for c in coords}
+        missing = [c for c, base in bases.items() if base is None]
 
-        cx0 = math.floor(left / span)
-        cx1 = math.floor((left + width - 1) / span)
-        cy0 = math.floor(top / span)
-        cy1 = math.floor((top + height - 1) / span)
+        if missing:                                       # достраиваем в рамках бюджета, ближние к центру первыми
+            mid_x = (left + screen.get_width() / 2.0) / span - 0.5
+            mid_y = (top + screen.get_height() / 2.0) / span - 0.5
+            missing.sort(key=lambda c: (c[0] - mid_x) ** 2 + (c[1] - mid_y) ** 2)
+            deadline = time.perf_counter() + BUILD_MS / 1000.0
+            built = 0
+            for c in missing:
+                if built and time.perf_counter() >= deadline:
+                    break
+                bases[c] = self._get_chunk(*c)
+                built += 1
+            if built < len(missing):
+                screen.fill(FALLBACK_COLOR)               # недостроенные места пока залиты средним цветом
 
-        # дальше мира + зоны затемнения земля не нужна: её всё равно накрывает темнота
+        for (cx, cy), base in bases.items():
+            if base is None:
+                continue
+            tile = self._get_scaled_chunk(cx, cy, base, size)
+            screen.blit(tile, (round(cx * span) - left, round(cy * span) - top))
+
+        ring = self._prefetch(cx0, cx1, cy0, cy1)
+        count = len(coords) + ring + 12
+        self._chunk_cache.trim(max(MIN_CACHED_CHUNKS, count))
+        self._scaled_cache.trim(max(40, count))
+
+    def preload(self, camera, size):
+        """Синхронно строит всё, что видно сейчас, и кольцо вокруг. Зовётся при создании партии."""
+        rng = self._visible_range(camera, size)
+        if rng is None:
+            return
+        cx0, cx1, cy0, cy1 = rng
         lx0, lx1, ly0, ly1 = self._chunk_limits()
-        cx0, cx1 = max(cx0, lx0), min(cx1, lx1)
-        cy0, cy1 = max(cy0, ly0), min(cy1, ly1)
-        if cx0 > cx1 or cy0 > cy1:
-            return                                   # на экране только глухая темнота
-
-        visible = 0
-        for cy in range(cy0, cy1 + 1):
-            for cx in range(cx0, cx1 + 1):
-                tile = self._get_scaled_chunk(cx, cy, lod, size)
-                screen.blit(tile, (round(cx * span) - left, round(cy * span) - top))
-                visible += 1
-
-        ring = self._prefetch(cx0, cx1, cy0, cy1, lod)
-
-        limit = max(MIN_CACHED_CHUNKS, visible + ring + 12)
-        self._chunk_cache.trim(limit)
-        self._scaled_cache.trim(limit)
+        for cy in range(max(cy0 - PREFETCH_RING, ly0), min(cy1 + PREFETCH_RING, ly1) + 1):
+            for cx in range(max(cx0 - PREFETCH_RING, lx0), min(cx1 + PREFETCH_RING, lx1) + 1):
+                self._get_chunk(cx, cy)
 
     # ==========================================
-    # ЗЕМЛЯ И ЧАНКИ
+    # ЧАНКИ
     # ==========================================
-
     @staticmethod
     def _chunk_limits():
         """Диапазон номеров чанков, которые вообще бывают видны: мир + зона затемнения."""
@@ -77,9 +90,24 @@ class GroundRenderer:
         return (math.floor(-mx / CHUNK_SIZE), math.floor(mx / CHUNK_SIZE),
                 math.floor(-my / CHUNK_SIZE), math.floor(my / CHUNK_SIZE))
 
-    def _prefetch(self, cx0, cx1, cy0, cy1, lod):
-        """Готовит базовые чанки в кольце за краем экрана, чтобы при движении они уже были построены.
-        Возвращает, сколько чанков в кольце (нужно для лимита кэша)."""
+    def _visible_range(self, camera, size):
+        """(cx0, cx1, cy0, cy1) видимых чанков, обрезанных по миру, или None."""
+        left, top = camera.origin_px()
+        width, height = size
+        span = CHUNK_SIZE * camera.zoom
+        cx0 = math.floor(left / span)
+        cx1 = math.floor((left + width - 1) / span)
+        cy0 = math.floor(top / span)
+        cy1 = math.floor((top + height - 1) / span)
+        lx0, lx1, ly0, ly1 = self._chunk_limits()
+        cx0, cx1 = max(cx0, lx0), min(cx1, lx1)
+        cy0, cy1 = max(cy0, ly0), min(cy1, ly1)
+        if cx0 > cx1 or cy0 > cy1:
+            return None
+        return cx0, cx1, cy0, cy1
+
+    def _prefetch(self, cx0, cx1, cy0, cy1):
+        """Готовит чанки в кольце за краем экрана. Возвращает, сколько их в кольце (для лимита кэша)."""
         deadline = time.perf_counter() + PREFETCH_MS / 1000.0
         out_of_time = False
         count = 0
@@ -87,106 +115,38 @@ class GroundRenderer:
         for cy in range(max(cy0 - PREFETCH_RING, ly0), min(cy1 + PREFETCH_RING, ly1) + 1):
             for cx in range(max(cx0 - PREFETCH_RING, lx0), min(cx1 + PREFETCH_RING, lx1) + 1):
                 if cx0 <= cx <= cx1 and cy0 <= cy <= cy1:
-                    continue                                   # видимые уже обработаны
+                    continue
                 count += 1
-                if self._chunk_cache.get((cx, cy, lod)) is not None:
-                    continue                                   # get освежил запись: не вытеснят
+                if self._chunk_cache.get((cx, cy)) is not None:
+                    continue
                 if out_of_time or time.perf_counter() >= deadline:
                     out_of_time = True
                     continue
-                self._get_chunk(cx, cy, lod)
+                self._get_chunk(cx, cy)
         return count
 
-    def _get_scaled_chunk(self, cx, cy, lod, size):
+    def _get_scaled_chunk(self, cx, cy, base, size):
         key = (cx, cy)
         tile = self._scaled_cache.get(key)
-        if tile is not None:
-            self._chunk_cache.get((cx, cy, lod))
-            return tile
-
-        base = self._get_chunk(cx, cy, lod)
-        tile = (
-            base
-            if base.get_width() == size
-            else pygame.transform.smoothscale(base, (size, size))
-        )
-        self._scaled_cache.put(key, tile)
+        if tile is None:
+            tile = pygame.transform.scale(base, (size, size))   # текстура уже гладкая: быстрого масштабирования хватает
+            self._scaled_cache.put(key, tile)
         return tile
 
-    def _get_chunk(self, cx, cy, lod):
-        return self._chunk_cache.get_or_build((cx, cy, lod), lambda: self._build_chunk(cx, cy, lod))
+    def _get_chunk(self, cx, cy):
+        return self._chunk_cache.get_or_build((cx, cy), lambda: self._build_chunk(cx, cy))
 
-    def _build_chunk(self, cx, cy, lod):
-        """Чанк в уменьшенном виде: при lod=4 это 8x8 клеток вместо 32x32 (в 16 раз меньше расчётов шума)."""
-        cells = CHUNK_SIZE // (CELL_SIZE * lod)
-        cell_world = CELL_SIZE * lod
-        surf = pygame.Surface((cells * CELL_SIZE, cells * CELL_SIZE))
-        for j in range(cells):
-            for i in range(cells):
-                color = self.world.ground_color(cx * cells + i, cy * cells + j, cell_world)
-                surf.fill(color, (i * CELL_SIZE, j * CELL_SIZE, CELL_SIZE, CELL_SIZE))
-
-        if lod == 1:                         # на дальнем зуме декор всё равно меньше пикселя
-            for deco in self.world.chunk_decorations(cx, cy):
-                self._draw_decoration(surf, deco)
-        return surf.convert()
-
-    # ==========================================
-    # ДЕКОР
-    # ==========================================
-    def _draw_decoration(self, surf, d):
-        if d.kind == "flower":
-            self._draw_flower(surf, d)
-        elif d.kind == "stone":
-            self._draw_stone(surf, d)
-        elif d.kind == "bush":
-            self._draw_bush(surf, d)
-        elif d.kind == "tuft":
-            self._draw_tuft(surf, d)
-
-    @staticmethod
-    def _draw_flower(surf, d):
-        x, y = int(d.x), int(d.y)
-        r = int(d.size)
-        turn = (d.variant % 72)
-        for k in range(5):
-            a = math.radians(k * 72 + turn)
-            px = int(round(x + math.cos(a) * r))
-            py = int(round(y + math.sin(a) * r))
-            pygame.draw.circle(surf, d.color, (px, py), max(2, int(r * 0.7)))
-        pygame.draw.circle(surf, (250, 220, 60), (x, y), max(1, r // 2))
-
-    @staticmethod
-    def _draw_stone(surf, d):
-        x, y = int(d.x), int(d.y)
-        w = max(6, int(d.size * 2))
-        h = max(5, int(d.size * 1.5) + d.variant % 3)
-        rect = pygame.Rect(0, 0, w, h)
-        rect.center = (x, y)
-        pygame.draw.ellipse(surf, (45, 70, 45), rect.move(2, 3))          # тень
-        pygame.draw.ellipse(surf, d.color, rect)
-        pygame.draw.ellipse(surf, shade_color(d.color, 0.7), rect, 1)          # контур
-        hl = pygame.Rect(0, 0, max(2, w // 3), max(2, h // 3))
-        hl.center = (x - w // 5, y - h // 5)
-        pygame.draw.ellipse(surf, shade_color(d.color, 1.25), hl)              # блик
-
-    @staticmethod
-    def _draw_bush(surf, d):
-        x, y = int(d.x), int(d.y)
-        r = max(4, int(d.size * 0.65))
-        pygame.draw.circle(surf, shade_color(d.color, 0.6), (x + 2, y + 3), r + 1)   # тень
-        for ox, oy in ((-0.5, 0.3), (0.5, 0.2), (0.0, -0.5)):
-            pygame.draw.circle(surf, d.color, (int(x + ox * r), int(y + oy * r)), r)
-        pygame.draw.circle(surf, shade_color(d.color, 1.3), (x - r // 3, y - r // 2), max(2, r // 2))
-        if d.variant % 3 == 0:                                                  # ягоды
-            for ox, oy in ((-3, -1), (2, 2), (3, -3)):
-                pygame.draw.circle(surf, (200, 40, 50), (x + ox, y + oy), 2)
-
-    @staticmethod
-    def _draw_tuft(surf, d):
-        x, y = int(d.x), int(d.y)
-        s = d.size / 6.0
-        flip = -1 if d.variant % 2 else 1
-        for bx, by in ((-4, -6), (-1.5, -9), (1.5, -8), (4, -5)):
-            pygame.draw.line(surf, d.color, (x, y),
-                             (int(x + bx * s * flip), int(y + by * s)), 1)
+    def _build_chunk(self, cx, cy):
+        """Сетка цветов (с запасом в один узел по краям) -> smoothscale -> вырезаем центр.
+        Узлы соседних чанков лежат в одних и тех же точках мира, поэтому стыки незаметны."""
+        step = CHUNK_SIZE / SAMPLES
+        count = SAMPLES + 2
+        grid = self.world.grass_grid(cx * CHUNK_SIZE - step / 2.0, cy * CHUNK_SIZE - step / 2.0,
+                                     step, count)
+        small = pygame.Surface((count, count), 0, 32)
+        last = len(GRASS_PALETTE) - 1
+        for j, row in enumerate(grid):
+            for i, g in enumerate(row):
+                small.set_at((i, j), GRASS_PALETTE[int(g * last + 0.5)])
+        big = pygame.transform.smoothscale(small, (count * UP, count * UP))
+        return big.subsurface((UP, UP, TEX, TEX)).copy().convert()

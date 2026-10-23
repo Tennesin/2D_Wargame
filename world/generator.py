@@ -1,54 +1,33 @@
-"""world/generator.py — процедурный мир: трава и декор."""
-import random
-from dataclasses import dataclass
-from typing import List
+"""world/generator.py — процедурный мир: густота и цвет травы. Декора (цветов, кустов, камешков) нет."""
+import math
 
-from engine import clamp, lerp_color, hash_int, hash_float, value_noise, SEED_SALT
-
-# ==========================================
-# НАСТРОЙКИ МИРА
-# ==========================================
+from engine import clamp, lerp_color, hash_float, value_noise, SEED_SALT
 
 CHUNK_SIZE = 512          # размер чанка (px)
-CELL_SIZE = 16            # размер клетки земли (px); CHUNK_SIZE должен делиться на него
-DECOR_ATTEMPTS = 90       # сколько попыток поставить декор на чанк
-DECOR_MARGIN = 20         # отступ от края чанка, чтобы рисунки не обрезались
 
 DRY_GRASS = (158, 184, 96)    # светлая сухая трава
 LUSH_GRASS = (46, 112, 52)    # тёмная густая трава
-FLOWER_COLORS = [
-    (238, 238, 246),  # белый
-    (242, 202, 60),   # жёлтый
-    (222, 72, 92),    # красный
-    (172, 112, 204),  # сиреневый
-    (242, 142, 60),   # оранжевый
-]
 
-# ==========================================
-# ПРОЦЕДУРНЫЙ МИР
-# ==========================================
+PALETTE_SIZE = 256
+GRASS_PALETTE = [lerp_color(DRY_GRASS, LUSH_GRASS, i / (PALETTE_SIZE - 1)) for i in range(PALETTE_SIZE)]
 
-@dataclass
-class Decoration:
-    kind: str        # "flower", "stone", "bush", "tuft"
-    x: float         # координаты ВНУТРИ чанка
-    y: float
-    size: float
-    color: tuple
-    variant: int     # число для мелких различий внешнего вида
-
+# слои шума: (период в px мира, добавка к сиду, вес)
+_LAYERS = (
+    (700.0, 0, 0.60),
+    (220.0, SEED_SALT["grass_mid"], 0.28),
+    (70.0, SEED_SALT["grass_fine"], 0.12),
+)
 
 class WorldGenerator:
-    """Данные о мире: какая тут трава и какой декор. Рисует не он, а Renderer."""
+    """Данные о мире: какая тут трава. Рисует не он, а GroundRenderer."""
 
     def __init__(self, seed):
         self.seed = seed
 
     def grass_at(self, wx, wy):
         """Густота травы в точке мира: 0 (сухо) .. 1 (густо)."""
-        n = (0.60 * value_noise(wx / 700.0, wy / 700.0, self.seed)
-             + 0.28 * value_noise(wx / 220.0, wy / 220.0, self.seed + SEED_SALT["grass_mid"])
-             + 0.12 * value_noise(wx / 70.0, wy / 70.0, self.seed + SEED_SALT["grass_fine"]))
+        n = sum(w * value_noise(wx / period, wy / period, self.seed + salt)
+                for period, salt, w in _LAYERS)
         # шум кучкуется около 0.5, растягиваем, чтобы были и светлые, и тёмные области
         return clamp((n - 0.5) * 2.0 + 0.5, 0.0, 1.0)
 
@@ -56,51 +35,41 @@ class WorldGenerator:
     def grass_color(g):
         return lerp_color(DRY_GRASS, LUSH_GRASS, g)
 
-    def ground_color(self, cell_x, cell_y, cell_size=CELL_SIZE):
-        """Цвет клетки земли (индексы клеток, не пиксели). cell_size больше обычного — для дальнего зума."""
-        g = self.grass_at((cell_x + 0.5) * cell_size, (cell_y + 0.5) * cell_size)
-        base = self.grass_color(g)
-        jitter = int((hash_float(cell_x, cell_y, self.seed + SEED_SALT["ground_jitter"]) - 0.5) * 12)
-        return tuple(clamp(c + jitter, 0, 255) for c in base)
+    @staticmethod
+    def _lattice(coord, period):
+        """Клетка шума и сглаженная дробная часть для одной координаты."""
+        u = coord / period
+        i = math.floor(u)
+        f = u - i
+        return i, f * f * (3.0 - 2.0 * f)
 
-    def chunk_decorations(self, cx, cy) -> List[Decoration]:
-        """Декор одного чанка. Одинаков при каждом вызове для одних и тех же cx, cy."""
-        rng = random.Random(hash_int(cx, cy, self.seed + SEED_SALT["decor"]))
-        origin_x = cx * CHUNK_SIZE
-        origin_y = cy * CHUNK_SIZE
-        low, high = DECOR_MARGIN, CHUNK_SIZE - DECOR_MARGIN
-        result: List[Decoration] = []
+    def grass_grid(self, x0, y0, step, count):
+        """Густота травы в узлах сетки count x count: узел (i, j) лежит в точке (x0 + i*step, y0 + j*step).
+        Значения те же, что у grass_at, но хеши решётки шума считаются один раз на слой, а не на каждую точку.
+        Возвращает список строк: grid[j][i]."""
+        total = [[0.0] * count for _ in range(count)]
+        for period, salt, weight in _LAYERS:
+            seed = self.seed + salt
+            cols = [self._lattice(x0 + i * step, period) for i in range(count)]
+            rows = [self._lattice(y0 + j * step, period) for j in range(count)]
+            ix_min, ix_max = cols[0][0], cols[-1][0]
+            lines = {}                                   # iy -> хеши вдоль оси X для этой строки решётки
 
-        for _ in range(DECOR_ATTEMPTS):
-            x = rng.uniform(low, high)
-            y = rng.uniform(low, high)
-            g = self.grass_at(origin_x + x, origin_y + y)
-            roll = rng.random()
+            def line(iy):
+                values = lines.get(iy)
+                if values is None:
+                    values = lines[iy] = [hash_float(ix, iy, seed) for ix in range(ix_min, ix_max + 2)]
+                return values
 
-            stone_p = 0.04 + 0.10 * (1.0 - g)   # на сухой земле камней больше
-            flower_p = 0.30 * g * g             # цветы любят густую траву
-            bush_p = 0.06 * g * g
-            tuft_p = 0.30
+            for j in range(count):
+                iy, fy = rows[j]
+                top, bot = line(iy), line(iy + 1)
+                out = total[j]
+                for i in range(count):
+                    ix, fx = cols[i]
+                    k = ix - ix_min
+                    a, c = top[k], bot[k]
+                    t = a + (top[k + 1] - a) * fx
+                    b = c + (bot[k + 1] - c) * fx
+                    out[i] += weight * (t + (b - t) * fy)
 
-            if roll < stone_p:
-                v = rng.randint(95, 150)
-                result.append(Decoration("stone", x, y, rng.uniform(5, 12),
-                                         (v, v, v + 6), rng.randint(0, 99)))
-            elif roll < stone_p + flower_p:
-                color = rng.choice(FLOWER_COLORS)
-                for _k in range(rng.randint(2, 5)):      # цветы растут группкой
-                    fx = clamp(x + rng.uniform(-16, 16), low, high)
-                    fy = clamp(y + rng.uniform(-16, 16), low, high)
-                    result.append(Decoration("flower", fx, fy, rng.choice((3, 4)),
-                                             color, rng.randint(0, 99)))
-            elif roll < stone_p + flower_p + bush_p:
-                s = rng.randint(0, 25)
-                result.append(Decoration("bush", x, y, rng.uniform(8, 13),
-                                         (28 + s, 80 + s, 38 + s), rng.randint(0, 99)))
-            elif roll < stone_p + flower_p + bush_p + tuft_p:
-                dark = lerp_color(self.grass_color(g), (10, 40, 15), 0.45)
-                result.append(Decoration("tuft", x, y, rng.uniform(4, 7),
-                                         dark, rng.randint(0, 99)))
-
-        result.sort(key=lambda d: d.y)   # нижние рисуются поверх верхних
-        return result

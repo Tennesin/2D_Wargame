@@ -3,7 +3,7 @@ import math
 import random
 from enum import Enum, auto
 
-from engine import PX_PER_M, bearing_deg, SEED_SALT
+from engine import PX_PER_M, bearing_deg, SEED_SALT, WORLD
 from ai import Bot, BotBrain, DEFAULT_SKILL
 from ...config import LOOK_MARGIN_PX
 from .composer import GroupComposer
@@ -14,6 +14,8 @@ SPAWN_MARGIN_M = 15.0        # запас за краем экрана
 SPAWN_BAND_M = 30.0          # толщина кольца появления
 FIND_RADIUS_M = 25.0         # насколько далеко от анкера искать место под каждый танк
 RING_TRIES = 6               # попыток выбрать анкер за один заход
+FALLBACK_INSET_M = 12.0      # на сколько внутрь от границы мира ставится запасной анкер
+FALLBACK_TRIES = 4           # случайных точек на каждую сторону мира в запасном плане
 
 class RoundPhase(Enum):
     COUNTDOWN = auto()       # отсчёт, мигает указатель
@@ -31,6 +33,7 @@ class BotSpawner:
         self.phase = RoundPhase.COUNTDOWN
         self.spawned = 0                   # сколько ботов появилось за всю партию
         self.anchor = None                 # точка появления группы (мировые px) или None
+        self.anchor_is_fallback = False    # анкер выбран запасным планом (у границы мира)
 
         self._clock = 0.0
         self._t = 0.0                      # время в текущей фазе
@@ -106,6 +109,7 @@ class BotSpawner:
         self._group = []
         self._pending = self.composer.compose(n, self.fleet.player)
         self.anchor = None
+        self.anchor_is_fallback = False
         if not self._pick_anchor():
             self._retry_at = self._clock + RETRY_S
 
@@ -121,25 +125,65 @@ class BotSpawner:
 
     def _pick_anchor(self):
         """Выбирает анкер, где точно помещается самый крупный танк группы. True при успехе.
+        Основной план: кольцо за краем экрана. Запасной: у самой дальней от игрока границы мира
+        (обзор настолько большой, что кольцо вылезло за карту, или места в кольце не нашлось).
         Прежний анкер при неудаче не трогаем."""
         if not self._pending:
             return False
         probe = max((t for _, t in self._pending), key=lambda t: t.reach_px())
         player = self.fleet.player
         inner, outer = self._ring_radii()
-        for _ in range(RING_TRIES):
-            a = self.rng.uniform(0.0, 2.0 * math.pi)
-            r = self.rng.uniform(inner, outer)
-            x, y = player.x + math.cos(a) * r, player.y + math.sin(a) * r
-            heading = bearing_deg(x, y, player.x, player.y)
-            if self.finder.find_near(probe, x, y, FIND_RADIUS_M,
-                                     heading=heading, rng=self.rng) is not None:
-                self.anchor = (x, y)
-                return True
+        if inner <= self._far_corner_dist(player):        # хоть какая-то часть кольца лежит внутри мира
+            for _ in range(RING_TRIES):
+                a = self.rng.uniform(0.0, 2.0 * math.pi)
+                r = self.rng.uniform(inner, outer)
+                x, y = player.x + math.cos(a) * r, player.y + math.sin(a) * r
+                heading = bearing_deg(x, y, player.x, player.y)
+                if self.finder.find_near(probe, x, y, FIND_RADIUS_M,
+                                         heading=heading, rng=self.rng) is not None:
+                    self.anchor = (x, y)
+                    self.anchor_is_fallback = False
+                    return True
+        return self._pick_fallback_anchor(probe, player)
+
+    @staticmethod
+    def _far_corner_dist(player):
+        """Расстояние от игрока до самого дальнего угла мира, px."""
+        return math.hypot(WORLD.half_w_px + abs(player.x), WORLD.half_h_px + abs(player.y))
+
+    def _pick_fallback_anchor(self, probe, player):
+        """Запасной план: стороны мира перебираются от самой дальней от игрока к ближней.
+        На стороне берётся несколько случайных точек, проверяются от самой дальней к ближней."""
+        hw, hh = WORLD.half_w_px, WORLD.half_h_px
+        inset = FALLBACK_INSET_M * PX_PER_M
+        sides = sorted((("right", hw - player.x), ("left", hw + player.x),
+                        ("bottom", hh - player.y), ("top", hh + player.y)),
+                       key=lambda s: s[1], reverse=True)
+        for side, _ in sides:
+            candidates = []
+            for _ in range(FALLBACK_TRIES):
+                if side in ("left", "right"):
+                    x = hw - inset if side == "right" else -hw + inset
+                    y = self.rng.uniform(-hh + inset, hh - inset)
+                else:
+                    y = hh - inset if side == "bottom" else -hh + inset
+                    x = self.rng.uniform(-hw + inset, hw - inset)
+                candidates.append((x, y))
+            candidates.sort(key=lambda p: (p[0] - player.x) ** 2 + (p[1] - player.y) ** 2,
+                            reverse=True)
+            for x, y in candidates:
+                heading = bearing_deg(x, y, player.x, player.y)
+                if self.finder.find_near(probe, x, y, FIND_RADIUS_M,
+                                         heading=heading, rng=self.rng) is not None:
+                    self.anchor = (x, y)
+                    self.anchor_is_fallback = True
+                    return True
         return False
 
     def _anchor_outside_screen(self):
         """За 3 секунды игрок мог подъехать (или отдалить камеру): выталкиваем анкер за экран по лучу."""
+        if self.anchor_is_fallback:
+            return self.anchor
         player = self.fleet.player
         inner, _ = self._ring_radii()
         ax, ay = self.anchor

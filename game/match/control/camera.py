@@ -26,12 +26,14 @@ class CameraController:
         self.input.release_mouse(MouseOwner.PAN)
 
     # ---------- каждый кадр ----------
+
     def update_view(self, dt, size):
-        """Зум (колёсико и клавиши) и размер окна."""
-        self.input.update_zoom_keys(dt)
+        """Зум (колёсико и зажатые клавиши, плавно) и размер окна."""
+        self.camera.zoom_hold(self.input.zoom_key_direction(), dt)
         steps = self.input.pop_zoom_steps()
         if steps:
-            self.camera.zoom_by(steps)
+            self.camera.zoom_wheel(steps)
+        self.camera.update_zoom(dt)
         self.camera.resize(*size)
 
     def follow(self, tank, dt=0.0):
