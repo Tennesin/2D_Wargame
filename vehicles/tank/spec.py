@@ -1,17 +1,15 @@
-"""tank/spec.py — характеристики танка: шасси (ChassisSpec) + орудие (GunSpec) + цена и оформление."""
-import math
+"""tank/spec.py — характеристики танка: шасси + орудие (GunVehicleSpec) + правила корпуса ОБТ."""
 import dataclasses
 
-from vehicles.gun.ammo import SPECIAL_HEAT, SPECIAL_HESH
-from ..cost import raw_cost, round_cost
-from vehicles.chassis.hulls import layout_for, HULL_CLASS_RU, NOSE_FLAT, NOSE_RU, layout_with_axis
-from vehicles.chassis.hull_noses import layout_with_nose, resolve_nose
-from .hull_rules import class_index, class_for_index, near_class_border, turret_axis_for, caliber_limits
 from engine import clamp, fmt_num, PX_PER_M
-from vehicles.chassis.spec import ChassisSpec, ChassisBody, armor_masses, chassis_masses
-from vehicles.chassis.params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP, FRONT_SCREEN, SCREEN_LOOK_STEPS
-from vehicles.gun.spec import GunSpec, turret_masses, REF_CAL, REF_POWER
-from ..look import Look, level
+from ..chassis.hulls import layout_for, HULL_CLASS_RU, NOSE_FLAT, NOSE_RU, layout_with_axis
+from ..chassis.hull_noses import layout_with_nose, resolve_nose
+from ..chassis.params import ENGINE_T_PER_HP, FRONT_SCREEN
+from ..chassis.spec import ChassisBody, armor_masses, chassis_masses
+from ..gun.ammo import SPECIAL_HEAT, SPECIAL_HESH
+from ..gun.spec import GunSpec, turret_masses, REF_CAL, REF_POWER
+from ..gun.vehicle_spec import GunVehicleSpec
+from .hull_rules import class_index, class_for_index, near_class_border, turret_axis_for, caliber_limits
 from .params import (
     PARAMS, FIXED_MASS_T, FRONT_AREA_M2, SIDE_AREA_M2, REAR_AREA_M2,
     HP_REF, HULL_COLL_HALF_W_M, HULL_COLL_HALF_L_M, HULL_COLL_SHIFT_M,
@@ -84,20 +82,21 @@ def estimate_mass(cal, front, side, rear, power, screen=0.0, unbounded=False):
 # ==========================================
 # ТАНК
 # ==========================================
-class TankSpec(ChassisSpec):
-    """Шасси считает ChassisSpec (родитель), орудие и башню GunSpec (поле self.gun).
-    Атрибуты орудия копируются в сам объект, поэтому снаружи всё читается как раньше:
-    spec.v_max (шасси), spec.damage (орудие). Имена в ЗАГЛАВНЫХ буквах читают Tank и Renderer."""
+
+class TankSpec(GunVehicleSpec):
+    """Шасси считает ChassisSpec (предок), орудие и башню GunSpec (поле self.gun, свойства в базе)."""
+
+    PARAMS = PARAMS
+    LOOK_FRONT_RATIO = LOOK_FRONT_RATIO
+    LOOK_SIDE_RATIO = LOOK_SIDE_RATIO
+    LOOK_GUN_RATIO = LOOK_GUN_RATIO
+    LOOK_SPEED_RATIO = LOOK_SPEED_RATIO
 
     def __init__(self, cal, front, side, rear, power, damage=None, penetration=None,
                  screen=0.0, nose=NOSE_FLAT, special_ammo=SPECIAL_HEAT, unbounded=False):
         # входные параметры (у ботов unbounded=True: верхних границ нет, ограничивает только бюджет)
-        cal = _CAL.fit(cal, unbounded)
-        front = _FRONT.fit(front, unbounded)
-        side = _SIDE.fit(side, unbounded)
-        rear = _REAR.fit(rear, unbounded)
-        power = _POWER.fit(power, unbounded)
-        screen = clamp(float(screen), FRONT_SCREEN.min, FRONT_SCREEN.max)
+        cal, front, side, rear, power, screen = self._fit_inputs(
+            cal, front, side, rear, power, screen, unbounded)
 
         # класс корпуса зависит ТОЛЬКО от брони и мощности (не от массы и не от калибра)
         self.hull_index = class_index(*hull_inputs(front, side, rear, power))
@@ -119,60 +118,16 @@ class TankSpec(ChassisSpec):
                                    coll_half_w_m=layout.coll_half_w_m,
                                    coll_half_l_m=layout.coll_half_l_m,
                                    coll_shift_m=layout.coll_shift_m)
-        super().__init__(body, front, side, rear, power,
-                         payload_t=self.m_gun + self.m_turret, screen_mm=screen)
 
-        self.gun = GunSpec(
-            cal, self.size_k, power, self.m_gun, self.m_turret, arc_deg=360.0,
-            damage=damage, penetration=penetration, front_m=layout.turret_front_m,
-            turret_scale_range=layout.turret_scale_range,
-            visual_k=self.HULL_SCALE * layout.turret_k, hesh=(special_ammo == SPECIAL_HESH))
-        self.__dict__.update(vars(self.gun))
+        def make_gun(size_k):
+            return GunSpec(
+                cal, size_k, power, self.m_gun, self.m_turret, arc_deg=360.0,
+                damage=damage, penetration=penetration, front_m=layout.turret_front_m,
+                turret_scale_range=layout.turret_scale_range,
+                visual_k=self.HULL_SCALE * layout.turret_k, hesh=(special_ammo == SPECIAL_HESH))
+
+        super().__init__(body, front, side, rear, power, self.m_gun + self.m_turret, screen, make_gun)
         self.HULL_VARIANT = (self.layout.key,)
-
-        self._calc_reach()
-        self._calc_economy()
-        self._calc_look()
-
-    # ---------- фабрики ----------
-
-    @classmethod
-    def from_values(cls, v, unbounded=False):
-        """v — словарь значений ползунков."""
-        return cls(
-            v["gun_caliber_mm"], v["front_armor_mm"], v["side_armor_mm"], v["rear_armor_mm"], v["engine_power_hp"],
-            damage=v.get("gun_damage"), penetration=v.get("gun_penetration"), screen=v.get("front_screen_mm", 0.0),
-            nose=v.get("front_nose", NOSE_FLAT), special_ammo=v.get("special_ammo", SPECIAL_HEAT), unbounded=unbounded
-        )
-
-    @classmethod
-    def from_config(cls):
-        """Танк из стартовых значений (params.PARAMS[...].default)."""
-        return cls(_CAL.default, _FRONT.default, _SIDE.default, _REAR.default, _POWER.default)
-
-    # ---------- то, что требует и шасси, и орудие ----------
-    def _calc_reach(self):
-        """Радиус, в который попадает всё, что машина может задеть за кадр, и который нужен для
-        отсечения по экрану. Ствол в столкновениях не участвует, но на экране его надо дорисовать."""
-        t = self.TURRET_SCALE * PX_PER_M
-        barrel_end = (self.GUN_FRONT_M + self.BARREL_LEN_M) * t
-        barrel_half_w = (self.BARREL_THICK_M + 0.08) * t / 2.0
-        barrel_reach = math.hypot(barrel_end, barrel_half_w)
-        self.REACH_PX = max(self.HULL_REACH_PX, barrel_reach) + COLLISION_MARGIN_PX
-
-    def _calc_economy(self):
-        raw = raw_cost(self.cal, self.front + self.screen_mm, self.side, self.rear, self.power,
-                       self.damage_k, self.pen_k)
-        self.cost = round_cost(raw)
-
-    def _calc_look(self):
-        self.LOOK = Look(
-            front=level(self.front / _FRONT.default, LOOK_FRONT_RATIO),
-            side=level(self.side / _SIDE.default, LOOK_SIDE_RATIO),
-            gun=level(self.cal / REF_CAL, LOOK_GUN_RATIO),
-            speed=level(self.q_pw, LOOK_SPEED_RATIO),
-            screen=level(self.screen_mm, SCREEN_LOOK_STEPS),
-        )
 
     # ---------- вывод в интерфейс ----------
     def main_stats(self):

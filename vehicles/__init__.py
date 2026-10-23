@@ -15,6 +15,7 @@ from .tank import (
     caliber_range_for, LOOK_FRONT_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO, estimate_mass
 )
 from .cost import cost_for, raw_cost, round_cost
+from .gun.vehicle_spec import GunVehicleSpec
 from .td import TDSpec, TankDestroyer, TDRenderer, TD_PARAMS, gun_arc_deg
 from .registry import VehicleType, VEHICLE_TYPES, RENDERERS, make_vehicle
 from vehicles.chassis.running_gear import RunningGear, TRACKS, TRACK_SIDES
@@ -38,4 +39,4 @@ __all__ = ["Vehicle", "GunVehicle", "Tank", "TankSpec", "TankRenderer", "TANK_PA
            "NOSE_FLAT", "NOSE_PIKE", "NOSE_RU", "NOSE_MIN_FRONT_MM", "layout_with_nose",
            "NOSE_WEDGE", "SUPERHEAVY_MASS_T", "WEDGE_ACCEL_K", "WEDGE_TURN_K", "wedge_front_factor",
            "sloped_nose_for_mass", "resolve_nose", "HESH_MIN_CAL_MM", "ammo_kinds",
-           "SPECIAL_HEAT", "SPECIAL_HESH"]
+           "SPECIAL_HEAT", "SPECIAL_HESH", "GunVehicleSpec"]

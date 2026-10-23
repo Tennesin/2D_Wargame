@@ -1,22 +1,20 @@
-"""td/spec.py — характеристики ПТ-САУ: шасси (ChassisSpec) + орудие (TDGunSpec) + положение орудия."""
+"""td/spec.py — характеристики ПТ-САУ: шасси + орудие без башни (TDGunSpec) + положение орудия."""
 import dataclasses
-import math
 
 from engine import clamp, lerp, fmt_num, PX_PER_M, round_to
-from vehicles.gun.ammo import SPECIAL_HEAT, SPECIAL_HESH
-from vehicles.chassis.spec import ChassisSpec, ChassisBody, armor_masses
-from vehicles.chassis.params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP, FRONT_SCREEN, SCREEN_LOOK_STEPS
-from vehicles.gun.spec import GunSpec, turret_masses
-from vehicles.gun.tuning import TD_GUN
-from vehicles.gun.params import (
+from ..chassis.params import ENGINE_T_PER_HP
+from ..chassis.spec import ChassisBody, armor_masses
+from ..chassis.hulls import NOSE_FLAT, NOSE_PIKE, NOSE_RU
+from ..chassis.hull_noses import NOSE_MIN_FRONT_MM
+from ..gun.ammo import SPECIAL_HEAT, SPECIAL_HESH
+from ..gun.spec import GunSpec, turret_masses
+from ..gun.tuning import TD_GUN
+from ..gun.params import (
     REF_L_CAL, BARREL_VISIBLE_K, GUN_ARM_BASE_M, GUN_ARM_BARREL_K,
     TURRET_INERTIA_EXP, TURRET_POWER_EXP,
 )
-from vehicles.chassis.hulls import NOSE_FLAT, NOSE_PIKE, NOSE_RU
-from vehicles.chassis.hull_noses import NOSE_MIN_FRONT_MM
+from ..gun.vehicle_spec import GunVehicleSpec
 from .layout import td_layout
-from ..look import Look, level
-from ..cost import raw_cost, round_cost
 from .params import (
     TD_PARAMS, TD_FIXED_MASS_T, TD_FRONT_AREA_M2, TD_SIDE_AREA_M2, TD_REAR_AREA_M2, TD_HP_REF,
     TD_CASEMATE_K, gun_arc_deg, TD_TRAVERSE_REF, TD_TRAVERSE_MIN, TD_TRAVERSE_MAX, TD_SPINUP_REF,
@@ -107,15 +105,17 @@ class TDGunSpec(GunSpec):
 # 4. ПТ-САУ
 # ==========================================
 
-class TDSpec(ChassisSpec):
+class TDSpec(GunVehicleSpec):
+    PARAMS = TD_PARAMS
+    LOOK_FRONT_RATIO = TD_LOOK_FRONT_RATIO
+    LOOK_SIDE_RATIO = TD_LOOK_SIDE_RATIO
+    LOOK_GUN_RATIO = TD_LOOK_GUN_RATIO
+    LOOK_SPEED_RATIO = TD_LOOK_SPEED_RATIO
+
     def __init__(self, cal, front, side, rear, power, damage=None, penetration=None,
                  screen=0.0, nose=NOSE_FLAT, special_ammo=SPECIAL_HEAT, unbounded=False):
-        cal = _CAL.fit(cal, unbounded)
-        front = _FRONT.fit(front, unbounded)
-        side = _SIDE.fit(side, unbounded)
-        rear = _REAR.fit(rear, unbounded)
-        power = _POWER.fit(power, unbounded)
-        screen = clamp(float(screen), FRONT_SCREEN.min, FRONT_SCREEN.max)
+        cal, front, side, rear, power, screen = self._fit_inputs(
+            cal, front, side, rear, power, screen, unbounded)
         if nose != NOSE_PIKE or front <= NOSE_MIN_FRONT_MM:
             nose = NOSE_FLAT                    # щучий нос только при лобовой броне больше порога
         self.nose = nose                        # его читает Vehicle.describe
@@ -130,65 +130,20 @@ class TDSpec(ChassisSpec):
                                    coll_half_w_m=layout.coll_half_w_m,
                                    coll_half_l_m=layout.coll_half_l_m,
                                    coll_shift_m=layout.coll_shift_m)
-        super().__init__(body, front, side, rear, power, payload_t=self.m_gun + self.m_casemate, screen_mm=screen)
 
-        self.gun = TDGunSpec(
-            cal, self.size_k, power, self.m_gun, self.m_casemate,
-            arc_deg=gun_arc_deg(cal), damage=damage, penetration=penetration,
-            profile=TD_GUN, front_m=TD_GUN_FRONT_M, barrel_ref_m=TD_BARREL_VIS_REF_M,
-            hesh=(special_ammo == SPECIAL_HESH)
-        )
-        self.__dict__.update(vars(self.gun))
+        def make_gun(size_k):
+            return TDGunSpec(
+                cal, size_k, power, self.m_gun, self.m_casemate,
+                arc_deg=gun_arc_deg(cal), damage=damage, penetration=penetration,
+                profile=TD_GUN, front_m=TD_GUN_FRONT_M, barrel_ref_m=TD_BARREL_VIS_REF_M,
+                hesh=(special_ammo == SPECIAL_HESH))
+
+        super().__init__(body, front, side, rear, power, self.m_gun + self.m_casemate, screen, make_gun)
         self.HULL_VARIANT = (round(self.MOUNT_FWD_M / MOUNT_STEP_M), self.SUPPORT, self.CASE_K,
                              round(self.TURRET_ARC_DEG), nose)
 
-        self._calc_reach()
-        self._calc_economy()
-        self._calc_look()
-
-    # ---------- фабрики ----------
-
-    @classmethod
-    def from_values(cls, v, unbounded=False):
-        return cls(
-            v["gun_caliber_mm"], v["front_armor_mm"], v["side_armor_mm"], v["rear_armor_mm"],
-            v["engine_power_hp"], damage=v.get("gun_damage"), penetration=v.get("gun_penetration"),
-            screen=v.get("front_screen_mm", 0.0), nose=v.get("front_nose", NOSE_FLAT),
-            unbounded=unbounded, special_ammo=v.get("special_ammo", SPECIAL_HEAT),
-        )
-
-    @classmethod
-    def from_config(cls):
-        return cls(_CAL.default, _FRONT.default, _SIDE.default, _REAR.default, _POWER.default)
-
-    # ---------- производные ----------
-    def _calc_reach(self):
-        """Радиус отсечения по экрану: корпус (уже со сдвигом оси) и дульный срез."""
-        t = self.TURRET_SCALE * PX_PER_M
-        barrel_end = (self.GUN_FRONT_M + self.BARREL_LEN_M) * t
-        barrel_half_w = (self.BARREL_THICK_M + 0.08) * t / 2.0
-        barrel_reach = math.hypot(barrel_end, barrel_half_w)
-        self.REACH_PX = max(self.HULL_REACH_PX, barrel_reach) + COLLISION_MARGIN_PX
-
-    def _calc_economy(self):
-        """Цена по формуле танка, но урон и пробитие считаются вместе с бонусом профиля:
-        сильное орудие стоит дороже."""
-        prof = self.profile
-        raw = raw_cost(self.cal, self.front + self.screen_mm, self.side, self.rear, self.power,
-                       self.damage_k * prof.dmg_mult(self.cal),
-                       self.pen_k * prof.pen_mult(self.cal))
-        self.cost = round_cost(raw)
-
-    def _calc_look(self):
-        self.LOOK = Look(
-            front=level(self.front / _FRONT.default, TD_LOOK_FRONT_RATIO),
-            side=level(self.side / _SIDE.default, TD_LOOK_SIDE_RATIO),
-            gun=level(self.cal / _REF_CAL, TD_LOOK_GUN_RATIO),
-            speed=level(self.q_pw, TD_LOOK_SPEED_RATIO),
-            screen=level(self.screen_mm, SCREEN_LOOK_STEPS)
-        )
-
     # ---------- вывод в интерфейс ----------
+
     def mount_name(self):
         return ("носовое", "смещено к корме", "задняя опора")[self.SUPPORT]
 
