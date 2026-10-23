@@ -1,4 +1,4 @@
-"""vehicles/hulls.py — раскладка корпуса: единый источник геометрии."""
+"""vehicles/chassis/hulls.py — раскладка корпуса: единый источник геометрии."""
 import math
 from dataclasses import dataclass, replace
 from enum import Enum, auto

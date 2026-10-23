@@ -1,7 +1,6 @@
-"""vehicles/ammo.py — типы снарядов: таблица множителей и расчёт характеристик выстрела.
+"""vehicles/gun/ammo.py — типы снарядов: таблица множителей и расчёт характеристик выстрела.
 Орудие (spec) не меняется: тип снаряда выбирается в бою, а итоговые числа считает ammo_stats.
-Это свободная функция, а не метод GunSpec: TankSpec копирует только атрибуты GunSpec
-(self.__dict__.update(vars(self.gun))), методы до него не доходят."""
+Это свободная функция, а не метод GunSpec: TankSpec копирует только атрибуты GunSpec."""
 from dataclasses import dataclass
 
 from engine import AmmoKind, AmmoStats, clamp, lerp

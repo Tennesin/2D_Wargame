@@ -1,4 +1,4 @@
-"""vehicles/spec.py — расчёт башни и орудия: масса, наводка, урон, пробитие, перезарядка,
+"""vehicles/gun/spec.py — расчёт башни и орудия: масса, наводка, урон, пробитие, перезарядка,
 размеры спрайтов, снаряд и эффекты. Шасси не знает: получает от него size_k и мощность."""
 from engine import PX_PER_M, clamp
 from vehicles.gun.ammo import ammo_kinds

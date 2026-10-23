@@ -1,4 +1,4 @@
-"""content/guide/page_ammo.py — страница инструкции «Снаряды»."""
+"""game/content/guide/page_ammo.py — страница инструкции «Снаряды»."""
 from engine import PX_PER_M, AmmoKind
 from combat import RICOCHET_ANGLE
 from inputs import AMMO_HOTKEYS

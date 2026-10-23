@@ -1,4 +1,4 @@
-"""tank/spec.py — характеристики танка: шасси + орудие (GunVehicleSpec) + правила корпуса ОБТ."""
+"""vehicles/tank/spec.py — характеристики танка: шасси + орудие (GunVehicleSpec) + правила корпуса ОБТ."""
 import dataclasses
 
 from engine import clamp, fmt_num, PX_PER_M

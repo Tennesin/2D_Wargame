@@ -1,4 +1,4 @@
-"""content/guide/page_hits.py — страница инструкции «Попадания»."""
+"""game/content/guide/page_hits.py — страница инструкции «Попадания»."""
 import math
 
 from combat import RICOCHET_ANGLE

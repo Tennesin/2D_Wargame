@@ -1,4 +1,4 @@
-"""hud/round_overlay.py — правый верхний угол: номер раунда и таймер."""
+"""game/hud/round_overlay.py — правый верхний угол: номер раунда и таймер."""
 import math
 
 from engine import get_text, FONT_SIZE_LABEL, FONT_SIZE_TITLE

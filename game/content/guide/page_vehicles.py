@@ -1,4 +1,4 @@
-"""content/guide/page_vehicles.py — страница инструкции «Техника»."""
+"""game/content/guide/page_vehicles.py — страница инструкции «Техника»."""
 import pygame
 
 from engine import PX_PER_M, VehicleKind

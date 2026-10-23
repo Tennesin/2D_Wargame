@@ -1,4 +1,4 @@
-"""terrain.py — естественные препятствия: камни, вода, грязь.
+"""world/terrain.py — естественные препятствия: камни, вода, грязь.
 Здесь нет pygame: рисует terrain_render.py."""
 import math
 import random

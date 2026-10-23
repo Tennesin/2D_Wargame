@@ -1,4 +1,4 @@
-"""content/guide/page_controls.py — страница инструкции «Управление»."""
+"""game/content/guide/page_controls.py — страница инструкции «Управление»."""
 from inputs import Action, AMMO_HOTKEYS
 from structures import ROTATE_SNAP_DEG
 from ui import SectionHeader, KeyRow, make_mouse_icon

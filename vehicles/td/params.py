@@ -1,4 +1,4 @@
-"""td/params.py — параметры ПТ-САУ: ползунки, масса, привод орудия, сектор наводки, геометрия
+"""vehicles/td/params.py — параметры ПТ-САУ: ползунки, масса, привод орудия, сектор наводки, геометрия
 крепления и маски. Орудийные числа общие с ОБТ лежат в vehicles/params.py."""
 from engine import Param, clamp, lerp
 from vehicles.gun.params import CALIBER

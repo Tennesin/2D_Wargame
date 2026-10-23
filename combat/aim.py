@@ -1,4 +1,4 @@
-"""aim.py — линия траектории выстрела и подпись пробития.
+"""combat/aim.py — линия траектории выстрела и подпись пробития.
 compute_aim считает, куда полетит снаряд (те же формулы, что у Shell), AimRenderer рисует."""
 from dataclasses import dataclass
 from typing import Optional

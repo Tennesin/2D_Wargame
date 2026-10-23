@@ -1,4 +1,4 @@
-"""td/entity.py — ПТ-САУ: орудие в лафете с ограниченным сектором наводки."""
+"""vehicles/td/entity.py — ПТ-САУ: орудие в лафете с ограниченным сектором наводки."""
 from vehicles.gun.vehicle import GunVehicle
 
 class TankDestroyer(GunVehicle):

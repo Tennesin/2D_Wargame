@@ -1,4 +1,4 @@
-"""hud/debug.py — строки отладки (Tab)."""
+"""game/hud/debug.py — строки отладки (Tab)."""
 import pygame
 from collections import Counter
 

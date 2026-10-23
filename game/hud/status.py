@@ -1,4 +1,4 @@
-"""hud/status.py — левый нижний угол: сводка по танку, индикаторы боя и подсказки, экран смерти."""
+"""game/hud/status.py — левый нижний угол: сводка по танку, индикаторы боя и подсказки, экран смерти."""
 from vehicles import TRACK_SIDES
 from engine import get_text, FONT_SIZE_LABEL
 from inputs import Action, key_label

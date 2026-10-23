@@ -1,4 +1,4 @@
-"""content/panels/wall.py — панель настроек стены."""
+"""game/content/panels/wall.py — панель настроек стены."""
 from functools import partial
 
 from combat import RICOCHET_ANGLE

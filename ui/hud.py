@@ -1,4 +1,4 @@
-"""hud.py — компактная сводка по танку в левом нижнем углу."""
+"""ui/hud.py — компактная сводка по танку в левом нижнем углу."""
 import pygame
 
 from engine import clamp, fmt_num, get_text, FONT_SIZE_LABEL, hp_color, COLOR_GOOD

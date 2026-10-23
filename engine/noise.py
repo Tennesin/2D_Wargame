@@ -1,4 +1,4 @@
-"""noise.py — детерминированные хеши и плавный шум. Без pygame и без знания о мире."""
+"""engine/noise.py — детерминированные хеши и плавный шум. Без pygame и без знания о мире."""
 import math
 from .mathx import lerp
 

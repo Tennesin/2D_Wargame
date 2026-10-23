@@ -1,4 +1,4 @@
-"""content/guide/common.py — общий помощник страниц инструкции."""
+"""game/content/guide/common.py — общий помощник страниц инструкции."""
 from inputs import key_label
 
 def k(action):

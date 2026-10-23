@@ -1,4 +1,4 @@
-"""wall/params.py — параметры стены (ползунки) и константы."""
+"""structures/wall/params.py — параметры стены (ползунки) и константы."""
 from engine import Param
 
 WALL_PARAMS = {

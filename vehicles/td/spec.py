@@ -1,4 +1,4 @@
-"""td/spec.py — характеристики ПТ-САУ: шасси + орудие без башни (TDGunSpec) + положение орудия."""
+"""vehicles/td/spec.py — характеристики ПТ-САУ: шасси + орудие без башни (TDGunSpec) + положение орудия."""
 import dataclasses
 
 from engine import clamp, lerp, fmt_num, PX_PER_M, round_to

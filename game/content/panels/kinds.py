@@ -1,4 +1,4 @@
-"""content/panels/kinds.py — режимы панели и соответствие «тип техники → панель»."""
+"""game/content/panels/kinds.py — режимы панели и соответствие «тип техники → панель»."""
 from enum import Enum, auto
 
 from engine import VehicleKind

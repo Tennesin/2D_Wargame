@@ -1,4 +1,4 @@
-"""tank/entity.py — танк: башня и орудие живут в GunVehicle, здесь только то, что отличает ОБТ."""
+"""vehicles/tank/entity.py — танк: башня и орудие живут в GunVehicle, здесь только то, что отличает ОБТ."""
 from vehicles.gun.vehicle import GunVehicle
 
 class Tank(GunVehicle):

@@ -1,4 +1,4 @@
-"""terrain_render.py — отрисовка естественных препятствий: вода (три зоны), грязь, камни."""
+"""world/terrain_render.py — отрисовка естественных препятствий: вода (три зоны), грязь, камни."""
 import pygame
 
 from .terrain import ROCK, DEEP_WATER, MID_WATER, SHALLOWS, MUD

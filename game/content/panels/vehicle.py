@@ -1,4 +1,4 @@
-"""content/panels/vehicle.py — панели конструктора техники (ОБТ и ПТ-САУ)."""
+"""game/content/panels/vehicle.py — панели конструктора техники (ОБТ и ПТ-САУ)."""
 from functools import partial
 
 from engine import VehicleKind

@@ -1,4 +1,4 @@
-"""vehicles/hull_noses.py — скошенные носы корпуса (щучий, клин) и лобовые экраны.
+"""vehicles/chassis/hull_noses.py — скошенные носы корпуса (щучий, клин) и лобовые экраны.
 Базовую раскладку берёт из hulls.py и возвращает производную с другим носом."""
 import math
 from dataclasses import replace
