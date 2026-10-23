@@ -28,6 +28,7 @@ class Match:
 
         # --- данные ---
         self.terrain = TerrainMap(seed)
+        self.terrain.preload()
         self.walls = WallManager()
         self.fleet = Fleet(player)
         self.ctx = GameContext(camera=camera, terrain=self.terrain, walls=self.walls, fleet=self.fleet,

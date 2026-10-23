@@ -1,5 +1,5 @@
 """world/camera.py — камера: центр в мировых координатах и зум."""
-from engine import clamp, CAMERA_LIMIT_PX
+from engine import clamp, WORLD
 
 ZOOM_LEVELS = [round(0.10 * 6 ** (i / 20), 4) for i in range(21)]
 DEFAULT_ZOOM_LEVEL = 7
@@ -25,8 +25,8 @@ class Camera:
 
     def _refresh(self):
         """Пересчитать зум и сдвиг мира в экранных пикселях (целые числа, чтобы земля не дрожала)."""
-        self.x = clamp(self.x, -CAMERA_LIMIT_PX, CAMERA_LIMIT_PX)   # центр камеры не дальше 100 м за краем
-        self.y = clamp(self.y, -CAMERA_LIMIT_PX, CAMERA_LIMIT_PX)
+        self.x = clamp(self.x, -WORLD.cam_w_px, WORLD.cam_w_px)
+        self.y = clamp(self.y, -WORLD.cam_h_px, WORLD.cam_h_px)
         z = ZOOM_LEVELS[self.zoom_level]
         self._z = z
         self._left = round(self.x * z) - self.view_w // 2

@@ -1,7 +1,7 @@
 """world/bounds_render.py — затемнение за краем мира: плавный переход в глухую темноту."""
 import pygame
 
-from engine import AlphaLayer, WORLD_HALF_PX
+from engine import AlphaLayer, WORLD
 
 FADE_PX = 6000.0          # ширина плавного перехода за краем мира, px мира (60 м)
 RINGS = 24                # из скольких колец-ступенек состоит градиент
@@ -13,8 +13,8 @@ class WorldBoundsRenderer:
 
     def draw(self, screen, camera):
         view = screen.get_rect()
-        x0, y0 = camera.world_to_screen(-WORLD_HALF_PX, -WORLD_HALF_PX)
-        x1, y1 = camera.world_to_screen(WORLD_HALF_PX, WORLD_HALF_PX)
+        x0, y0 = camera.world_to_screen(-WORLD.half_w_px, -WORLD.half_h_px)
+        x1, y1 = camera.world_to_screen(WORLD.half_w_px, WORLD.half_h_px)
         world = pygame.Rect(round(x0), round(y0), round(x1 - x0), round(y1 - y0))
         if world.contains(view):
             return                                           # весь экран внутри мира: рисовать нечего

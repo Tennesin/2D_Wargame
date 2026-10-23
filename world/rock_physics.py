@@ -2,7 +2,7 @@
 перенос камня между ячейками карты. Генерацию и запросы к местности не знает: работает через TerrainMap."""
 import math
 
-from engine import (PX_PER_M, WORLD_HALF_PX, find_free_fraction,
+from engine import (PX_PER_M, WORLD, find_free_fraction,
                     obb_convex_contact, obb_hits_convex)
 from .patch_geometry import patches_overlap
 
@@ -87,7 +87,7 @@ class RockMover:
         """Помешает ли что-то камню оказаться со сдвигом (dx, dy): край мира, другой твёрдый камень
         или глубокая вода, стена, танк."""
         moved = rock.shifted(dx, dy)
-        if any(abs(px) > WORLD_HALF_PX or abs(py) > WORLD_HALF_PX for px, py in moved.pts):
+        if any(abs(px) > WORLD.half_w_px or abs(py) > WORLD.half_h_px for px, py in moved.pts):
             return True
         for q in self.terrain.patches_near(moved.x, moved.y, moved.r_max):
             if q is not rock and q.kind.solid and patches_overlap(moved, q):

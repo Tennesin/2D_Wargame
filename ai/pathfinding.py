@@ -3,7 +3,7 @@ import heapq
 import math
 
 from vehicles.chassis.params import KMH_TO_PX
-from engine import PX_PER_M, WORLD_HALF_PX
+from engine import PX_PER_M, WORLD
 from .gunnery import seconds_to_break, BREACH_MAX_S, MIN_USEFUL_DAMAGE
 from .nav_cache import seg_dist2, CELL_PX, CHUNK_CELLS
 
@@ -170,13 +170,15 @@ class NavGrid:
     def _fill_border(self, cx, cy):
         """Клетки у края мира (танк не должен упираться в границу)."""
         reach = HALF_CELLS * CELL_PX + self.radius
-        if abs(cx) + reach <= WORLD_HALF_PX and abs(cy) + reach <= WORLD_HALF_PX:
+        hw, hh = WORLD.half_w_px, WORLD.half_h_px
+        if abs(cx) + reach <= hw and abs(cy) + reach <= hh:
             return
-        lim = WORLD_HALF_PX - self.radius
+        lim_x = hw - self.radius
+        lim_y = hh - self.radius
         for j in range(N):
             for i in range(N):
                 x, y = self.center(i, j)
-                if abs(x) > lim or abs(y) > lim:
+                if abs(x) > lim_x or abs(y) > lim_y:
                     self.blocked[j * N + i] = 1
                     self.core[j * N + i] = 1
 

@@ -3,8 +3,9 @@ import math
 import time
 import pygame
 
-from engine import LRUCache, shade_color
+from engine import LRUCache, shade_color, WORLD
 from .generator import CHUNK_SIZE, CELL_SIZE
+from .bounds_render import FADE_PX
 
 MIN_CACHED_CHUNKS = 40
 PREFETCH_MS = 3.0           # сколько мс за кадр уходит на предзагрузку чанков за краем экрана
@@ -44,6 +45,13 @@ class GroundRenderer:
         cy0 = math.floor(top / span)
         cy1 = math.floor((top + height - 1) / span)
 
+        # дальше мира + зоны затемнения земля не нужна: её всё равно накрывает темнота
+        lx0, lx1, ly0, ly1 = self._chunk_limits()
+        cx0, cx1 = max(cx0, lx0), min(cx1, lx1)
+        cy0, cy1 = max(cy0, ly0), min(cy1, ly1)
+        if cx0 > cx1 or cy0 > cy1:
+            return                                   # на экране только глухая темнота
+
         visible = 0
         for cy in range(cy0, cy1 + 1):
             for cx in range(cx0, cx1 + 1):
@@ -61,14 +69,23 @@ class GroundRenderer:
     # ЗЕМЛЯ И ЧАНКИ
     # ==========================================
 
+    @staticmethod
+    def _chunk_limits():
+        """Диапазон номеров чанков, которые вообще бывают видны: мир + зона затемнения."""
+        mx = WORLD.half_w_px + FADE_PX
+        my = WORLD.half_h_px + FADE_PX
+        return (math.floor(-mx / CHUNK_SIZE), math.floor(mx / CHUNK_SIZE),
+                math.floor(-my / CHUNK_SIZE), math.floor(my / CHUNK_SIZE))
+
     def _prefetch(self, cx0, cx1, cy0, cy1, lod):
         """Готовит базовые чанки в кольце за краем экрана, чтобы при движении они уже были построены.
         Возвращает, сколько чанков в кольце (нужно для лимита кэша)."""
         deadline = time.perf_counter() + PREFETCH_MS / 1000.0
         out_of_time = False
         count = 0
-        for cy in range(cy0 - PREFETCH_RING, cy1 + PREFETCH_RING + 1):
-            for cx in range(cx0 - PREFETCH_RING, cx1 + PREFETCH_RING + 1):
+        lx0, lx1, ly0, ly1 = self._chunk_limits()
+        for cy in range(max(cy0 - PREFETCH_RING, ly0), min(cy1 + PREFETCH_RING, ly1) + 1):
+            for cx in range(max(cx0 - PREFETCH_RING, lx0), min(cx1 + PREFETCH_RING, lx1) + 1):
                 if cx0 <= cx <= cx1 and cy0 <= cy <= cy1:
                     continue                                   # видимые уже обработаны
                 count += 1

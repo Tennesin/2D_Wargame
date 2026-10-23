@@ -6,8 +6,8 @@ from dataclasses import dataclass
 
 from combat import resolve_hit
 from engine import (
-    hash_int, PX_PER_M, WORLD_HALF_PX, clamp, obb_hits_convex, TAU,
-    SEED_SALT, obb_outside_rect, LRUCache, TargetType, fmt_num, shrink_polygon
+    hash_int, PX_PER_M, WORLD, clamp, obb_hits_convex, TAU, SEED_SALT,
+    obb_outside_rect, LRUCache, TargetType, fmt_num, shrink_polygon
 )
 from .patch_geometry import patches_overlap
 from .rock_physics import RockMover
@@ -19,7 +19,7 @@ from .rock_physics import RockMover
 FEATURE_CELL = 3000.0        # размер ячейки генерации, px мира (30 м)
 MAX_PATCH_R = 2600.0         # никакое пятно не выходит за этот радиус от центра (нужно для поиска соседей)
 SPAWN_CLEAR = 1400.0          # вокруг точки (0, 0) пятен нет, px
-CELL_CACHE_LIMIT = 600
+CELL_CACHE_LIMIT = None
 
 # --- озёра: три вложенные зоны ---
 LAKE_CHANCE = 0.28           # вероятность озера в ячейке
@@ -247,9 +247,16 @@ class TerrainMap:
         self._cells = LRUCache(CELL_CACHE_LIMIT)        # (ix, iy) -> [Patch, ...] итоговые пятна
         self._raw_cells = LRUCache(CELL_CACHE_LIMIT)    # (ix, iy) -> (озеро, грязь, [камни]) до проверок
         self._lakes = LRUCache(CELL_CACHE_LIMIT)        # (ix, iy) -> [озеро] или [], прошедшее проверку
-        self.rocks = RockMover(self)     # подвижные камни (таран): толчок, скольжение, перенос
+        self.rocks = RockMover(self)                    # подвижные камни (таран): толчок, скольжение, перенос
+
+        # диапазон ячеек, которые вообще существуют: мир + 1 ячейка запаса
+        self._ix = (math.floor(-WORLD.half_w_px / FEATURE_CELL) - 1,
+                    math.floor(WORLD.half_w_px / FEATURE_CELL) + 1)
+        self._iy = (math.floor(-WORLD.half_h_px / FEATURE_CELL) - 1,
+                    math.floor(WORLD.half_h_px / FEATURE_CELL) + 1)
 
     # ---------- генерация ----------
+
     def _make_raw(self, ix, iy):
         """Кандидаты ячейки без учёта соседей: (озеро или None, грязь или None, [камни])."""
         rng = random.Random(hash_int(ix, iy, self.seed + SEED_SALT["terrain"]))
@@ -337,7 +344,15 @@ class TerrainMap:
         return patches
 
     def _cell(self, ix, iy):
+        if not (self._ix[0] <= ix <= self._ix[1] and self._iy[0] <= iy <= self._iy[1]):
+            return ()                                    # за пределами карты ничего не создаём
         return self._cells.get_or_build((ix, iy), lambda: self._generate(ix, iy))
+
+    def preload(self):
+        """Один раз сгенерировать все ячейки карты (вызывается при создании партии)."""
+        for iy in range(self._iy[0], self._iy[1] + 1):
+            for ix in range(self._ix[0], self._ix[1] + 1):
+                self._cell(ix, iy)
 
     @staticmethod
     def cell_of(x, y):
@@ -394,8 +409,8 @@ class TerrainMap:
         или край мира. Ствол в столкновениях не участвует: проверяется только корпус."""
         cx, cy, hw, hl, ang = obb
         if obb_outside_rect(cx, cy, hw, hl, ang,
-                            -WORLD_HALF_PX, -WORLD_HALF_PX, WORLD_HALF_PX, WORLD_HALF_PX):
-            return True                                  # граница мира непроходима для корпуса
+                            -WORLD.half_w_px, -WORLD.half_h_px, WORLD.half_w_px, WORLD.half_h_px):
+            return True
         for p in patches:
             if not p.kind.solid:
                 continue
