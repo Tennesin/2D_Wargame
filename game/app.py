@@ -4,7 +4,8 @@ import pygame
 
 from .config import GAME_TITLE
 from .scenes import (
-    MenuScene, ConstructorScene, PlayScene, SettingsScene, InstructionScene
+    MenuScene, ConstructorScene, PlayScene,
+    SettingsScene, InstructionScene, NewGameScene,
 )
 from .state.session import Session
 
@@ -47,14 +48,19 @@ class App:
 
     # ---------- смена сцен (их передают сценам как колбэки) ----------
     def show_menu(self):
-        self._next = lambda: MenuScene(on_play=self.start_game,
+        self._next = lambda: MenuScene(on_play=self.show_newgame,
                                        on_constructor=self.show_constructor,
                                        on_instruction=self.show_instruction,
                                        on_settings=self.show_settings,
                                        on_quit=self.quit)
 
+    def show_newgame(self):
+        self._next = lambda: NewGameScene(self.session, on_play=self.start_game,
+                                          on_constructor=self.show_constructor,
+                                          on_back=self.show_menu, on_quit=self.quit)
+
     def show_constructor(self):
-        self._next = lambda: ConstructorScene(self.session, on_play=self.start_game,
+        self._next = lambda: ConstructorScene(self.session, on_play=self.show_newgame,
                                               on_menu=self.show_menu, on_quit=self.quit)
 
     def show_settings(self):

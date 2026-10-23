@@ -53,7 +53,7 @@ class ConstructorScene(Scene):
         self.input = InputHandler([self.ui])
 
         # --- кнопки ---
-        self.play_button = Button((10, 10, 150, 36), "В бой")
+        self.play_button = Button((10, 10, 150, 36), "Новая игра")
         self.menu_button = Button((10, 52, 150, 36), "В меню")
         self.mbt_button = Button((KIND_MARGIN, 0, KIND_BTN_W, KIND_BTN_H), VEHICLE_TYPES[VehicleKind.MBT].label)
         self.td_button = Button((KIND_MARGIN + KIND_BTN_W + KIND_GAP, 0, KIND_BTN_W, KIND_BTN_H),

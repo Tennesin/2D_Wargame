@@ -1,11 +1,13 @@
 """game/state/session.py — данные, которые переживают смену сцен: выбранный тип техники и настройки каждого типа."""
-from engine import VehicleKind
+from engine import VehicleKind, WORLD_DEFAULT_M
 from vehicles import VEHICLE_TYPES, default_tuning, FRONT_SCREEN, NOSE_FLAT, SPECIAL_HEAT
 from .preferences import Preferences
 
 class Session:
     def __init__(self):
         self.kind = VehicleKind.MBT
+        self.map_w_m = WORLD_DEFAULT_M   # размер карты по X, м (задаётся в «Новой игре»)
+        self.map_h_m = WORLD_DEFAULT_M   # по Y, м
         # значения ползунков для КАЖДОГО типа отдельно: при переключении кнопок настройки не теряются
         self.values = {kind: self._defaults(t) for kind, t in VEHICLE_TYPES.items()}
         self.prefs = Preferences()       # настройки меню: живут, пока открыто приложение

@@ -3,7 +3,7 @@
 import random
 import pygame
 
-from engine import Team
+from engine import Team, WORLD
 from inputs import InputHandler, AMMO_HOTKEYS, key_label
 from ui import SidePanel, ToolBar, AmmoBar
 from vehicles import make_vehicle, AMMO_TYPES
@@ -20,6 +20,7 @@ class PlayScene(Scene):
     def __init__(self, seed, clock, session, on_menu, on_quit):
         """session: настройки танка из конструктора."""
         self.on_quit = on_quit
+        WORLD.set_size(session.map_w_m, session.map_h_m)
         size = pygame.display.get_surface().get_size()
 
         self.seed = seed if seed is not None else random.randrange(1, 1_000_000)

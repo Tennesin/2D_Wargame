@@ -17,6 +17,15 @@ SETTINGS_HINT = "Изменения вступят в силу в новой и�
 SETTINGS_LOCKED_NOTE = "последний"
 BACK = "Назад"
 
+# Новая игра
+NEWGAME_TITLE = "Новая игра"
+NEWGAME_MAP = "Карта"
+NEWGAME_WIDTH = "Ширина карты"
+NEWGAME_LENGTH = "Длина карты"
+NEWGAME_MAP_HINT = "Размер задаётся отдельно по ширине и длине. Игрок появляется в центре карты."
+NEWGAME_TANK = "Ваша техника"
+NEWGAME_START = "В бой"
+
 # Подсказки над HUD
 HINT_IDLE = "{combat} — боевой режим, {camera} — камера, {debug} — отладка"
 HINT_COMBAT = "БОЕВОЙ РЕЖИМ: ЛКМ — огонь"
