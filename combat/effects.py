@@ -45,7 +45,9 @@ class EffectsSystem:
             self.smoke.append(SmokeStreak(shot.x, shot.y, shot.angle, spec, self._rng, anchor=tank))
 
     def _spawn_impact(self, shell):
-        radius = shell.stats.aoe_radius_px
+        stats = shell.stats
+        real_blast = shell.hit_target is not None or stats.explode_at_range
+        radius = stats.aoe_radius_px if real_blast else 0.0
         self.explosions.append(Explosion(shell.x, shell.y, shell.spec, self._rng, radius))
         self.scorches.append(Scorch(shell.x, shell.y, shell.spec, self._rng, radius))
 

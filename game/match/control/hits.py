@@ -1,13 +1,17 @@
 """game/match/control/hits.py — попадания снарядов, линия прицела, уведомления о боях."""
+import math
 
 from engine import TargetType
 from combat import compute_aim, splash_damage, pen_after_modules
 from ..modes import Mode
 
+SPLASH_ORIGIN_PUSH_PX = 3.0      # на сколько px точка взрыва отодвигается от грани, в которую попал снаряд
+
 class CombatController:
     def __init__(self, ctx, modes):
         self.tank = ctx.fleet.player
         self.walls = ctx.walls
+        self.terrain = ctx.terrain
         self.modes = modes
         self.fleet = ctx.fleet
         self.notifier = ctx.notifier
@@ -48,23 +52,70 @@ class CombatController:
             side = target.knock_track(im.x, im.y)
             if side is not None:
                 self.notifier.on_track_broken(im.owner, target, side)
-            if stats.stun_s > 0.0:
+            if stats.stun_s > 0.0:                       # оглушает только прямое попадание, осколки нет
                 target.apply_stun(stats.stun_s)
                 self.notifier.on_stun(im.owner, target)
 
+    # ---------- осколки ----------
     def _splash(self, im):
         """Осколки по всем целям в радиусе. Прямая цель пропускается: она уже получила
-        max(доля по броне, минимум), поэтому двойного урона нет."""
+        max(доля по броне, минимум), поэтому двойного урона нет. Цель, закрытая от взрыва
+        стеной или камнем, осколков не получает (танки преградой не считаются)."""
         stats = im.stats
         base = stats.damage * im.power
+        ox, oy = self._splash_origin(im)
         for target, dist in self.targets.in_circle(im.x, im.y, stats.aoe_radius_px, ignore=im.owner):
             if target is im.target:
+                continue
+            if not self._splash_reaches(ox, oy, target):
                 continue
             dealt = splash_damage(base, stats.min_frac, dist, stats.aoe_radius_px)
             if dealt <= 0.0:
                 continue
             target.take_damage(dealt)
             self.notifier.on_splash(im.owner, target, dealt)
+
+    @staticmethod
+    def _splash_origin(im):
+        """Точка, из которой идут лучи осколков: взрыв, чуть отодвинутый от грани, в которую попали.
+        Иначе взрыв на самой поверхности стены считал бы начало луча «внутри» неё."""
+        if im.normal is None:
+            return im.x, im.y
+        return (im.x + im.normal[0] * SPLASH_ORIGIN_PUSH_PX,
+                im.y + im.normal[1] * SPLASH_ORIGIN_PUSH_PX)
+
+    @staticmethod
+    def _probe_points(target):
+        """Пробные точки цели: центр и четыре угла её прямоугольника (у танка корпус, у стены сама стена)."""
+        get_obb = getattr(target, "hull_obb", None) or target.obb
+        cx, cy, hw, hl, ang = get_obb()
+        rad = math.radians(ang)
+        c, s = math.cos(rad), math.sin(rad)
+        points = [(cx, cy)]
+        for su in (-1.0, 1.0):
+            for sv in (-1.0, 1.0):
+                u, v = su * hw, sv * hl
+                points.append((cx + u * c - v * s, cy + u * s + v * c))
+        return points
+
+    def _splash_reaches(self, ox, oy, target):
+        """Дошли ли осколки до цели: хотя бы одна пробная точка видна из точки взрыва."""
+        for px, py in self._probe_points(target):
+            if not self._solid_between(ox, oy, px, py, target):
+                return True
+        return False
+
+    def _solid_between(self, ox, oy, px, py, target):
+        """Есть ли на пути от (ox, oy) до (px, py) стена или камень (кроме самой цели).
+        Берётся ближайшая преграда: если первой на пути стоит сама цель, путь свободен."""
+        best_obj, best_t = None, None
+        hit = self.walls.raycast(ox, oy, px, py)
+        if hit is not None:
+            best_obj, best_t = hit[0], hit[1]
+        hit = self.terrain.raycast(ox, oy, px, py)
+        if hit is not None and (best_t is None or hit[1] < best_t):
+            best_obj = hit[0]
+        return best_obj is not None and best_obj is not target
 
     def aim_info(self):
         """Траектория выстрела. Только в боевом состоянии, не в режиме стройки и пока танк жив."""

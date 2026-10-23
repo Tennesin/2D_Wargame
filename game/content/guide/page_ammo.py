@@ -8,7 +8,7 @@ from vehicles import AMMO_ORDER, AMMO_TYPES
 from vehicles.gun.params import (
     CALIBER, HEAT_PEN_K, HEAT_SPEED_K, HEAT_RELOAD_K, HEAT_MODULE_PEN_K, HEAT_SCREEN_PEN_K,
     HE_DAMAGE_K, HE_PEN_K, HE_MIN_FRAC, HE_RADIUS_PX_PER_MM, HESH_MIN_CAL_MM, HESH_DAMAGE_K,
-    HESH_PEN_K, HESH_RANGE_K, HESH_STUN_S
+    HESH_PEN_K, HESH_RANGE_K, HESH_MIN_FRAC, HESH_RADIUS_PX_PER_MM, HESH_STUN_FRAC, HESH_STUN_MIN_S
 )
 from .common import k as _k
 
@@ -21,6 +21,7 @@ AMMO_NAMES = {AmmoKind.AP: "Бронебойный", AmmoKind.HEAT: "Кумул�
 def _ammo_texts():
     cal = CALIBER.default
     radius_m = HE_RADIUS_PX_PER_MM * cal / PX_PER_M
+    radius_hesh_m = HESH_RADIUS_PX_PER_MM * cal / PX_PER_M
     return {
         AmmoKind.AP:
             "Стандартный снаряд: быстрый и точный. При слишком косом попадании "
@@ -33,15 +34,19 @@ def _ammo_texts():
         AmmoKind.HESH:
             f"Заменяет кумулятивный при калибре от {HESH_MIN_CAL_MM} мм (переключатель в Конструкторе). "
             f"Урон выше на {(HESH_DAMAGE_K - 1) * 100:.0f}%, пробитие ниже на {(1 - HESH_PEN_K) * 100:.0f}%, "
-            f"дальность {HESH_RANGE_K * 100:.0f}% от бронебойного. Не рикошетит и даже без пробития наносит "
-            f"осколками часть урона. Прямое попадание оглушает цель на {HESH_STUN_S:g} с: она не может "
-            "двигаться, а её перезарядка стоит.",
+            f"дальность {HESH_RANGE_K * 100:.0f}% от бронебойного. Не рикошетит. Взрывается и бьёт осколками "
+            f"по области (около {radius_hesh_m:.1f} м при калибре {cal:.0f} мм): даже без пробития "
+            f"гарантированно наносит {HESH_MIN_FRAC[0] * 100:.0f}-{HESH_MIN_FRAC[1] * 100:.0f}% урона. "
+            f"Стены и камни закрывают от осколков. Прямое попадание оглушает цель на "
+            f"{HESH_STUN_FRAC[0] * 100:.0f}-{HESH_STUN_FRAC[1] * 100:.0f}% времени перезарядки снаряда "
+            f"(чем крупнее калибр, тем дольше; не меньше {HESH_STUN_MIN_S:g} с): цель не может двигаться, "
+            "а её перезарядка стоит. Осколки не оглушают.",
         AmmoKind.HE:
             f"Взрывной снаряд: урон выше на {(HE_DAMAGE_K - 1) * 100:.0f}%, но пробитие всего "
             f"{HE_PEN_K * 100:.0f}% от бронебойного. Взрывается и бьёт по области (около {radius_m:.1f} м "
             f"при калибре {cal:.0f} мм). Даже без пробития гарантированно наносит осколками "
-            f"{HE_MIN_FRAC[0] * 100:.0f}-{HE_MIN_FRAC[1] * 100:.0f}% урона. Долетев до предела дальности, "
-            "взрывается в воздухе.",
+            f"{HE_MIN_FRAC[0] * 100:.0f}-{HE_MIN_FRAC[1] * 100:.0f}% урона, но стены и камни закрывают "
+            "от осколков. Долетев до предела дальности, взрывается в воздухе.",
     }
 
 def build():
