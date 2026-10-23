@@ -8,7 +8,7 @@ from ..chassis.params import ENGINE_T_PER_HP, FRONT_SCREEN
 from ..chassis.spec import ChassisBody, armor_masses, chassis_masses
 from ..gun.ammo import SPECIAL_HEAT, SPECIAL_HESH
 from ..gun.spec import GunSpec, turret_masses, REF_CAL, REF_POWER
-from ..gun.vehicle_spec import GunVehicleSpec
+from ..gun.vehicle_specific import GunVehicleSpec
 from .hull_rules import class_index, class_for_index, near_class_border, turret_axis_for, caliber_limits
 from .params import (
     PARAMS, FIXED_MASS_T, FRONT_AREA_M2, SIDE_AREA_M2, REAR_AREA_M2,

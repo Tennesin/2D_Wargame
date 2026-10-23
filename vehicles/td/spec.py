@@ -13,7 +13,7 @@ from ..gun.params import (
     REF_L_CAL, BARREL_VISIBLE_K, GUN_ARM_BASE_M, GUN_ARM_BARREL_K,
     TURRET_INERTIA_EXP, TURRET_POWER_EXP,
 )
-from ..gun.vehicle_spec import GunVehicleSpec
+from ..gun.vehicle_specific import GunVehicleSpec
 from .layout import td_layout
 from .params import (
     TD_PARAMS, TD_FIXED_MASS_T, TD_FRONT_AREA_M2, TD_SIDE_AREA_M2, TD_REAR_AREA_M2, TD_HP_REF,

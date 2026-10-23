@@ -15,7 +15,7 @@ from .tank import (
     caliber_range_for, LOOK_FRONT_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO, estimate_mass
 )
 from .cost import cost_for, raw_cost, round_cost
-from .gun.vehicle_spec import GunVehicleSpec
+from .gun.vehicle_specific import GunVehicleSpec
 from .td import TDSpec, TankDestroyer, TDRenderer, TD_PARAMS, gun_arc_deg
 from .registry import VehicleType, VEHICLE_TYPES, RENDERERS, make_vehicle
 from vehicles.chassis.running_gear import RunningGear, TRACKS, TRACK_SIDES

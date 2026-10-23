@@ -1,4 +1,4 @@
-"""vehicles/gun/vehicle_spec.py — базовая спецификация техники с орудием: шасси (ChassisSpec) + орудие (GunSpec).
+"""vehicles/gun/vehicle_specific.py — базовая спецификация техники с орудием: шасси (ChassisSpec) + орудие (GunSpec).
 Общее для ОБТ и ПТ-САУ: создание орудия, радиус отсечения, цена, уровни оформления, фабрики."""
 import math
 
