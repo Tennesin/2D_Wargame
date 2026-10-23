@@ -1,7 +1,7 @@
 """vehicles/tank/hull_rules.py — правила корпуса ОБТ по ползункам: класс корпуса (лёгкий/средний/тяжёлый),
 положение оси башни и допустимый калибр. У ПТ-САУ и будущей техники свои правила."""
 from engine import clamp, lerp, round_to
-from vehicles.gun_params import CALIBER
+from ..gun_params import CALIBER
 from ..hulls import HullClass, LIGHT_LAYOUT, HEAVY_LAYOUT
 
 # ==========================================

@@ -16,7 +16,7 @@ from ..hulls import NOSE_FLAT, NOSE_PIKE, NOSE_RU
 from ..hull_noses import NOSE_MIN_FRONT_MM
 from .layout import td_layout
 from ..look import Look, level
-from ..tank.spec import raw_cost, round_cost
+from ..cost import raw_cost, round_cost
 from .params import (
     TD_PARAMS, TD_FIXED_MASS_T, TD_FRONT_AREA_M2, TD_SIDE_AREA_M2, TD_REAR_AREA_M2, TD_HP_REF,
     TD_CASEMATE_K, gun_arc_deg, TD_TRAVERSE_REF, TD_TRAVERSE_MIN, TD_TRAVERSE_MAX, TD_SPINUP_REF,

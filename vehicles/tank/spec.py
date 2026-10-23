@@ -1,19 +1,19 @@
 """tank/spec.py — характеристики танка: шасси (ChassisSpec) + орудие (GunSpec) + цена и оформление."""
-import itertools
 import math
 import dataclasses
 
 from ..ammo import SPECIAL_HEAT, SPECIAL_HESH
+from ..cost import raw_cost, round_cost
 from ..hulls import layout_for, HULL_CLASS_RU, NOSE_FLAT, NOSE_RU, layout_with_axis
 from ..hull_noses import layout_with_nose, resolve_nose
 from .hull_rules import class_index, class_for_index, near_class_border, turret_axis_for, caliber_limits
-from engine import clamp, fmt_num, PX_PER_M, round_to
+from engine import clamp, fmt_num, PX_PER_M
 from ..chassis_spec import ChassisSpec, ChassisBody, armor_masses, chassis_masses
 from ..chassis_params import COLLISION_MARGIN_PX, ENGINE_T_PER_HP, FRONT_SCREEN, SCREEN_LOOK_STEPS
 from ..gun_spec import GunSpec, turret_masses, REF_CAL, REF_POWER
+from ..look import Look, level
 from ..gun_tuning import tuning_k_bounds
 from ..gun_params import GUN_TUNE_COST_D, GUN_TUNE_COST_P
-from ..look import Look, level
 from .params import (
     PARAMS, FIXED_MASS_T, FRONT_AREA_M2, SIDE_AREA_M2, REAR_AREA_M2,
     HP_REF, HULL_COLL_HALF_W_M, HULL_COLL_HALF_L_M, HULL_COLL_SHIFT_M,
@@ -22,7 +22,7 @@ from .params import (
 )
 
 # ==========================================
-# 1. ГРАНИЦЫ ВХОДОВ И ЭТАЛОН
+# ГРАНИЦЫ ВХОДОВ И ЭТАЛОН
 # ==========================================
 _CAL = PARAMS["gun_caliber_mm"]
 _FRONT = PARAMS["front_armor_mm"]
@@ -38,7 +38,6 @@ REF_ENGINE_MASS = ENGINE_T_PER_HP * REF_POWER
 REF_FILLING = FIXED_MASS_T + REF_GUN_MASS + REF_TURRET_MASS + REF_ENGINE_MASS
 REF_ARMOR_MASS = sum(armor_masses(_AREAS, _FRONT.default, _SIDE.default, _REAR.default, 1.0))
 REF_MASS = REF_FILLING + REF_ARMOR_MASS
-REF_HULL_MASS = FIXED_MASS_T + REF_TURRET_MASS
 
 TANK_BODY = ChassisBody(
     fixed_t=FIXED_MASS_T, engine_t_per_hp=ENGINE_T_PER_HP, areas_m2=_AREAS,
@@ -86,49 +85,7 @@ def estimate_mass(cal, front, side, rear, power, screen=0.0, unbounded=False):
     return filling + sum(armor)
 
 # ==========================================
-# 2. СТОИМОСТЬ: индекс ценности -> цена
-# ==========================================
-
-def _cost_index(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0):
-    """Ценность машины относительно эталона (у эталона 1.0). Зависит только от входных параметров.
-    dmg_k и pen_k: выбранные урон и пробитие относительно номинала калибра (1.0 = номинал)."""
-    turret = turret_masses(cal)[1]
-    zf, zs, zr = COST_ARMOR_ZONES
-    levels = {
-        "armor":  (zf * front / _FRONT.default + zs * side / _SIDE.default
-                   + zr * rear / _REAR.default) / (zf + zs + zr),
-        "hull":   (FIXED_MASS_T + turret) / REF_HULL_MASS,
-        "engine": power / REF_POWER,
-        "gun":    cal / REF_CAL * dmg_k ** GUN_TUNE_COST_D * pen_k ** GUN_TUNE_COST_P,
-    }
-    return sum(weight * levels[name] ** power_k for name, (weight, power_k) in COST_PARTS.items())
-
-# Самая дешёвая и самая дорогая возможные машины (все ползунки в минимуме или в максимуме)
-_DK, _PK = tuning_k_bounds()
-_indexes = [_cost_index(*corner) for corner in itertools.product(
-    *((p.min, p.max) for p in (_CAL, _FRONT, _SIDE, _REAR, _POWER)), _DK, _PK)]
-INDEX_MIN, INDEX_MAX = min(_indexes), max(_indexes)
-# Степени подобраны так, чтобы эталон стоил COST_REF, самая дешёвая машина COST_MIN, самая дорогая COST_MAX.
-COST_EXP_LOW = math.log(COST_MIN / COST_REF) / math.log(INDEX_MIN)
-COST_EXP_HIGH = math.log(COST_MAX / COST_REF) / math.log(INDEX_MAX)
-
-def _price(index):
-    return COST_REF * index ** (COST_EXP_LOW if index < 1.0 else COST_EXP_HIGH)
-
-def raw_cost(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0):
-    """Цена до округления."""
-    return _price(_cost_index(cal, front, side, rear, power, dmg_k, pen_k))
-
-def round_cost(raw):
-    """Округление цены до шага и в допустимых границах."""
-    return clamp(round_to(raw, COST_STEP), COST_MIN, COST_MAX)
-
-def cost_for(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0):
-    """Цена машины по входным параметрам без полного расчёта TankSpec (для подбора билдов ботов)."""
-    return round_cost(raw_cost(cal, front, side, rear, power, dmg_k, pen_k))
-
-# ==========================================
-# 3. ТАНК
+# ТАНК
 # ==========================================
 class TankSpec(ChassisSpec):
     """Шасси считает ChassisSpec (родитель), орудие и башню GunSpec (поле self.gun).

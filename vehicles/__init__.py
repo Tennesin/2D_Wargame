@@ -11,9 +11,10 @@ from .gun_tuning import (
     GunProfile, MBT_GUN, TD_GUN, default_tuning
 )
 from .tank import (
-    Tank, TankSpec, TankRenderer, PARAMS as TANK_PARAMS, COST_REF, cost_for, raw_cost,
+    Tank, TankSpec, TankRenderer, PARAMS as TANK_PARAMS, COST_REF,
     caliber_range_for, LOOK_FRONT_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO, estimate_mass
 )
+from .cost import cost_for, raw_cost, round_cost
 from .td import TDSpec, TankDestroyer, TDRenderer, TD_PARAMS, gun_arc_deg
 from .registry import VehicleType, VEHICLE_TYPES, RENDERERS, make_vehicle
 from .running_gear import RunningGear, TRACKS, TRACK_SIDES

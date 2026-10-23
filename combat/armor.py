@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 # ==========================================
-# 1. ПРАВИЛА
+# ПРАВИЛА
 # ==========================================
 
 RICOCHET_ANGLE = 70.0                                   # при угле к нормали больше этого — рикошет
@@ -14,7 +14,7 @@ RICOCHET_COS = math.cos(math.radians(RICOCHET_ANGLE))
 PIERCE_SPREAD = 0.07                                    # окно ±7% вокруг пробития
 
 # ==========================================
-# 2. РЕЗУЛЬТАТ ПОПАДАНИЯ
+# РЕЗУЛЬТАТ ПОПАДАНИЯ
 # ==========================================
 
 @dataclass(frozen=True)
@@ -28,7 +28,7 @@ class HitResult:
         return self.eff_armor is None
 
 # ==========================================
-# 3. ФОРМУЛЫ
+# ФОРМУЛЫ
 # ==========================================
 
 def is_ricochet(cos_impact):
@@ -113,38 +113,3 @@ class Damageable:
     def take_damage(self, amount):
         """Прямой урон без брони и рикошета (осколки, таран)."""
         self.hp = max(0.0, self.hp - amount)
-
-# ==========================================
-# 4. НАБОР ЦЕЛЕЙ ДЛЯ СНАРЯДОВ И ПРИЦЕЛА
-# ==========================================
-
-class TargetSet:
-    """Объединяет источники целей (WallManager, TerrainMap, Fleet...). У каждого источника должен быть
-    raycast(x0, y0, x1, y1, ignore=None) -> (цель, t, normal) или None.
-    У цели должны быть hit_result(...) и take_hit(...)."""
-
-    def __init__(self, *sources):
-        self.sources = list(sources)
-
-    def raycast(self, x0, y0, x1, y1, ignore=None):
-        """Ближайшая цель на отрезке. ignore — ЦЕЛЬ, которую пропускаем (обычно сам стрелок).
-        Он передаётся и источникам: иначе стрелок, чей корпус лежит в начале отрезка (t = 0),
-        заслонил бы собой врага."""
-        best = None
-        for src in self.sources:
-            res = src.raycast(x0, y0, x1, y1, ignore)
-            if res is None or res[0] is ignore:
-                continue
-            if best is None or res[1] < best[1]:
-                best = res
-        return best
-
-    def in_circle(self, x, y, r, ignore=None):
-        """Все цели в круге: [(цель, расстояние), ...]. Источники без метода in_circle
-        (карта препятствий: камни неразрушимы) пропускаются."""
-        found = []
-        for src in self.sources:
-            fn = getattr(src, "in_circle", None)
-            if fn is not None:
-                found.extend(fn(x, y, r, ignore))
-        return found

@@ -1,3 +1,5 @@
+"""vehicles/hull_parts.py — детали корпуса: бортовые экраны, швы, накладная броня, носы, лобовые экраны,
+выхлоп, моторная крышка. Миксин для GunVehicleRenderer, состояния не хранит."""
 import math
 
 from engine import lerp_color, shrink_polygon
