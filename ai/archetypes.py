@@ -2,7 +2,7 @@
 from dataclasses import dataclass, field
 from typing import Optional
 from engine import VehicleKind
-from vehicles import TANK_PARAMS, NOSE_FLAT, NOSE_PIKE
+from vehicles import TANK_PARAMS, NOSE_FLAT, NOSE_PIKE, SPG_PARAMS
 
 def _reference_weights():
     """Доли ползунков эталона, поделённые на максимальную: w * t_anchor = доля эталона."""
@@ -127,6 +127,18 @@ SNIPER = Archetype(
           "rear_armor_mm": 60, "engine_power_hp": 1800}
 )
 
+ARTILLERY = Archetype(
+    "Артиллерия",
+    {"gun_caliber_mm": 0.75, "front_armor_mm": 0.35, "side_armor_mm": 0.30,
+     "rear_armor_mm": 0.30, "engine_power_hp": 0.50},
+    (200, 120, 40),
+    engage_dist_m=110.0, flank_bias=0.0,
+    jitter=0.06, budget_k=1.0,
+    kind=VehicleKind.SPG,
+    caps={key: p.max for key, p in SPG_PARAMS.items()},
+)
+
 ARCHETYPES = {"universal": UNIVERSAL, "bunker": BUNKER,
               "destroyer": DESTROYER, "scout": SCOUT,
-              "assault": ASSAULT, "sniper": SNIPER}
+              "assault": ASSAULT, "sniper": SNIPER,
+              "artillery": ARTILLERY}

@@ -4,12 +4,13 @@ from engine import Team
 from vehicles import VEHICLE_TYPES, make_vehicle
 from ai import ARCHETYPES, fit_loadout, threat_profile, counter_multipliers
 from ai.loadout import loadout_cost
-from .schedule import round_budgets, UNLOCKS, EARLY_UNLOCK_ROUND, EARLY_UNLOCK_MULT, REPEAT_K
+from .schedule import (round_budgets, artillery_slots, UNLOCKS, ARTILLERY_KEY,
+                       EARLY_UNLOCK_ROUND, EARLY_UNLOCK_MULT, REPEAT_K)
 
 class GroupComposer:
     def __init__(self, prefs, rng):
         self.prefs = prefs
-        self.rng = rng                     # общий с BotSpawner: порядок вызовов не меняется
+        self.rng = rng                     # общий с BotSpawner
         self.profile = {}                  # профиль игрока (для отладочных строк)
         self.multipliers = {}              # множители шансов архетипов (для отладки)
         self.fit_info = "-"                # «Универсал 100%, Разведчик 99%»: попадание в бюджет
@@ -20,10 +21,13 @@ class GroupComposer:
         self.profile = threat_profile(player.spec)
         pool, mult = self._unlocked(round_n)
 
-        picked, result, info = [], [], []
-        for frac in round_budgets(round_n):
-            key = self._pick_key(pool, mult, picked)
-            picked.append(key)
+        budgets = round_budgets(round_n)
+        keys = [ARTILLERY_KEY] * self._artillery_count(len(budgets), pool)
+        while len(keys) < len(budgets):
+            keys.append(self._pick_key(pool, mult, keys))
+
+        result, info = [], []
+        for key, frac in zip(keys, budgets):
             arch = ARCHETYPES[key]
             budget = value * frac
             values = fit_loadout(arch, budget, self.rng)
@@ -35,13 +39,22 @@ class GroupComposer:
         self.fit_info = ", ".join(info)
         return result
 
+    def _artillery_count(self, count, pool):
+        """Сколько слотов займёт САУ. Пустой pool значит, что обычных архетипов не включено вовсе."""
+        if ARTILLERY_KEY not in self.prefs.enabled_keys():
+            return 0
+        return artillery_slots(count, self.rng.random(), only=not pool)
+
     def _unlocked(self, round_n):
-        """Открытые на этом раунде архетипы (только включённые в настройках) и их множители шансов."""
+        """Открытые на этом раунде обычные архетипы (только включённые в настройках) и множители шансов.
+        САУ сюда не входит: её слоты считает _artillery_count."""
         allowed = self.prefs.enabled_keys()
-        keys = [k for k in ARCHETYPES if k in allowed]
-        mult = counter_multipliers(self.profile, keys)
+        regular = [k for k in ARCHETYPES if k in allowed and k != ARTILLERY_KEY]
+        mult = counter_multipliers(self.profile, regular)
         self.multipliers = mult
         ordered = [(n, k) for n, k in UNLOCKS if k in allowed]
+        if not ordered:                                   # включена только артиллерия
+            return [], mult
         progress = round_n + ordered[0][0] - 1            # первый из включённых доступен с раунда 1
         pool = [k for n, k in ordered
                 if progress >= n

@@ -6,6 +6,7 @@ from .page_controls import build as _controls
 from .page_ammo import build as _ammo
 from .page_hits import build as _hits
 from .page_vehicles import build as _vehicles
+from .page_enemies import build as _enemies
 
 # (подпись вкладки, функция-сборщик). Чтобы добавить страницу, создайте файл page_*.py и допишите строку.
 PAGES = [
@@ -13,6 +14,7 @@ PAGES = [
     ("Снаряды", _ammo),
     ("Попадания", _hits),
     ("Техника", _vehicles),
+    ("Враги", _enemies),
 ]
 
 def build_page(index):

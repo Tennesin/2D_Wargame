@@ -2,7 +2,7 @@
 import pygame
 from collections import Counter
 
-from engine import PX_PER_M
+from engine import PX_PER_M, VehicleKind
 from inputs import Action, key_label
 from world import CHUNK_SIZE
 
@@ -84,7 +84,10 @@ class DebugOverlay:
             y += self.LINE_H
 
     def _bot_hulls(self):
-        """Сколько ботов каждого класса корпуса (ПТ-САУ считаются отдельно)."""
-        classes = (getattr(b.tank.spec, "HULL_CLASS", None) for b in self.fleet.bots)
-        counts = Counter(c.name if c else "TD" for c in classes)
+        """Сколько ботов каждого вида."""
+        counts = Counter()
+        for b in self.fleet.bots:
+            kind = b.brain.arch.kind                       # есть у обоих мозгов
+            name = b.tank.spec.HULL_CLASS.name if kind is VehicleKind.MBT else kind.name
+            counts[name] += 1
         return "  ".join(f"{k} {v}" for k, v in sorted(counts.items())) or "-"

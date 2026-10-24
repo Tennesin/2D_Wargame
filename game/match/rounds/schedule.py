@@ -14,12 +14,15 @@ STAGES = (
 )
 
 # --- какие архетипы открываются и когда ---
-# (с какого раунда, ключ архетипа): архетип входит в случайный выбор
 UNLOCKS = [(1, "universal"), (2, "scout"), (2, "destroyer"), (2, "bunker"),
            (3, "assault"), (3, "sniper")]
 EARLY_UNLOCK_ROUND = 2       # с какого раунда контр-архетип может появиться раньше расписания
-EARLY_UNLOCK_MULT = 1.8      # ...если его множитель шанса не ниже этого значения
-REPEAT_K = 0.5               # во сколько раз падает вес архетипа, уже выбранного в этой группе
+EARLY_UNLOCK_MULT = 1.8
+REPEAT_K = 0.5
+
+# --- артиллерия: не входит в UNLOCKS, её слоты определяются размером группы ---
+ARTILLERY_KEY = "artillery"      # ключ в ai.ARCHETYPES
+ARTILLERY_PAIR_CHANCE = 0.5      # шанс, что САУ займёт слот в группе из двух врагов
 
 def round_budgets(n):
     """Номер раунда (с 1) -> список долей бюджета игрока, по одной на каждого врага."""
@@ -30,3 +33,13 @@ def round_budgets(n):
         i -= len(fracs)
     count, fracs = STAGES[-1]
     return [fracs[min(i, len(fracs) - 1)]] * count
+
+def artillery_slots(count, roll, only):
+    """Сколько слотов группы из count врагов займёт САУ."""
+    if only:
+        return count
+    if count <= 1:
+        return 0
+    if count == 2:
+        return 1 if roll < ARTILLERY_PAIR_CHANCE else 0
+    return 1

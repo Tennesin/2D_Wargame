@@ -4,7 +4,7 @@ import random
 from enum import Enum, auto
 
 from engine import PX_PER_M, bearing_deg, SEED_SALT, WORLD
-from ai import Bot, BotBrain, DEFAULT_SKILL
+from ai import Bot, make_brain, DEFAULT_SKILL
 from ...config import LOOK_MARGIN_PX
 from .composer import GroupComposer
 from .schedule import COUNTDOWN_S, MAX_BOTS
@@ -217,7 +217,7 @@ class BotSpawner:
                 self.fleet.bots = [b for b in self.fleet.bots if id(b) not in ids]
                 return False
             tank.place_at(spot)
-            brain = BotBrain(arch, DEFAULT_SKILL, random.Random(self.rng.random()))
+            brain = make_brain(arch, DEFAULT_SKILL, random.Random(self.rng.random()))
             bot = Bot(tank, brain)
             self.fleet.bots.append(bot)                   # следующий танк увидит этот как препятствие
             placed.append(bot)
