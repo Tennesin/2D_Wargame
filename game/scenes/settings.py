@@ -3,7 +3,7 @@
 import pygame
 
 from engine import get_text
-from ui import Button, Checkbox, SectionHeader, InfoText, ChoiceRow, make_param_row
+from ui import Button, Checkbox, SectionHeader, InfoText, ChoiceRow, make_param_row, draw_plate
 from ui.theme import BG_COLOR
 from .base import Scene
 from ..content import texts
@@ -98,7 +98,9 @@ class SettingsScene(Scene):
         w, h = size
         x = (w - COL_W) // 2
         total = self._place(x, 0)
-        self._place(x, max(20, (h - total) // 2))
+        top = max(20, (h - total) // 2)
+        self._place(x, top)
+        self._plate = pygame.Rect(x - 28, top - 12, COL_W + 56, total + 24)
 
     # ---------- логика ----------
     def _drag_to(self, mouse_x):
@@ -145,7 +147,7 @@ class SettingsScene(Scene):
         self.save_button.enabled = not self.settings.is_saved()
 
     def draw(self, screen):
-        screen.fill(BG)
+        draw_plate(screen, self._plate)
         title = get_text(texts.SETTINGS_TITLE, TITLE_SIZE, TITLE_COLOR)
         screen.blit(title, title.get_rect(center=self._title_pos))
 

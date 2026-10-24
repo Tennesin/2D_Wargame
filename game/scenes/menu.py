@@ -88,8 +88,9 @@ class MenuScene(Scene):
                     return
 
     def draw(self, screen):
-        screen.fill(BG)
         title = get_text(TITLE_TEXT, TITLE_SIZE, TITLE_COLOR)
+        shadow = get_text(TITLE_TEXT, TITLE_SIZE, (0, 0, 0))
+        screen.blit(shadow, shadow.get_rect(center=(self._title_pos[0] + 2, self._title_pos[1] + 2)))
         screen.blit(title, title.get_rect(center=self._title_pos))
 
         mouse = pygame.mouse.get_pos()

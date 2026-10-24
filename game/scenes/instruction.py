@@ -3,7 +3,7 @@
 import pygame
 
 from engine import get_text
-from ui import Button, ScrollArea, ACTIVE_BUTTON_COLORS
+from ui import Button, ScrollArea, ACTIVE_BUTTON_COLORS, draw_plate
 from ui.theme import BG_COLOR, LINE_COLOR, SCROLLBAR_GAP
 from .base import Scene
 from ..content import texts
@@ -125,9 +125,11 @@ class InstructionScene(Scene):
                         break
 
     def draw(self, screen):
-        screen.fill(BG)
         title = get_text(texts.INSTRUCTION_TITLE, TITLE_SIZE, TITLE_COLOR)
+        shadow = get_text(texts.INSTRUCTION_TITLE, TITLE_SIZE, (0, 0, 0))
+        screen.blit(shadow, (MARGIN + 2, 16))
         screen.blit(title, (MARGIN, 14))
+        draw_plate(screen, self.content_rect.inflate(20, 12))     # под текстом страницы
 
         mouse = pygame.mouse.get_pos()
         for i, tab in enumerate(self.tabs):

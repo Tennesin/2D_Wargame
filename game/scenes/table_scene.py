@@ -3,7 +3,7 @@
 import pygame
 
 from engine import get_text
-from ui import ScrollArea
+from ui import ScrollArea, draw_plate
 from ui.theme import BG_COLOR, SCROLLBAR_GAP
 from .base import Scene
 
@@ -98,7 +98,9 @@ class TableScene(Scene):
                         return
 
     def draw(self, screen):
-        screen.fill(BG)
+        plate = self.content_rect.inflate(32, 0)                  # плашка от заголовка до низа списка
+        plate.top, plate.bottom = 6, self.content_rect.bottom + 10
+        draw_plate(screen, plate)
         title = get_text(self.title, TITLE_SIZE, TITLE_COLOR)
         screen.blit(title, title.get_rect(center=self._title_pos))
 

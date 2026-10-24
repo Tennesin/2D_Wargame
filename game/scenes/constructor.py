@@ -31,6 +31,7 @@ KIND_GAP = 8
 KIND_MARGIN = 10
 
 class ConstructorScene(Scene):
+    BACKGROUND = False
     def __init__(self, session, on_play, on_menu, on_quit):
         self.session = session
         self.on_play = on_play

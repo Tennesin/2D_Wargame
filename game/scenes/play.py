@@ -17,6 +17,8 @@ from ..view.play_view import PlayView
 from .base import Scene
 
 class PlayScene(Scene):
+    BACKGROUND = False
+    FREE_BACKGROUND = True
     def __init__(self, seed, clock, session, on_result, on_quit):
         """session: настройки танка из конструктора. on_result(stats): показать итоги боя."""
         self.on_quit = on_quit

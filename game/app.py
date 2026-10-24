@@ -2,12 +2,14 @@
 import sys
 import pygame
 
-from .config import GAME_TITLE
+from .config import GAME_TITLE, BACKGROUND_ENABLED
+from .background import Backdrop
 from .scenes import (
     MenuScene, ConstructorScene, PlayScene,
     SettingsScene, InstructionScene, NewGameScene, StatsScene, ResultScene,
 )
 from .state.session import Session
+from ui.theme import BG_COLOR
 
 def _maximize_window():
     """Разворачивает окно на весь экран, как кнопка «Развернуть» (рамка и кнопки окна остаются).
@@ -38,6 +40,7 @@ class App:
         self.clock = pygame.time.Clock()
         self.seed = seed                 # None: у каждой новой игры свой случайный мир
         self.session = Session()         # настройки техники живут здесь, пока открыто приложение
+        self.backdrop = Backdrop(self.session)   # фоновая симуляция (создаётся лениво, при первом показе)
 
         self.running = True
         self.scene = None
@@ -92,6 +95,20 @@ class App:
             factory, self._next = self._next, None
             self.scene = factory()
 
+    def _update_background(self, dt, screen):
+        """Фон под сценой: симуляция или (если выключена) плоская заливка. Сцены с BACKGROUND = False
+        рисуют всё сами. Партия освобождает фон полностью, остальные сцены только ставят его на паузу."""
+        scene = self.scene
+        if scene.FREE_BACKGROUND:
+            self.backdrop.release()
+        if not scene.BACKGROUND:
+            return
+        if BACKGROUND_ENABLED:
+            self.backdrop.update(dt, screen.get_size())
+            self.backdrop.draw(screen)
+        else:
+            screen.fill(BG_COLOR)
+
     # ---------- цикл ----------
     def run(self):
         while self.running:
@@ -100,6 +117,7 @@ class App:
 
             screen = pygame.display.get_surface()
             if 0 not in screen.get_size():               # окно свёрнуто: не рисуем
+                self._update_background(dt, screen)
                 self.scene.draw(screen)
                 pygame.display.flip()
 

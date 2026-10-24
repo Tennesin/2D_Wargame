@@ -46,6 +46,7 @@ def _map_row(key, label, value):
     return make_param_row({key: param}, key)
 
 class NewGameScene(Scene):
+    BACKGROUND = False
     def __init__(self, session, on_play, on_constructor, on_back, on_quit):
         self.session = session
         self.on_play = on_play                  # начать бой
