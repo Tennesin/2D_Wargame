@@ -64,7 +64,7 @@ class App:
                                               on_menu=self.show_menu, on_quit=self.quit)
 
     def show_settings(self):
-        self._next = lambda: SettingsScene(self.session.prefs,
+        self._next = lambda: SettingsScene(self.session.settings,
                                            on_back=self.show_menu, on_quit=self.quit)
 
     def show_instruction(self):
@@ -86,7 +86,7 @@ class App:
     # ---------- цикл ----------
     def run(self):
         while self.running:
-            dt = min(self.clock.tick(60) / 1000.0, self.MAX_DT)
+            dt = min(self.clock.tick(self.session.settings.fps_limit) / 1000.0, self.MAX_DT)
             self.scene.update(dt)
 
             screen = pygame.display.get_surface()

@@ -19,7 +19,7 @@ from .control.wall_editor import WallEditor
 from .rounds.spawner import BotSpawner
 
 class Match:
-    def __init__(self, seed, player, camera, input_handler, notifier, prefs, on_exit):
+    def __init__(self, seed, player, camera, input_handler, notifier, prefs, settings, on_exit):
         self.seed = seed
         self.camera = camera
         self.input = input_handler
@@ -31,10 +31,11 @@ class Match:
         self.terrain.preload()
         self.walls = WallManager()
         self.fleet = Fleet(player)
-        self.ctx = GameContext(camera=camera, terrain=self.terrain, walls=self.walls, fleet=self.fleet,
-                               effects=EffectsSystem(),
-                               targets=TargetSet(self.walls, self.terrain, self.fleet),
-                               notifier=notifier)
+        self.ctx = GameContext(
+            camera=camera, terrain=self.terrain, walls=self.walls, fleet=self.fleet,
+            effects=EffectsSystem(), targets=TargetSet(self.walls, self.terrain, self.fleet),
+            notifier=notifier, settings=settings
+        )
 
         # --- контроллеры игрока ---
         self.modes = Modes(input_handler, self.walls)
@@ -47,7 +48,7 @@ class Match:
 
         # --- боты ---
         finder = SpawnFinder(self.terrain, blockers=[self.walls.blocks_obb, self.fleet.blocks_obb])
-        self.spawner = BotSpawner(self.fleet, finder, camera, seed, prefs)
+        self.spawner = BotSpawner(self.fleet, finder, camera, seed, prefs, settings)
         self.bot_ctrl = BotController(self.ctx)
         self.ram = RamController(self.ctx)
 

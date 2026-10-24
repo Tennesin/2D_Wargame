@@ -11,7 +11,8 @@ class DebugOverlay:
     TOP = 52
     LINE_H = 20
 
-    def __init__(self, *, clock, ctx, camera_ctrl, tank, world, seed, input_handler, modes, spawner):
+    def __init__(self, *, clock, ctx, camera_ctrl, tank, world, seed, input_handler, modes, spawner,
+                 show_fps=False):
         self.clock = clock
         self.camera = ctx.camera
         self.camera_ctrl = camera_ctrl
@@ -24,6 +25,7 @@ class DebugOverlay:
         self.fleet = ctx.fleet
         self.spawner = spawner
         self.visible = False
+        self.show_fps = show_fps
         self._font = pygame.font.Font(None, 22)
         self._k = {a: key_label(a) for a in Action}
 
@@ -67,10 +69,14 @@ class DebugOverlay:
         ]
 
     def draw(self, screen):
-        if not self.visible:
+        if self.visible:
+            lines = self._lines()
+        elif self.show_fps:
+            lines = [f"FPS: {self.clock.get_fps():.0f}"]
+        else:
             return
         y = self.TOP
-        for text in self._lines():
+        for text in lines:
             shadow = self._font.render(text, True, (0, 0, 0))
             label = self._font.render(text, True, (255, 255, 255))
             screen.blit(shadow, (11, y + 1))

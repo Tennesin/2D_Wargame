@@ -7,7 +7,7 @@ from engine import PX_PER_M, bearing_deg, SEED_SALT, WORLD
 from ai import Bot, BotBrain, DEFAULT_SKILL
 from ...config import LOOK_MARGIN_PX
 from .composer import GroupComposer
-from .schedule import ROUND_TIME_S, COUNTDOWN_S, MAX_BOTS
+from .schedule import COUNTDOWN_S, MAX_BOTS
 
 RETRY_S = 0.5                # пауза между неудачными попытками найти место
 SPAWN_MARGIN_M = 15.0        # запас за краем экрана
@@ -22,8 +22,9 @@ class RoundPhase(Enum):
     FIGHT = auto()           # группа на карте, идёт таймер раунда
 
 class BotSpawner:
-    def __init__(self, fleet, finder, camera, seed, prefs):
+    def __init__(self, fleet, finder, camera, seed, prefs, settings):
         self.fleet = fleet
+        self.settings = settings
         self.finder = finder
         self.camera = camera
         self.rng = random.Random(seed + SEED_SALT["spawner"])
@@ -45,7 +46,7 @@ class BotSpawner:
     @property
     def time_left(self):
         """COUNTDOWN: секунд до появления. FIGHT: секунд до конца раунда."""
-        total = COUNTDOWN_S if self.phase is RoundPhase.COUNTDOWN else ROUND_TIME_S
+        total = COUNTDOWN_S if self.phase is RoundPhase.COUNTDOWN else self.settings.round_time_s
         return max(0.0, total - self._t)
 
     @property
@@ -98,7 +99,7 @@ class BotSpawner:
                     self._retry_at = self._clock + RETRY_S
                     self._pick_anchor()                   # вдруг повезёт с другим местом
         else:
-            if self._t >= ROUND_TIME_S or self.group_alive == 0:
+            if self._t >= self.settings.round_time_s or self.group_alive == 0:
                 self._begin_round(self.round + 1)
 
     # ---------- начало раунда ----------

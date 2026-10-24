@@ -17,6 +17,7 @@ class CombatController:
         self.notifier = ctx.notifier
         self.effects = ctx.effects
         self.targets = ctx.targets
+        self.settings = ctx.settings
 
     def update(self, dt):
         hits, ricochets, misses = self.effects.update(dt, self.targets)
@@ -64,7 +65,8 @@ class CombatController:
         stats = im.stats
         base = stats.damage * im.power
         ox, oy = self._splash_origin(im)
-        for target, dist in self.targets.in_circle(im.x, im.y, stats.aoe_radius_px, ignore=im.owner):
+        shooter = None if self.settings.friendly_fire else im.owner
+        for target, dist in self.targets.in_circle(im.x, im.y, stats.aoe_radius_px, ignore=shooter):
             if target is im.target:
                 continue
             if not self._splash_reaches(ox, oy, target):

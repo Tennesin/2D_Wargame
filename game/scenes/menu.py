@@ -30,7 +30,7 @@ class MenuScene(Scene):
         self.play_button = Button((0, 0, BUTTON_W, BUTTON_H), texts.MENU_PLAY)
         self.constructor_button = Button((0, 0, BUTTON_W, BUTTON_H), texts.MENU_CONSTRUCTOR)
         self.instruction_button = Button((0, 0, BUTTON_W, BUTTON_H), texts.MENU_INSTRUCTION)
-        self.settings_button = Button((0, 0, BUTTON_W, BUTTON_H), texts.MENU_SETTINGS, enabled=False)
+        self.settings_button = Button((0, 0, BUTTON_W, BUTTON_H), texts.MENU_SETTINGS)
         self.quit_button = Button((0, 0, BUTTON_W, BUTTON_H), texts.MENU_QUIT)
         self._title_pos = (0, 0)
         self._size = None

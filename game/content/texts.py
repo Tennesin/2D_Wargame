@@ -12,9 +12,16 @@ INSTRUCTION_TITLE = "Инструкция"
 
 # Настройки
 SETTINGS_TITLE = "Настройки"
-SETTINGS_SUBTITLE = "Враги: допустимые архетипы"
-SETTINGS_HINT = "Изменения вступят в силу в новой игре."
-SETTINGS_LOCKED_NOTE = "последний"
+SETTINGS_TECH = "Технические"
+SETTINGS_GAME = "Игра"
+SETTINGS_FPS_LIMIT = "Лимит FPS"
+SETTINGS_SHOW_FPS = "Показывать FPS в бою"
+SETTINGS_ROUND_TIME = "Время раунда"
+SETTINGS_ROCK_HURTS = "Урон танку от тарана камня"
+SETTINGS_ROCK_HURTS_HINT = "Удар о сдвигаемый камень наносит урон самой технике. Относится и к ботам."
+SETTINGS_FRIENDLY_FIRE = "Урон по союзникам"
+SETTINGS_FRIENDLY_FIRE_HINT = ("Осколки фугаса задевают и стрелявшего, а боты ранят друг друга осколками "
+                               "и тараном. Прямые попадания снарядов по своим не засчитываются.")
 BACK = "Назад"
 
 # Новая игра

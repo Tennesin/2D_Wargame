@@ -1,82 +1,110 @@
-"""game/scenes/settings.py — настройки: какие архетипы вражеских танков могут появляться.
+"""game/scenes/settings.py — настройки: технические и игровые параметры.
 Как и меню, сцена сама читает события (у неё нет InputHandler)."""
 import pygame
 
-from ai import ARCHETYPES
 from engine import get_text
-from ui import Button, Checkbox
+from ui import Button, Checkbox, SectionHeader, InfoText, ChoiceRow, make_param_row
 from ui.theme import BG_COLOR
 from .base import Scene
 from ..content import texts
+from ..state.settings import FPS_CHOICES, ROUND_TIME
 
 BG = BG_COLOR
 TITLE_COLOR = (230, 230, 230)
-SUB_COLOR = (150, 156, 166)
 TITLE_SIZE = 40
-SUB_SIZE = 22
-HINT_SIZE = 16
 
-ROW_W, ROW_H = 440, 44
+COL_W = 440
+ROW_H = 44
 ROW_GAP = 8
+SECTION_GAP = 16
+TITLE_BLOCK_H = 64
+AFTER_GAP = 24
 BACK_W, BACK_H = 260, 52
 BUTTON_FONT = 24
 
-TITLE_BLOCK_H = 64          # место под заголовок
-SUB_BLOCK_H = 40            # под подзаголовок
-HINT_BLOCK_H = 36           # под примечание под списком
-AFTER_HINT_GAP = 16
-
 class SettingsScene(Scene):
-    def __init__(self, prefs, on_back, on_quit):
-        self.prefs = prefs
+    def __init__(self, settings, on_back, on_quit):
+        self.settings = settings
         self.on_back = on_back
         self.on_quit = on_quit
 
-        self.rows = []                              # [(ключ архетипа, Checkbox)]
-        for key, arch in ARCHETYPES.items():
-            box = Checkbox((0, 0, ROW_W, ROW_H), arch.name, swatch=arch.color)
-            self.rows.append((key, box))
-        self.back_button = Button((0, 0, BACK_W, BACK_H), texts.BACK)
-        self._refresh_rows()
+        # --- технические ---
+        self.tech_header = SectionHeader(texts.SETTINGS_TECH)
+        self.fps_row = ChoiceRow("fps", texts.SETTINGS_FPS_LIMIT,
+                                 [(n, str(n)) for n in FPS_CHOICES], settings.fps_limit)
+        self.show_fps_box = Checkbox((0, 0, COL_W, ROW_H), texts.SETTINGS_SHOW_FPS,
+                                     checked=settings.show_fps)
 
+        # --- игра ---
+        self.game_header = SectionHeader(texts.SETTINGS_GAME)
+        self.round_row = make_param_row({"round": ROUND_TIME}, "round")
+        self.round_row.set_value(settings.round_time_s)
+        self.rock_box = Checkbox((0, 0, COL_W, ROW_H), texts.SETTINGS_ROCK_HURTS,
+                                 checked=settings.rock_hurts_tank)
+        self.rock_hint = InfoText(texts.SETTINGS_ROCK_HURTS_HINT)
+        self.ff_box = Checkbox((0, 0, COL_W, ROW_H), texts.SETTINGS_FRIENDLY_FIRE,
+                               checked=settings.friendly_fire)
+        self.ff_hint = InfoText(texts.SETTINGS_FRIENDLY_FIRE_HINT)
+
+        # (галочка, имя поля в GameSettings)
+        self.toggles = [(self.show_fps_box, "show_fps"),
+                        (self.rock_box, "rock_hurts_tank"),
+                        (self.ff_box, "friendly_fire")]
+        self.back_button = Button((0, 0, BACK_W, BACK_H), texts.BACK)
+
+        self._drag = False                      # тянут ли ползунок времени раунда
         self._size = None
         self._title_pos = (0, 0)
-        self._sub_pos = (0, 0)
-        self._hint_pos = (0, 0)
         self._layout(pygame.display.get_surface().get_size())
 
-    def _refresh_rows(self):
-        """Галочки, доступность и примечания по текущим настройкам."""
-        for key, box in self.rows:
-            locked = self.prefs.is_locked(key)
-            box.checked = self.prefs.is_enabled(key)
-            box.enabled = not locked
-            box.note = texts.SETTINGS_LOCKED_NOTE if locked else ""
+    # ---------- раскладка ----------
+    @staticmethod
+    def _place_box(box, x, y):
+        box.rect.topleft = (x, y)
+        return y + ROW_H + ROW_GAP
+
+    def _place(self, x, top):
+        """Раскладывает всю колонку от высоты top. Возвращает её высоту."""
+        y = top
+        self._title_pos = (x + COL_W // 2, y + TITLE_BLOCK_H // 2)
+        y += TITLE_BLOCK_H
+
+        for item in (self.tech_header, self.fps_row):
+            item.layout(x, y, COL_W)
+            y += item.height
+        y = self._place_box(self.show_fps_box, x, y)
+        y += SECTION_GAP
+
+        for item in (self.game_header, self.round_row):
+            item.layout(x, y, COL_W)
+            y += item.height
+        y = self._place_box(self.rock_box, x, y)
+        self.rock_hint.layout(x, y - ROW_GAP, COL_W)
+        y += self.rock_hint.height
+        y = self._place_box(self.ff_box, x, y)
+        self.ff_hint.layout(x, y - ROW_GAP, COL_W)
+        y += self.ff_hint.height
+
+        y += AFTER_GAP
+        self.back_button.rect.midtop = (x + COL_W // 2, y)
+        return y + BACK_H - top
 
     def _layout(self, size):
-        """Центрированная колонка: заголовок, подзаголовок, список, примечание, «Назад»."""
+        """Центрированная колонка. Первый проход считает высоту, второй ставит по центру окна."""
         self._size = size
         w, h = size
-        cx = w // 2
-        list_h = len(self.rows) * ROW_H + (len(self.rows) - 1) * ROW_GAP
-        total = TITLE_BLOCK_H + SUB_BLOCK_H + list_h + HINT_BLOCK_H + AFTER_HINT_GAP + BACK_H
-        y = max(20, (h - total) // 2)
+        x = (w - COL_W) // 2
+        total = self._place(x, 0)
+        self._place(x, max(20, (h - total) // 2))
 
-        self._title_pos = (cx, y + TITLE_BLOCK_H // 2)
-        y += TITLE_BLOCK_H
-        self._sub_pos = (cx, y + SUB_BLOCK_H // 2)
-        y += SUB_BLOCK_H
-        for _, box in self.rows:
-            box.rect.topleft = (cx - ROW_W // 2, y)
-            y += ROW_H + ROW_GAP
-        y -= ROW_GAP                                # после последней строки зазор не нужен
-        self._hint_pos = (cx, y + HINT_BLOCK_H // 2)
-        y += HINT_BLOCK_H + AFTER_HINT_GAP
-        self.back_button.rect.midtop = (cx, y)
+    # ---------- логика ----------
+    def _drag_to(self, mouse_x):
+        if self.round_row.slider.set_from_mouse(mouse_x):
+            self.settings.round_time_s = self.round_row.value
 
     def update(self, dt):
         size = pygame.display.get_surface().get_size()
-        if size != self._size:
+        if 0 not in size and size != self._size:
             self._layout(size)
 
         for event in pygame.event.get():
@@ -90,22 +118,38 @@ class SettingsScene(Scene):
                 if self.back_button.collidepoint(event.pos):
                     self.on_back()
                     return
-                for key, box in self.rows:
-                    if box.collidepoint(event.pos):          # у заблокированной строки всегда False
-                        self.prefs.toggle(key)
-                        self._refresh_rows()
-                        break
+                choice = self.fps_row.hit(event.pos)
+                if choice is not None:
+                    self.fps_row.value = choice
+                    self.settings.fps_limit = choice
+                elif self.round_row.hit_rect().collidepoint(event.pos):
+                    self._drag = True
+                    self._drag_to(event.pos[0])
+                else:
+                    for box, attr in self.toggles:
+                        if box.collidepoint(event.pos):
+                            value = not getattr(self.settings, attr)
+                            setattr(self.settings, attr, value)
+                            box.checked = value
+                            break
+            elif event.type == pygame.MOUSEMOTION and self._drag:
+                self._drag_to(event.pos[0])
+            elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                self._drag = False
 
     def draw(self, screen):
         screen.fill(BG)
         title = get_text(texts.SETTINGS_TITLE, TITLE_SIZE, TITLE_COLOR)
         screen.blit(title, title.get_rect(center=self._title_pos))
-        sub = get_text(texts.SETTINGS_SUBTITLE, SUB_SIZE, SUB_COLOR)
-        screen.blit(sub, sub.get_rect(center=self._sub_pos))
 
         mouse = pygame.mouse.get_pos()
-        for _, box in self.rows:
-            box.draw(screen, mouse)
-        hint = get_text(texts.SETTINGS_HINT, HINT_SIZE, SUB_COLOR)
-        screen.blit(hint, hint.get_rect(center=self._hint_pos))
+        self.tech_header.draw(screen, mouse)
+        self.fps_row.draw(screen, mouse)
+        self.show_fps_box.draw(screen, mouse)
+        self.game_header.draw(screen, mouse)
+        self.round_row.draw(screen, mouse)
+        self.rock_box.draw(screen, mouse)
+        self.rock_hint.draw(screen, mouse)
+        self.ff_box.draw(screen, mouse)
+        self.ff_hint.draw(screen, mouse)
         self.back_button.draw(screen, mouse, font_size=BUTTON_FONT)

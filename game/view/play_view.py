@@ -12,7 +12,7 @@ from ..hud.stun_indicator import StunIndicator
 from .world_renderer import Renderer
 
 class PlayView:
-    def __init__(self, world, clock, match, ui, toolbar, ammo_bar, notifier):
+    def __init__(self, world, clock, match, ui, toolbar, ammo_bar, notifier, settings):
         self.match = match
         self.ui = ui
         self.toolbar = toolbar
@@ -27,7 +27,8 @@ class PlayView:
         self.warning = SpawnWarning(match.spawner, match.camera)
         self.debug = DebugOverlay(clock=clock, ctx=ctx, camera_ctrl=match.camera_ctrl, tank=match.player,
                                   world=world, seed=match.seed, input_handler=match.input,
-                                  modes=match.modes, spawner=match.spawner)
+                                  modes=match.modes, spawner=match.spawner,
+                                  show_fps=settings.show_fps)
         self.hud = HudOverlay(TankHud(), match.player, match.modes, match.camera_ctrl, match.fleet)
         self.round_overlay = RoundOverlay(match.spawner, ui, match.player)
         self.inspector = HoverInspector(ctx, match.input, match.modes)

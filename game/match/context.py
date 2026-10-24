@@ -10,6 +10,7 @@ class GameContext:
     effects: object
     targets: object
     notifier: object
+    settings: object
 
     def obstacles_for(self, vehicle):
         """Прямоугольники стен и чужой техники рядом с vehicle."""

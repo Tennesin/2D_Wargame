@@ -2,7 +2,6 @@
 Танк только отмечает «я врезался» (impact_kmh); что именно он задел и что из этого вышло, решаем здесь."""
 from combat import (resolve_ram, can_push, ram_damage,
                     RESTITUTION_ROCK, RESTITUTION_TANK, MIN_CLOSING_MS)
-from ...config import ROCK_HURTS_TANK
 from engine import PX_PER_M, obb_contact
 
 CONTACT_PAD_PX = 8.0         # на сколько px раздуваем корпус, чтобы поймать касание (физика останавливает танк вплотную)
@@ -15,6 +14,7 @@ class RamController:
         self.walls = ctx.walls
         self.terrain = ctx.terrain
         self.notifier = ctx.notifier
+        self.settings = ctx.settings
         self._cooldown = {}
 
     # ---------- каждый кадр (после обновления всех танков) ----------
@@ -48,7 +48,7 @@ class RamController:
             tank.apply_impulse(nx, ny, res.u1 - u1)
             k = (res.u2 - u2) * PX_PER_M
             self.terrain.rocks.push(rock, rock.vx + nx * k, rock.vy + ny * k)
-            if ROCK_HURTS_TANK:
+            if self.settings.rock_hurts_tank:
                 tank.take_damage(ram_damage(abs(res.u1 - u1), tank.zone_at((nx, ny))))
 
     # ---------- танки ----------
@@ -81,6 +81,8 @@ class RamController:
             self._damage(key, a, b, nx, ny, dv_a, dv_b)
 
     def _damage(self, key, a, b, nx, ny, dv_a, dv_b):
+        if a.team is b.team and not self.settings.friendly_fire:
+            return                                           # свои своих тараном не ранят: только толчок
         if self._cooldown.get(key, 0.0) > 0.0:
             return
         self._cooldown[key] = DAMAGE_COOLDOWN_S

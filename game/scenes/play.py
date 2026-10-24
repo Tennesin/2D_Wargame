@@ -39,7 +39,7 @@ class PlayScene(Scene):
 
         # --- партия ---
         self.match = Match(self.seed, tank, self.camera, self.input, self.notifier,
-                           session.prefs, on_exit=on_menu)
+                           session.prefs, session.settings, on_exit=on_menu)
 
         # --- связки интерфейса с партией ---
         self.match.modes.on_changed = self._on_mode_changed
@@ -48,7 +48,7 @@ class PlayScene(Scene):
 
         # --- рисование ---
         self.view = PlayView(WorldGenerator(self.seed), clock, self.match,
-                             self.ui, self.toolbar, self.ammo_bar, self.notifier)
+                             self.ui, self.toolbar, self.ammo_bar, self.notifier, session.settings)
 
     def _on_mode_changed(self, mode, wall):
         """Режим сменился: подстраиваем кнопку тулбара и боковую панель."""

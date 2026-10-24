@@ -2,6 +2,7 @@
 from engine import VehicleKind, WORLD_DEFAULT_M
 from vehicles import VEHICLE_TYPES, default_tuning, FRONT_SCREEN, NOSE_FLAT, SPECIAL_HEAT
 from .preferences import Preferences
+from .settings import GameSettings
 
 class Session:
     def __init__(self):
@@ -11,6 +12,7 @@ class Session:
         # значения ползунков для КАЖДОГО типа отдельно: при переключении кнопок настройки не теряются
         self.values = {kind: self._defaults(t) for kind, t in VEHICLE_TYPES.items()}
         self.prefs = Preferences()       # настройки меню: живут, пока открыто приложение
+        self.settings = GameSettings()   # настройки меню «Настройки»
 
     @staticmethod
     def _defaults(vtype):
