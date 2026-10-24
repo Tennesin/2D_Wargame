@@ -25,6 +25,7 @@ STUCK_PENALTY_PX = 1500.0         # штраф клетки, в px пути (15 
 ARRIVE_PX = 3.0 * PX_PER_M        # на таком расстоянии от точки пути считаем её пройденной
 HAZARD_PENALTY_PX = 1200.0        # штраф клетки внутри зоны обстрела, px пути (12 м)
 HAZARD_SLACK_S = 1.0              # зону учитываем, если бот доедет до клетки не позже падения + столько
+ALLY_PENALTY_PX = 900.0       # штраф клетки рядом с союзником, px пути (9 м)
 
 _D = CELL_PX * 1.4142135
 _NEIGH = ((1, 0, CELL_PX), (-1, 0, CELL_PX), (0, 1, CELL_PX), (0, -1, CELL_PX),
@@ -74,8 +75,10 @@ class Path:
 # ==========================================
 
 class NavGrid:
-    def __init__(self, cx, cy, radius, core_radius, nav, walls, me,
-                 forbidden=(), bad_spots=(), no_breach=False, hazards=()):
+    def __init__(
+            self, cx, cy, radius, core_radius, nav, walls, me, forbidden=(),
+            bad_spots=(), no_breach=False, hazards=(), allies=()
+    ):
         # окно привязано к глобальной сетке, чтобы клетки совпадали с блоками кэша
         self.gi0 = math.floor(cx / CELL_PX) - HALF_CELLS
         self.gj0 = math.floor(cy / CELL_PX) - HALF_CELLS
@@ -92,6 +95,7 @@ class NavGrid:
         self._fill_walls(walls, me, forbidden, no_breach)
         self._fill_bad_spots(bad_spots)
         self._fill_hazards(hazards, cx, cy, me)
+        self._fill_allies(allies)
         self._fill_border(cx, cy)
 
     # ---------- помощники ----------
@@ -169,6 +173,17 @@ class NavGrid:
                     x, y = self.center(i, j)
                     if (x - sx) ** 2 + (y - sy) ** 2 <= STUCK_RADIUS_PX ** 2:
                         self.extra[j * N + i] += STUCK_PENALTY_PX
+
+    def _fill_allies(self, allies):
+        """allies: [(x, y, r)] — круги союзной техники (px мира). Штраф, а не запрет: путь не пропадает."""
+        for ax, ay, ar in allies:
+            i0, i1, j0, j1 = self._box(ax, ay, ar)
+            r2 = ar * ar
+            for j in range(j0, j1 + 1):
+                for i in range(i0, i1 + 1):
+                    x, y = self.center(i, j)
+                    if (x - ax) ** 2 + (y - ay) ** 2 <= r2:
+                        self.extra[j * N + i] += ALLY_PENALTY_PX
 
     def _fill_hazards(self, zones, cx, cy, me):
         """Зоны падения снарядов САУ: клетки внутри дорожают, если бот успеет туда до падения.
@@ -330,7 +345,7 @@ class NavGrid:
             points[-1] = (gx, gy)
         return Path(points, goal_req, breach, best == goal)
 
-def find_path(me, goal, walls, nav, forbidden=(), bad_spots=(), no_breach=False, hazards=()):
+def find_path(me, goal, walls, nav, forbidden=(), bad_spots=(), no_breach=False, hazards=(), allies=()):
     """Путь для танка me к точке goal = (x, y) или None."""
     spec = me.spec
     hw, hl = spec.COLLISION_HALF_W_PX, spec.COLLISION_HALF_L_PX
@@ -340,7 +355,10 @@ def find_path(me, goal, walls, nav, forbidden=(), bad_spots=(), no_breach=False,
 
     first = None
     for radius in (big, tight):
-        grid = NavGrid(me.x, me.y, radius, core, nav, walls, me, forbidden, bad_spots, no_breach, hazards)
+        grid = NavGrid(
+            me.x, me.y, radius, core, nav, walls, me,
+            forbidden, bad_spots, no_breach, hazards, allies
+        )
         path = grid.search(me.x, me.y, goal[0], goal[1])
         if path is not None and path.reached:
             return path

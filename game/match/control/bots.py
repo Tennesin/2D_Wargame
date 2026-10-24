@@ -1,5 +1,5 @@
 """game/match/control/bots.py — кадр ботов: команда от мозга, физика танка, выстрел."""
-from ai import PlanBudget, TerrainNavCache, BotContext, HazardBoard
+from ai import PlanBudget, TerrainNavCache, BotContext, HazardBoard, Squad
 
 PLANS_PER_FRAME = 1          # сколько путей A* можно построить за кадр на всех ботов
 
@@ -10,14 +10,16 @@ class BotController:
         self.budget = PlanBudget(PLANS_PER_FRAME)
         self.nav = TerrainNavCache(game_ctx.terrain)
         self.hazards = HazardBoard(game_ctx.effects, game_ctx.settings, game_ctx.fleet)
+        self.squad = Squad()
         self.ctx = BotContext(game_ctx.targets, game_ctx.terrain, game_ctx.walls,
                               game_ctx.fleet, self.budget, self.nav,
-                              self.hazards, game_ctx.settings)
+                              self.hazards, game_ctx.settings, self.squad)
         self._rr = 0
 
     def update(self, dt):
         self.budget.new_frame()
         player = self.fleet.player
+        self.squad.update(self.fleet.bots, player)
         bots = list(self.fleet.bots)
         if bots:
             self._rr = (self._rr + 1) % len(bots)

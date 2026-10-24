@@ -9,8 +9,9 @@ from .counter import threat_profile, counter_multipliers
 from .context import BotContext, PlanBudget
 from .nav_cache import TerrainNavCache
 from .hazards import HazardBoard
+from .squad import Squad
 
 __all__ = ["Archetype", "Skill", "DEFAULT_SKILL", "UNIVERSAL", "ARCHETYPES",
            "fit_loadout", "BotBrain", "ArtilleryBrain", "make_brain", "Bot",
            "threat_profile", "counter_multipliers", "HazardBoard",
-           "PlanBudget", "TerrainNavCache", "BotContext"]
+           "PlanBudget", "TerrainNavCache", "BotContext", "Squad"]

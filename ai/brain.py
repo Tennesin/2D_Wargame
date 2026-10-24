@@ -15,6 +15,8 @@ from .breach import BreachPlanner
 from .cover_planner import CoverPlanner, COVER_RETRY_S
 from vehicles import ammo_stats
 from .hazards import friendly_fire_on, allies_near, ALLY_SPLASH_MARGIN_M
+from .avoidance import AllyAvoider
+from .positioning import FirePositionPlanner, has_line
 
 class Intent(Enum):
     ADVANCE = auto()
@@ -59,18 +61,27 @@ COVER_BASE = -1.0
 # --- движение на дистанции боя ---
 ENGAGE_FAR_K = 1.15          # дальше engage * этого: подъезжаем
 ENGAGE_NEAR_K = 0.6          # ближе engage * этого: сдаём назад
+STANDOFF_NEAR_K = 0.75       # ближе этой доли желаемой дистанции дальнобойный пятится
+STANDOFF_FAR_K = 1.10        # дальше этой доли идёт на огневую позицию
+STANDOFF_ARRIVE_M = 3.0      # на таком расстоянии от позиции считаем, что пришли
 
 BREACH_AMMO_COS = 0.85       # при выборе снаряда против стены берём «средний» угол
 FIRE_TOLERANCE_DEG = 2.0
+
+SLOT_FAR_K = 2.0             # дальше engage * этого едем к своему сектору, а не в игрока
+SLOT_RING_K = 1.2            # радиус кольца, на котором лежат точки секторов (в долях engage)
+SQUAD_FLANK_BONUS = 1.0      # игрок занят другим ботом: заходить сбоку выгоднее
 
 class BotBrain:
     def __init__(self, arch, skill, rng):
         self.arch, self.skill, self.rng = arch, skill, rng
         self.intent = Intent.ADVANCE
         self.stuck = StuckGuard()
+        self.avoid = AllyAvoider()
         self.nav = Navigator(rng)
         self.cover = CoverPlanner(self.nav)
         self.breach = BreachPlanner()
+        self.firepos = FirePositionPlanner()
         self._clock = 0.0                                         # время жизни мозга, с (нужно обходу)
         self._hold = 0.0                                          # сколько ещё держим намерение
         self._think_in = rng.uniform(0.0, 1.0 / skill.think_hz)   # сдвиг фаз между ботами
@@ -99,6 +110,7 @@ class BotBrain:
         self.nav.tick(dt)
         self.cover.tick(dt)
         self.breach.tick(dt)
+        self.firepos.tick(dt)
         if self._think_in <= 0.0:                                 # редко: решения и проверки местности
             self._think_in += 1.0 / self.skill.think_hz
             self._decide(me, enemy, ctx)
@@ -115,7 +127,8 @@ class BotBrain:
             if off != 0.0:
                 heading = me.hull_angle + off
 
-        throttle, steer = steer_to(me, heading, self._go)
+        heading, go = self.avoid.adjust(dt, me, heading, self._go, ctx)
+        throttle, steer = steer_to(me, heading, go)
         # «давит» = пытается ехать ИЛИ поворачиваться (иначе заклинивший поворот на месте не виден)
         reversing = self.stuck.update(dt, me, (throttle != 0.0 or steer != 0.0) and not me.stunned, self.rng)
         if reversing:
@@ -166,6 +179,7 @@ class BotBrain:
                 intent = self._choose(me, enemy, dist, engage, futile)
             if intent is not self.intent:
                 self.nav.invalidate()
+                self.firepos.invalidate()
                 if intent is Intent.FLANK:
                     self._flank_side = self._pick_flank_side(me, enemy, ctx)
                     self._flank_t = 0.0
@@ -184,6 +198,14 @@ class BotBrain:
                       else (-1.0 if dist < engage * ENGAGE_NEAR_K else 0.0))
             else:
                 go = 1.0
+        if self.arch.standoff and self.intent in (Intent.ADVANCE, Intent.ENGAGE, Intent.FLANK):
+            goal, go = self._standoff(me, enemy, ctx, dist, engage, goal, go)
+        elif self.intent is Intent.ADVANCE:
+            squad = getattr(ctx, "squad", None)
+            slot = squad.slot(self) if squad is not None else None
+            if slot is not None and dist > engage * SLOT_FAR_K:
+                sx, sy = heading_vector(slot)
+                goal = (enemy.x + sx * engage * SLOT_RING_K, enemy.y + sy * engage * SLOT_RING_K)
         want = bearing_deg(me.x, me.y, *goal)
 
         if go > 0.0:
@@ -238,6 +260,22 @@ class BotBrain:
         """Езда к цели по пути A*. None: началось прорыв стены."""
         return self.nav.drive_to(me, ctx, goal, want,
                                  on_wall=lambda wall: self._breach_via_path(me, ctx, wall))
+
+    def _standoff(self, me, enemy, ctx, dist, engage, goal, go):
+        """Дальнобойный: держит свою дистанцию и ищет позицию с чистой линией огня,
+        а не едет к игроку напрямик. Нет подходящей точки: остаётся прежнее поведение."""
+        foe = (enemy.x, enemy.y)
+        if has_line(ctx, me, enemy) and dist <= engage * STANDOFF_FAR_K:
+            return foe, (-1.0 if dist < engage * STANDOFF_NEAR_K else 0.0)   # пятимся или стоим и стреляем
+        squad = getattr(ctx, "squad", None)
+        slot = squad.slot(self) if squad is not None else None
+        aspect = self._flank_side * self.arch.aspect_deg if self.intent is Intent.FLANK else None
+        spot = self.firepos.get(me, enemy, ctx, engage, slot_deg=slot, aspect_deg=aspect)
+        if spot is None:
+            return goal, go
+        if math.hypot(spot[0] - me.x, spot[1] - me.y) < STANDOFF_ARRIVE_M * PX_PER_M:
+            return foe, 0.0                              # на месте; если линию закрыли, позиция пересчитается
+        return spot, 1.0
 
     def _breach_via_path(self, me, ctx, wall):
         if self.breach.begin_from_path(me, ctx, wall):
@@ -337,7 +375,7 @@ class BotBrain:
             self._m = evaluate_matchup(me, enemy)
         return self._m
 
-    def _choose(self, me, enemy, dist, engage, futile):
+    def _choose(self, me, enemy, dist, engage, futile, focus=None):
         m = self._matchup(me, enemy)
         seen_from = self._seen_from(me, enemy)
         flanked = seen_from > FLANKED_ANGLE_DEG                   # геометрически уже сбоку или сзади (для укрытий)
@@ -374,6 +412,8 @@ class BotBrain:
                 fear += COVER_FEAR_TRAPPED
             scores[Intent.COVER] = self.arch.cover_bias + fear + COVER_BASE
 
+        if focus is not None and focus is not me and not flank_blocked:
+            scores[Intent.FLANK] += SQUAD_FLANK_BONUS
         if self.intent in scores:
             scores[self.intent] += INTENT_STICKY
         return max(scores, key=scores.get)

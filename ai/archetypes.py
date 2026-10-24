@@ -34,6 +34,7 @@ class Archetype:
     nose: str = NOSE_FLAT               # нос корпуса
     screen_mm: tuple = (0.0, 0.0)       # (мин, макс) толщины лобовых экранов, мм; кратно шагу ползунка
     caps: dict = field(default_factory=dict)   # {ключ ползунка: верхний предел значения}; нет ключа = без предела
+    standoff: bool = False              # дальнобойный: держит дистанцию и ищет позицию с линией огня
 
 @dataclass(frozen=True)
 class Skill:
@@ -80,7 +81,8 @@ DESTROYER = Archetype(
     aspect_deg=120.0, aspect_tol_deg=60.0, aspect_drive=0.8,
     damage_band=(0.80, 1.00), pen_band=(0.80, 1.00), emblem="chevron",
     caps={"gun_caliber_mm": 205, "front_armor_mm": 350, "side_armor_mm": 80,
-          "rear_armor_mm": 60, "engine_power_hp": 1500}
+          "rear_armor_mm": 60, "engine_power_hp": 1500},
+    standoff=True
 )
 
 SCOUT = Archetype(
@@ -124,7 +126,8 @@ SNIPER = Archetype(
     damage_band=(0.85, 1.0), pen_band=(0.85, 1.0),
     kind=VehicleKind.TD,
     caps={"gun_caliber_mm": 215, "front_armor_mm": 100, "side_armor_mm": 80,
-          "rear_armor_mm": 60, "engine_power_hp": 1800}
+          "rear_armor_mm": 60, "engine_power_hp": 1800},
+    standoff=True
 )
 
 ARTILLERY = Archetype(

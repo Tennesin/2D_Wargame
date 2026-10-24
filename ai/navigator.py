@@ -15,6 +15,8 @@ BREACH_TRIGGER_M = 25.0      # стена на пути ближе этого: �
 REVERSE_CHECK_M = 5.0        # на сколько метров назад смотрим, прежде чем сдавать задом
 STUCK_MARK_AHEAD_M = 4.0     # на сколько метров впереди ставим пометку «здесь застряли»
 HAZARD_WAIT_PX = 2.5 * PX_PER_M   # у кромки зоны обстрела ближе этого: стоим и ждём падения
+ALLY_PAD_M = 1.5             # запас вокруг корпуса союзника в штрафной зоне
+ALLY_PREDICT_S = 1.5         # куда союзник сдвинется за это время (вторая зона штрафа)
 
 class Navigator:
     def __init__(self, rng):
@@ -72,7 +74,8 @@ class Navigator:
             if not ctx.budget.try_take():
                 return p                                          # повторим при следующем «размышлении»
             self._path = find_path(me, goal, ctx.walls, ctx.nav,
-                                   self._forbidden, self._bad_spots, no_breach, hazards)
+                                   self._forbidden, self._bad_spots, no_breach, hazards,
+                                   self._ally_discs(me, ctx))
             self._replan_in = REPLAN_S * self.rng.uniform(0.8, 1.2)
             self._plan_age = 0.0
         return self._path
@@ -81,6 +84,21 @@ class Navigator:
     def _zones(me, ctx):
         board = getattr(ctx, "hazards", None)
         return board.zones(me) if board is not None else ()
+
+    @staticmethod
+    def _ally_discs(me, ctx):
+        out = []
+        pad = ALLY_PAD_M * PX_PER_M
+        for b in ctx.fleet.bots:
+            t = b.tank
+            if t is me or not t.alive:
+                continue
+            r = t.spec.HULL_REACH_PX + pad
+            out.append((t.x, t.y, r))
+            vx, vy = t.velocity_px()
+            if vx or vy:
+                out.append((t.x + vx * ALLY_PREDICT_S, t.y + vy * ALLY_PREDICT_S, r))
+        return tuple(out)
 
     def drive_to(self, me, ctx, goal, want, no_breach=False, on_wall=None):
         """Курс и газ при езде к goal: (курс, газ)."""

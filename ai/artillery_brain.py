@@ -4,11 +4,12 @@
 import math
 from enum import Enum, auto
 
-from engine import VehicleCommand, WORLD, PX_PER_M, TAU, clamp, bearing_deg
+from engine import VehicleCommand, WORLD, PX_PER_M, TAU, clamp, bearing_deg, heading_vector
 from .gunnery import lead_point
 from .hazards import friendly_fire_on
 from .navigator import Navigator
 from .steering import steer_to, StuckGuard
+from .avoidance import AllyAvoider
 
 class ArtyIntent(Enum):
     POSITION = auto()    # ехать на выгодную дистанцию
@@ -42,6 +43,7 @@ class ArtilleryBrain:
         self.arch, self.skill, self.rng = arch, skill, rng
         self.intent = ArtyIntent.POSITION          # BotBrain._pick_flank_side читает intent у соседей
         self.stuck = StuckGuard()
+        self.avoid = AllyAvoider()
         self.nav = Navigator(rng)
         self.pending_zone = None                   # (x, y, радиус) места, куда САУ вот-вот выстрелит; читает HazardBoard
         self.hold_reason = ""                      # "ally": не стреляю, чтобы не задеть своих (для отладки)
@@ -78,7 +80,8 @@ class ArtilleryBrain:
             off = me.hull_offset_to(*aim)
             heading = me.hull_angle + off if off != 0.0 else me.hull_angle
 
-        throttle, steer = steer_to(me, heading, self._go)
+        heading, go = self.avoid.adjust(dt, me, heading, self._go, ctx)
+        throttle, steer = steer_to(me, heading, go)
         pushing = (throttle != 0.0 or steer != 0.0) and not me.stunned
         reversing = self.stuck.update(dt, me, pushing, self.rng)
         if reversing:
@@ -120,6 +123,10 @@ class ArtilleryBrain:
             return
 
         ux, uy = (dx / dist, dy / dist) if dist > 1.0 else (0.0, 1.0)
+        squad = getattr(ctx, "squad", None)
+        slot = squad.slot(self) if squad is not None else None
+        if slot is not None and self.intent is ArtyIntent.POSITION:
+            ux, uy = heading_vector(slot)
         if self.intent is ArtyIntent.RETREAT:
             goal = self._retreat_goal(me, enemy, ux, uy)
         else:

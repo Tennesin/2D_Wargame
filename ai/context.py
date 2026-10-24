@@ -10,6 +10,7 @@ class BotContext(NamedTuple):
     nav: Any                # TerrainNavCache: кэш рельефа для A*
     hazards: Any = None     # HazardBoard: зоны обстрела САУ
     settings: Any = None    # GameSettings: нужен friendly_fire
+    squad: Any = None
 
 class PlanBudget:
     """Лимит построений пути A* за кадр на всех ботов."""

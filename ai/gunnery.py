@@ -122,8 +122,10 @@ def preferred_distance_m(me, enemy, base_m, edge_k=1.0):
     edge = clamp(0.6 * math.log2(spd) + 0.4 * math.log2(rel), -1.0, 1.0) * edge_k
     far_m = me.spec.SHELL_RANGE_PX / PX_PER_M * KITE_RANGE_K
     if edge >= 0.0:
-        return base_m + edge * max(0.0, far_m - base_m)
-    return base_m + edge * max(0.0, base_m - CLOSE_DIST_M)
+        dist = base_m + edge * max(0.0, far_m - base_m)
+    else:
+        dist = base_m + edge * max(0.0, base_m - CLOSE_DIST_M)
+    return min(dist, max(far_m, CLOSE_DIST_M))
 
 # ==========================================
 # УГОЛ КОРПУСА
