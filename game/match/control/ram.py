@@ -16,6 +16,7 @@ class RamController:
         self.notifier = ctx.notifier
         self.settings = ctx.settings
         self._cooldown = {}
+        self.match_stats = ctx.match_stats
 
     # ---------- каждый кадр (после обновления всех танков) ----------
     def update(self, dt):
@@ -90,8 +91,11 @@ class RamController:
         zone_b = b.zone_at((-nx, -ny))                       # а у b — на a
         dmg_a = ram_damage(dv_a, zone_a)
         dmg_b = ram_damage(dv_b, zone_b)
+        real_a, real_b = min(dmg_a, a.hp), min(dmg_b, b.hp)
         a.take_damage(dmg_a)
         b.take_damage(dmg_b)
+        self.match_stats.on_damage(b, a, real_a, "ram")
+        self.match_stats.on_damage(a, b, real_b, "ram")
         self.notifier.on_ram(a, b, dmg_a, dmg_b, zone_a, zone_b)
 
     # ---------- помощник для камней ----------

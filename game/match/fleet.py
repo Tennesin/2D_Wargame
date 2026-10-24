@@ -7,6 +7,7 @@ class Fleet:
         self.player = player                # любая Vehicle
         self.bots = []                      # список ai.Bot
         self.kills = 0                      # сколько ботов уничтожено за партию
+        self.on_destroyed = None            # колбэк(танк): бот уничтожен (для статистики)
 
     @property
     def vehicles(self):
@@ -16,11 +17,15 @@ class Fleet:
     def remove_dead(self):
         """Убирает уничтоженных ботов, учитывает их в kills и возвращает сколько убрано.
         Игрок остаётся всегда."""
-        before = len(self.bots)
+        dead = [b for b in self.bots if not b.tank.alive]
+        if not dead:
+            return 0
         self.bots = [b for b in self.bots if b.tank.alive]
-        removed = before - len(self.bots)
-        self.kills += removed
-        return removed
+        self.kills += len(dead)
+        if self.on_destroyed is not None:
+            for b in dead:
+                self.on_destroyed(b.tank)
+        return len(dead)
 
     def obbs_near(self, me, radius):
         """Прямоугольники чужой техники рядом с me: это препятствия для me."""

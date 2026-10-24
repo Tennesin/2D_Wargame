@@ -5,7 +5,7 @@ import pygame
 from .config import GAME_TITLE
 from .scenes import (
     MenuScene, ConstructorScene, PlayScene,
-    SettingsScene, InstructionScene, NewGameScene,
+    SettingsScene, InstructionScene, NewGameScene, StatsScene, ResultScene,
 )
 from .state.session import Session
 
@@ -48,11 +48,13 @@ class App:
 
     # ---------- смена сцен (их передают сценам как колбэки) ----------
     def show_menu(self):
-        self._next = lambda: MenuScene(on_play=self.show_newgame,
-                                       on_constructor=self.show_constructor,
-                                       on_instruction=self.show_instruction,
-                                       on_settings=self.show_settings,
-                                       on_quit=self.quit)
+        self._next = lambda: MenuScene(
+            on_play=self.show_newgame,
+            on_constructor=self.show_constructor,
+            on_instruction=self.show_instruction,
+            on_settings=self.show_settings,
+            on_stats=self.show_stats,
+            on_quit=self.quit)
 
     def show_newgame(self):
         self._next = lambda: NewGameScene(self.session, on_play=self.start_game,
@@ -70,9 +72,16 @@ class App:
     def show_instruction(self):
         self._next = lambda: InstructionScene(on_back=self.show_menu, on_quit=self.quit)
 
+    def show_stats(self):
+        self._next = lambda: StatsScene(self.session.career, on_back=self.show_menu, on_quit=self.quit)
+
+    def show_result(self, stats):
+        self._next = lambda: ResultScene(stats, self.session.career, on_again=self.show_newgame,
+                                         on_menu=self.show_menu, on_quit=self.quit)
+
     def start_game(self):
         self._next = lambda: PlayScene(self.seed, self.clock, self.session,
-                                       on_menu=self.show_menu, on_quit=self.quit)
+                                       on_result=self.show_result, on_quit=self.quit)
 
     def quit(self):
         self.running = False

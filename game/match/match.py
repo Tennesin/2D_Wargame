@@ -7,6 +7,7 @@ from structures import WallManager
 from world import TerrainMap, SpawnFinder
 
 from .context import GameContext
+from ..state.stats import MatchStats
 from .fleet import Fleet
 from .modes import Modes, Mode
 from .control.bots import BotController
@@ -31,10 +32,11 @@ class Match:
         self.terrain.preload()
         self.walls = WallManager()
         self.fleet = Fleet(player)
+        self.stats = MatchStats(player)
         self.ctx = GameContext(
             camera=camera, terrain=self.terrain, walls=self.walls, fleet=self.fleet,
             effects=EffectsSystem(), targets=TargetSet(self.walls, self.terrain, self.fleet),
-            notifier=notifier, settings=settings
+            notifier=notifier, settings=settings, match_stats=self.stats
         )
 
         # --- контроллеры игрока ---
@@ -51,6 +53,8 @@ class Match:
         self.spawner = BotSpawner(self.fleet, finder, camera, seed, prefs, settings)
         self.bot_ctrl = BotController(self.ctx)
         self.ram = RamController(self.ctx)
+        self.spawner.on_round_finished = self.stats.on_round_finished
+        self.fleet.on_destroyed = self.stats.on_enemy_destroyed
 
     @property
     def player(self):

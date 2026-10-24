@@ -35,6 +35,7 @@ class BotSpawner:
         self.spawned = 0                   # сколько ботов появилось за всю партию
         self.anchor = None                 # точка появления группы (мировые px) или None
         self.anchor_is_fallback = False    # анкер выбран запасным планом (у границы мира)
+        self.on_round_finished = None      # колбэк(): раунд завершён (для статистики)
 
         self._clock = 0.0
         self._t = 0.0                      # время в текущей фазе
@@ -100,6 +101,8 @@ class BotSpawner:
                     self._pick_anchor()                   # вдруг повезёт с другим местом
         else:
             if self._t >= self.settings.round_time_s or self.group_alive == 0:
+                if self.on_round_finished is not None:
+                    self.on_round_finished()
                 self._begin_round(self.round + 1)
 
     # ---------- начало раунда ----------

@@ -17,11 +17,12 @@ from ..view.play_view import PlayView
 from .base import Scene
 
 class PlayScene(Scene):
-    def __init__(self, seed, clock, session, on_menu, on_quit):
-        """session: настройки танка из конструктора."""
+    def __init__(self, seed, clock, session, on_result, on_quit):
+        """session: настройки танка из конструктора. on_result(stats): показать итоги боя."""
         self.on_quit = on_quit
-        WORLD.set_size(session.map_w_m, session.map_h_m)
-        size = pygame.display.get_surface().get_size()
+        self._on_result = on_result
+        self.career = session.career
+        self._finished = False
 
         self.seed = seed if seed is not None else random.randrange(1, 1_000_000)
         print(f"Seed мира: {self.seed}")
@@ -39,7 +40,7 @@ class PlayScene(Scene):
 
         # --- партия ---
         self.match = Match(self.seed, tank, self.camera, self.input, self.notifier,
-                           session.prefs, session.settings, on_exit=on_menu)
+                           session.prefs, session.settings, on_exit=self._leave)
 
         # --- связки интерфейса с партией ---
         self.match.modes.on_changed = self._on_mode_changed
@@ -58,9 +59,24 @@ class PlayScene(Scene):
         else:
             self.ui.close()
 
+    def _finish_match(self):
+        """Партия закончена - итог уходит в накопленную статистику."""
+        if self._finished:
+            return
+        self._finished = True
+        stats = self.match.stats
+        stats.stop()
+        stats.new_records = self.career.add_match(stats)
+
+    def _leave(self):
+        """Выход из партии (Esc): сначала итог, потом экран «Итоги боя»."""
+        self._finish_match()
+        self._on_result(self.match.stats)
+
     def update(self, dt):
         self.input.process_events()
         if self.input.quit_requested:
+            self._finish_match()
             self.on_quit()
             return
 
@@ -74,6 +90,8 @@ class PlayScene(Scene):
             self.view.handle_hotkeys()
 
         self.match.update(dt, size)
+        if not self.match.player.alive:
+            self._finish_match()                         # игрок погиб: итог записываем сразу, не дожидаясь Esc
         self.notifier.update(dt)
         self.wall_panel.update_stats()
 

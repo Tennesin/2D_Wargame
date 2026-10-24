@@ -18,6 +18,7 @@ class CombatController:
         self.effects = ctx.effects
         self.targets = ctx.targets
         self.settings = ctx.settings
+        self.match_stats = ctx.match_stats
 
     def update(self, dt):
         hits, ricochets, misses, blasts = self.effects.update(dt, self.targets)
@@ -45,8 +46,11 @@ class CombatController:
         full_pen = stats.penetration * im.power
         pen = pen_after_modules(target, full_pen, stats, im.x, im.y)
         res = target.hit_result(pen, im.cos, im.normal)
+        hp_before = getattr(target, "hp", 0.0)
         dealt = target.take_hit(pen, stats.damage * im.power, im.cos, im.normal,
                                 stats.min_frac, stats.caliber_mm)
+        if target.target_type is TargetType.VEHICLE:
+            self.match_stats.on_damage(im.owner, target, hp_before - target.hp, "shot", direct=True)
         if pen < full_pen:
             self.notifier.on_module_absorb(im.owner, target, target.module_at(im.x, im.y))
         self.notifier.on_hit(im.owner, target, im.normal, res, dealt, stats.min_frac)
@@ -80,7 +84,10 @@ class CombatController:
                 dealt, stunned = blast_damage(stats, dist, target.armor_facing(blast.x, blast.y))
             if dealt <= 0.0:
                 continue
+            real = min(dealt, target.hp)
             target.take_damage(dealt)
+            if target.target_type is TargetType.VEHICLE:
+                self.match_stats.on_damage(blast.owner, target, real, "shot")
             if stunned:
                 target.apply_stun(stats.stun_s)
             self.notifier.on_artillery(blast.owner, target, dealt, stunned)
@@ -102,7 +109,10 @@ class CombatController:
             dealt = splash_damage(base, stats.min_frac, dist, stats.aoe_radius_px)
             if dealt <= 0.0:
                 continue
+            real = min(dealt, target.hp)
             target.take_damage(dealt)
+            if target.target_type is TargetType.VEHICLE:
+                self.match_stats.on_damage(im.owner, target, real, "shot")
             self.notifier.on_splash(im.owner, target, dealt)
 
     @staticmethod

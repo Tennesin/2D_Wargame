@@ -11,6 +11,7 @@ class GameContext:
     targets: object
     notifier: object
     settings: object
+    match_stats: object
 
     def obstacles_for(self, vehicle):
         """Прямоугольники стен и чужой техники рядом с vehicle."""

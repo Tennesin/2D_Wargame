@@ -3,6 +3,7 @@ from engine import VehicleKind, WORLD_DEFAULT_M
 from vehicles import VEHICLE_TYPES, default_tuning, FRONT_SCREEN, NOSE_FLAT, SPECIAL_HEAT
 from .preferences import Preferences
 from .settings import GameSettings
+from .stats import Career
 
 class Session:
     def __init__(self):
@@ -13,6 +14,7 @@ class Session:
         self.values = {kind: self._defaults(t) for kind, t in VEHICLE_TYPES.items() if t.playable}
         self.prefs = Preferences()       # настройки меню: живут, пока открыто приложение
         self.settings = GameSettings()   # настройки меню «Настройки»
+        self.career = Career()           # накопленная статистика и рекорды (файл stats.json)
 
     @staticmethod
     def _defaults(vtype):

@@ -17,6 +17,9 @@ class TankController:
                                           follow_mouse=modes.turret_follow,
                                           combat=modes.combat)
         self.ctx.step_vehicle(self.tank, command, dt)
+        shot = self.ctx.step_vehicle(self.tank, command, dt)
+        if shot is not None:
+            self.ctx.match_stats.on_shot(shot.ammo.kind)
 
     def handle_hotkeys(self):
         for action, kind in zip(AMMO_HOTKEYS, self.tank.spec.ammo_kinds):

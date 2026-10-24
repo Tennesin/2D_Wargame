@@ -5,6 +5,7 @@ MENU_PLAY = "Играть"
 MENU_CONSTRUCTOR = "Конструктор"
 MENU_INSTRUCTION = "Инструкция"
 MENU_SETTINGS = "Настройки"
+MENU_STATS = "Статистика"
 MENU_QUIT = "Выйти"
 
 # Инструкция
@@ -48,6 +49,7 @@ HINT_TURRET_LOCKED = "Башня зафиксирована ({key})"
 KILLS = "Уничтожено: {n}"
 DEATH_TITLE = "Машина уничтожена"
 DEATH_HINT = "{key} — в меню"
+DEATH_HINT = "{key} — итоги боя"
 
 # Гусеницы
 TRACK_RU = {"left": "левая", "right": "правая"}
@@ -65,3 +67,37 @@ ROUND_ENEMIES = "Врагов в группе: {alive} / {total}"
 DISTANCE_FMT = "{:.0f} м"
 ZONE_RU = {"front": "в лоб", "side": "в борт", "rear": "в корму"}
 MODULE_ON = {"left": "гусенице", "right": "гусенице", "screen": "лобовом экране"}
+
+# Статистика и итоги боя
+STATS_TITLE = "Статистика"
+RESULT_TITLE = "Итоги боя"
+RESULT_AGAIN = "Играть снова"
+RESULT_TO_MENU = "В меню"
+STATS_NONE = "Нет данных"
+STATS_TOTAL = "Всего"
+STATS_RECORD_MARK = "   ★ рекорд!"
+
+STATS_SEC_GENERAL = "Общее"
+STATS_MATCHES = "Сыграно матчей"
+STATS_SEC_ROUNDS = "Раунды"
+STATS_ROUNDS = "Пройдено раундов"
+STATS_SEC_DAMAGE = "Нанесённый урон"
+STATS_BY_SHOTS = "Выстрелами"
+STATS_BY_RAM = "Тараном"
+STATS_SEC_KILLS = "Уничтожено врагов"
+STATS_SEC_FIRE = "Стрельба"
+STATS_ACCURACY = "Точность"
+STATS_HITS = "Попаданий с уроном"
+STATS_SHOTS = "Выпущено снарядов"
+STATS_SEC_AMMO = "Снаряды по видам"
+STATS_SEC_TAKEN = "Полученный урон"
+STATS_FROM_SHOTS = "От выстрелов"
+STATS_FROM_RAM = "От тарана"
+STATS_SEC_SOURCES = "Больше всего урона нанесли"
+STATS_SEC_RECORDS = "Рекорды"
+STATS_REC_ROUNDS = "Раундов за матч"
+STATS_REC_DAMAGE = "Урона за матч"
+STATS_REC_KILLS = "Врагов за матч"
+
+AMMO_RU = {"AP": "Бронебойные", "HEAT": "Кумулятивные",
+           "HESH": "HESH", "HE": "Осколочно-фугасные"}

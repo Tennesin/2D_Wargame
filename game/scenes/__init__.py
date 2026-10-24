@@ -6,6 +6,8 @@ from .constructor import ConstructorScene
 from .play import PlayScene
 from .settings import SettingsScene
 from .instruction import InstructionScene
+from .stats import StatsScene, ResultScene
 
 __all__ = ["Scene", "MenuScene", "ConstructorScene", "PlayScene",
-           "SettingsScene", "InstructionScene", "NewGameScene"]
+           "SettingsScene", "InstructionScene", "NewGameScene",
+           "StatsScene", "ResultScene"]
