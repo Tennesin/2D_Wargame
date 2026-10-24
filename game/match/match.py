@@ -4,7 +4,7 @@ notifier — приёмник сообщений о бое (его показы�
 from combat import EffectsSystem, TargetSet
 from inputs import Action
 from structures import WallManager
-from world import TerrainMap, SpawnFinder
+from world import TerrainMap, SpawnFinder, WorldBoundary
 
 from .context import GameContext
 from ..state.stats import MatchStats
@@ -35,7 +35,7 @@ class Match:
         self.stats = MatchStats(player)
         self.ctx = GameContext(
             camera=camera, terrain=self.terrain, walls=self.walls, fleet=self.fleet,
-            effects=EffectsSystem(), targets=TargetSet(self.walls, self.terrain, self.fleet),
+            effects=EffectsSystem(), targets=TargetSet(self.walls, self.terrain, self.fleet, WorldBoundary()),
             notifier=notifier, settings=settings, match_stats=self.stats
         )
 

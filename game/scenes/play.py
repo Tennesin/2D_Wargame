@@ -28,6 +28,8 @@ class PlayScene(Scene):
         print(f"Seed мира: {self.seed}")
 
         # --- интерфейс, ввод, танк ---
+        size = pygame.display.get_surface().get_size()
+        WORLD.set_size(session.map_w_m, session.map_h_m)
         self.camera = Camera(*size)
         self.ui = SidePanel(size, {PanelMode.WALL: build_wall_panel()}, PanelMode.WALL)
         self.toolbar = ToolBar()

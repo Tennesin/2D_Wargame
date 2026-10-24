@@ -48,7 +48,6 @@ HINT_STUNNED = "Оглушение: {t:.1f} с"
 HINT_TURRET_LOCKED = "Башня зафиксирована ({key})"
 KILLS = "Уничтожено: {n}"
 DEATH_TITLE = "Машина уничтожена"
-DEATH_HINT = "{key} — в меню"
 DEATH_HINT = "{key} — итоги боя"
 
 # Гусеницы
@@ -75,7 +74,7 @@ RESULT_AGAIN = "Играть снова"
 RESULT_TO_MENU = "В меню"
 STATS_NONE = "Нет данных"
 STATS_TOTAL = "Всего"
-STATS_RECORD_MARK = "   ★ рекорд!"
+STATS_RECORD_MARK = " рекорд!"
 
 STATS_SEC_GENERAL = "Общее"
 STATS_MATCHES = "Сыграно матчей"
