@@ -1,10 +1,12 @@
 """ai/artillery_brain.py — мозг САУ: держать дистанцию, отходить из мёртвой зоны, бить по упреждённой точке.
+Не стреляет, если фугас накроет союзника (при включённом friendly_fire).
 Тот же интерфейс, что у BotBrain: think(dt, me, enemy, ctx) -> VehicleCommand."""
 import math
 from enum import Enum, auto
 
 from engine import VehicleCommand, WORLD, PX_PER_M, TAU, clamp, bearing_deg
 from .gunnery import lead_point
+from .hazards import friendly_fire_on
 from .navigator import Navigator
 from .steering import steer_to, StuckGuard
 
@@ -20,6 +22,7 @@ FAR_K = 0.85             # дальше этого: подъезжаем
 RETREAT_ENTER_K = 1.4    # игрок ближе мёртвой зоны * этого: бежим
 RETREAT_EXIT_K = 2.2     # убежали дальше мёртвой зоны * этого: можно снова воевать
 RETREAT_STEP_M = 30.0    # на сколько метров вперёд ставим точку отхода
+RETREAT_TURN_COST_M = 0.15   # «цена» одного градуса отклонения от прямого отхода, м
 WORLD_MARGIN_M = 8.0     # путевые точки не ставим ближе этого к краю мира
 READY_S = 2.0            # перезарядка кончается меньше чем через столько секунд: считаем орудие готовым
 HOLD_MIN_S = 1.0         # минимальное время удержания намерения (против дрожания решений)
@@ -29,12 +32,19 @@ FIRE_MIN_K = 1.05        # стреляем, только если точка у
 FIRE_MAX_K = 0.98        # и ближе максимальной дальности * этого
 SCATTER_K = 0.05         # разброс падения: доля дистанции до точки (при 112 м около 5.6 м)
 
+# --- свои под ударом ---
+ALLY_MARGIN_M = 2.0      # запас вокруг взрыва, внутри которого союзник считается под ударом
+PREDICT_CAP_S = 3.0      # дальше этого вперёд движение союзника не предсказываем
+PENDING_S = 1.5          # орудие готово меньше чем через столько секунд: зона считается «собирается»
+
 class ArtilleryBrain:
     def __init__(self, arch, skill, rng):
         self.arch, self.skill, self.rng = arch, skill, rng
         self.intent = ArtyIntent.POSITION          # BotBrain._pick_flank_side читает intent у соседей
         self.stuck = StuckGuard()
         self.nav = Navigator(rng)
+        self.pending_zone = None                   # (x, y, радиус) места, куда САУ вот-вот выстрелит; читает HazardBoard
+        self.hold_reason = ""                      # "ally": не стреляю, чтобы не задеть своих (для отладки)
         self._hold = 0.0
         self._think_in = rng.uniform(0.0, 1.0 / skill.think_hz)   # сдвиг фаз между ботами
         self._heading, self._go = 0.0, 0.0
@@ -47,8 +57,9 @@ class ArtilleryBrain:
     # КАДР
     # ==========================================
     def think(self, dt, me, enemy, ctx):
-        """ctx — BotContext (нужны targets не нужны, но budget и nav нужны навигатору)."""
+        """ctx — BotContext (targets не нужны, но budget, nav и fleet нужны)."""
         if not enemy.alive:
+            self.pending_zone = None
             return VehicleCommand()
 
         self._hold -= dt
@@ -76,14 +87,25 @@ class ArtilleryBrain:
             throttle, steer = -1.0, self.stuck.turn
         self._was_reversing = reversing
 
-        return VehicleCommand(throttle=throttle, steer=steer, aim_point=aim,
-                              fire=self._can_fire(me, aim))
+        fire = self._can_fire(me, aim, ctx)
+        self._update_pending(me, aim, fire)
+        return VehicleCommand(throttle=throttle, steer=steer, aim_point=aim, fire=fire)
 
     # ==========================================
     # РЕШЕНИЕ
     # ==========================================
     def _decide(self, me, enemy, ctx):
         spec = me.spec
+
+        # зона чужого снаряда: сначала выбираемся из неё
+        board = ctx.hazards
+        exit_pt = board.escape_point(me) if board is not None and not me.stunned else None
+        if exit_pt is not None:
+            want = bearing_deg(me.x, me.y, *exit_pt)
+            heading, go = self.nav.drive_to(me, ctx, exit_pt, want, no_breach=True)
+            self._heading, self._go = (want, 1.0) if go == 0.0 else (heading, go)
+            return
+
         dx, dy = me.x - enemy.x, me.y - enemy.y          # вектор ОТ игрока КО МНЕ
         dist = math.hypot(dx, dy)
 
@@ -99,8 +121,7 @@ class ArtilleryBrain:
 
         ux, uy = (dx / dist, dy / dist) if dist > 1.0 else (0.0, 1.0)
         if self.intent is ArtyIntent.RETREAT:
-            step = RETREAT_STEP_M * PX_PER_M
-            goal = self._inside_world(me.x + ux * step, me.y + uy * step)
+            goal = self._retreat_goal(me, enemy, ux, uy)
         else:
             hold = spec.RANGE_MAX_PX * HOLD_K
             goal = self._inside_world(enemy.x + ux * hold, enemy.y + uy * hold)
@@ -136,6 +157,21 @@ class ArtilleryBrain:
         my = WORLD.half_h_px - WORLD_MARGIN_M * PX_PER_M
         return clamp(x, -mx, mx), clamp(y, -my, my)
 
+    def _retreat_goal(self, me, enemy, ux, uy):
+        """Куда отходить. Прямо от игрока; если там край мира (САУ в углу), то вбок:
+        выбираем точку, максимально далёкую от игрока, с небольшим штрафом за поворот."""
+        step = RETREAT_STEP_M * PX_PER_M
+        best, best_score = None, None
+        for deg in (0.0, 45.0, -45.0, 90.0, -90.0):
+            a = math.radians(deg)
+            c, s = math.cos(a), math.sin(a)
+            dx, dy = ux * c - uy * s, ux * s + uy * c
+            gx, gy = self._inside_world(me.x + dx * step, me.y + dy * step)
+            score = math.hypot(gx - enemy.x, gy - enemy.y) - abs(deg) * RETREAT_TURN_COST_M * PX_PER_M
+            if best_score is None or score > best_score:
+                best, best_score = (gx, gy), score
+        return best
+
     # ==========================================
     # ОГОНЬ
     # ==========================================
@@ -157,12 +193,48 @@ class ArtilleryBrain:
         spread = math.hypot(px - me.x, py - me.y) * SCATTER_K
         return px + self._sx * spread, py + self._sy * spread
 
-    @staticmethod
-    def _can_fire(me, aim):
-        """Просим огонь, только если точка упреждения в допустимом кольце. Остальное
-        (перезарядка, оглушение, довод орудия) проверяет сама ArtilleryVehicle._try_fire."""
+    def _can_fire(self, me, aim, ctx):
+        """Просим огонь, только если точка в допустимом кольце и взрыв не заденет своих.
+        Остальное (перезарядка, оглушение, довод орудия) проверяет ArtilleryVehicle._try_fire."""
+        self.hold_reason = ""
         if me.stunned:
             return False
         spec = me.spec
         d = math.hypot(aim[0] - me.x, aim[1] - me.y)
-        return spec.RANGE_MIN_PX * FIRE_MIN_K <= d <= spec.RANGE_MAX_PX * FIRE_MAX_K
+        if not (spec.RANGE_MIN_PX * FIRE_MIN_K <= d <= spec.RANGE_MAX_PX * FIRE_MAX_K):
+            return False
+        if self._ally_in_blast(me, aim, d, ctx):
+            self.hold_reason = "ally"
+            return False
+        return True
+
+    @staticmethod
+    def _ally_in_blast(me, aim, dist, ctx):
+        """Заденет ли взрыв в точке aim союзника. Снаряд падает ровно в aim (тот же кадр, что и выстрел),
+        поэтому разброс учитывать не нужно. Союзник проверяется сейчас и по ходу полёта снаряда
+        (его движение предсказывается не дальше PREDICT_CAP_S)."""
+        if not friendly_fire_on(ctx):
+            return False
+        stats = me.spec.shell_stats
+        flight = min(dist / stats.speed_px, PREDICT_CAP_S)
+        danger = stats.outer_radius_px + ALLY_MARGIN_M * PX_PER_M
+        for b in ctx.fleet.bots:
+            ally = b.tank
+            if ally is me or not ally.alive:
+                continue
+            vx, vy = ally.velocity_px()
+            reach = danger + ally.spec.HULL_REACH_PX
+            for f in (0.0, 0.5, 1.0):
+                t = flight * f
+                if math.hypot(aim[0] - (ally.x + vx * t), aim[1] - (ally.y + vy * t)) < reach:
+                    return True
+        return False
+
+    def _update_pending(self, me, aim, can_fire):
+        """Публикуем «зону, куда я сейчас выстрелю»: боты снаружи не полезут туда, пока снаряд не полетит."""
+        ready = can_fire and self.intent is ArtyIntent.FIRE and me.reload_left <= PENDING_S
+        if not ready:
+            self.pending_zone = None
+            return
+        d = math.hypot(aim[0] - me.x, aim[1] - me.y)
+        self.pending_zone = (aim[0], aim[1], me.spec.shell_stats.outer_radius_px + d * SCATTER_K)

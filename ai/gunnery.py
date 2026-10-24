@@ -179,11 +179,15 @@ def ammo_value(me, target, kind, normal, cos_i, point):
     dps = stats.damage * max(frac, stats.min_frac) / stats.reload      # min_frac: гарантия осколков фугаса
     return dps * (stats.speed_px / me.spec.SHELL_SPEED_PX) ** AMMO_SPEED_EXP
 
-def best_ammo(me, target, normal, cos_i, point):
-    """Лучший тип снаряда по цели. Текущий меняем, только если выигрыш заметный (гистерезис)."""
-    scores = {k: ammo_value(me, target, k, normal, cos_i, point) for k in me.spec.ammo_kinds}
+def best_ammo(me, target, normal, cos_i, point, banned=()):
+    """Лучший тип снаряда по цели. Текущий меняем, только если выигрыш заметный (гистерезис).
+    banned: типы, которыми сейчас бить нельзя (если запрещён текущий, уходим с него при любом выигрыше)."""
+    scores = {k: ammo_value(me, target, k, normal, cos_i, point)
+              for k in me.spec.ammo_kinds if k not in banned}
+    if not scores:
+        return me.ammo
     best = max(scores, key=scores.get)
-    if scores[best] <= scores[me.ammo] * AMMO_SWITCH_GAIN:
+    if best is me.ammo or scores[best] <= scores.get(me.ammo, 0.0) * AMMO_SWITCH_GAIN:
         return me.ammo
     return best
 

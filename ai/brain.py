@@ -13,6 +13,8 @@ from .gunnery import (lead_point, evaluate_matchup,
 from .navigator import Navigator
 from .breach import BreachPlanner
 from .cover_planner import CoverPlanner, COVER_RETRY_S
+from vehicles import ammo_stats
+from .hazards import friendly_fire_on, allies_near, ALLY_SPLASH_MARGIN_M
 
 class Intent(Enum):
     ADVANCE = auto()
@@ -79,6 +81,7 @@ class BotBrain:
         self._react_left = None                                   # None: чистой линии огня нет
         self._futile_t = 0.0                                      # сколько секунд подряд бить нечем
         self._was_reversing = False
+        self._banned = ()                                         # типы снарядов, которыми сейчас нельзя бить
         self._m_key = None
         self._m = None
 
@@ -129,6 +132,9 @@ class BotBrain:
     # РЕШЕНИЕ
     # ==========================================
     def _decide(self, me, enemy, ctx):
+        self._banned = self._splash_banned(me, enemy, ctx)
+        if self._evade(me, ctx):                                  # выбираемся из зоны обстрела САУ
+            return
         dist = math.hypot(enemy.x - me.x, enemy.y - me.y)
         engage = preferred_distance_m(me, enemy, self.arch.engage_dist_m, self.arch.edge_k) * PX_PER_M
         tick = 1.0 / self.skill.think_hz
@@ -195,6 +201,39 @@ class BotBrain:
         self._heading, self._go = want, go
 
     # ---------- связки с планировщиками ----------
+
+    def _evade(self, me, ctx):
+        """Бот внутри зоны летящего снаряда САУ: бросаем всё и едем к ближайшей точке за кромкой.
+        True: команда выставлена, остальное решение пропускаем."""
+        board = ctx.hazards
+        if board is None or me.stunned:
+            return False
+        exit_pt = board.escape_point(me)
+        if exit_pt is None:
+            return False
+        if self.intent is Intent.BREACH:
+            self._stop_breach()
+        elif self.intent is Intent.COVER:
+            self.cover.abort(COVER_RETRY_S)
+            self.intent = Intent.ADVANCE
+        self._hold = 0.0                                          # вышли из зоны: намерение выберем заново
+        want = bearing_deg(me.x, me.y, *exit_pt)
+        heading, go = self.nav.drive_to(me, ctx, exit_pt, want, no_breach=True)
+        self._heading, self._go = (want, 1.0) if go == 0.0 else (heading, go)   # нет пути: едем напрямик
+        return True
+
+    def _splash_banned(self, me, enemy, ctx):
+        """Осколочные снаряды (ФГ, HESH), которыми нельзя бить врага: рядом с ним свой танк, а friendly_fire включён."""
+        if not friendly_fire_on(ctx):
+            return ()
+        banned = []
+        for kind in me.spec.ammo_kinds:
+            radius = ammo_stats(me.spec, kind).aoe_radius_px
+            if radius > 0.0 and allies_near(ctx, me, enemy.x, enemy.y,
+                                            radius + ALLY_SPLASH_MARGIN_M * PX_PER_M):
+                banned.append(kind)
+        return tuple(banned)
+
     def _drive(self, me, ctx, goal, want):
         """Езда к цели по пути A*. None: началось прорыв стены."""
         return self.nav.drive_to(me, ctx, goal, want,
@@ -351,7 +390,7 @@ class BotBrain:
             kind = best_ammo(me, wall, None, BREACH_AMMO_COS, None)
         else:
             normal, cos_i, point = shot_geometry(me, enemy)
-            kind = best_ammo(me, enemy, normal, cos_i, point)
+            kind = best_ammo(me, enemy, normal, cos_i, point, self._banned)
         if kind is not me.ammo:
             me.select_ammo(kind)
 
@@ -370,6 +409,12 @@ class BotBrain:
         frac = 0.0 if res is None else max(res.damage_frac, info.min_frac)   # фугас бьёт осколками и сквозь броню
         if not (info.target is target and res is not None and frac >= min_frac):
             self._react_left = None
+            return False
+
+        stats = me.round_stats()
+        if (stats.aoe_radius_px > 0.0 and friendly_fire_on(ctx)
+                and allies_near(ctx, me, *info.end, stats.aoe_radius_px + ALLY_SPLASH_MARGIN_M * PX_PER_M)):
+            self._react_left = None                               # осколки заденут своего: не стреляем
             return False
 
         if self._react_left is None:                              # линия огня только что появилась

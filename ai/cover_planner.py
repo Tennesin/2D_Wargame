@@ -115,6 +115,10 @@ class CoverPlanner:
             return self._leave(COVER_FIGHT_S)
         return True
 
+    def abort(self, cooldown):
+        """Принудительно выйти из укрытия (например, под обстрелом САУ)."""
+        self._leave(cooldown)
+
     def _leave(self, cooldown):
         """Выход из укрытия. Всегда возвращает False (удобно для step)."""
         self._pt = None

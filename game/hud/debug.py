@@ -23,6 +23,7 @@ class DebugOverlay:
         self.modes = modes
         self.walls = ctx.walls
         self.fleet = ctx.fleet
+        self.effects = ctx.effects
         self.spawner = spawner
         self.visible = False
         self.show_fps = show_fps
@@ -61,6 +62,7 @@ class DebugOverlay:
             f"Combat ({k[Action.COMBAT]}): {'ON' if self.modes.combat else 'OFF'}",
             f"Speed: {t.speed_kmh:.1f} km/h",
             f"Terrain speed k: {t.terrain_k:.2f}",
+            f"Arty: {self._arty_status()}  shells in flight {len(self.effects.artillery_shells)}",
             f"Round {self.spawner.round} {self.spawner.phase.name}  left {self.spawner.time_left:.0f}s  "
             f"bots {len(self.fleet.bots)}  spawned {self.spawner.spawned}",
             f"Fit: {self.spawner.fit_info}",
@@ -82,6 +84,18 @@ class DebugOverlay:
             screen.blit(shadow, (11, y + 1))
             screen.blit(label, (10, y))
             y += self.LINE_H
+
+    def _arty_status(self):
+        """Сколько САУ, сколько из них не стреляют из-за своих и сколько готовы к выстрелу."""
+        total = hold = pending = 0
+        for b in self.fleet.bots:
+            brain = b.brain
+            if not hasattr(brain, "pending_zone"):
+                continue
+            total += 1
+            hold += brain.hold_reason == "ally"
+            pending += brain.pending_zone is not None
+        return f"{total}  hold(ally) {hold}  pending {pending}" if total else "-"
 
     def _bot_hulls(self):
         """Сколько ботов каждого вида."""

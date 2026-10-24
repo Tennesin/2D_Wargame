@@ -3,6 +3,7 @@ import math
 
 from engine import PX_PER_M, heading_vector, bearing_deg
 from .pathfinding import find_path
+from .hazards import safe_goal
 
 MIN_REPLAN_S = 0.5           # быстрее этого путь не перестраивается даже при смене цели
 REPLAN_S = 1.5               # период перепланирования (с разбросом ±20%)
@@ -13,6 +14,7 @@ STUCK_SPOT_S = 12.0          # сколько секунд помним мест
 BREACH_TRIGGER_M = 25.0      # стена на пути ближе этого: пора решать, ломать ли её
 REVERSE_CHECK_M = 5.0        # на сколько метров назад смотрим, прежде чем сдавать задом
 STUCK_MARK_AHEAD_M = 4.0     # на сколько метров впереди ставим пометку «здесь застряли»
+HAZARD_WAIT_PX = 2.5 * PX_PER_M   # у кромки зоны обстрела ближе этого: стоим и ждём падения
 
 class Navigator:
     def __init__(self, rng):
@@ -22,6 +24,7 @@ class Navigator:
         self._plan_age = 0.0                  # сколько секунд текущему пути
         self._forbidden = {}                  # id стены -> секунд до снятия запрета
         self._bad_spots = []                  # [[x, y, ttl], ...] места застревания
+        self._hazard_sig = ()                 # какие зоны обстрела учтены в текущем пути
 
     def tick(self, dt):
         """Таймеры пути и забывание запретов и плохих мест."""
@@ -56,7 +59,7 @@ class Navigator:
                 return True
         return False
 
-    def _plan(self, me, ctx, goal, no_breach=False):
+    def _plan(self, me, ctx, goal, no_breach=False, hazards=()):
         """Текущий путь; перестраивается по таймеру, при смене цели, при уходе с пути и по прибытии.
         Если лимит построений на этот кадр выбран, возвращается прежний путь (или None)."""
         p = self._path
@@ -69,18 +72,31 @@ class Navigator:
             if not ctx.budget.try_take():
                 return p                                          # повторим при следующем «размышлении»
             self._path = find_path(me, goal, ctx.walls, ctx.nav,
-                                   self._forbidden, self._bad_spots, no_breach)
+                                   self._forbidden, self._bad_spots, no_breach, hazards)
             self._replan_in = REPLAN_S * self.rng.uniform(0.8, 1.2)
             self._plan_age = 0.0
         return self._path
 
+    @staticmethod
+    def _zones(me, ctx):
+        board = getattr(ctx, "hazards", None)
+        return board.zones(me) if board is not None else ()
+
     def drive_to(self, me, ctx, goal, want, no_breach=False, on_wall=None):
-        """Курс и газ при езде к goal: (курс, газ).
-        Если на пути близко стена, вызывается on_wall(wall): True значит «прорыв начат», и тогда
-        возвращается None (управление взял прорыв). Иначе стена считается глухой на FORBID_WALL_S.
-        Нет пути: стоим и поворачиваемся к want."""
+        """Курс и газ при езде к goal: (курс, газ)."""
+        zones = self._zones(me, ctx)
+        hard = tuple(z for z in zones if not z.soft)
+        sig = tuple(z.key for z in hard)
+        if sig != self._hazard_sig:                               # появилась или упала зона: путь устарел
+            self._hazard_sig = sig
+            self.invalidate()
+        if zones:
+            goal, waiting = safe_goal(me, goal, zones)
+            if waiting and math.hypot(goal[0] - me.x, goal[1] - me.y) < HAZARD_WAIT_PX:
+                return want, 0.0                                  # дошли до кромки: стоим лицом к врагу
+
         for _ in range(2):              # второй проход нужен после запрета непробиваемой стены
-            path = self._plan(me, ctx, goal, no_breach)
+            path = self._plan(me, ctx, goal, no_breach, hard)
             if path is None:
                 break
             wall = path.breach_wall
