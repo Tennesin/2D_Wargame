@@ -19,7 +19,8 @@ ROW_GAP = 8
 SECTION_GAP = 16
 TITLE_BLOCK_H = 64
 AFTER_GAP = 24
-BACK_W, BACK_H = 260, 52
+BTN_W, BTN_H = 212, 52
+BTN_GAP = 16
 BUTTON_FONT = 24
 
 class SettingsScene(Scene):
@@ -50,7 +51,8 @@ class SettingsScene(Scene):
         self.toggles = [(self.show_fps_box, "show_fps"),
                         (self.rock_box, "rock_hurts_tank"),
                         (self.ff_box, "friendly_fire")]
-        self.back_button = Button((0, 0, BACK_W, BACK_H), texts.BACK)
+        self.back_button = Button((0, 0, BTN_W, BTN_H), texts.BACK)
+        self.save_button = Button((0, 0, BTN_W, BTN_H), texts.SETTINGS_SAVE)
 
         self._drag = False                      # тянут ли ползунок времени раунда
         self._size = None
@@ -86,8 +88,9 @@ class SettingsScene(Scene):
         y += self.ff_hint.height
 
         y += AFTER_GAP
-        self.back_button.rect.midtop = (x + COL_W // 2, y)
-        return y + BACK_H - top
+        self.back_button.rect.topleft = (x, y)
+        self.save_button.rect.topleft = (x + BTN_W + BTN_GAP, y)
+        return y + BTN_H - top
 
     def _layout(self, size):
         """Центрированная колонка. Первый проход считает высоту, второй ставит по центру окна."""
@@ -118,6 +121,9 @@ class SettingsScene(Scene):
                 if self.back_button.collidepoint(event.pos):
                     self.on_back()
                     return
+                if self.save_button.collidepoint(event.pos):
+                    self.settings.save()
+                    continue
                 choice = self.fps_row.hit(event.pos)
                 if choice is not None:
                     self.fps_row.value = choice
@@ -136,6 +142,7 @@ class SettingsScene(Scene):
                 self._drag_to(event.pos[0])
             elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
                 self._drag = False
+        self.save_button.enabled = not self.settings.is_saved()
 
     def draw(self, screen):
         screen.fill(BG)
@@ -153,3 +160,4 @@ class SettingsScene(Scene):
         self.ff_box.draw(screen, mouse)
         self.ff_hint.draw(screen, mouse)
         self.back_button.draw(screen, mouse, font_size=BUTTON_FONT)
+        self.save_button.draw(screen, mouse, font_size=BUTTON_FONT)
