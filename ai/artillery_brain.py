@@ -5,11 +5,11 @@ import math
 from enum import Enum, auto
 
 from engine import VehicleCommand, WORLD, PX_PER_M, TAU, clamp, bearing_deg, heading_vector
-from .gunnery import lead_point
-from .hazards import friendly_fire_on
-from .navigator import Navigator
-from .steering import steer_to, StuckGuard
-from .avoidance import AllyAvoider
+from .tactics.gunnery import lead_point
+from .team.hazards import friendly_fire_on
+from .movement.navigator import Navigator
+from .movement.steering import steer_to, StuckGuard
+from .team.avoidance import AllyAvoider
 
 class ArtyIntent(Enum):
     POSITION = auto()    # ехать на выгодную дистанцию

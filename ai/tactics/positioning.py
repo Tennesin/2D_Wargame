@@ -1,4 +1,4 @@
-"""ai/positioning.py — огневая позиция: точка на нужной дистанции от цели с чистой линией огня."""
+"""ai/tactics/positioning.py — огневая позиция: точка на нужной дистанции от цели с чистой линией огня."""
 import math
 
 from engine import PX_PER_M, WORLD, bearing_deg, heading_vector, shortest_angle_diff

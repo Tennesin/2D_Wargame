@@ -1,4 +1,4 @@
-"""ai/counter.py — «умный» спавн: профиль игрока -> множители шансов архетипов."""
+"""ai/roster/counter.py — «умный» спавн: профиль игрока -> множители шансов архетипов."""
 from engine import clamp
 from vehicles import VEHICLE_TYPES, LOOK_FRONT_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO
 

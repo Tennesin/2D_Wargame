@@ -3,7 +3,7 @@
 from engine import Team
 from vehicles import VEHICLE_TYPES, make_vehicle
 from ai import ARCHETYPES, fit_loadout, threat_profile, counter_multipliers
-from ai.loadout import loadout_cost
+from ai.roster.loadout import loadout_cost
 from .schedule import (round_budgets, artillery_slots, UNLOCKS, ARTILLERY_KEY,
                        EARLY_UNLOCK_ROUND, EARLY_UNLOCK_MULT, REPEAT_K)
 

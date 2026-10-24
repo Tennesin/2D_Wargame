@@ -1,4 +1,4 @@
-"""ai/cover.py — укрытия: поиск места, закрытого от врага камнем или стеной, и «куда смотрит игрок»."""
+"""ai/tactics/cover.py — укрытия: поиск места, закрытого от врага камнем или стеной, и «куда смотрит игрок»."""
 import math
 
 from engine import PX_PER_M, shortest_angle_diff, bearing_deg

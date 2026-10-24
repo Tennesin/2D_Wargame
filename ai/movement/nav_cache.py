@@ -1,4 +1,4 @@
-"""ai/nav_cache.py — кэш рельефа для A*: расстояние до твёрдых пятен и вязкость по клеткам."""
+"""ai/movement/nav_cache.py — кэш рельефа для A*: расстояние до твёрдых пятен и вязкость по клеткам."""
 import math
 
 from vehicles.chassis.params import TERRAIN_MIN_K

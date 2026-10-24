@@ -1,4 +1,4 @@
-"""ai/archetypes.py — архетипы: профиль сборки + доктрина поведения."""
+"""ai/roster/archetypes.py — архетипы: профиль сборки + доктрина поведения."""
 from dataclasses import dataclass, field
 from typing import Optional
 from engine import VehicleKind

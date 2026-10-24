@@ -1,4 +1,4 @@
-"""ai/gunnery.py — упреждение, оценка урона по граням, точка фланга."""
+"""ai/tactics/gunnery.py — упреждение, оценка урона по граням, точка фланга."""
 import math
 from dataclasses import dataclass
 

@@ -1,8 +1,8 @@
-"""ai/breach.py — прорыв стены, которая мешает: выбор точки, проверка выгоды, подъезд."""
+"""ai/tactics/breach.py — прорыв стены, которая мешает: выбор точки, проверка выгоды, подъезд."""
 import math
 
 from engine import PX_PER_M, heading_vector, bearing_deg
-from .gunnery import seconds_to_break, BREACH_MAX_S, MIN_USEFUL_DAMAGE
+from ai.tactics.gunnery import seconds_to_break, BREACH_MAX_S, MIN_USEFUL_DAMAGE
 
 BREACH_RANGE_M = 14.0        # с какого расстояния стреляем по стене
 BREACH_RESERVE_S = 6.0       # запас времени на доводку и рикошеты

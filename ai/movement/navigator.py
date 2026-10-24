@@ -1,9 +1,9 @@
-"""ai/navigator.py — путь A*: планирование по таймеру, запреты на стены, «плохие места», езда к точке."""
+"""ai/movement/navigator.py — путь A*: планирование по таймеру, запреты на стены, «плохие места», езда к точке."""
 import math
 
 from engine import PX_PER_M, heading_vector, bearing_deg
 from .pathfinding import find_path
-from .hazards import safe_goal
+from ..team.hazards import safe_goal
 
 MIN_REPLAN_S = 0.5           # быстрее этого путь не перестраивается даже при смене цели
 REPLAN_S = 1.5               # период перепланирования (с разбросом ±20%)

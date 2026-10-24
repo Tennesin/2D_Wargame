@@ -5,18 +5,18 @@ from enum import Enum, auto
 
 from engine import VehicleCommand, shortest_angle_diff, clamp, PX_PER_M, heading_vector, bearing_deg
 from combat import compute_aim
-from .steering import steer_to, StuckGuard
-from .gunnery import (lead_point, evaluate_matchup,
-                      outflank_feasibility, preferred_distance_m, best_hull_heading,
-                      shot_fraction_now, shot_geometry, best_ammo,
-                      MIN_USEFUL_DAMAGE, NO_DAMAGE)
-from .navigator import Navigator
-from .breach import BreachPlanner
-from .cover_planner import CoverPlanner, COVER_RETRY_S
+from .movement.steering import steer_to, StuckGuard
+from .tactics.gunnery import (lead_point, evaluate_matchup,
+                              outflank_feasibility, preferred_distance_m, best_hull_heading,
+                              shot_fraction_now, shot_geometry, best_ammo,
+                              MIN_USEFUL_DAMAGE, NO_DAMAGE)
+from .movement.navigator import Navigator
+from .tactics.breach import BreachPlanner
+from .tactics.cover_planner import CoverPlanner, COVER_RETRY_S
 from vehicles import ammo_stats
-from .hazards import friendly_fire_on, allies_near, ALLY_SPLASH_MARGIN_M
-from .avoidance import AllyAvoider
-from .positioning import FirePositionPlanner, has_line
+from .team.hazards import friendly_fire_on, allies_near, ALLY_SPLASH_MARGIN_M
+from .team.avoidance import AllyAvoider
+from .tactics.positioning import FirePositionPlanner, has_line
 
 class Intent(Enum):
     ADVANCE = auto()
@@ -152,6 +152,8 @@ class BotBrain:
         engage = preferred_distance_m(me, enemy, self.arch.engage_dist_m, self.arch.edge_k) * PX_PER_M
         tick = 1.0 / self.skill.think_hz
         futile = self._update_futile(me, enemy, dist, tick)
+        squad = getattr(ctx, "squad", None)
+        focus = squad.focus if squad is not None else None
 
         if self.intent is Intent.BREACH:                          # идёт прорыв
             if self.breach.finished():
@@ -173,10 +175,10 @@ class BotBrain:
 
         # бить нечем: не ждём конца гистерезиса, сразу пересматриваем
         if self._hold <= 0.0 or arrived or (futile and self.intent in (Intent.ENGAGE, Intent.ADVANCE)):
-            intent = self._choose(me, enemy, dist, engage, futile)
+            intent = self._choose(me, enemy, dist, engage, futile, focus)
             if intent is Intent.COVER and not self.cover.begin(me, enemy, ctx):
                 self.cover.block(COVER_RETRY_S)                   # укрытия нет: выбираем без него
-                intent = self._choose(me, enemy, dist, engage, futile)
+                intent = self._choose(me, enemy, dist, engage, futile, focus)
             if intent is not self.intent:
                 self.nav.invalidate()
                 self.firepos.invalidate()

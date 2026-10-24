@@ -1,8 +1,8 @@
-"""ai/squad.py — общая «доска» ботов: сектора вокруг игрока и тот, на кого смотрит игрок."""
+"""ai/team/squad.py — общая «доска» ботов: сектора вокруг игрока и тот, на кого смотрит игрок."""
 import math
 
 from engine import bearing_deg, clamp, shortest_angle_diff
-from .cover import attention
+from ..tactics.cover import attention
 
 SEP_MIN_DEG, SEP_MAX_DEG = 35.0, 90.0     # угловой разнос между соседними ботами
 

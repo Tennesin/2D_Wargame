@@ -1,10 +1,10 @@
-"""ai/cover_planner.py — поведение «спрятаться и ждать»: поездка к укрытию, ожидание, выход.
+"""ai/tactics/cover_planner.py — поведение «спрятаться и ждать»: поездка к укрытию, ожидание, выход.
 Само место укрытия ищет ai/cover.py. Команду (курс, газ) планировщик кладёт в поля heading и go."""
 import math
 
 from engine import PX_PER_M, bearing_deg
-from .cover import find_cover, shield_between, attention
-from .gunnery import best_hull_heading
+from ai.tactics.cover import find_cover, shield_between, attention
+from ai.tactics.gunnery import best_hull_heading
 
 COVER_ARRIVE_M = 4.5         # приехали к точке укрытия
 COVER_HOLD_M = 7.0           # уже спрятан и ближе этого к точке: можно ждать

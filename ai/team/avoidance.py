@@ -1,4 +1,4 @@
-"""ai/avoidance.py — локальное избегание союзников: объезд и ограничение скорости сближения."""
+"""ai/team/avoidance.py — локальное избегание союзников: объезд и ограничение скорости сближения."""
 import math
 
 from engine import PX_PER_M, clamp, heading_vector

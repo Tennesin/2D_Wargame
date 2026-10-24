@@ -1,10 +1,10 @@
-"""ai/pathfinding.py — локальная навигационная сетка и A* для ботов."""
+"""ai/movement/pathfinding.py — локальная навигационная сетка и A* для ботов."""
 import heapq
 import math
 
 from vehicles.chassis.params import KMH_TO_PX
 from engine import PX_PER_M, WORLD
-from .gunnery import seconds_to_break, BREACH_MAX_S, MIN_USEFUL_DAMAGE
+from ..tactics.gunnery import seconds_to_break, BREACH_MAX_S, MIN_USEFUL_DAMAGE
 from .nav_cache import seg_dist2, CELL_PX, CHUNK_CELLS
 
 # ==========================================

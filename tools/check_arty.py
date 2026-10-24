@@ -3,7 +3,7 @@
 import random
 
 from ai import Archetype, fit_loadout
-from ai.loadout import loadout_cost
+from ai.roster.loadout import loadout_cost
 from engine import PX_PER_M, VehicleCommand, VehicleKind
 from vehicles import VEHICLE_TYPES, SPG_PARAMS, SPGSpec, make_vehicle
 

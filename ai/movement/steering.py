@@ -1,4 +1,4 @@
-"""ai/steering.py — курс, «щупальца» вперёд, анти-застревание."""
+"""ai/movement/steering.py — курс, «щупальца» вперёд, анти-застревание."""
 import math
 
 from engine import shortest_angle_diff, clamp
