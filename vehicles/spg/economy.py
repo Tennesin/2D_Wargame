@@ -26,6 +26,5 @@ def spg_loadout_cost(values):
                         values["rear_armor_mm"], values["engine_power_hp"])
 
 def spg_extra_values(values, arch, tune, screen):
-    """Хук VehicleType.extra_values: у САУ орудие не настраивается (нет урона, пробития, носа, экранов),
-    поэтому к значениям ползунков ничего не добавляем."""
-    return values
+    """Хук VehicleType.extra_values: у САУ орудие не настраивается."""
+    return {key: SPG_PARAMS[key].fit(v) for key, v in values.items()}

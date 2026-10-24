@@ -105,7 +105,8 @@ class ArtyGunSpec(GunSpec):
         self.dps = self.damage / self.reload
 
     def _calc_shot(self):
-        super()._calc_shot()           # визуальные части выстрела и взрыва по калибру
+        super()._calc_shot()
+        self.RECOIL_DEPTH_M *= SPG_RECOIL_K
         cal, sk = self.cal, self._size_k
         kc = cal / SPG_REF_CAL
         t = clamp((cal - _CAL.min) / (_CAL.max - _CAL.min), 0.0, 1.0)

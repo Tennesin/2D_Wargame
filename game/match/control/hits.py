@@ -2,7 +2,7 @@
 import math
 
 from engine import TargetType
-from combat import compute_aim, splash_damage, pen_after_modules
+from combat import compute_aim, splash_damage, pen_after_modules, blast_damage
 from ..modes import Mode
 
 SPLASH_ORIGIN_PUSH_PX = 3.0      # на сколько px точка взрыва отодвигается от грани, в которую попал снаряд
@@ -20,12 +20,13 @@ class CombatController:
         self.settings = ctx.settings
 
     def update(self, dt):
-        hits, ricochets, misses = self.effects.update(dt, self.targets)
+        hits, ricochets, misses, blasts = self.effects.update(dt, self.targets)
         for owner, target in ricochets:
             self.notifier.on_ricochet(owner, target)
         for owner in misses:
             self.notifier.on_miss(owner)
         self._apply_hits(hits)
+        self._apply_blasts(blasts)
 
     def _apply_hits(self, impacts):
         """Попадание: прямой урон по правилам armor.py (стена и танк одинаково), затем взрыв, если он есть."""
@@ -56,6 +57,33 @@ class CombatController:
             if stats.stun_s > 0.0:                       # оглушает только прямое попадание, осколки нет
                 target.apply_stun(stats.stun_s)
                 self.notifier.on_stun(im.owner, target)
+
+    # ---------- взрывы САУ ----------
+    def _apply_blasts(self, blasts):
+        """Падение снарядов САУ: урон по площади, оглушение, поломка стен."""
+        if not blasts:
+            return
+        for blast in blasts:
+            self._blast(blast)
+        self.walls.remove_dead()
+        self.fleet.remove_dead()
+
+    def _blast(self, blast):
+        """Арт-обстрел бьёт сквозь стены и камни (преграды не проверяются)."""
+        stats = blast.stats
+        shooter = None if self.settings.friendly_fire else blast.owner
+        for target, dist in self.targets.in_circle(blast.x, blast.y, stats.outer_radius_px, ignore=shooter):
+            if target.target_type is TargetType.WALL:
+                dealt, stunned = blast_damage(stats, dist, None, stats.wall_k)
+                stunned = False                                  # стены не оглушаются
+            else:
+                dealt, stunned = blast_damage(stats, dist, target.armor_facing(blast.x, blast.y))
+            if dealt <= 0.0:
+                continue
+            target.take_damage(dealt)
+            if stunned:
+                target.apply_stun(stats.stun_s)
+            self.notifier.on_artillery(blast.owner, target, dealt, stunned)
 
     # ---------- осколки ----------
     def _splash(self, im):

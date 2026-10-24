@@ -9,6 +9,7 @@ from ..hud.round_overlay import RoundOverlay
 from ..hud.spawn_warning import SpawnWarning
 from ..hud.status import HudOverlay
 from ..hud.stun_indicator import StunIndicator
+from ..hud.artillery_warning import ArtilleryWarning
 from .world_renderer import Renderer
 
 class PlayView:
@@ -25,6 +26,7 @@ class PlayView:
         self.markers = BotMarkers(match.fleet, match.camera)
         self.stun_indicator = StunIndicator(match.fleet, match.camera)
         self.warning = SpawnWarning(match.spawner, match.camera)
+        self.artillery_warning = ArtilleryWarning(ctx.effects, match.camera)
         self.debug = DebugOverlay(clock=clock, ctx=ctx, camera_ctrl=match.camera_ctrl, tank=match.player,
                                   world=world, seed=match.seed, input_handler=match.input,
                                   modes=match.modes, spawner=match.spawner,
@@ -45,6 +47,7 @@ class PlayView:
         self.renderer.draw(screen, m.camera, m.wall_editor.build_preview(), m.combat.aim_info())
         self.markers.draw(screen)
         self.stun_indicator.draw(screen)
+        self.artillery_warning.draw(screen)
         if alive:
             self.warning.draw(screen)
         self.debug.draw(screen)

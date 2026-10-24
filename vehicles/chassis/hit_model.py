@@ -91,6 +91,23 @@ class HitModelMixin:
         normal = vec_from_local(nu, nv, hull_deg)
         return self.armor_at(normal, hull_deg), cos_i
 
+    def armor_facing(self, x, y):
+        """Броня грани, ближайшей к точке (x, y) (мм). Нужна взрывам по площади: у них нет «луча»,
+        поэтому берётся грань, до плоскости которой точка дальше всего «не дотягивает» вдоль осей корпуса."""
+        cx, cy, hw, hl, ang = self.hull_obb()
+        fx, fy = heading_vector(ang)
+        rx, ry = -fy, fx                                  # вправо от корпуса
+        dx, dy = x - cx, y - cy
+        along = dx * fx + dy * fy                         # вперёд (+) / назад (-)
+        across = dx * rx + dy * ry                        # вправо (+) / влево (-)
+        if abs(along) - hl > abs(across) - hw:
+            sign = 1.0 if along >= 0.0 else -1.0
+            normal = (fx * sign, fy * sign)               # лоб или корма
+        else:
+            sign = 1.0 if across >= 0.0 else -1.0
+            normal = (rx * sign, ry * sign)               # правый или левый борт
+        return self.armor_at(normal)
+
     def hit_result(self, penetration, cos_impact=1.0, normal=None):
         return resolve_hit(penetration, self.armor_at(normal), cos_impact)
 

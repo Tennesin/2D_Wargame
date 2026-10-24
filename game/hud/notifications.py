@@ -130,6 +130,16 @@ class Notifier:
             if target.hp <= 0.0:
                 self.say("Стена разрушена", C_DIM)
 
+    def on_artillery(self, owner, target, dealt, stunned):
+        """Взрыв САУ задел target. Показываем только то, что касается игрока."""
+        me = self.player
+        if target is not me:
+            return
+        self.say(f"Накрыло артиллерией: -{dealt:.0f} HP", C_BAD)
+        self.float_at(me.x, me.y, f"-{dealt:.0f}", C_BAD)
+        if stunned:
+            self.on_stun(owner, target)            # «Вы оглушены!»
+
     def on_track_broken(self, owner, target, side):
         """Сбита гусеница. Показываем только связанное с игроком."""
         me = self.player
