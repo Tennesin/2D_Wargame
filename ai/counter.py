@@ -11,7 +11,7 @@ FULL_SPEED_RATIO = LOOK_SPEED_RATIO[1]
 # Эталон «обычной» сборки у каждого типа техники: класс спецификации -> (лоб, калибр) по умолчанию.
 # Игрок в базовой сборке любого типа должен получать нулевую угрозу.
 _REFS = {t.spec_cls: (t.params["front_armor_mm"].default, t.params["gun_caliber_mm"].default)
-         for t in VEHICLE_TYPES.values()}
+         for t in VEHICLE_TYPES.values() if t.playable}
 
 # Что спавнить против каждой «выкрученной» характеристики игрока.
 # Число: насколько растёт множитель шанса при максимальном уровне (отрицательное: шанс падает).

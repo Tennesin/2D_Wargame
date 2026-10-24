@@ -23,13 +23,16 @@ def armor_masses(areas_m2, front, side, rear, size_k):
                  for mm, area in zip((front, side, rear), areas_m2))
 
 def chassis_masses(body, area_k, front, side, rear, power, payload_t, screen_mm=0.0):
-    """Массы шасси: (двигатель, «начинка», size_k, (лоб, борт, корма)), т.
-    Единственное место формул: им пользуются ChassisSpec и оценка массы до выбора носа."""
+    """Массы шасси: (двигатель, «начинка», size_k, (лоб, борт, корма))"""
     m_engine = body.engine_t_per_hp * power
     filling = body.fixed_t + m_engine + payload_t
-    size_k = (filling / body.ref_filling_t) ** (1.0 / 3.0)
     areas = tuple(a * k for a, k in zip(body.areas_m2, area_k))
-    armor = armor_masses(areas, front + screen_mm * SCREEN_MASS_K, side, rear, size_k)
+    front_eff = front + screen_mm * SCREEN_MASS_K
+    size_mass = filling
+    if body.size_armor_k > 0.0:
+        size_mass += body.size_armor_k * sum(armor_masses(areas, front_eff, side, rear, 1.0))
+    size_k = (size_mass / body.ref_filling_t) ** (1.0 / 3.0)
+    armor = armor_masses(areas, front_eff, side, rear, size_k)
     return m_engine, filling, size_k, armor
 
 @dataclass(frozen=True)
@@ -48,7 +51,7 @@ class ChassisBody:
     coll_shift_m: float       # на сколько центр корпуса лежит позади оси башни, м
     gear: RunningGear = TRACKS  # тип ходовой части (поле с умолчанием должно быть последним)
     layout: Optional[HullLayout] = None   # обязателен: эталон строится без него, раскладку подставляет
-                                          # конкретная спецификация через dataclasses.replace
+    size_armor_k: float = 0.0     # доля массы брони
 
     @property
     def ref_pw(self):

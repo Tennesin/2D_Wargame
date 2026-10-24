@@ -16,7 +16,7 @@ from .cache import LRUCache
 from .noise import hash_int, hash_float, value_noise, SEED_SALT
 from .gfx import (FONT_SIZE_TITLE, FONT_SIZE_HEADER, FONT_SIZE_LABEL,
                   get_font, get_text, wrap_text, AlphaLayer)
-from .commands import VehicleCommand, Shot, AmmoStats
+from .commands import VehicleCommand, Shot, AmmoStats, ArtilleryStats
 
 __all__ = [
     "PX_PER_M", "WORLD", "WORLD_MIN_M", "WORLD_MAX_M", "WORLD_DEFAULT_M",
@@ -32,5 +32,5 @@ __all__ = [
     "LRUCache", "hash_int", "hash_float", "value_noise", "SEED_SALT",
     "FONT_SIZE_TITLE", "FONT_SIZE_HEADER", "FONT_SIZE_LABEL",
     "get_font", "get_text", "wrap_text", "AlphaLayer",
-    "VehicleCommand", "Shot", "AmmoStats",
+    "VehicleCommand", "Shot", "AmmoStats", "ArtilleryStats",
 ]

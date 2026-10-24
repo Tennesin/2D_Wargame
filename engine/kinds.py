@@ -8,6 +8,7 @@ class Team(Enum):
 class VehicleKind(Enum):
     MBT = auto()
     TD = auto()
+    SPG = auto()
 
 class AmmoKind(Enum):
     AP = auto()      # бронебойный (ББ)

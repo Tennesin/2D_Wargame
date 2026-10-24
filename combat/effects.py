@@ -36,6 +36,8 @@ class EffectsSystem:
         self._rng = random.Random()
 
     def spawn_shot(self, shot, spec, tank=None):
+        if shot.target is not None:        # ВРЕМЕННО: снаряды САУ появятся на этапе 3
+            return
         dx, dy = heading_vector(shot.angle)
         origin = (shot.x - dx * spec.MUZZLE_DIST_PX,        # центр танка: оттуда считаем первый отрезок пролёта
                   shot.y - dy * spec.MUZZLE_DIST_PX)

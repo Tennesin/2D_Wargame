@@ -10,7 +10,7 @@ class Session:
         self.map_w_m = WORLD_DEFAULT_M   # размер карты по X, м (задаётся в «Новой игре»)
         self.map_h_m = WORLD_DEFAULT_M   # по Y, м
         # значения ползунков для КАЖДОГО типа отдельно: при переключении кнопок настройки не теряются
-        self.values = {kind: self._defaults(t) for kind, t in VEHICLE_TYPES.items()}
+        self.values = {kind: self._defaults(t) for kind, t in VEHICLE_TYPES.items() if t.playable}
         self.prefs = Preferences()       # настройки меню: живут, пока открыто приложение
         self.settings = GameSettings()   # настройки меню «Настройки»
 

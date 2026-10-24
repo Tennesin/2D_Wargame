@@ -26,6 +26,8 @@ def _values_at(arch, vtype, jitter, tune, screen, t):
         if cap is not None:
             v = max(p.min, min(v, cap))                        # потолок архетипа (после округления)
         out[key] = v
+    if vtype.extra_values is not None:                         # у типа свои правила (САУ: орудие не настраивается)
+        return vtype.extra_values(out, arch, tune, screen)
 
     # урон и пробитие: то же относительное положение, но в коридоре ТЕКУЩЕГО калибра и профиля орудия
     cal = out["gun_caliber_mm"]
@@ -36,8 +38,11 @@ def _values_at(arch, vtype, jitter, tune, screen, t):
     out["front_screen_mm"] = screen
     return out
 
-def loadout_cost(values):
-    """Неокруглённая цена сборки. Экран входит в цену как часть лба (так считает спецификация)."""
+def loadout_cost(values, vtype=None):
+    """Неокруглённая цена сборки. Экран входит в цену как часть лба (так считает спецификация).
+    vtype: тип техники; у типов со своей ценой (САУ) считает его cost_fn."""
+    if vtype is not None and vtype.cost_fn is not None:
+        return vtype.cost_fn(values)
     cal = values["gun_caliber_mm"]
     front = values["front_armor_mm"] + values.get("front_screen_mm", 0.0)
     return raw_cost(cal, front, values["side_armor_mm"],
@@ -54,7 +59,7 @@ def fit_loadout(arch, budget, rng):
     tune = (rng.uniform(*arch.damage_band), rng.uniform(*arch.pen_band))
 
     lo_s, hi_s = arch.screen_mm
-    if hi_s > lo_s:                          # случайная ступень из 15 / 30 / 45 (равные шансы)
+    if hi_s > lo_s:
         step = FRONT_SCREEN.step
         screen = lo_s + rng.randint(0, round((hi_s - lo_s) / step)) * step
     else:
@@ -65,17 +70,16 @@ def fit_loadout(arch, budget, rng):
     def at(t):
         return _values_at(arch, vtype, jitter, tune, screen, t)
 
-    # 1. Расширяем уровень вверх, пока цена не перешагнёт цель (или не упрёмся в потолок)
+    # Расширяем уровень вверх, пока цена не перешагнёт цель (или не упрёмся в потолок)
     lo, hi = 0.0, 1.0
-    while hi < T_LIMIT and loadout_cost(at(hi)) <= target:
+    while hi < T_LIMIT and loadout_cost(at(hi), vtype) <= target:
         lo, hi = hi, min(T_LIMIT, hi * T_GROW)
-    if loadout_cost(at(hi)) <= target:
-        return at(hi)                        # бюджет больше, чем можно потратить до потолка
+    if loadout_cost(at(hi), vtype) <= target:
+        return at(hi)
 
-    # 2. Бисекция внутри [lo, hi]: берём самую дорогую сборку, не превышающую цель
     for _ in range(BISECT_STEPS):
         mid = (lo + hi) / 2.0
-        if loadout_cost(at(mid)) <= target:
+        if loadout_cost(at(mid), vtype) <= target:
             lo = mid
         else:
             hi = mid
