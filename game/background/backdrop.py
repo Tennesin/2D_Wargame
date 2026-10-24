@@ -17,7 +17,7 @@ COOLDOWN_S = (2.0, 5.0)          # пауза между событиями
 FIRST_COOLDOWN_S = (0.8, 1.6)    # пауза перед самым первым
 HISTORY = 3                      # столько последних событий не повторяются
 FADE_S = 0.35                    # затемнение до чёрного и обратно
-RELOCATE_CHANCE = 0.5            # шанс сменить участок карты после события
+RELOCATE_CHANCE = 0.0            # шанс сменить участок карты после события
 NEW_WORLD_EVERY = 4              # новую карту (а не другой участок той же) раз в столько событий
 EVENT_TIMEOUT_S = 45.0           # страховка: событие дольше этого прерывается
 MAX_STEPS = 64                   # страховка от генератора, который не ждёт
@@ -205,7 +205,7 @@ class Backdrop:
 
     def _finish(self):
         self._since_world += 1
-        if self.rng.random() < RELOCATE_CHANCE:
+        if RELOCATE_CHANCE > 0.0 and self.rng.random() < RELOCATE_CHANCE:
             self._phase = Phase.FADE_OUT
         else:
             self._start_cooldown()

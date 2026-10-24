@@ -4,11 +4,12 @@ import math
 import random
 from types import SimpleNamespace
 
-from combat import EffectsSystem
+from ai import BotContext, PlanBudget, TerrainNavCache
+from combat import EffectsSystem, TargetSet
+from world import Camera, ZOOM_LEVELS, WorldGenerator, TerrainMap, DEEP_WATER
 from engine import PX_PER_M, Shot, WORLD, bearing_deg
 from structures import WallManager
 from vehicles.chassis.params import KMH_TO_PX
-from world import Camera, ZOOM_LEVELS, WorldGenerator, TerrainMap, DEEP_WATER
 
 from ..hud.artillery_warning import ArtilleryWarning
 from ..view.world_renderer import Renderer
@@ -21,13 +22,6 @@ ZOOM_CHOICES = (7, 8, 8, 9)      # ступени зума камеры (слу�
 SPOT_TRIES = 8                   # сколько участков пробуем, пока не найдём без глубокой воды
 ARTY_ORIGIN_FY = 1.06            # откуда «стреляет» невидимая артиллерия: чуть ниже экрана
 
-class BackdropTerrain(TerrainMap):
-    """Карта без камней: техника на фоне ездит сквозь всё, поэтому камни только мешали бы."""
-
-    def _make_raw(self, ix, iy):
-        lake, mud, _rocks = super()._make_raw(ix, iy)
-        return lake, mud, []
-
 class _Crowd:
     """Источник целей для снарядов (тот же интерфейс, что у Fleet): снаряд рвётся на корпусе
     чужой команды. Своих снаряд не задевает."""
@@ -38,6 +32,24 @@ class _Crowd:
     @property
     def vehicles(self):
         return [a.v for a in self._actors]
+
+    @property
+    def bots(self):
+        """Навигатору нужен список с полем .tank у каждого элемента (у Actor оно есть)."""
+        return self._actors
+
+    def obbs_near(self, me, radius):
+        """Прямоугольники чужой техники рядом с me: препятствия для me (как Fleet.obbs_near)."""
+        result = []
+        for a in self._actors:
+            t = a.v
+            if t is me or not t.alive:
+                continue
+            reach = radius + t.reach_px()
+            dx, dy = t.x - me.x, t.y - me.y
+            if dx * dx + dy * dy <= reach * reach:
+                result.extend(t.footprint_at(t.x, t.y, t.hull_angle))
+        return result
 
     def raycast(self, x0, y0, x1, y1, ignore=None):
         team = getattr(ignore, "team", None)
@@ -65,6 +77,10 @@ class Stage:
         self.seed = None
         self.terrain = None
         self.renderer = None
+        self.budget = PlanBudget(2)              # сколько путей A* можно строить за кадр на всех
+        self.nav = None
+        self.nav_ctx = None
+        self.targets = None
         self._new_world()
         self.relocate()
 
@@ -73,7 +89,12 @@ class Stage:
     # ==========================================
     def _new_world(self):
         self.seed = self.rng.randrange(1, 1_000_000)
-        self.terrain = BackdropTerrain(self.seed)
+        self.terrain = TerrainMap(self.seed)
+        self.terrain.preload()                   # экран ещё чёрный: генерация не даст рывка
+        self.nav = TerrainNavCache(self.terrain)
+        self.targets = TargetSet(self.terrain, self.crowd)   # камни останавливают и снаряды
+        self.nav_ctx = BotContext(targets=self.targets, terrain=self.terrain, walls=self.walls,
+                                  fleet=self.crowd, budget=self.budget, nav=self.nav)
         ctx = SimpleNamespace(terrain=self.terrain, fleet=self.crowd,
                               walls=self.walls, effects=self.effects)
         self.renderer = Renderer(WorldGenerator(self.seed), ctx)
@@ -218,12 +239,15 @@ class Stage:
     # КАДР
     # ==========================================
     def update(self, dt):
+        self.budget.new_frame()
         for actor in self.actors:
-            shot = actor.v.update(actor.command(dt), dt)
+            v = actor.v
+            obstacles = self.crowd.obbs_near(v, v.reach_px())
+            shot = v.update(actor.command(dt), dt, obstacles, self.terrain)
             if shot is not None:
-                self.effects.spawn_shot(shot, actor.v.spec, actor.v)
+                self.effects.spawn_shot(shot, v.spec, v)
                 actor.on_shot()
-        self.effects.update(dt, self.crowd)      # попадания, рикошеты, промахи игнорируем: урона нет
+        self.effects.update(dt, self.targets)    # попадания, рикошеты, промахи игнорируем: урона нет
         self._reap()
 
     def _reap(self):

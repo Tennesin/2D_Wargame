@@ -26,4 +26,4 @@ LOOK_AHEAD = True
 BACKGROUND_ENABLED = True
 
 # Затемнение фона, 0..255 (чем больше, тем темнее и читаемее интерфейс).
-BACKGROUND_DIM = 150
+BACKGROUND_DIM = 75

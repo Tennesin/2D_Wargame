@@ -2,7 +2,8 @@
 Физику и стрельбу делает сама техника (Vehicle.update); пилот только формирует VehicleCommand."""
 import math
 
-from ai.movement.steering import steer_to
+from ai.movement.navigator import Navigator
+from ai.movement.steering import steer_to, StuckGuard
 from ai.tactics.gunnery import lead_point
 from engine import (VehicleCommand, PX_PER_M, bearing_deg, heading_vector,
                     shortest_angle_diff, clamp)
@@ -16,6 +17,8 @@ CATCH_UP_KMH_PER_M = 1.5          # прибавка скорости за ка�
 CATCH_UP_MAX_KMH = 35.0
 STOP_KMH = 2.0
 LEAD_K = 0.9                      # качество упреждения при наводке на другого актёра
+NAV_AHEAD_PX = 15.0 * PX_PER_M    # на какую точку маршрута вперёд смотрит навигатор
+FIRE_RANGE_K = 0.9                # стреляем по актёру или точке, только если снаряд долетит (доля дальности)
 
 class Actor:
     def __init__(self, stage, vehicle):
@@ -37,6 +40,14 @@ class Actor:
         self._volleys = 0
         self._tol = 4.0
         self._fire_ttl = 0.0
+        self.nav = Navigator(stage.rng)  # объезд камней, воды и других танков
+        self.stuck = StuckGuard()  # если всё же застрял: короткий задний ход
+        self._dt = 0.0
+
+    @property
+    def tank(self):
+        """Навигатор ожидает у элементов fleet.bots поле .tank."""
+        return self.v
 
     # ---------- вопросы для событий ----------
     def is_done(self):
@@ -65,6 +76,7 @@ class Actor:
         speed: скорость в ширинах экрана в секунду (None: на полном газу).
         extend: после последней точки уехать за экран и исчезнуть. False: остановиться в последней точке.
         face: сразу развернуть корпус по маршруту (нужно при появлении, не посреди движения)."""
+        self.nav.invalidate()
         pts = list(route)
         self._exit_index = None
         if extend and len(pts) >= 2:
@@ -82,6 +94,7 @@ class Actor:
 
     def chase(self, target, gap_m=25.0, lateral_m=0.0):
         """Ехать позади другого актёра на заданном расстоянии (lateral_m: смещение вправо от его курса)."""
+        self.nav.invalidate()
         self._target = target
         self._gap_px = gap_m * PX_PER_M
         self._lat_px = lateral_m * PX_PER_M
@@ -128,14 +141,18 @@ class Actor:
 
     # ---------- кадр (зовёт Stage) ----------
     def command(self, dt):
+        self._dt = dt
+        self.nav.tick(dt)
         throttle, steer = self._drive_inputs()
         aim = self._aim_point()
         fire = False
         if self._volleys > 0:
-            self._fire_ttl -= dt
+            reachable = self._aim_reachable(aim)
+            if reachable:
+                self._fire_ttl -= dt
             if self._fire_ttl <= 0.0:
                 self._volleys = 0
-            else:
+            elif reachable:
                 v = self.v
                 err = shortest_angle_diff(bearing_deg(v.x, v.y, *aim), v.turret_angle)
                 fire = abs(err) <= self._tol
@@ -146,6 +163,31 @@ class Actor:
             self._volleys -= 1
 
     # ---------- внутреннее ----------
+    def _heading_to(self, goal, want):
+        """Курс к точке с объездом препятствий. Пути нет (или бюджет кадра выбран): напрямик."""
+        ctx = self.stage.nav_ctx
+        if ctx is None:
+            return want
+        heading, go = self.nav.drive_to(self.v, ctx, goal, want, no_breach=True)
+        return want if go == 0.0 else heading
+
+    def _guard(self, inputs):
+        """Анти-застревание: заклинило, значит едем назад с поворотом."""
+        throttle, steer = inputs
+        pushing = throttle != 0.0 or steer != 0.0
+        if self.stuck.update(self._dt, self.v, pushing, self.stage.rng):
+            return -1.0, self.stuck.turn
+        return throttle, steer
+
+    def _nav_goal(self):
+        """Точка маршрута примерно в NAV_AHEAD_PX впереди: к ней навигатор строит путь."""
+        pts, v = self._route, self.v
+        last = len(pts) - 1
+        j = self._i
+        while j < last and math.hypot(pts[j][0] - v.x, pts[j][1] - v.y) < NAV_AHEAD_PX:
+            j += 1
+        return pts[j]
+
     def _forward_point(self):
         fx, fy = heading_vector(self.v.hull_angle)
         return self.v.x + fx * AIM_FAR_PX, self.v.y + fy * AIM_FAR_PX
@@ -198,7 +240,9 @@ class Actor:
             self.done = True
             self._mode = "brake"
             return 0.0, 0.0
-        return steer_to(v, bearing_deg(v.x, v.y, tx, ty), self._throttle())
+        gx, gy = self._nav_goal()
+        heading = self._heading_to((gx, gy), bearing_deg(v.x, v.y, gx, gy))
+        return self._guard(steer_to(v, heading, self._throttle()))
 
     def _chase_inputs(self):
         t, v = self._target, self.v
@@ -213,8 +257,11 @@ class Actor:
         behind = (gx - v.x) * fx + (gy - v.y) * fy             # > 0: я отстал от своего места
         tspeed = abs(tv.speed_kmh)
         want = tspeed + clamp(behind / PX_PER_M * CATCH_UP_KMH_PER_M, -tspeed, CATCH_UP_MAX_KMH)
-        heading = bearing_deg(v.x, v.y, gx, gy) if dist > CHASE_NEAR_PX else tv.hull_angle
-        return steer_to(v, heading, clamp(want / max(v.spec.v_max, 1.0), 0.0, 1.0))
+        if dist > CHASE_NEAR_PX:
+            heading = self._heading_to((gx, gy), bearing_deg(v.x, v.y, gx, gy))
+        else:
+            heading = tv.hull_angle
+        return self._guard(steer_to(v, heading, clamp(want / max(v.spec.v_max, 1.0), 0.0, 1.0)))
 
     def _leave_chase(self):
         """Цель исчезла: едем прямо, как ехали, и уходим со сцены."""
@@ -225,3 +272,20 @@ class Actor:
         self._mode = "route"
         self.retired = True
         return self._route_inputs()
+
+    def _aim_reachable(self, aim):
+        """По актёру или точке стреляем, только когда снаряд долетит. Прицел «вперёд» и «в сторону» не ограничиваем."""
+        if self._aim[0] not in ("actor", "point"):
+            return True
+        v = self.v
+        return math.hypot(aim[0] - v.x, aim[1] - v.y) <= v.round_stats().range_px * FIRE_RANGE_K
+
+    def in_range(self, other, k=FIRE_RANGE_K):
+        """Дотянется ли мой снаряд до другого актёра (для условий yield в событиях)."""
+        o = other.v
+        return math.hypot(o.x - self.v.x, o.y - self.v.y) <= self.v.round_stats().range_px * k
+
+    def visible(self, margin=0.04):
+        """Техника целиком в пределах экрана (с отступом в долях)."""
+        fx, fy = self.stage.frac(self.v.x, self.v.y)
+        return margin <= fx <= 1.0 - margin and margin <= fy <= 1.0 - margin
