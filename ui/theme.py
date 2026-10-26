@@ -21,13 +21,11 @@ SLIDER_FILL_COLOR = (200, 140, 60)
 SLIDER_BG_COLOR = (45, 49, 56)
 SLIDER_BORDER_COLOR = (90, 96, 106)
 
-TOOLBAR_MARGIN = 6
-TOOLBAR_BUTTON_SIZE = (150, 36)
-ACTIVE_BUTTON_COLORS = {             # кнопка «Создать стену», пока включён режим стройки
+ACTIVE_BUTTON_COLORS = {
     "normal": (200, 140, 60), "hover": (225, 165, 85),
     "disabled": (90, 70, 40), "text": (30, 30, 30),
 }
-DELETE_BUTTON_COLORS = {             # красная кнопка «Удалить стену»
+DELETE_BUTTON_COLORS = {
     "normal": (190, 45, 45), "hover": (225, 75, 75),
     "disabled": (80, 40, 40), "text": (255, 255, 255),
 }

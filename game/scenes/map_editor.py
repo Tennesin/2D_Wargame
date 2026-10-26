@@ -17,8 +17,10 @@ from world.mapdata import DEFAULT_NAME, MAX_NAME_LEN
 from .base import Scene
 from ..content import texts
 from ..content.panels import (PanelMode, build_editor_panels, TOOL_MODE, WallPanelLink,
+                              RockPanelLink, LandPanelLink,
                               STAT_NAME, STAT_SIZE, STAT_ROCKS, STAT_WALLS, STAT_FILE)
-from ..editor import EditorBar, Dialog, WallTool, load_walls, collect_walls
+from ..editor import (EditorBar, Dialog, WallTool, RockTool, LandTool, RockOverlay, BrushOverlay,
+                      load_walls, collect_walls)
 from ..match.control.camera import CameraController
 from ..view.world_renderer import Renderer
 
@@ -80,6 +82,14 @@ class MapEditorScene(Scene):
         self.wall_tool = WallTool(self.camera, self.input, self.walls, self.terrain,
                                   on_change=self.mark_dirty)
         self.wall_link = WallPanelLink(self.ui, self.wall_tool)
+        self.rock_tool = RockTool(self.camera, self.input, self.walls, self.terrain,
+                                  on_change=self.mark_dirty)
+        self.rock_link = RockPanelLink(self.ui, self.rock_tool)
+        self.land_tool = LandTool(self.camera, self.input, self.walls, self.terrain,
+                                  on_change=self.mark_dirty)
+        self.land_link = LandPanelLink(self.ui, self.land_tool)
+        self.rock_overlay = RockOverlay()
+        self.brush_overlay = BrushOverlay()
         self.camera_ctrl = CameraController(self.camera, self.input)
         self.camera_ctrl.set_free(True)      # танка нет: камера всегда свободна
         self._alpha = AlphaLayer()
@@ -125,9 +135,13 @@ class MapEditorScene(Scene):
             return
         if self.tool == "wall":
             self.wall_link.on_params_change(values)
+        elif self.tool == "land":
+            self.land_link.on_params_change(values)
 
     def _set_tool(self, tool):
         self.wall_tool.deselect()
+        self.rock_tool.deselect()
+        self.land_tool.cancel()
         self.tool = tool
         self.ui.show(TOOL_MODE[tool], {"tool": tool})
 
@@ -136,6 +150,10 @@ class MapEditorScene(Scene):
         wx, wy = self.camera.screen_to_world(*pos)
         if self.tool == "wall":
             self.wall_tool.click(button, pos, wx, wy)
+        elif self.tool == "rock":
+            self.rock_tool.click(button, pos, wx, wy)
+        else:
+            self.land_tool.click(button, pos, wx, wy)
 
     # ==========================================
     # СОХРАНЕНИЕ И ВЫХОД
@@ -221,7 +239,8 @@ class MapEditorScene(Scene):
         self.bar.save_button.enabled = self._needs_save()
 
         if self.dialog.active:
-            self.input.pop_world_clicks()            # на всякий случай: под окном мир не живёт
+            self.input.pop_world_clicks()
+            self.land_tool.cancel()
         else:
             self._handle_hotkeys()
             self._pan_keys(dt)
@@ -229,6 +248,8 @@ class MapEditorScene(Scene):
             if self.tool == "wall":
                 self.wall_tool.update_rotation()
                 self.wall_link.update_stats()
+            elif self.tool == "land":
+                self.land_tool.update_stroke()
 
         if self._toast is not None:
             self._toast[2] -= dt
@@ -239,18 +260,23 @@ class MapEditorScene(Scene):
         inp = self.input
         if inp.was_pressed(Action.SAVE) and inp.ctrl:
             self._request_save()
-        if self.tool == "wall" and inp.was_pressed(Action.DELETE_WALL):
-            self.wall_tool.delete_selected()
+        if inp.was_pressed(Action.DELETE_WALL):
+            if self.tool == "wall":
+                self.wall_tool.delete_selected()
+            elif self.tool == "rock" and not self.rock_tool.delete_selected():
+                self.rock_tool.delete_hovered()
         if inp.was_pressed(Action.CANCEL):
             if self.tool == "wall" and self.walls.selected is not None:
                 self.wall_tool.deselect()                # Esc закрывает по одному слою
+            elif self.tool == "rock" and self.rock_tool.selected is not None:
+                self.rock_tool.deselect()
             else:
                 self._request_exit()
 
     def _pan_keys(self, dt):
         """WASD и стрелки двигают камеру (с зажатым Ctrl не двигают: это Ctrl+S)."""
         inp = self.input
-        if inp.lctrl:
+        if inp.ctrl:
             return
         held = inp.held
         dx = float(Action.RIGHT in held) - float(Action.LEFT in held)
@@ -278,6 +304,10 @@ class MapEditorScene(Scene):
     def draw(self, screen):
         preview = self.wall_tool.preview() if self.tool == "wall" else None
         self.renderer.draw(screen, self.camera, build_preview=preview)
+        if self.tool == "rock":
+            self.rock_overlay.draw(screen, self.camera, self.rock_tool)
+        elif self.tool == "land":
+            self.brush_overlay.draw(screen, self.camera, self.land_tool)
         self._draw_start_zone(screen)
         mouse = self.input.mouse_pos
         self.ui.draw(screen, mouse)

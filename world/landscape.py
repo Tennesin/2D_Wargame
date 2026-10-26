@@ -11,6 +11,7 @@ BLOCK_CELLS = 32              # блок для кэшей рендера: 32 x 
 
 L_GRASS, L_MUD, L_SHALLOWS, L_WATER, L_DEEP = 0, 1, 2, 3, 4
 MAX_LEVEL = L_DEEP
+_DEEPEN = (L_SHALLOWS, L_SHALLOWS, L_WATER, L_DEEP, L_DEEP)
 
 class Landscape:
     """Матрица уровней cols x rows, строки подряд (индекс = j * cols + i).
@@ -149,6 +150,45 @@ class Landscape:
             if i1 > i0:
                 self._assign(j, i0, i1, level, mode)
                 lo, hi = min(lo, i0), max(hi, i1 - 1)
+        if hi >= lo:
+            self._touch(lo, hi, j0, j1)
+
+    def deepen_circle(self, x, y, r_px, done, blocked=None):
+        """Углубить круг (мировые px): каждая клетка меняется ОДИН раз за мазок. done: bytearray размером
+        cols * rows, помнит клетки, уже тронутые этим мазком (его создаёт и сбрасывает инструмент).
+        blocked(i, j) -> bool: сюда глубокая вода не допускается; такая клетка остаётся на уровне «вода»."""
+        cols, data = self.cols, self.data
+        cx = (x + self.half_w_px) / CELL_PX
+        cy = (y + self.half_h_px) / CELL_PX
+        r = r_px / CELL_PX
+        j0 = max(0, int(math.floor(cy - r)))
+        j1 = min(self.rows - 1, int(math.ceil(cy + r)))
+        lo, hi = cols, -1
+        for j in range(j0, j1 + 1):
+            dy = (j + 0.5) - cy
+            if abs(dy) > r:
+                continue
+            half = math.sqrt(r * r - dy * dy)
+            i0 = max(0, math.ceil(cx - half - 0.5))
+            i1 = min(cols, math.ceil(cx + half - 0.5))
+            if i1 <= i0:
+                continue
+            a, b = j * cols + i0, j * cols + i1
+            seen = done[a:b]
+            if seen.count(0) == 0:
+                continue                                   # вся полоска уже тронута
+            done[a:b] = b"\x01" * (b - a)
+            old = data[a:b]
+            new = bytearray(old)
+            for k in range(b - a):
+                if seen[k]:
+                    continue
+                nv = _DEEPEN[old[k]]
+                if nv == L_DEEP and old[k] != L_DEEP and blocked is not None and blocked(i0 + k, j):
+                    nv = L_WATER
+                new[k] = nv
+            data[a:b] = new
+            lo, hi = min(lo, i0), max(hi, i1 - 1)
         if hi >= lo:
             self._touch(lo, hi, j0, j1)
 

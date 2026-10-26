@@ -110,6 +110,7 @@ class Patch:
         self.vy = 0.0
         self.uid = None                      # ставит TerrainMap: номер камня в MapData
         self.cell = None                     # ячейка, в списке которой камень лежит сейчас
+        self.source = None                   # RockData, из которой создан камень (редактор карт)
 
     def _make_tris(self):
         n = len(self.pts)
@@ -256,11 +257,9 @@ class TerrainMap:
         for n, rd in enumerate(map_data.rocks):
             patch = Patch(ROCK, rd.x, rd.y, [(px, py) for px, py in rd.pts])
             patch.uid = (0, 0, n)
+            patch.source = rd
             patch.cell = self.cell_of(patch.x, patch.y)
             self._cells.setdefault(patch.cell, []).append(patch)
-
-    def preload(self):
-        """Оставлено для совместимости: всё готово уже в конструкторе."""
 
     @staticmethod
     def cell_of(x, y):
@@ -270,6 +269,25 @@ class TerrainMap:
     def cached_cell(self, key):
         """Список камней ячейки (создаётся пустым, если ячейки не было). Для RockMover."""
         return self._cells.setdefault(key, [])
+
+    # ---------- правка камней (редактор карт) ----------
+    def add_rock(self, rock_data):
+        """Добавляет камень в карту и в поиск. rock_data: RockData. Возвращает созданный Patch."""
+        self.map.rocks.append(rock_data)
+        patch = Patch(ROCK, rock_data.x, rock_data.y, [(px, py) for px, py in rock_data.pts])
+        patch.source = rock_data
+        patch.uid = (0, 1, len(self.map.rocks))
+        patch.cell = self.cell_of(patch.x, patch.y)
+        self._cells.setdefault(patch.cell, []).append(patch)
+        return patch
+
+    def remove_rock(self, patch):
+        """Убирает камень из карты и из поиска (сравнение по identity, а не по равенству полей)."""
+        for lst, item in ((self._cells.get(patch.cell, []), patch), (self.map.rocks, patch.source)):
+            for i, obj in enumerate(lst):
+                if obj is item:
+                    del lst[i]
+                    break
 
     @staticmethod
     def level_speed(level):

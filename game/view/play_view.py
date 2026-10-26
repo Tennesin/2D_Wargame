@@ -13,7 +13,7 @@ from ..hud.artillery_warning import ArtilleryWarning
 from .world_renderer import Renderer
 
 class PlayView:
-    def __init__(self, world, clock, match, ui, toolbar, ammo_bar, notifier, settings):
+    def __init__(self, world, clock, match, ammo_bar, notifier, settings):
         self.match = match
         self.ammo_bar = ammo_bar
         self.notifier = notifier

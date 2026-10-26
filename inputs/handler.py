@@ -28,6 +28,7 @@ class InputHandler:
         self.mouse_focused = True          # есть ли у окна фокус мыши
         self.shift = False
         self.lctrl = False                 # левый Ctrl (для служебных сочетаний)
+        self.ctrl = False                  # любой Ctrl (Ctrl+S в редакторе)
         self.lshift = False                # левый Shift
 
     # ==========================================
@@ -63,7 +64,7 @@ class InputHandler:
     def pointer_in_world(self):
         """Курсор «работает на мир»: не над интерфейсом и не занят им или вращением стены.
         Удержание стрельбы (FIRE) прицеливанию не мешает."""
-        return (not self.mouse_over_ui) and self.mouse_owner in (None, MouseOwner.FIRE)
+        return (not self.mouse_over_ui) and self.mouse_owner in (None, MouseOwner.FIRE, MouseOwner.PAINT)
 
     # ==========================================
     # СНИМОК КАДРА
@@ -109,6 +110,7 @@ class InputHandler:
         mods = pygame.key.get_mods()
         self.shift = bool(mods & pygame.KMOD_SHIFT)
         self.lctrl = bool(mods & pygame.KMOD_LCTRL)
+        self.ctrl = bool(mods & pygame.KMOD_CTRL)
         self.lshift = bool(mods & pygame.KMOD_LSHIFT)
 
         # страховка: владеющая кнопка уже отпущена, а событие отпускания потерялось

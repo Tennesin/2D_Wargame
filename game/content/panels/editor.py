@@ -1,10 +1,12 @@
 """game/content/panels/editor.py — панели редактора карт: по одной на инструмент, у каждой переключатель
-инструментов и блок сведений о карте. Содержимое инструментов подключается на этапах 5, 7 и 8."""
+инструментов и блок сведений о карте."""
 from inputs import Action, key_label
 from structures import ROTATE_SNAP_DEG
 from ui import Panel, SectionHeader, StatsBlock, InfoText, ChoiceRow
 from .kinds import PanelMode
 from .wall import wall_items
+from .rock import rock_items
+from .land import land_items
 
 STAT_NAME = "Название"
 STAT_SIZE = "Размер"
@@ -14,18 +16,23 @@ STAT_FILE = "Файл"
 
 EDITOR_TOOLS = (("wall", "Стена"), ("rock", "Камень"), ("land", "Ландшафт"))
 TOOL_MODE = {"wall": PanelMode.MAP_WALL, "rock": PanelMode.MAP_ROCK, "land": PanelMode.MAP_LAND}
-TOOL_HINTS = {
-    "rock": "Камень: размер, стабильность и сглаживание формы (подключается на этапе 7).",
-    "land": "Ландшафт: кисть для равнины, глины и воды (подключается на этапе 8).",
-}
 
 def _hint(tool):
+    delete = key_label(Action.DELETE_WALL)
     if tool == "wall":
         return ("ЛКМ по пустому месту ставит стену с параметрами ниже. Клик по стене выбирает её: "
                 "ползунки тогда меняют именно её. Белая точка в центре поворачивает стену "
-                f"(с Shift шаг {ROTATE_SNAP_DEG:.0f}°). {key_label(Action.DELETE_WALL)} удаляет выбранную, "
+                f"(с Shift шаг {ROTATE_SNAP_DEG:.0f}°). {delete} удаляет выбранную, "
                 "Esc или ПКМ снимают выбор.")
-    return TOOL_HINTS[tool]
+    if tool == "rock":
+        return ("ЛКМ по пустому месту ставит камень; форма у курсора именно та, что будет поставлена. "
+                "Стабильность: чем меньше, тем кривее и вытянутее камень. Сглаживание: от грубых граней "
+                f"до мягкого контура. Клик по камню (ЛКМ или ПКМ) выбирает его, {delete} или кнопка удаляют. "
+                f"{delete} без выбора удаляет камень под курсором. Esc или ПКМ по пустому месту снимают выбор.")
+    return ("Зажмите ЛКМ и ведите мышью, чтобы красить. Равнина стирает любое покрытие. "
+            "«Углубления» работают для водоёма: за один мазок каждая клетка воды становится на ступень "
+            "глубже (мелководье, вода, глубокая вода). Рядом с центром карты, под камнями и стенами "
+            "глубокая вода не рисуется.")
 
 def _build(tool, label):
     items = [
@@ -35,6 +42,10 @@ def _build(tool, label):
     ]
     if tool == "wall":
         items += wall_items()
+    elif tool == "rock":
+        items += rock_items()
+    else:
+        items += land_items()
     items += [
         SectionHeader("Карта"),
         StatsBlock([STAT_NAME, STAT_SIZE, STAT_ROCKS, STAT_WALLS, STAT_FILE]),

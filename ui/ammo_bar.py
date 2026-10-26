@@ -36,7 +36,7 @@ class AmmoBar:
             rect.topleft = (x, y)
             y += BTN + GAP
 
-    # ---------- интерфейс слоя (как у ToolBar) ----------
+    # ---------- интерфейс слоя ----------
     def covers(self, pos):
         return any(r.collidepoint(pos) for r in self.rects)
 

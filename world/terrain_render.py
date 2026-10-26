@@ -146,10 +146,14 @@ class TerrainRenderer:
             ver = grid.block_version(bx, by)
             entry = self._blocks.get(key)
             if entry is None or entry[0] != ver:
-                if built and time.perf_counter() >= deadline:
-                    continue                     # бюджет кадра выбран: блок появится на следующем
-                tex = self._block_texture(grid, bx, by)
-                built += 1
+                over_budget = built and time.perf_counter() >= deadline
+                if over_budget and entry is None:
+                    continue                     # блока ещё не было вообще: появится на следующем кадре
+                if over_budget:
+                    ver, tex = entry             # бюджет выбран: пока рисуем прежнюю текстуру блока
+                else:
+                    tex = self._block_texture(grid, bx, by)
+                    built += 1
             else:
                 tex = entry[1]
             if tex is None:
