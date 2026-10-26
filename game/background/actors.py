@@ -19,6 +19,10 @@ STOP_KMH = 2.0
 LEAD_K = 0.9                      # качество упреждения при наводке на другого актёра
 NAV_AHEAD_PX = 15.0 * PX_PER_M    # на какую точку маршрута вперёд смотрит навигатор
 FIRE_RANGE_K = 0.9                # стреляем по актёру или точке, только если снаряд долетит (доля дальности)
+TURN_IN_PLACE_DEG = 100.0         # разворот на месте только при очень большой ошибке курса (в боте 60)
+FREE_PAD_M = 1.5                  # запас вокруг корпуса при проверке «точка маршрута свободна»
+STALL_S = 6.0                     # столько секунд без продвижения по маршруту: перепрыгиваем точки
+STALL_SKIP = 3                    # на сколько точек вперёд
 
 class Actor:
     def __init__(self, stage, vehicle):
@@ -43,6 +47,8 @@ class Actor:
         self.nav = Navigator(stage.rng)  # объезд камней, воды и других танков
         self.stuck = StuckGuard()  # если всё же застрял: короткий задний ход
         self._dt = 0.0
+        self._stall_i = -1                # индекс точки, на котором мы застряли
+        self._stall_t = 0.0               # сколько секунд индекс не менялся
 
     @property
     def tank(self):
@@ -171,20 +177,51 @@ class Actor:
         heading, go = self.nav.drive_to(self.v, ctx, goal, want, no_breach=True)
         return want if go == 0.0 else heading
 
-    def _guard(self, inputs):
-        """Анти-застревание: заклинило, значит едем назад с поворотом."""
-        throttle, steer = inputs
+    def _guard(self, heading, go):
+        """Руль и газ к курсу heading + анти-застревание (заклинило: короткий задний ход)."""
+        throttle, steer = steer_to(self.v, heading, go, TURN_IN_PLACE_DEG)
         pushing = throttle != 0.0 or steer != 0.0
         if self.stuck.update(self._dt, self.v, pushing, self.stage.rng):
             return -1.0, self.stuck.turn
         return throttle, steer
 
+    def _point_free(self, p):
+        """Поместится ли корпус в точке маршрута (камни и глубокая вода). Недостижимые точки пропускаем."""
+        v = self.v
+        x, y, hw, hl, ang = v.footprint_at(p[0], p[1], v.hull_angle)[0]
+        pad = FREE_PAD_M * PX_PER_M
+        return not self.stage.terrain.blocks_obb((x, y, hw + pad, hl + pad, ang))
+
+    def _advance(self):
+        """Сдвигает индекс маршрута. Точка пройдена, если подъехали к ней ИЛИ проехали мимо неё
+        (при объезде камня танк может ни разу не оказаться рядом с точкой). Плюс страховка от застоя."""
+        pts, v = self._route, self.v
+        last = len(pts) - 1
+        while self._i < last:
+            px, py = pts[self._i]
+            nx, ny = pts[self._i + 1]
+            near = math.hypot(px - v.x, py - v.y) < LOOK_PX
+            passed = (v.x - px) * (nx - px) + (v.y - py) * (ny - py) > 0.0
+            if not (near or passed):
+                break
+            self._i += 1
+
+        if self._i != self._stall_i:
+            self._stall_i, self._stall_t = self._i, 0.0
+        else:
+            self._stall_t += self._dt
+            if self._stall_t > STALL_S and self._i < last:
+                self._i = min(last, self._i + STALL_SKIP)
+                self._stall_t = 0.0
+                self.nav.invalidate()
+
     def _nav_goal(self):
-        """Точка маршрута примерно в NAV_AHEAD_PX впереди: к ней навигатор строит путь."""
+        """Точка маршрута не ближе NAV_AHEAD_PX и не внутри препятствия: к ней навигатор строит путь."""
         pts, v = self._route, self.v
         last = len(pts) - 1
         j = self._i
-        while j < last and math.hypot(pts[j][0] - v.x, pts[j][1] - v.y) < NAV_AHEAD_PX:
+        while j < last and (math.hypot(pts[j][0] - v.x, pts[j][1] - v.y) < NAV_AHEAD_PX
+                            or not self._point_free(pts[j])):
             j += 1
         return pts[j]
 
@@ -231,8 +268,7 @@ class Actor:
     def _route_inputs(self):
         pts, v = self._route, self.v
         last = len(pts) - 1
-        while self._i < last and math.hypot(pts[self._i][0] - v.x, pts[self._i][1] - v.y) < LOOK_PX:
-            self._i += 1
+        self._advance()
         if self._exit_index is not None and self._i >= self._exit_index:
             self.retired = True               # проехали последнюю видимую точку: можно убирать за экраном
         tx, ty = pts[self._i]
@@ -242,7 +278,7 @@ class Actor:
             return 0.0, 0.0
         gx, gy = self._nav_goal()
         heading = self._heading_to((gx, gy), bearing_deg(v.x, v.y, gx, gy))
-        return self._guard(steer_to(v, heading, self._throttle()))
+        return self._guard(heading, self._throttle())
 
     def _chase_inputs(self):
         t, v = self._target, self.v
@@ -261,7 +297,7 @@ class Actor:
             heading = self._heading_to((gx, gy), bearing_deg(v.x, v.y, gx, gy))
         else:
             heading = tv.hull_angle
-        return self._guard(steer_to(v, heading, clamp(want / max(v.spec.v_max, 1.0), 0.0, 1.0)))
+        return self._guard(heading, clamp(want / max(v.spec.v_max, 1.0), 0.0, 1.0))
 
     def _leave_chase(self):
         """Цель исчезла: едем прямо, как ехали, и уходим со сцены."""

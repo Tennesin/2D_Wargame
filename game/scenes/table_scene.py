@@ -98,9 +98,11 @@ class TableScene(Scene):
                         return
 
     def draw(self, screen):
-        plate = self.content_rect.inflate(32, 0)                  # плашка от заголовка до низа списка
-        plate.top, plate.bottom = 6, self.content_rect.bottom + 10
+        plate = pygame.Rect(self.content_rect.x - 16, 6,
+                            self.content_rect.width + 32,
+                            self.content_rect.bottom + 10 - 6)
         draw_plate(screen, plate)
+        plate.top, plate.bottom = 6, self.content_rect.bottom + 10
         title = get_text(self.title, TITLE_SIZE, TITLE_COLOR)
         screen.blit(title, title.get_rect(center=self._title_pos))
 

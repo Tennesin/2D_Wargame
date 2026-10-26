@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 from ai import BotContext, PlanBudget, TerrainNavCache
 from combat import EffectsSystem, TargetSet
-from world import Camera, ZOOM_LEVELS, WorldGenerator, TerrainMap, DEEP_WATER
+from world import Camera, ZOOM_LEVELS, WorldGenerator, TerrainMap, DEEP_WATER, SpawnFinder
 from engine import PX_PER_M, Shot, WORLD, bearing_deg
 from structures import WallManager
 from vehicles.chassis.params import KMH_TO_PX
@@ -20,6 +20,7 @@ SPAN = 1.9                       # во сколько раз рабочая о�
 SPOT_SPAN = 1.6                  # область, в которой не должно быть глубокой воды
 ZOOM_CHOICES = (7, 8, 8, 9)      # ступени зума камеры (случайно при каждой смене участка)
 SPOT_TRIES = 8                   # сколько участков пробуем, пока не найдём без глубокой воды
+SPAWN_SEARCH_M = 25.0            # в каком радиусе ищем свободное место под появляющуюся технику
 ARTY_ORIGIN_FY = 1.06            # откуда «стреляет» невидимая артиллерия: чуть ниже экрана
 
 class _Crowd:
@@ -50,6 +51,10 @@ class _Crowd:
             if dx * dx + dy * dy <= reach * reach:
                 result.extend(t.footprint_at(t.x, t.y, t.hull_angle))
         return result
+
+    def blocks_obb(self, obb):
+        """Задевает ли прямоугольник хоть одну живую машину (для SpawnFinder)."""
+        return any(a.v.hits_obb(obb) for a in self._actors if a.v.alive)
 
     def raycast(self, x0, y0, x1, y1, ignore=None):
         team = getattr(ignore, "team", None)
@@ -160,8 +165,14 @@ class Stage:
         return widths_per_s * self.size[0] / self.camera.zoom / KMH_TO_PX
 
     def _add(self, vehicle, at, heading):
-        vehicle.x, vehicle.y = self.pt(*at)
+        x, y = self.pt(*at)
+        vehicle.x, vehicle.y = x, y
         vehicle.hull_angle = heading % 360.0
+        # ищем свободное место рядом: не внутри камня, воды или другого танка
+        finder = SpawnFinder(self.terrain, blockers=[self.crowd.blocks_obb])
+        spot = finder.find_near(vehicle, x, y, SPAWN_SEARCH_M, heading=heading, rng=self.rng)
+        if spot is not None:
+            vehicle.place_at(spot)
         actor = Actor(self, vehicle)
         self.actors.append(actor)
         return actor
