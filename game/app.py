@@ -7,6 +7,7 @@ from .background import Backdrop
 from .scenes import (
     MenuScene, ConstructorScene, PlayScene,
     SettingsScene, InstructionScene, NewGameScene, StatsScene, ResultScene,
+    MapListScene, NewMapScene, MapEditorScene,
 )
 from .state.session import Session
 from ui.theme import BG_COLOR
@@ -53,6 +54,7 @@ class App:
     def show_menu(self):
         self._next = lambda: MenuScene(
             on_play=self.show_newgame,
+            on_maps=self.show_maps,
             on_constructor=self.show_constructor,
             on_instruction=self.show_instruction,
             on_settings=self.show_settings,
@@ -77,6 +79,19 @@ class App:
 
     def show_stats(self):
         self._next = lambda: StatsScene(self.session.career, on_back=self.show_menu, on_quit=self.quit)
+
+    def show_maps(self):
+        self._next = lambda: MapListScene(self.session, on_new=self.show_new_map,
+                                          on_open=self.show_editor,
+                                          on_back=self.show_menu, on_quit=self.quit)
+
+    def show_new_map(self):
+        self._next = lambda: NewMapScene(on_create=self.show_editor,
+                                         on_back=self.show_maps, on_quit=self.quit)
+
+    def show_editor(self, map_data):
+        self._next = lambda: MapEditorScene(self.session, map_data,
+                                            on_exit=self.show_maps, on_quit=self.quit)
 
     def show_result(self, stats):
         self._next = lambda: ResultScene(stats, self.session.career, on_again=self.show_newgame,

@@ -7,5 +7,8 @@ class PanelMode(Enum):
     TANK = auto()
     WALL = auto()
     TD = auto()
+    MAP_WALL = auto()
+    MAP_ROCK = auto()
+    MAP_LAND = auto()
 
 PANEL_OF = {VehicleKind.MBT: PanelMode.TANK, VehicleKind.TD: PanelMode.TD}

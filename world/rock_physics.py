@@ -13,17 +13,8 @@ ROCK_STOP_PX = 5.0           # px/с: медленнее этого камень
 class RockMover:
     def __init__(self, terrain):
         self.terrain = terrain
-        self._moved = {}            # uid -> камень, который двигали (вместо «свежего» из seed)
-        self._moved_cells = {}      # (ix, iy) -> [камни], чей центр сейчас лежит в этой ячейке
         self._moving = []           # камни, которые сейчас скользят
         self._listeners = []        # функции (x, y, r): зона круга изменилась
-
-    # ---------- запросы от TerrainMap при генерации ячеек ----------
-    def is_moved(self, uid):
-        return uid in self._moved
-
-    def rocks_in_cell(self, ix, iy):
-        return self._moved_cells.get((ix, iy), ())
 
     # ---------- подписки ----------
     def add_move_listener(self, fn):
@@ -111,22 +102,16 @@ class RockMover:
             fn(rock.x, rock.y, rock.r_max)
 
     def _register(self, rock):
-        """Запоминает сдвинутый камень и переносит его в список ячейки, где теперь его центр.
-        Списки в кэше правим на месте, поэтому ячейки перегенерировать не нужно."""
+        """Переносит камень в список той ячейки поиска, где теперь его центр.
+        Списки в TerrainMap правим на месте, поэтому ничего перегенерировать не нужно."""
         t = self.terrain
-        if rock.uid not in self._moved:
-            self._moved[rock.uid] = rock
-            self._moved_cells.setdefault(rock.cell, []).append(rock)
         new = t.cell_of(rock.x, rock.y)
         if new == rock.cell:
             return
-        old = rock.cell
-        self._moved_cells[old].remove(rock)
-        self._moved_cells.setdefault(new, []).append(rock)
-        old_list = t.cached_cell(old)
-        if old_list is not None and rock in old_list:
+        old_list = t.cached_cell(rock.cell)
+        if rock in old_list:
             old_list.remove(rock)
         new_list = t.cached_cell(new)
-        if new_list is not None and rock not in new_list:
+        if rock not in new_list:
             new_list.append(rock)
         rock.cell = new

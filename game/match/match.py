@@ -3,7 +3,7 @@
 notifier — приёмник сообщений о бое (его показывает hud, а партия только вызывает его методы)."""
 from combat import EffectsSystem, TargetSet
 from inputs import Action
-from structures import WallManager, Wall, WALL_PARAMS
+from structures import WallManager
 from world import TerrainMap, SpawnFinder, WorldBoundary
 
 from .context import GameContext
@@ -18,6 +18,7 @@ from .control.player import TankController
 from .control.ram import RamController
 from .control.wall_editor import WallEditor
 from .rounds.spawner import BotSpawner
+from ..editor.mapio import load_walls
 
 PLAYER_SEARCH_M = 40.0       # в каком радиусе от центра ищем место для танка игрока
 
@@ -61,11 +62,8 @@ class Match:
         self.fleet.on_destroyed = self.stats.on_enemy_destroyed
 
     def _load_walls(self, map_data):
-        """Стены карты становятся обычными разрушаемыми стенами. Значения подрезаем под границы ползунков."""
-        P = WALL_PARAMS
-        for w in map_data.walls:
-            self.walls.add(Wall(w.x, w.y, P["wall_hp"].fit(w.hp), P["wall_width_m"].fit(w.width_m),
-                                P["wall_length_m"].fit(w.length_m), w.angle))
+        """Стены карты становятся обычными разрушаемыми стенами."""
+        load_walls(map_data, self.walls)
 
     def _place_player(self, player):
         """Игрок стартует в центре карты; если там занято (ручная карта), ищем ближайшее свободное место."""

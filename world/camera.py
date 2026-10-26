@@ -32,6 +32,8 @@ class Camera:
         self.zoom_level = DEFAULT_ZOOM_LEVEL      # нужен только ступенчатому zoom_by
         self._z = ZOOM_LEVELS[DEFAULT_ZOOM_LEVEL]
         self._target = self._z                    # куда зум плавно подтягивается
+        self.zoom_min = ZOOM_MIN                  # границы плавного зума; редактор расширяет их
+        self.zoom_max = ZOOM_MAX
         self._left = 0
         self._top = 0
         self._refresh()
@@ -63,14 +65,14 @@ class Camera:
     # ---------- плавный зум (партия) ----------
     def zoom_wheel(self, steps):
         """Колёсико: сдвигает ЦЕЛЬ зума на steps ступеней (steps > 0 приблизить)."""
-        self._target = clamp(self._target * ZOOM_WHEEL_STEP ** steps, ZOOM_MIN, ZOOM_MAX)
+        self._target = clamp(self._target * ZOOM_WHEEL_STEP ** steps, self.zoom_min, self.zoom_max)
 
     def zoom_hold(self, direction, dt):
         """Клавиша зажата: цель непрерывно ползёт. direction: +1 приближать, -1 отдалять, 0 ничего."""
         if direction == 0 or dt <= 0.0:
             return
         self._target = clamp(self._target * math.exp(direction * ZOOM_HOLD_RATE * dt),
-                             ZOOM_MIN, ZOOM_MAX)
+                             self.zoom_min, self.zoom_max)
 
     def update_zoom(self, dt):
         """Каждый кадр: зум плавно догоняет цель."""
@@ -81,6 +83,11 @@ class Camera:
             self._z = self._target
         else:
             self._z *= math.exp(diff * (1.0 - math.exp(-ZOOM_SMOOTH * dt)))
+        self._refresh()
+
+    def set_zoom(self, z):
+        """Мгновенно поставить зум (в пределах zoom_min..zoom_max)."""
+        self._z = self._target = clamp(z, self.zoom_min, self.zoom_max)
         self._refresh()
 
     # ---------- остальное ----------

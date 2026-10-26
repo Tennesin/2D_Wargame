@@ -344,3 +344,148 @@ class ActionButton:
 
     def draw(self, surface, mouse_pos):
         self.button.draw(surface, mouse_pos, colors=self.colors)
+
+# ==========================================
+# СПИСОК И ПОЛЕ ВВОДА
+# ==========================================
+class ListBox:
+    """Список с выбором строки и прокруткой. items: [(ключ, заголовок, пояснение), ...].
+    handle_event возвращает "select", "activate" (двойной клик) или None."""
+    ROW_H = 50
+    DOUBLE_CLICK_MS = 400
+
+    def __init__(self, rect, empty_text="Список пуст"):
+        self.rect = pygame.Rect(rect)
+        self.empty_text = empty_text
+        self.items = []
+        self.selected = None              # индекс выбранной строки
+        self.scroll = ScrollArea()
+        self._last_click = (None, 0)
+
+    @property
+    def selected_key(self):
+        return None if self.selected is None else self.items[self.selected][0]
+
+    def set_items(self, items, select_key=None):
+        self.items = list(items)
+        self.selected = None
+        if select_key is not None:
+            for i, item in enumerate(self.items):
+                if item[0] == select_key:
+                    self.selected = i
+                    break
+        self._last_click = (None, 0)
+        self._bounds()
+
+    def layout(self, rect):
+        self.rect = pygame.Rect(rect)
+        self._bounds()
+
+    def _bounds(self):
+        self.scroll.update_bounds(len(self.items) * self.ROW_H, self.rect.height)
+
+    def move(self, step):
+        """Сдвинуть выбор на step строк (клавиши вверх и вниз) и прокрутить так, чтобы строка была видна."""
+        if not self.items:
+            return
+        i = 0 if self.selected is None else max(0, min(len(self.items) - 1, self.selected + step))
+        self.selected = i
+        top = i * self.ROW_H
+        if top < self.scroll.offset:
+            self.scroll.offset = top
+        elif top + self.ROW_H > self.scroll.offset + self.rect.height:
+            self.scroll.offset = top + self.ROW_H - self.rect.height
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEWHEEL:
+            if self.rect.collidepoint(pygame.mouse.get_pos()):
+                self.scroll.scroll_by_wheel(event.y)
+            return None
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.rect.collidepoint(event.pos):
+            i = (event.pos[1] - self.rect.y + self.scroll.offset) // self.ROW_H
+            if 0 <= i < len(self.items):
+                now = pygame.time.get_ticks()
+                double = self._last_click[0] == i and now - self._last_click[1] <= self.DOUBLE_CLICK_MS
+                self.selected = i
+                self._last_click = (i, now)
+                return "activate" if double else "select"
+        return None
+
+    def draw(self, surface, mouse_pos):
+        pygame.draw.rect(surface, SLIDER_BG_COLOR, self.rect, border_radius=6)
+        old_clip = surface.get_clip()
+        surface.set_clip(self.rect)
+        if not self.items:
+            txt = get_text(self.empty_text, FONT_SIZE_LABEL, TEXT_DIM)
+            surface.blit(txt, txt.get_rect(center=self.rect.center))
+        inside = self.rect.collidepoint(mouse_pos)
+        for i, (_, title, note) in enumerate(self.items):
+            row = pygame.Rect(self.rect.x + 4, self.rect.y + i * self.ROW_H - self.scroll.offset + 2,
+                              self.rect.width - 14, self.ROW_H - 4)
+            if row.bottom < self.rect.top or row.top > self.rect.bottom:
+                continue
+            if i == self.selected:
+                bg, c_title, c_note = SLIDER_FILL_COLOR, (30, 30, 30), (70, 56, 30)
+            elif inside and row.collidepoint(mouse_pos):
+                bg, c_title, c_note = BUTTON_COLORS["hover"], TEXT_COLOR, TEXT_DIM
+            else:
+                bg, c_title, c_note = BUTTON_COLORS["normal"], TEXT_COLOR, TEXT_DIM
+            pygame.draw.rect(surface, bg, row, border_radius=4)
+            surface.blit(get_text(title, FONT_SIZE_LABEL, c_title), (row.x + 10, row.y + 4))
+            surface.blit(get_text(note, FONT_SIZE_LABEL, c_note), (row.x + 10, row.y + 24))
+        surface.set_clip(old_clip)
+        pygame.draw.rect(surface, SLIDER_BORDER_COLOR, self.rect, 1, border_radius=6)
+        self.scroll.draw_scrollbar(surface, self.rect)
+
+class TextInput:
+    """Однострочное поле ввода. Клавиши приходят через handle_key(event) из KEYDOWN
+    (event.unicode даёт и кириллицу). Вставки из буфера обмена нет."""
+
+    def __init__(self, rect, text="", max_len=40, placeholder=""):
+        self.rect = pygame.Rect(rect)
+        self.text = text[:max_len]
+        self.pos = len(self.text)         # положение курсора
+        self.max_len = max_len
+        self.placeholder = placeholder
+
+    def handle_key(self, event):
+        k = event.key
+        if k == pygame.K_BACKSPACE:
+            if self.pos > 0:
+                self.text = self.text[:self.pos - 1] + self.text[self.pos:]
+                self.pos -= 1
+        elif k == pygame.K_DELETE:
+            self.text = self.text[:self.pos] + self.text[self.pos + 1:]
+        elif k == pygame.K_LEFT:
+            self.pos = max(0, self.pos - 1)
+        elif k == pygame.K_RIGHT:
+            self.pos = min(len(self.text), self.pos + 1)
+        elif k == pygame.K_HOME:
+            self.pos = 0
+        elif k == pygame.K_END:
+            self.pos = len(self.text)
+        else:
+            ch = event.unicode
+            if ch and ch.isprintable() and len(self.text) < self.max_len:
+                self.text = self.text[:self.pos] + ch + self.text[self.pos:]
+                self.pos += 1
+
+    def draw(self, surface, mouse_pos, focused=True):
+        pygame.draw.rect(surface, SLIDER_BG_COLOR, self.rect, border_radius=4)
+        pygame.draw.rect(surface, SLIDER_FILL_COLOR if focused else SLIDER_BORDER_COLOR,
+                         self.rect, 1, border_radius=4)
+        inner = self.rect.inflate(-16, -6)
+        caret_x = get_text(self.text[:self.pos], FONT_SIZE_LABEL, TEXT_COLOR).get_width() if self.pos else 0
+        shift = max(0, caret_x - inner.width + 4)          # длинный текст едет влево, курсор остаётся видим
+        old_clip = surface.get_clip()
+        surface.set_clip(inner)
+        if self.text:
+            label = get_text(self.text, FONT_SIZE_LABEL, TEXT_COLOR)
+            surface.blit(label, label.get_rect(midleft=(inner.x - shift, inner.centery)))
+        elif self.placeholder:
+            label = get_text(self.placeholder, FONT_SIZE_LABEL, TEXT_DIM)
+            surface.blit(label, label.get_rect(midleft=(inner.x, inner.centery)))
+        if focused and (pygame.time.get_ticks() // 500) % 2 == 0:
+            x = inner.x - shift + caret_x
+            pygame.draw.line(surface, TEXT_COLOR, (x, inner.y + 2), (x, inner.bottom - 2), 2)
+        surface.set_clip(old_clip)

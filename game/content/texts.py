@@ -2,6 +2,7 @@
 
 # Главное меню
 MENU_PLAY = "Играть"
+MENU_MAPS = "Редактор карт"
 MENU_CONSTRUCTOR = "Конструктор"
 MENU_INSTRUCTION = "Инструкция"
 MENU_SETTINGS = "Настройки"
@@ -100,3 +101,50 @@ STATS_REC_KILLS = "Врагов за матч"
 
 AMMO_RU = {"AP": "Бронебойные", "HEAT": "Кумулятивные",
            "HESH": "HESH", "HE": "Осколочно-фугасные"}
+
+# Список карт
+MAPS_TITLE = "Карты"
+MAPS_EMPTY = "Нет карт"
+MAPS_NEW = "Новая карта"
+MAPS_OPEN = "Загрузить карту"
+MAPS_DELETE = "Удалить"
+MAPS_DELETE_SURE = "Точно удалить?"
+MAPS_CONFIRM = "Нажмите «Удалить» ещё раз, чтобы стереть карту навсегда"
+MAPS_DELETED = "Карта удалена"
+MAPS_DELETE_FAILED = "Не удалось удалить файл"
+MAPS_LOAD_FAILED = "Не удалось прочитать карту: файл повреждён"
+MAPS_KIND = {"natural": "естественная", "empty": "пустая"}
+MAPS_INFO = "{w}×{l} м, {kind}"
+
+# Новая карта
+NEWMAP_TITLE = "Новая карта"
+NEWMAP_SIZE = "Размер"
+NEWMAP_WIDTH = "Ширина карты"
+NEWMAP_LENGTH = "Длина карты"
+NEWMAP_TYPE = "Заполнение"
+NEWMAP_MODE = "Тип карты"
+NEWMAP_NATURAL = "Естественная"
+NEWMAP_EMPTY = "Пустая"
+NEWMAP_HINT = ("Естественная: озёра, грязь и камни по случайному сиду, всё это потом можно менять. "
+               "Пустая: ровная трава без объектов. Размер задаётся отдельно по ширине и длине.")
+NEWMAP_CREATE = "Создать"
+
+# Редактор карт
+EDITOR_SAVE = "Сохранить"
+EDITOR_EXIT = "Выйти"
+EDITOR_CANCEL = "Отмена"
+EDITOR_NAME_HINT = "Название карты"
+EDITOR_SAVE_TITLE = "Сохранение карты"
+EDITOR_SAVE_ASK = "Введите название карты. Оно же станет именем файла."
+EDITOR_OVERWRITE_TITLE = "Такая карта уже есть"
+EDITOR_OVERWRITE_ASK = "Карта «{name}» уже существует. Заменить её?"
+EDITOR_REPLACE = "Заменить"
+EDITOR_OTHER_NAME = "Другое имя"
+EDITOR_LEAVE_TITLE = "Выход из редактора"
+EDITOR_LEAVE_ASK = "Карта «{name}» не сохранена. Сохранить перед выходом?"
+EDITOR_LEAVE_DROP = "Не сохранять"
+EDITOR_SAVED = "Карта сохранена: {file}"
+EDITOR_SAVE_FAILED = "Не удалось сохранить карту"
+EDITOR_NOTHING = "Нечего сохранять"
+EDITOR_HINT = "WASD / ПКМ — камера, колесо — зум, Ctrl+S — сохранить"
+EDITOR_START = "Старт"

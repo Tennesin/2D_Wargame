@@ -16,6 +16,7 @@ BUILD_MS = 6.0              # сколько мс за кадр можно тр�
 PREFETCH_MS = 2.0           # и на предзагрузку кольца за краем экрана
 PREFETCH_RING = 1
 FALLBACK_COLOR = (102, 148, 74)   # средняя трава: показывается на месте чанка, который не успели построить
+FLAT_SPAN_PX = 40.0         # чанк мельче этого на экране: земля одной заливкой (дальний зум редактора)
 
 class GroundRenderer:
     def __init__(self, world_generator):
@@ -31,6 +32,9 @@ class GroundRenderer:
     # КАДР
     # ==========================================
     def draw(self, screen, camera):
+        if CHUNK_SIZE * camera.zoom < FLAT_SPAN_PX:
+            screen.fill(FALLBACK_COLOR)
+            return
         rng = self._visible_range(camera, screen.get_size())
         if rng is None:
             return                                        # на экране только глухая темнота

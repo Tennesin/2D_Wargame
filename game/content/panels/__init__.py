@@ -1,9 +1,13 @@
 """content/panels — состав панелей интерфейса: какие ползунки и характеристики показывать
-для танка и для стены. Единственное место, где интерфейс «знакомится» с танком и стеной.
+для танка, стены и редактора карт. Единственное место, где интерфейс «знакомится» с танком и стеной.
 Снаружи импортируем из пакета: from ..content.panels import PanelMode, build_tank_panel, ..."""
 from .kinds import PanelMode, PANEL_OF
 from .vehicle import build_tank_panel, build_td_panel
 from .wall import build_wall_panel, wall_values, bind_wall_delete, WallPanelLink
+from .editor import (build_editor_panels, EDITOR_TOOLS, TOOL_MODE,
+                     STAT_NAME, STAT_SIZE, STAT_ROCKS, STAT_WALLS, STAT_FILE)
 
 __all__ = ["PanelMode", "PANEL_OF", "build_tank_panel", "build_td_panel",
-           "build_wall_panel", "wall_values", "bind_wall_delete", "WallPanelLink"]
+           "build_wall_panel", "wall_values", "bind_wall_delete", "WallPanelLink",
+           "build_editor_panels", "EDITOR_TOOLS", "TOOL_MODE",
+           "STAT_NAME", "STAT_SIZE", "STAT_ROCKS", "STAT_WALLS", "STAT_FILE"]
