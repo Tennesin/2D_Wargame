@@ -15,8 +15,6 @@ from .world_renderer import Renderer
 class PlayView:
     def __init__(self, world, clock, match, ui, toolbar, ammo_bar, notifier, settings):
         self.match = match
-        self.ui = ui
-        self.toolbar = toolbar
         self.ammo_bar = ammo_bar
         self.notifier = notifier
 
@@ -32,7 +30,7 @@ class PlayView:
                                   modes=match.modes, spawner=match.spawner,
                                   show_fps=settings.show_fps)
         self.hud = HudOverlay(TankHud(), match.player, match.modes, match.camera_ctrl, match.fleet)
-        self.round_overlay = RoundOverlay(match.spawner, ui, match.player)
+        self.round_overlay = RoundOverlay(match.spawner, match.player)
         self.inspector = HoverInspector(ctx, match.input, match.modes)
 
     def handle_hotkeys(self):
@@ -44,18 +42,16 @@ class PlayView:
         mouse = m.input.mouse_pos
         alive = m.player.alive
 
-        self.renderer.draw(screen, m.camera, m.wall_editor.build_preview(), m.combat.aim_info())
+        self.renderer.draw(screen, m.camera, aim=m.combat.aim_info())
         self.markers.draw(screen)
         self.stun_indicator.draw(screen)
         self.artillery_warning.draw(screen)
         if alive:
             self.warning.draw(screen)
         self.debug.draw(screen)
-        self.ui.draw(screen, mouse)
         if alive:
-            self.toolbar.draw(screen, mouse)
             self.ammo_bar.draw(screen, mouse, m.player.ammo)
         self.hud.draw(screen)
-        self.round_overlay.draw(screen)      # после ui.draw: панель уже знает свой прямоугольник
+        self.round_overlay.draw(screen)
         self.inspector.draw(screen)
         self.notifier.draw(screen, m.camera)

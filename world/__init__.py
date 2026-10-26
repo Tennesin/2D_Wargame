@@ -14,6 +14,7 @@ from .terrain_render import TerrainRenderer
 from .ground_renderer import GroundRenderer
 from .bounds_render import WorldBoundsRenderer
 from .boundary import WorldBoundary
+from .preview import preview_from_seed, preview_from_map
 
 __all__ = [
     "Camera", "ZOOM_LEVELS", "WorldGenerator", "CHUNK_SIZE", "TerrainMap", "TerrainKind",
@@ -21,5 +22,5 @@ __all__ = [
     "GroundRenderer", "WorldBoundsRenderer", "SpawnFinder", "SpawnPoint", "WorldBoundary",
     "Landscape", "L_GRASS", "L_MUD", "L_SHALLOWS", "L_WATER", "L_DEEP",
     "MapData", "RockData", "WallData", "MODE_NATURAL", "MODE_EMPTY", "START_CLEAR_M",
-    "build_empty", "build_natural",
+    "build_empty", "build_natural", "preview_from_seed", "preview_from_map"
 ]

@@ -16,9 +16,9 @@ from world.mapdata import DEFAULT_NAME, MAX_NAME_LEN
 
 from .base import Scene
 from ..content import texts
-from ..content.panels import (PanelMode, build_editor_panels, TOOL_MODE,
+from ..content.panels import (PanelMode, build_editor_panels, TOOL_MODE, WallPanelLink,
                               STAT_NAME, STAT_SIZE, STAT_ROCKS, STAT_WALLS, STAT_FILE)
-from ..editor import EditorBar, Dialog, load_walls, collect_walls
+from ..editor import EditorBar, Dialog, WallTool, load_walls, collect_walls
 from ..match.control.camera import CameraController
 from ..view.world_renderer import Renderer
 
@@ -77,6 +77,9 @@ class MapEditorScene(Scene):
         for mode in TOOL_MODE.values():
             self.ui.set_on_change(mode, self._on_panel_change)
         self.input = InputHandler([self.dialog, self.bar, self.ui])
+        self.wall_tool = WallTool(self.camera, self.input, self.walls, self.terrain,
+                                  on_change=self.mark_dirty)
+        self.wall_link = WallPanelLink(self.ui, self.wall_tool)
         self.camera_ctrl = CameraController(self.camera, self.input)
         self.camera_ctrl.set_free(True)      # танка нет: камера всегда свободна
         self._alpha = AlphaLayer()
@@ -91,9 +94,8 @@ class MapEditorScene(Scene):
 
     def mark_dirty(self):
         """Инструменты вызывают это после любой правки карты."""
-        if not self.dirty:
-            self.dirty = True
-            self._refresh_stats()
+        self.dirty = True
+        self._refresh_stats()
 
     def _say(self, text, color=C_DIM, seconds=3.0):
         self._toast = [text, color, seconds]
@@ -119,13 +121,21 @@ class MapEditorScene(Scene):
     def _on_panel_change(self, values):
         tool = values.get("tool")
         if tool in TOOL_MODE and tool != self.tool:
-            self.tool = tool
-            self.ui.show(TOOL_MODE[tool], {"tool": tool})
+            self._set_tool(tool)
+            return
+        if self.tool == "wall":
+            self.wall_link.on_params_change(values)
+
+    def _set_tool(self, tool):
+        self.wall_tool.deselect()
+        self.tool = tool
+        self.ui.show(TOOL_MODE[tool], {"tool": tool})
 
     def _tool_click(self, button, pos):
-        """Клик по миру: ЛКМ (button=1) или чистый ПКМ без перетаскивания (button=3).
-        Сюда подключаются инструменты: смотрите self.tool ("wall", "rock", "land")."""
+        """Клик по миру: ЛКМ (button=1) или чистый ПКМ без перетаскивания (button=3)."""
         wx, wy = self.camera.screen_to_world(*pos)
+        if self.tool == "wall":
+            self.wall_tool.click(button, pos, wx, wy)
 
     # ==========================================
     # СОХРАНЕНИЕ И ВЫХОД
@@ -216,6 +226,9 @@ class MapEditorScene(Scene):
             self._handle_hotkeys()
             self._pan_keys(dt)
             self._handle_clicks()
+            if self.tool == "wall":
+                self.wall_tool.update_rotation()
+                self.wall_link.update_stats()
 
         if self._toast is not None:
             self._toast[2] -= dt
@@ -224,10 +237,15 @@ class MapEditorScene(Scene):
 
     def _handle_hotkeys(self):
         inp = self.input
-        if inp.was_pressed(Action.SAVE) and inp.lctrl:
+        if inp.was_pressed(Action.SAVE) and inp.ctrl:
             self._request_save()
+        if self.tool == "wall" and inp.was_pressed(Action.DELETE_WALL):
+            self.wall_tool.delete_selected()
         if inp.was_pressed(Action.CANCEL):
-            self._request_exit()
+            if self.tool == "wall" and self.walls.selected is not None:
+                self.wall_tool.deselect()                # Esc закрывает по одному слою
+            else:
+                self._request_exit()
 
     def _pan_keys(self, dt):
         """WASD и стрелки двигают камеру (с зажатым Ctrl не двигают: это Ctrl+S)."""
@@ -258,7 +276,8 @@ class MapEditorScene(Scene):
     # РИСОВАНИЕ
     # ==========================================
     def draw(self, screen):
-        self.renderer.draw(screen, self.camera)
+        preview = self.wall_tool.preview() if self.tool == "wall" else None
+        self.renderer.draw(screen, self.camera, build_preview=preview)
         self._draw_start_zone(screen)
         mouse = self.input.mouse_pos
         self.ui.draw(screen, mouse)

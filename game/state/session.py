@@ -1,4 +1,6 @@
 """game/state/session.py — данные, которые переживают смену сцен: выбранный тип техники и настройки каждого типа."""
+import random
+
 from engine import VehicleKind, WORLD_DEFAULT_M
 from vehicles import VEHICLE_TYPES, default_tuning, FRONT_SCREEN, NOSE_FLAT, SPECIAL_HEAT
 from .preferences import Preferences
@@ -18,6 +20,9 @@ class Session:
         self.settings = GameSettings()   # настройки меню «Настройки»
         self.career = Career()           # накопленная статистика и рекорды (файл stats.json)
         self.maps = MapStore()           # хранилище карт (папка maps/), список кэшируется
+        self.map_file = None             # None: случайная карта по сиду; иначе имя файла в maps/
+        self.map_seed = self._roll_seed()
+        self._seed_spent = False         # True: партия на этом сиде уже сыграна, нужен новый
 
     @staticmethod
     def _defaults(vtype):
@@ -35,6 +40,29 @@ class Session:
         t = VEHICLE_TYPES[self.kind]
         return t.spec_cls.from_values(self.values[self.kind])
 
-    def make_map(self, seed):
-        """Карта для новой партии. Пока всегда естественная по сиду; выбор файла появится в «Новой игре»."""
-        return build_natural(seed, self.map_w_m, self.map_h_m)
+    @staticmethod
+    def _roll_seed():
+        return random.randrange(1, 1_000_000)
+
+    def fresh_seed(self):
+        """Новый сид для превью случайной карты."""
+        self.map_seed = self._roll_seed()
+        self._seed_spent = False
+
+    def prepare_seed(self):
+        """При открытии «Новой игры»: если на прошлом сиде уже играли, берём новый."""
+        if self._seed_spent:
+            self.fresh_seed()
+
+    def make_map(self, seed=None):
+        """Карта для новой партии: выбранный файл или случайная по map_seed.
+        seed: принудительный сид (отладка), действует только для случайной карты."""
+        if self.map_file is not None:
+            data = self.maps.load(self.map_file)
+            if data is not None:
+                return data
+            self.map_file = None                      # файл пропал или повреждён: вернёмся к случайной
+        if seed is not None:
+            self.map_seed = seed
+        self._seed_spent = True
+        return build_natural(self.map_seed, self.map_w_m, self.map_h_m)

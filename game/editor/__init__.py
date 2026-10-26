@@ -3,5 +3,6 @@
 from .mapio import load_walls, collect_walls
 from .toolbar import EditorBar
 from .dialogs import Dialog
+from .wall_tool import WallTool
 
-__all__ = ["load_walls", "collect_walls", "EditorBar", "Dialog"]
+__all__ = ["load_walls", "collect_walls", "EditorBar", "Dialog", "WallTool"]

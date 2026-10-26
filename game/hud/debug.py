@@ -58,7 +58,7 @@ class DebugOverlay:
             f"Bot hulls: {self._bot_hulls()}",
             f"Hull scale: {s.HULL_SCALE:.2f}  size_k: {s.size_k:.3f}",
             f"Hitbox: {2 * s.COLLISION_HALF_W_PX / PX_PER_M:.2f} x {2 * s.COLLISION_HALF_L_PX / PX_PER_M:.2f} m",
-            f"Mode: {self.modes.mode.name}  Mouse owner: {owner}",
+            f"Mouse owner: {owner}",
             f"Combat ({k[Action.COMBAT]}): {'ON' if self.modes.combat else 'OFF'}",
             f"Speed: {t.speed_kmh:.1f} km/h",
             f"Terrain speed k: {t.terrain_k:.2f}",

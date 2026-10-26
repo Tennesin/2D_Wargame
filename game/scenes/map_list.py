@@ -155,6 +155,10 @@ class MapListScene(Scene):
         self.open_button.enabled = has
         self.delete_button.enabled = has
         self.delete_button.label = texts.MAPS_DELETE_SURE if self._confirming() else texts.MAPS_DELETE
+        if self._confirm is not None and not self._confirming():
+            self._confirm = None
+            if self._status[0] == texts.MAPS_CONFIRM:
+                self._set_status("")
 
     def draw(self, screen):
         draw_plate(screen, self._plate)

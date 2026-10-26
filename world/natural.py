@@ -96,8 +96,7 @@ class _Generator:
         return value
 
 def build_natural(seed, width_m, length_m, name=None):
-    """Естественная карта: тот же мир, что давал сид раньше, но в виде MapData.
-    Береговая линия сдвигается не больше чем на клетку (1 м) из-за растеризации."""
+    """Естественная карта."""
     width_m = int(round(clamp(float(width_m), WORLD_MIN_M, WORLD_MAX_M)))
     length_m = int(round(clamp(float(length_m), WORLD_MIN_M, WORLD_MAX_M)))
     gen = _Generator(seed, width_m, length_m)
@@ -127,3 +126,30 @@ def build_natural(seed, width_m, length_m, name=None):
                                       [(int(round(px)), int(round(py))) for px, py in rock.pts]))
 
     return MapData(name or f"Сид {seed}", width_m, length_m, MODE_NATURAL, seed, land, rocks)
+
+def natural_shapes(seed, width_m, length_m):
+    """Сырые формы естественной карты без запекания в сетку (для дешёвого превью)."""
+    width_m = int(round(clamp(float(width_m), WORLD_MIN_M, WORLD_MAX_M)))
+    length_m = int(round(clamp(float(length_m), WORLD_MIN_M, WORLD_MAX_M)))
+    gen = _Generator(seed, width_m, length_m)
+    muds, lakes, rocks = [], [], []
+
+    for iy in range(gen.iy[0], gen.iy[1] + 1):
+        for ix in range(gen.ix[0], gen.ix[1] + 1):
+            _, mud, raw_rocks = gen.raw(ix, iy)
+            for shore in gen.accepted_lake(ix, iy):
+                lakes.append((shore.pts,
+                              shrink_polygon(shore.pts, shore.x, shore.y, MID_SCALE),
+                              shrink_polygon(shore.pts, shore.x, shore.y, DEEP_SCALE)))
+            if mud is not None and gen.survives(mud, 1, ix, iy):
+                muds.append(mud.pts)
+
+            near_lakes = [lake for jy in range(iy - 1, iy + 2) for jx in range(ix - 1, ix + 2)
+                          for lake in gen.accepted_lake(jx, jy)]
+            for rock in raw_rocks:
+                if abs(rock.x) > gen.half_w or abs(rock.y) > gen.half_h:
+                    continue
+                if any(lake.contains(rock.x, rock.y) for lake in near_lakes):
+                    continue
+                rocks.append(rock.pts)
+    return muds, lakes, rocks

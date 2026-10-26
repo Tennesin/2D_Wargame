@@ -3,8 +3,6 @@
 from engine import obb_distance_to_point
 from ui import InfoCard
 from world import ROCK
-from ..match.modes import Mode
-from ..config import HIDE_IN_BUILD
 
 class HoverInspector:
     def __init__(self, ctx, input_handler, modes):
@@ -22,8 +20,6 @@ class HoverInspector:
         if not self.fleet.player.alive:
             return None
         if self.modes.combat:
-            return None
-        if HIDE_IN_BUILD and self.modes.mode == Mode.BUILD:
             return None
         if not self.input.pointer_in_world:
             return None

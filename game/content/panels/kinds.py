@@ -5,7 +5,6 @@ from engine import VehicleKind
 
 class PanelMode(Enum):
     TANK = auto()
-    WALL = auto()
     TD = auto()
     MAP_WALL = auto()
     MAP_ROCK = auto()

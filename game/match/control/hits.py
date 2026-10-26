@@ -3,7 +3,6 @@ import math
 
 from engine import TargetType
 from combat import compute_aim, splash_damage, pen_after_modules, blast_damage
-from ..modes import Mode
 
 SPLASH_ORIGIN_PUSH_PX = 3.0      # на сколько px точка взрыва отодвигается от грани, в которую попал снаряд
 
@@ -161,6 +160,6 @@ class CombatController:
         """Траектория выстрела. Только в боевом состоянии, не в режиме стройки и пока танк жив."""
         if not self.tank.alive:
             return None
-        if not self.modes.combat or self.modes.mode == Mode.BUILD:
+        if not self.modes.combat:
             return None
         return compute_aim(self.tank, self.targets)

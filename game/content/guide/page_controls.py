@@ -1,6 +1,5 @@
 """game/content/guide/page_controls.py — страница инструкции «Управление»."""
 from inputs import Action, AMMO_HOTKEYS
-from structures import ROTATE_SNAP_DEG
 from ui import SectionHeader, KeyRow, make_mouse_icon
 from vehicles.chassis.params import TRACK_REPAIR_S
 from ...config import COMBAT_HOLD
@@ -40,16 +39,8 @@ def build():
         KeyRow([_k(Action.TOGGLE_FREE_CAM), make_mouse_icon("right")],
                "Свободная камера: правая кнопка с перетаскиванием двигает вид. Повторное нажатие возвращает камеру к танку."),
 
-        SectionHeader("Стены"),
-        KeyRow([_k(Action.TOGGLE_BUILD)],
-               "Режим стройки. Левая кнопка мыши ставит стену, правая выходит из режима. Танком в это время не управляют."),
-        KeyRow([make_mouse_icon("left")],
-               "Клик по стене выбирает её и открывает панель настроек. Белая точка в центре стены поворачивает её; "
-               f"с Shift поворот идёт шагом {ROTATE_SNAP_DEG:.0f}°."),
-        KeyRow([_k(Action.DELETE_WALL)], "Удалить выбранную стену."),
-
         SectionHeader("Прочее"),
         KeyRow([_k(Action.TOGGLE_DEBUG)], "Отладочная информация: FPS, координаты, сведения о ботах."),
         KeyRow([_k(Action.CANCEL)],
-               "Закрывает по одному слою: стройку или панель стены, затем боевой режим, а потом выходит в меню."),
+               "Выключает боевой режим, а затем выходит в меню."),
     ]

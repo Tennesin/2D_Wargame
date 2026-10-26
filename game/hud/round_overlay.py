@@ -11,9 +11,8 @@ class RoundOverlay:
     GAP = 12
     LINE_GAP = 4
 
-    def __init__(self, spawner, ui, player):
+    def __init__(self, spawner, player):
         self.spawner = spawner
-        self.ui = ui
         self.player = player
 
     def draw(self, screen):
@@ -34,7 +33,7 @@ class RoundOverlay:
             rows.append((texts.ROUND_ENEMIES.format(alive=sp.group_alive, total=sp.group_total),
                          FONT_SIZE_LABEL, (170, 176, 186)))
 
-        right = (self.ui.panel_rect.left if self.ui.is_open else screen.get_width()) - self.GAP
+        right = screen.get_width() - self.GAP
         y = self.TOP
         for text, size, color in rows:
             shadow = get_text(text, size, (0, 0, 0))

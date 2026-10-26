@@ -38,6 +38,14 @@ NEWGAME_START = "В бой"
 NEWGAME_ENEMIES = "Враги: архетипы"
 NEWGAME_ENEMIES_HINT = "Появляются только отмеченные типы. Минимум один."
 NEWGAME_LOCKED_NOTE = "последний"
+NEWGAME_SIZE = "Размер карты"
+NEWGAME_RANDOM = "Случайная карта (сид)"
+NEWGAME_RANDOM_NOTE = "случайный мир, размер по ползункам"
+NEWGAME_SEED_BTN = "Новый сид"
+NEWGAME_SEED = "Сид: {seed}"
+NEWGAME_NO_PREVIEW = "Нет превью"
+NEWGAME_FILE_INFO = ("Размер задан в файле карты: {w}×{l} м. Ползунки здесь не действуют. "
+                     "Игрок появляется в центре карты.")
 
 # Подсказки над HUD
 HINT_IDLE = "{combat} — боевой режим, {camera} — камера, {debug} — отладка"

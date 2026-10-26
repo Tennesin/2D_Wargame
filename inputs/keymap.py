@@ -15,7 +15,6 @@ class Action(Enum):
     CANCEL = auto()
     TOGGLE_DEBUG = auto()
     LOCK_TURRET = auto()
-    TOGGLE_BUILD = auto()
     TOGGLE_FREE_CAM = auto()
     DELETE_WALL = auto()
     COMBAT = auto()
@@ -49,7 +48,6 @@ PRESS_KEYMAP = {
     Action.CANCEL:          (pygame.K_ESCAPE,),
     Action.TOGGLE_DEBUG:    (pygame.K_TAB,),
     Action.LOCK_TURRET:     (pygame.K_q,),
-    Action.TOGGLE_BUILD:    (pygame.K_b,),
     Action.TOGGLE_FREE_CAM: (pygame.K_l,),
     Action.DELETE_WALL:     (pygame.K_DELETE,),
     Action.COMBAT:          (pygame.K_LALT, pygame.K_RALT),

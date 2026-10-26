@@ -9,14 +9,13 @@ from world import TerrainMap, SpawnFinder, WorldBoundary
 from .context import GameContext
 from ..state.stats import MatchStats
 from .fleet import Fleet
-from .modes import Modes, Mode
+from .modes import Modes
 from .control.bots import BotController
 from .control.camera import CameraController
 from .control.clicks import ClickRouter
 from .control.hits import CombatController
 from .control.player import TankController
 from .control.ram import RamController
-from .control.wall_editor import WallEditor
 from .rounds.spawner import BotSpawner
 from ..editor.mapio import load_walls
 
@@ -45,13 +44,12 @@ class Match:
         )
 
         # --- контроллеры игрока ---
-        self.modes = Modes(input_handler, self.walls)
+        self.modes = Modes(input_handler)
         self.modes.on_exit = on_exit
         self.camera_ctrl = CameraController(camera, input_handler)
         self.combat = CombatController(self.ctx, self.modes)
         self.tank_ctrl = TankController(self.ctx, input_handler, self.modes)
-        self.wall_editor = WallEditor(self.ctx, input_handler, self.modes)
-        self.clicks = ClickRouter(input_handler, camera, self.modes, self.camera_ctrl, self.wall_editor)
+        self.clicks = ClickRouter(input_handler, self.camera_ctrl, self.modes)
 
         # --- боты ---
         finder = SpawnFinder(self.terrain, blockers=[self.walls.blocks_obb, self.fleet.blocks_obb])
@@ -83,12 +81,10 @@ class Match:
         if self.player.alive:
             self.camera_ctrl.handle_hotkeys()
             self.camera_ctrl.follow(self.player, dt)
-            self.wall_editor.handle_hotkeys()
             self.modes.handle_hotkeys()
             self.tank_ctrl.handle_hotkeys()
 
             self.clicks.update()
-            self.wall_editor.update_rotation()
             self.tank_ctrl.update(dt)
         else:
             self._handle_dead_input()
@@ -104,7 +100,6 @@ class Match:
         if not self._death_handled:
             self._death_handled = True
             self.input.detach_ui()                  # бросить ползунок, стрельбу, вращение; слои больше не слушают
-            self.modes.set_mode(Mode.DRIVE)         # через on_changed закроет панель и снимет выбор стены
             self.modes.set_combat(False)
             self.camera_ctrl.set_free(False)
         self.input.pop_world_clicks()               # накопившиеся клики выбрасываем
