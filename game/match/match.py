@@ -3,7 +3,7 @@
 notifier — приёмник сообщений о бое (его показывает hud, а партия только вызывает его методы)."""
 from combat import EffectsSystem, TargetSet
 from inputs import Action
-from structures import WallManager
+from structures import WallManager, Wall, WALL_PARAMS
 from world import TerrainMap, SpawnFinder, WorldBoundary
 
 from .context import GameContext
@@ -19,19 +19,23 @@ from .control.ram import RamController
 from .control.wall_editor import WallEditor
 from .rounds.spawner import BotSpawner
 
+PLAYER_SEARCH_M = 40.0       # в каком радиусе от центра ищем место для танка игрока
+
 class Match:
-    def __init__(self, seed, player, camera, input_handler, notifier, prefs, settings, on_exit):
-        self.seed = seed
+    def __init__(self, map_data, player, camera, input_handler, notifier, prefs, settings, on_exit):
+        self.map_data = map_data
+        self.seed = map_data.seed
         self.camera = camera
         self.input = input_handler
         self._on_exit = on_exit
         self._death_handled = False
 
         # --- данные ---
-        self.terrain = TerrainMap(seed)
-        self.terrain.preload()
+        self.terrain = TerrainMap(map_data)
         self.walls = WallManager()
+        self._load_walls(map_data)
         self.fleet = Fleet(player)
+        self._place_player(player)
         self.stats = MatchStats(player)
         self.ctx = GameContext(
             camera=camera, terrain=self.terrain, walls=self.walls, fleet=self.fleet,
@@ -50,11 +54,25 @@ class Match:
 
         # --- боты ---
         finder = SpawnFinder(self.terrain, blockers=[self.walls.blocks_obb, self.fleet.blocks_obb])
-        self.spawner = BotSpawner(self.fleet, finder, camera, seed, prefs, settings)
+        self.spawner = BotSpawner(self.fleet, finder, camera, self.seed, prefs, settings)
         self.bot_ctrl = BotController(self.ctx)
         self.ram = RamController(self.ctx)
         self.spawner.on_round_finished = self.stats.on_round_finished
         self.fleet.on_destroyed = self.stats.on_enemy_destroyed
+
+    def _load_walls(self, map_data):
+        """Стены карты становятся обычными разрушаемыми стенами. Значения подрезаем под границы ползунков."""
+        P = WALL_PARAMS
+        for w in map_data.walls:
+            self.walls.add(Wall(w.x, w.y, P["wall_hp"].fit(w.hp), P["wall_width_m"].fit(w.width_m),
+                                P["wall_length_m"].fit(w.length_m), w.angle))
+
+    def _place_player(self, player):
+        """Игрок стартует в центре карты; если там занято (ручная карта), ищем ближайшее свободное место."""
+        finder = SpawnFinder(self.terrain, blockers=[self.walls.blocks_obb])
+        spot = finder.find_near(player, 0.0, 0.0, PLAYER_SEARCH_M, heading=0.0)
+        if spot is not None:
+            player.place_at(spot)
 
     @property
     def player(self):

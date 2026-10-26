@@ -4,6 +4,8 @@ from vehicles import VEHICLE_TYPES, default_tuning, FRONT_SCREEN, NOSE_FLAT, SPE
 from .preferences import Preferences
 from .settings import GameSettings
 from .stats import Career
+from world import build_natural
+from .maps import MapStore
 
 class Session:
     def __init__(self):
@@ -15,6 +17,7 @@ class Session:
         self.prefs = Preferences()       # настройки меню: живут, пока открыто приложение
         self.settings = GameSettings()   # настройки меню «Настройки»
         self.career = Career()           # накопленная статистика и рекорды (файл stats.json)
+        self.maps = MapStore()           # хранилище карт (папка maps/), список кэшируется
 
     @staticmethod
     def _defaults(vtype):
@@ -31,3 +34,7 @@ class Session:
         """Спецификация выбранной техники по текущим значениям."""
         t = VEHICLE_TYPES[self.kind]
         return t.spec_cls.from_values(self.values[self.kind])
+
+    def make_map(self, seed):
+        """Карта для новой партии. Пока всегда естественная по сиду; выбор файла появится в «Новой игре»."""
+        return build_natural(seed, self.map_w_m, self.map_h_m)

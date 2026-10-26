@@ -58,5 +58,6 @@ class Renderer:
             renderer.set_view_zoom(self._ppm, moving)
 
     def preload(self, camera):
-        """Заранее строит землю вокруг стартовой точки, чтобы на экране не было подгрузки."""
+        """Заранее строит землю и воду вокруг стартовой точки, чтобы на экране не было подгрузки."""
         self.ground_renderer.preload(camera, (camera.view_w, camera.view_h))
+        self.terrain_renderer.preload(camera, (camera.view_w, camera.view_h), self.terrain)

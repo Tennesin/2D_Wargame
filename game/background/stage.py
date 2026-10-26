@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 from ai import BotContext, PlanBudget, TerrainNavCache
 from combat import EffectsSystem, TargetSet
-from world import Camera, ZOOM_LEVELS, WorldGenerator, TerrainMap, DEEP_WATER, SpawnFinder
+from world import Camera, ZOOM_LEVELS, WorldGenerator, TerrainMap, SpawnFinder, build_natural
 from engine import PX_PER_M, Shot, WORLD, bearing_deg
 from structures import WallManager
 from vehicles.chassis.params import KMH_TO_PX
@@ -94,8 +94,7 @@ class Stage:
     # ==========================================
     def _new_world(self):
         self.seed = self.rng.randrange(1, 1_000_000)
-        self.terrain = TerrainMap(self.seed)
-        self.terrain.preload()                   # экран ещё чёрный: генерация не даст рывка
+        self.terrain = TerrainMap(build_natural(self.seed, WORLD.width_m, WORLD.height_m))
         self.nav = TerrainNavCache(self.terrain)
         self.targets = TargetSet(self.terrain, self.crowd)   # камни останавливают и снаряды
         self.nav_ctx = BotContext(targets=self.targets, terrain=self.terrain, walls=self.walls,
@@ -120,10 +119,12 @@ class Stage:
             cam.zoom_by(1)                       # мир мал для этого окна: приближаем
 
     def _spot_ok(self):
+        """В области кадра нет глубокой воды."""
         cx, cy = self.camera.x, self.camera.y
         ex, ey = self._extent(SPOT_SPAN)
-        patches = self.terrain.patches_in_rect(cx - ex, cy - ey, cx + ex, cy + ey)
-        return not any(p.kind is DEEP_WATER for p in patches)
+        grid = self.terrain.grid
+        i0, i1, j0, j1 = grid.cell_range(cx - ex, cy - ey, cx + ex, cy + ey)
+        return not grid.has_deep_in(i0, i1, j0, j1)
 
     def relocate(self, new_world=False):
         """Новый случайный участок карты (и при new_world новая карта). Звать, пока экран чёрный."""

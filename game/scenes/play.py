@@ -28,10 +28,11 @@ class PlayScene(Scene):
 
         self.seed = seed if seed is not None else random.randrange(1, 1_000_000)
         print(f"Seed мира: {self.seed}")
+        self.map_data = session.make_map(self.seed)
 
         # --- интерфейс, ввод, танк ---
         size = pygame.display.get_surface().get_size()
-        WORLD.set_size(session.map_w_m, session.map_h_m)
+        WORLD.set_size(self.map_data.width_m, self.map_data.length_m)
         self.camera = Camera(*size)
         self.ui = SidePanel(size, {PanelMode.WALL: build_wall_panel()}, PanelMode.WALL)
         self.toolbar = ToolBar()
@@ -43,7 +44,7 @@ class PlayScene(Scene):
         self.notifier = Notifier(tank)
 
         # --- партия ---
-        self.match = Match(self.seed, tank, self.camera, self.input, self.notifier,
+        self.match = Match(self.map_data, tank, self.camera, self.input, self.notifier,
                            session.prefs, session.settings, on_exit=self._leave)
 
         # --- связки интерфейса с партией ---

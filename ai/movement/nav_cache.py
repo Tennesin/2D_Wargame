@@ -62,14 +62,44 @@ class TerrainNavCache:
         span = B * CELL_PX
         x_lo, y_lo = ci * span, cj * span
         half = span / 2.0
-        patches = self.terrain.patches_near(x_lo + half, y_lo + half, half * 1.4143 + NAV_CAP_PX)
+        terrain = self.terrain
+        grid = terrain.grid
+        patches = terrain.patches_near(x_lo + half, y_lo + half, half * 1.4143 + NAV_CAP_PX)
+        deep_edges = grid.deep_edges_in(x_lo - NAV_CAP_PX, y_lo - NAV_CAP_PX,
+                                        x_lo + span + NAV_CAP_PX, y_lo + span + NAV_CAP_PX)
+        cell_half = grid.cell_center(0, 0)[0] - (-grid.half_w_px)       # полклетки ландшафта
 
         dist = [NAV_CAP_PX] * (B * B)
         slow = [1.0] * (B * B)
+
+        # вода и грязь из сетки: вязкость по клетке, расстояние до глубокой воды по её береговым клеткам
+        for j in range(B):
+            y = y_lo + (j + 0.5) * CELL_PX
+            for i in range(B):
+                x = x_lo + (i + 0.5) * CELL_PX
+                k = j * B + i
+                level = grid.level_at(x, y)
+                if level == grid.DEEP:
+                    dist[k] = 0.0
+                    continue
+                if level != grid.GRASS:
+                    slow[k] = 1.0 / max(terrain.level_speed(level), TERRAIN_MIN_K)
+                for cx, cy in deep_edges:
+                    ddx = abs(x - cx) - cell_half
+                    if ddx >= dist[k]:
+                        continue
+                    ddy = abs(y - cy) - cell_half
+                    if ddy >= dist[k]:
+                        continue
+                    d = math.hypot(max(ddx, 0.0), max(ddy, 0.0))
+                    if d < dist[k]:
+                        dist[k] = d
+
+        # камни (твёрдые многоугольники)
         for p in patches:
-            solid = p.kind.solid
-            slow_k = 1.0 / max(p.kind.speed_k, TERRAIN_MIN_K)
-            lim = p.r_max + (NAV_CAP_PX if solid else 0.0)
+            if not p.kind.solid:
+                continue
+            lim = p.r_max + NAV_CAP_PX
             lim2 = lim * lim
             for j in range(B):
                 y = y_lo + (j + 0.5) * CELL_PX
@@ -79,10 +109,7 @@ class TerrainNavCache:
                     if dx * dx + dy * dy > lim2:
                         continue
                     k = j * B + i
-                    if solid:
-                        d = _polygon_dist(p, x, y, NAV_CAP_PX)
-                        if d < dist[k]:
-                            dist[k] = d
-                    elif slow_k > slow[k] and p.contains(x, y):
-                        slow[k] = slow_k
+                    d = _polygon_dist(p, x, y, NAV_CAP_PX)
+                    if d < dist[k]:
+                        dist[k] = d
         return dist, slow
