@@ -4,10 +4,9 @@ import pygame
 
 from engine import get_text
 from ui import ScrollArea, draw_plate
-from ui.theme import BG_COLOR, SCROLLBAR_GAP
+from ui.theme import SCROLLBAR_GAP
 from .base import Scene
 
-BG = BG_COLOR
 TITLE_COLOR = (230, 230, 230)
 TITLE_SIZE = 40
 TITLE_BLOCK_H = 70
@@ -102,7 +101,6 @@ class TableScene(Scene):
                             self.content_rect.width + 32,
                             self.content_rect.bottom + 10 - 6)
         draw_plate(screen, plate)
-        plate.top, plate.bottom = 6, self.content_rect.bottom + 10
         title = get_text(self.title, TITLE_SIZE, TITLE_COLOR)
         screen.blit(title, title.get_rect(center=self._title_pos))
 

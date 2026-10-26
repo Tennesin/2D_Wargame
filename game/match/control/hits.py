@@ -52,7 +52,7 @@ class CombatController:
             self.match_stats.on_damage(im.owner, target, hp_before - target.hp, "shot", direct=True)
         if pen < full_pen:
             self.notifier.on_module_absorb(im.owner, target, target.module_at(im.x, im.y))
-        self.notifier.on_hit(im.owner, target, im.normal, res, dealt, stats.min_frac)
+        self.notifier.on_hit(im.owner, target, im.normal, res, dealt)
         if target.target_type is TargetType.VEHICLE and target.alive:
             side = target.knock_track(im.x, im.y)
             if side is not None:
@@ -93,9 +93,7 @@ class CombatController:
 
     # ---------- осколки ----------
     def _splash(self, im):
-        """Осколки по всем целям в радиусе. Прямая цель пропускается: она уже получила
-        max(доля по броне, минимум), поэтому двойного урона нет. Цель, закрытая от взрыва
-        стеной или камнем, осколков не получает (танки преградой не считаются)."""
+        """Осколки по всем целям в радиусе."""
         stats = im.stats
         base = stats.damage * im.power
         ox, oy = self._splash_origin(im)
@@ -116,8 +114,7 @@ class CombatController:
 
     @staticmethod
     def _splash_origin(im):
-        """Точка, из которой идут лучи осколков: взрыв, чуть отодвинутый от грани, в которую попали.
-        Иначе взрыв на самой поверхности стены считал бы начало луча «внутри» неё."""
+        """Точка, из которой идут лучи осколков: взрыв, чуть отодвинутый от грани, в которую попали."""
         if im.normal is None:
             return im.x, im.y
         return (im.x + im.normal[0] * SPLASH_ORIGIN_PUSH_PX,
@@ -157,7 +154,7 @@ class CombatController:
         return best_obj is not None and best_obj is not target
 
     def aim_info(self):
-        """Траектория выстрела. Только в боевом состоянии, не в режиме стройки и пока танк жив."""
+        """Траектория выстрела."""
         if not self.tank.alive:
             return None
         if not self.modes.combat:

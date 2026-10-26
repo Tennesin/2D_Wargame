@@ -148,12 +148,8 @@ class InputHandler:
     # ==========================================
     # КОМАНДА МАШИНЕ
     # ==========================================
-    def read_command(self, camera, *, active=True, follow_mouse=True, combat=False) -> VehicleCommand:
-        """Снимок ввода -> команда для машины.
-        active=False: машиной не управляем (режим стройки).
-        follow_mouse: следит ли башня за курсором. combat: боевое состояние (без него огня нет)."""
-        if not active:
-            return VehicleCommand()
+    def read_command(self, camera, *, follow_mouse=True, combat=False) -> VehicleCommand:
+        """Снимок ввода -> команда для машины."""
 
         steer = float(Action.RIGHT in self.held) - float(Action.LEFT in self.held)
         throttle = float(Action.FORWARD in self.held) - float(Action.BACKWARD in self.held)

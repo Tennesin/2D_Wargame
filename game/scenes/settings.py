@@ -4,12 +4,10 @@ import pygame
 
 from engine import get_text
 from ui import Button, Checkbox, SectionHeader, InfoText, ChoiceRow, make_param_row, draw_plate
-from ui.theme import BG_COLOR
 from .base import Scene
 from ..content import texts
 from ..state.settings import FPS_CHOICES, ROUND_TIME
 
-BG = BG_COLOR
 TITLE_COLOR = (230, 230, 230)
 TITLE_SIZE = 40
 

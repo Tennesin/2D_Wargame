@@ -4,12 +4,11 @@ import pygame
 
 from engine import get_text
 from ui import Button, ScrollArea, ACTIVE_BUTTON_COLORS, draw_plate
-from ui.theme import BG_COLOR, LINE_COLOR, SCROLLBAR_GAP
+from ui.theme import LINE_COLOR, SCROLLBAR_GAP
 from .base import Scene
 from ..content import texts
 from ..content.guide import PAGES, build_page
 
-BG = BG_COLOR
 TITLE_COLOR = (230, 230, 230)
 TITLE_SIZE = 40
 TAB_FONT = 20

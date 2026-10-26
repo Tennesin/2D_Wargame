@@ -3,9 +3,8 @@ from functools import partial
 
 from engine import VehicleKind
 from vehicles import (
-    TankSpec, TDSpec, TANK_PARAMS, TD_PARAMS, GUN_TUNE_PARAMS, VEHICLE_TYPES, gun_arc_deg,
-    FRONT_SCREEN, nose_front_factor, NOSE_FLAT, NOSE_PIKE, NOSE_MIN_FRONT_MM,
-    SUPERHEAVY_MASS_T, WEDGE_ACCEL_K, WEDGE_TURN_K, wedge_front_factor,
+    TankSpec, TDSpec, TANK_PARAMS, TD_PARAMS, GUN_TUNE_PARAMS, VEHICLE_TYPES,
+    FRONT_SCREEN, NOSE_FLAT, NOSE_PIKE, NOSE_MIN_FRONT_MM,
     SPECIAL_HEAT, SPECIAL_HESH, HESH_MIN_CAL_MM
 )
 from ui import Panel, SectionHeader, StatsBlock, InfoText, ChoiceRow, make_param_row
@@ -52,28 +51,15 @@ def _build_vehicle_panel(title, params, spec0, note=None, with_nose=False):
     return Panel(title, items)
 
 def build_tank_panel():
-    gain = nose_front_factor() * 100.0
-    wedge = wedge_front_factor() * 100.0
-    note = (f"Скошенный нос зависит от массы. До {SUPERHEAVY_MASS_T:.0f} т это щучий нос: двускатный лоб, "
-            f"при ударе строго по оси приведённая броня составляет около {gain:.0f}% от значения «Лоб». "
-            f"От {SUPERHEAVY_MASS_T:.0f} т ставится клин: плоская плита по центру (ровно «Лоб») и два скоса "
-            f"по бокам (около {wedge:.0f}%). Клин тяжелее: начальный разгон хуже на "
-            f"{(1.0 - WEDGE_ACCEL_K) * 100:.0f}%, поворот корпуса на {(1.0 - WEDGE_TURN_K) * 100:.0f}%. "
-            f"Доступен при лобовой броне больше {NOSE_MIN_FRONT_MM:.0f} мм. "
-            "Лобовые экраны: четыре тонких листа; КС срабатывает на них только при прямом попадании.")
+    note = (f"Скошенный нос доступен при лобовой броне больше {NOSE_MIN_FRONT_MM:.0f} мм: он усиливает лоб, "
+            "но у очень тяжёлых машин ухудшает разгон и поворот. "
+            "Лобовые экраны защищают от кумулятивных снарядов.")
     return _build_vehicle_panel(_title(VehicleKind.MBT), TANK_PARAMS, TankSpec.from_config(),
                                 note=note, with_nose=True)
 
 def build_td_panel():
-    cal = TD_PARAMS["gun_caliber_mm"]
-    wide = gun_arc_deg(cal.min) / 2.0        # УГН у самого малого калибра
-    narrow = gun_arc_deg(cal.max) / 2.0      # и у самого крупного
-    note = (f"Орудие без башни: наводка только в пределах УГН (от ±{wide:.0f}° у малых калибров "
-            f"до ±{narrow:.0f}° у крупных), дальше нужно доворачивать корпус. "
-            "Чем крупнее калибр, тем дальше назад уезжает орудие и появляется задняя опора. "
-            "Урон и пробитие выше, чем у ОБТ того же калибра, при той же перезарядке. "
-            "Щучий нос (двускатный лоб) доступен при лобовой броне больше "
-            f"{NOSE_MIN_FRONT_MM:.0f} мм. "
-            )
+    note = ("Орудие без башни наводится только в узком секторе (УГН), дальше нужно доворачивать корпус. "
+            "Чем крупнее калибр, тем уже сектор и тем дальше назад уезжает орудие. "
+            f"Скошенный нос доступен при лобовой броне больше {NOSE_MIN_FRONT_MM:.0f} мм.")
     return _build_vehicle_panel(_title(VehicleKind.TD), TD_PARAMS, TDSpec.from_config(),
                                 note=note, with_nose=True)

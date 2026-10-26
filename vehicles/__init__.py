@@ -1,6 +1,4 @@
-"""vehicles — техника. Базовое шасси Vehicle, техника с орудием GunVehicle и конкретные типы:
-танк (tank) и ПТ-САУ (td). Новые типы добавляются рядом и регистрируются в registry.py.
-Снаружи: from vehicles import Vehicle, Tank, TankSpec, TankRenderer, TANK_PARAMS, make_vehicle, ..."""
+"""vehicles — техника."""
 from vehicles.chassis.vehicle import Vehicle
 from vehicles.gun.vehicle import GunVehicle
 from vehicles.gun.params import GUN_TUNE_PARAMS, HESH_MIN_CAL_MM

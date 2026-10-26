@@ -6,7 +6,7 @@ from ..content import texts
 from ..match.rounds.spawner import RoundPhase
 
 class RoundOverlay:
-    """Правый верхний угол: номер раунда и таймер. Если справа открыта панель, сдвигается влево от неё."""
+    """Правый верхний угол."""
     TOP = 12
     GAP = 12
     LINE_GAP = 4

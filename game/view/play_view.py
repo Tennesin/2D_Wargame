@@ -29,7 +29,7 @@ class PlayView:
                                   world=world, seed=match.seed, input_handler=match.input,
                                   modes=match.modes, spawner=match.spawner,
                                   show_fps=settings.show_fps)
-        self.hud = HudOverlay(TankHud(), match.player, match.modes, match.camera_ctrl, match.fleet)
+        self.hud = HudOverlay(TankHud(), match.player, match.modes, match.camera_ctrl, match.stats)
         self.round_overlay = RoundOverlay(match.spawner, match.player)
         self.inspector = HoverInspector(ctx, match.input, match.modes)
 

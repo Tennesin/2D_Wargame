@@ -1,6 +1,4 @@
-"""ui — виджеты, панели, тулбар и HUD. Состав панелей приходит снаружи (game/content/panels);
-исключения: TankHud читает данные танка, а ToolBar привязан к кнопке стены.
-Снаружи: from ui import SidePanel, Panel, ToolBar, TankHud, ..."""
+"""ui — виджеты, панели, тулбар и HUD."""
 from .theme import DELETE_BUTTON_COLORS, ACTIVE_BUTTON_COLORS
 from .widgets import (Button, Checkbox, Slider, ScrollArea, SectionHeader, ParamRow, make_param_row,
                       StatsBlock, InfoText, ActionButton, ChoiceRow, ListBox, TextInput)

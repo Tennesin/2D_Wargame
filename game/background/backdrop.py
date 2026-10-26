@@ -7,7 +7,7 @@ from enum import Enum, auto
 
 import pygame
 
-from engine import WORLD
+from engine import WORLD, WORLD_DEFAULT_M
 from ui.theme import BG_COLOR
 from ..config import BACKGROUND_DIM
 from .events import EVENTS, pick_event
@@ -21,6 +21,7 @@ RELOCATE_CHANCE = 0.0            # шанс сменить участок кар
 NEW_WORLD_EVERY = 4              # новую карту (а не другой участок той же) раз в столько событий
 EVENT_TIMEOUT_S = 45.0           # страховка: событие дольше этого прерывается
 MAX_STEPS = 64                   # страховка от генератора, который не ждёт
+BACKDROP_WORLD_M = WORLD_DEFAULT_M
 
 class Phase(Enum):
     COOLDOWN = auto()
@@ -28,9 +29,6 @@ class Phase(Enum):
     DRAIN = auto()               # событие рассказано: ждём, пока всё уедет и взорвётся
     FADE_OUT = auto()
     FADE_IN = auto()
-
-def _world_key():
-    return WORLD.half_w_px, WORLD.half_h_px
 
 class Backdrop:
     def __init__(self, session):
@@ -48,7 +46,6 @@ class Backdrop:
         self._since_world = 0
         self._first = True
         self._veil = None
-        self._world_key = None
 
     # ==========================================
     # ВНЕШНИЙ ИНТЕРФЕЙС
@@ -111,8 +108,8 @@ class Backdrop:
         self._veil.fill((0, 0, 0))
 
     def _build(self, size):
+        WORLD.set_size(BACKDROP_WORLD_M, BACKDROP_WORLD_M)
         self.stage = Stage(self.session, size)
-        self._world_key = _world_key()
         self._make_veil(size)
         self._gen = None
         self._wait = None
@@ -120,8 +117,6 @@ class Backdrop:
         self._fade = 1.0
 
     def _update(self, dt, size):
-        if self.stage is not None and self._world_key != _world_key():
-            self.release()                       # размер карты поменяли в «Новой игре»
         if self.stage is None:
             self._build(size)
         elif size != self.stage.size:

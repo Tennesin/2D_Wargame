@@ -7,8 +7,6 @@ from .mathx import lerp
 SEED_SALT = {
     "grass_mid": 101,
     "grass_fine": 202,
-    "ground_jitter": 7,
-    "decor": 999,
     "terrain": 4242,
     "spawner": 777,
 }

@@ -64,6 +64,7 @@ class MatchStats(StatsData):
         self.player = player
         self.active = True               # False после конца партии: поздние события не считаются
         self.new_records = set()         # какие рекорды побиты этой партией (заполняет Career.add_match)
+        self._hurt = set()               # id врагов, которым игрок нанёс урон (для зачёта убийств)
 
     def stop(self):
         self.active = False
@@ -82,6 +83,9 @@ class MatchStats(StatsData):
     def on_enemy_destroyed(self, tank):
         if not self.active:
             return
+        if id(tank) not in self._hurt:
+            return
+        self._hurt.discard(id(tank))
         key = archetype_key(tank)
         if key is not None:
             _inc(self.kills, key)
@@ -93,6 +97,7 @@ class MatchStats(StatsData):
             return
         me = self.player
         if source is me and target is not me and target.team is Team.BOTS:
+            self._hurt.add(id(target))
             if via == "ram":
                 self.damage_ram += amount
             else:

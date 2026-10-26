@@ -6,7 +6,6 @@ class Fleet:
     def __init__(self, player):
         self.player = player                # любая Vehicle
         self.bots = []                      # список ai.Bot
-        self.kills = 0                      # сколько ботов уничтожено за партию
         self.on_destroyed = None            # колбэк(танк): бот уничтожен (для статистики)
 
     @property
@@ -21,7 +20,6 @@ class Fleet:
         if not dead:
             return 0
         self.bots = [b for b in self.bots if b.tank.alive]
-        self.kills += len(dead)
         if self.on_destroyed is not None:
             for b in dead:
                 self.on_destroyed(b.tank)

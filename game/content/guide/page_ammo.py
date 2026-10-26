@@ -1,15 +1,10 @@
 """game/content/guide/page_ammo.py — страница инструкции «Снаряды»."""
-from engine import PX_PER_M, AmmoKind
-from combat import RICOCHET_ANGLE
+from engine import AmmoKind
 from inputs import AMMO_HOTKEYS
 from ui import SectionHeader, InfoText, IconRow
 from ui.ammo_icons import make_ammo_icon
 from vehicles import AMMO_ORDER, AMMO_TYPES
-from vehicles.gun.params import (
-    CALIBER, HEAT_PEN_K, HEAT_SPEED_K, HEAT_RELOAD_K, HEAT_MODULE_PEN_K, HEAT_SCREEN_PEN_K,
-    HE_DAMAGE_K, HE_PEN_K, HE_MIN_FRAC, HE_RADIUS_PX_PER_MM, HESH_MIN_CAL_MM, HESH_DAMAGE_K,
-    HESH_PEN_K, HESH_RANGE_K, HESH_MIN_FRAC, HESH_RADIUS_PX_PER_MM, HESH_STUN_FRAC, HESH_STUN_MIN_S
-)
+from vehicles.gun.params import HESH_MIN_CAL_MM
 from .common import k as _k
 
 AMMO_ICON_SIZE = (56, 32)
@@ -18,45 +13,28 @@ AMMO_COL_W = 72
 AMMO_NAMES = {AmmoKind.AP: "Бронебойный", AmmoKind.HEAT: "Кумулятивный",
               AmmoKind.HESH: "HESH (пластичный фугас)", AmmoKind.HE: "Осколочно-фугасный"}
 
-def _ammo_texts():
-    cal = CALIBER.default
-    radius_m = HE_RADIUS_PX_PER_MM * cal / PX_PER_M
-    radius_hesh_m = HESH_RADIUS_PX_PER_MM * cal / PX_PER_M
+def _texts():
     return {
         AmmoKind.AP:
-            "Стандартный снаряд: быстрый и точный. При слишком косом попадании "
-            f"(угол больше {RICOCHET_ANGLE:.0f}°) рикошетит и летит дальше с потерей силы.",
+            "Быстрый и точный снаряд. Под слишком острым углом рикошетит.",
         AmmoKind.HEAT:
-            f"Пробитие выше на {(HEAT_PEN_K - 1) * 100:.0f}% при том же уроне, но снаряд летит медленнее "
-            f"(скорость ×{HEAT_SPEED_K:g}) и перезаряжается дольше (×{HEAT_RELOAD_K:g}). Не рикошетит. "
-            f"Чувствителен к экранам: сработав на гусенице, теряет пробитие (×{HEAT_MODULE_PEN_K:g}), "
-            f"на лобовом экране (×{HEAT_SCREEN_PEN_K:g}).",
+            "Пробивает лучше бронебойного, но летит медленнее и дольше перезаряжается. "
+            "Не рикошетит. Теряет пробитие, если сработает на гусенице или лобовом экране.",
         AmmoKind.HESH:
-            f"Заменяет кумулятивный при калибре от {HESH_MIN_CAL_MM} мм (переключатель в Конструкторе). "
-            f"Урон выше на {(HESH_DAMAGE_K - 1) * 100:.0f}%, пробитие ниже на {(1 - HESH_PEN_K) * 100:.0f}%, "
-            f"дальность {HESH_RANGE_K * 100:.0f}% от бронебойного. Не рикошетит. Взрывается и бьёт осколками "
-            f"по области (около {radius_hesh_m:.1f} м при калибре {cal:.0f} мм): даже без пробития "
-            f"гарантированно наносит {HESH_MIN_FRAC[0] * 100:.0f}-{HESH_MIN_FRAC[1] * 100:.0f}% урона. "
-            f"Стены и камни закрывают от осколков. Прямое попадание оглушает цель на "
-            f"{HESH_STUN_FRAC[0] * 100:.0f}-{HESH_STUN_FRAC[1] * 100:.0f}% времени перезарядки снаряда "
-            f"(чем крупнее калибр, тем дольше; не меньше {HESH_STUN_MIN_S:g} с): цель не может двигаться, "
-            "а её перезарядка стоит. Осколки не оглушают.",
+            f"Заменяет кумулятивный при калибре от {HESH_MIN_CAL_MM} мм (выбирается в Конструкторе). "
+            "Бьёт осколками по площади и наносит урон даже без пробития. "
+            "Прямое попадание оглушает цель: она не может ехать и стрелять.",
         AmmoKind.HE:
-            f"Взрывной снаряд: урон выше на {(HE_DAMAGE_K - 1) * 100:.0f}%, но пробитие всего "
-            f"{HE_PEN_K * 100:.0f}% от бронебойного. Взрывается и бьёт по области (около {radius_m:.1f} м "
-            f"при калибре {cal:.0f} мм). Даже без пробития гарантированно наносит осколками "
-            f"{HE_MIN_FRAC[0] * 100:.0f}-{HE_MIN_FRAC[1] * 100:.0f}% урона, но стены и камни закрывают "
-            "от осколков. Долетев до предела дальности, взрывается в воздухе.",
+            "Бьёт осколками по площади и наносит урон даже без пробития, но броню почти не пробивает. "
+            "Стены и камни закрывают от осколков.",
     }
 
 def build():
     keys = "/".join(_k(a) for a in AMMO_HOTKEYS)
-    texts = _ammo_texts()
+    texts = _texts()
     items = [
-        InfoText(f"Есть три слота снарядов. Выбор: кнопки справа от сводки танка или клавиши {keys}. "
-                 "Во втором слоте стоит кумулятивный, а при калибре от "
-                 f"{HESH_MIN_CAL_MM} мм его можно заменить на HESH в Конструкторе. "
-                 "Тип можно менять в бою, прогресс перезарядки при этом сохраняется пропорционально."),
+        InfoText(f"Слотов три. Выбор: кнопки справа от сводки танка или клавиши {keys}. "
+                 "Тип можно менять прямо в бою."),
         SectionHeader("Виды снарядов"),
     ]
     for kind in (*AMMO_ORDER, AmmoKind.HESH):

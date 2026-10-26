@@ -7,12 +7,12 @@ from ..content import texts
 class HudOverlay:
     """Левый нижний угол: сводка по танку, а над ней индикаторы боевого состояния и подсказки."""
 
-    def __init__(self, hud, tank, modes, camera_ctrl, fleet=None):
+    def __init__(self, hud, tank, modes, camera_ctrl, stats=None):
         self.hud = hud
         self.tank = tank
         self.modes = modes
         self.camera_ctrl = camera_ctrl
-        self.fleet = fleet                   # Fleet: берём счётчик убийств
+        self.stats = stats                   # MatchStats: берём счётчик убийств
         self._k = {a: key_label(a) for a in Action}
 
     def draw(self, screen):
@@ -47,6 +47,8 @@ class HudOverlay:
             rows.append((texts.HINT_TURRET_LOCKED.format(key=k[Action.LOCK_TURRET]), (240, 210, 70)))
         if self.fleet is not None:
             rows.append((texts.KILLS.format(n=self.fleet.kills), (170, 176, 186)))
+        if self.stats is not None:
+            rows.append((texts.KILLS.format(n=self.stats.kills_total), (170, 176, 186)))
 
         for text, color in reversed(rows):
             shadow = get_text(text, FONT_SIZE_LABEL, (0, 0, 0))

@@ -61,7 +61,7 @@ class Notifier:
         del self._floaters[:-FLOAT_MAX]
 
     # ---------- события боя ----------
-    def on_hit(self, owner, target, normal, res, dealt, min_frac=0.0):
+    def on_hit(self, owner, target, normal, res, dealt):
         """Снаряд owner попал в target. res — HitResult, dealt — нанесённый урон.
         Вызывать ПОСЛЕ take_hit, чтобы hp уже был обновлён."""
         if res.ricochet:
@@ -76,7 +76,7 @@ class Notifier:
         elif owner is me and target.target_type is TargetType.WALL:
             self._hit_on_wall(target, dealt)
         elif owner is me and target.target_type is TargetType.TERRAIN:
-            self.say("Камень: снаряд не пробил", C_DIM)
+            self.say("Преграда: снаряд не пробил", C_DIM)
 
     def on_ricochet(self, owner, target):
         """Снаряд отскочил от target и летит дальше."""

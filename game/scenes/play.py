@@ -26,7 +26,6 @@ class PlayScene(Scene):
 
         self.map_data = session.make_map(seed)
         self.seed = self.map_data.seed
-        print(f"Seed мира: {self.seed}")
 
         # --- интерфейс, ввод, танк ---
         size = pygame.display.get_surface().get_size()
