@@ -10,7 +10,8 @@ from .stats import StatsScene, ResultScene
 from .map_list import MapListScene
 from .new_map import NewMapScene
 from .map_editor import MapEditorScene
+from .loading import LoadingScene
 
 __all__ = ["Scene", "MenuScene", "ConstructorScene", "PlayScene",
-           "SettingsScene", "InstructionScene", "NewGameScene",
+           "SettingsScene", "InstructionScene", "NewGameScene", "LoadingScene",
            "StatsScene", "ResultScene", "MapListScene", "NewMapScene", "MapEditorScene"]

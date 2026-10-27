@@ -2,12 +2,14 @@
 import sys
 import pygame
 
+from engine import blur_surface
+from .content import texts
 from .config import GAME_TITLE, BACKGROUND_ENABLED
 from .background import Backdrop
 from .scenes import (
     MenuScene, ConstructorScene, PlayScene,
     SettingsScene, InstructionScene, NewGameScene, StatsScene, ResultScene,
-    MapListScene, NewMapScene, MapEditorScene,
+    MapListScene, NewMapScene, MapEditorScene, LoadingScene,
 )
 from .state.session import Session
 from ui.theme import BG_COLOR
@@ -90,19 +92,45 @@ class App:
                                          on_back=self.show_maps, on_quit=self.quit)
 
     def show_editor(self, map_data):
-        self._next = lambda: MapEditorScene(self.session, map_data,
-                                            on_exit=self.show_maps, on_quit=self.quit)
+        def task():
+            yield 0.0, texts.LOADING_EDITOR
+            scene = MapEditorScene(self.session, map_data, on_exit=self.show_maps, on_quit=self.quit)
+            yield 0.30, texts.LOADING_SCENERY
+            for part in scene.renderer.preload_iter(scene.camera):
+                yield 0.30 + 0.70 * part
+            return scene
+        self._load(task())
+
+    def start_game(self):
+        scene = PlayScene(self.seed, self.clock, self.session,
+                          on_result=self.show_result, on_quit=self.quit)
+        self._load(scene.load())
 
     def show_result(self, stats):
         self._next = lambda: ResultScene(stats, self.session.career, on_again=self.show_newgame,
                                          on_menu=self.show_menu, on_quit=self.quit)
 
-    def start_game(self):
-        self._next = lambda: PlayScene(self.seed, self.clock, self.session,
-                                       on_result=self.show_result, on_quit=self.quit)
-
     def quit(self):
         self.running = False
+
+    def _load(self, task):
+        """Показать экран загрузки."""
+        self._next = lambda: LoadingScene(task, self._loading_background(),
+                                          on_done=self._loaded, on_fail=self.show_menu, on_quit=self.quit)
+
+    def _loaded(self, scene):
+        self._next = lambda: scene
+
+    def _loading_background(self):
+        """Размытый снимок фоновой симуляции для экрана загрузки."""
+        image = None
+        size = pygame.display.get_surface().get_size()
+        if BACKGROUND_ENABLED and self.backdrop.stage is not None and 0 not in size:
+            frame = pygame.Surface(size, 0, 32)
+            self.backdrop.draw(frame)
+            image = blur_surface(frame)
+        self.backdrop.release()
+        return image
 
     def _apply_pending(self):
         """Сцену подменяем только между кадрами, а не посреди её собственного update."""

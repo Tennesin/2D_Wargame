@@ -30,39 +30,145 @@ def _draw_row_bg(surface, rect):
 # СТРОКА «ИКОНКА + НАЗВАНИЕ + ОПИСАНИЕ»
 # ==========================================
 class IconRow:
-    """Слева иконка (поверхность), справа название и описание с переносом по словам.
+    """Слева иконка (поверхность или None), справа название и описание с переносом по словам.
     col_w — ширина левой колонки: у строк одной страницы лучше задавать одинаковую,
     тогда тексты выровнены."""
+
+    RIGHT_PAD = 0            # место справа (раскрывающиеся строки оставляют его под стрелку)
 
     def __init__(self, icon, title, text, col_w=None):
         self.icon = icon
         self.title = title
         self.text = text
-        self.col_w = col_w if col_w is not None else max(64, icon.get_width())
+        if col_w is not None:
+            self.col_w = col_w
+        elif icon is not None:
+            self.col_w = max(64, icon.get_width())
+        else:
+            self.col_w = 0
         self.lines = []
         self.height = 2 * ROW_PAD + TITLE_H
         self.rect = pygame.Rect(0, 0, 0, self.height)
 
+    @property
+    def _text_dx(self):
+        """Отступ текста от левого края строки."""
+        return ROW_PAD + self.col_w + (COL_GAP if self.col_w else 0)
+
     def layout(self, x, y, w):
-        text_w = max(MIN_TEXT_W, w - 2 * ROW_PAD - self.col_w - COL_GAP)
+        text_w = max(MIN_TEXT_W, w - self._text_dx - ROW_PAD - self.RIGHT_PAD)
         self.lines = wrap_text(get_font(FONT_SIZE_LABEL), self.text, text_w)
+        icon_h = self.icon.get_height() if self.icon is not None else 0
         text_h = TITLE_H + LINE_H * len(self.lines)
-        self.height = 2 * ROW_PAD + max(text_h, self.icon.get_height())
+        self.height = 2 * ROW_PAD + max(text_h, icon_h)
         self.rect = pygame.Rect(x, y, w, self.height)
 
     def draw(self, surface, mouse_pos):
         _draw_row_bg(surface, self.rect)
-        icon_rect = self.icon.get_rect(
-            center=(self.rect.x + ROW_PAD + self.col_w // 2, self.rect.centery))
-        surface.blit(self.icon, icon_rect)
+        self._draw_content(surface, self.rect)
 
-        x = self.rect.x + ROW_PAD + self.col_w + COL_GAP
-        y = self.rect.centery - (TITLE_H + LINE_H * len(self.lines)) // 2
+    def _draw_content(self, surface, area):
+        """Иконка, название и описание внутри прямоугольника area (у раскрытой вкладки это только шапка)."""
+        if self.icon is not None:
+            icon_rect = self.icon.get_rect(center=(area.x + ROW_PAD + self.col_w // 2, area.centery))
+            surface.blit(self.icon, icon_rect)
+        x = area.x + self._text_dx
+        y = area.centery - (TITLE_H + LINE_H * len(self.lines)) // 2
         surface.blit(get_text(self.title, FONT_SIZE_HEADER, TEXT_COLOR), (x, y))
         y += TITLE_H
         for line in self.lines:
             surface.blit(get_text(line, FONT_SIZE_LABEL, TEXT_DIM), (x, y))
             y += LINE_H
+
+# ==========================================
+# РАСКРЫВАЮЩАЯСЯ СТРОКА
+# ==========================================
+ROW_HOVER = (56, 61, 70)         # подсветка шапки раскрывающейся вкладки под курсором
+DETAIL_COLOR = (192, 197, 206)   # текст подробностей чуть ярче описания
+CHEV_W = 30                      # место справа под стрелку
+DETAIL_PAD = 8                   # отступ сверху и снизу области подробностей
+DETAIL_GAP = 5                   # зазор между подробностями
+BULLET_W = 14                    # место под маркер строки подробности
+
+class AccordionRow(IconRow):
+    """Шапка как у IconRow (иконка, название, краткое описание). По клику раскрывается вниз
+    и показывает details: список строк, каждая отдельным пунктом. Иконка может быть None."""
+
+    RIGHT_PAD = CHEV_W
+
+    def __init__(self, icon, title, text, details, col_w=None, opened=False):
+        super().__init__(icon, title, text, col_w)
+        self.details = list(details)
+        self.opened = opened and bool(self.details)
+        self.head_rect = pygame.Rect(0, 0, 0, self.height)
+        self._detail_lines = []          # [[строки одного пункта], ...]
+
+    # ---------- состояние ----------
+    def toggle(self):
+        if self.details:
+            self.opened = not self.opened
+
+    def hit(self, pos):
+        """Нажатие попало в шапку (раскрытую область подробностей кликом не сворачиваем)."""
+        return bool(self.details) and self.head_rect.collidepoint(pos)
+
+    # ---------- раскладка ----------
+    def layout(self, x, y, w):
+        super().layout(x, y, w)                    # высота шапки
+        head_h = self.height
+        self.head_rect = pygame.Rect(x, y, w, head_h)
+        self._detail_lines = []
+        if not self.opened:
+            return
+        font = get_font(FONT_SIZE_LABEL)
+        text_w = max(MIN_TEXT_W, w - self._text_dx - BULLET_W - ROW_PAD)
+        total = 2 * DETAIL_PAD - DETAIL_GAP
+        for detail in self.details:
+            lines = wrap_text(font, detail, text_w)
+            self._detail_lines.append(lines)
+            total += LINE_H * len(lines) + DETAIL_GAP
+        self.height = head_h + total
+        self.rect = pygame.Rect(x, y, w, self.height)
+
+    # ---------- рисование ----------
+    def draw(self, surface, mouse_pos):
+        _draw_row_bg(surface, self.rect)
+        if self.details and self.head_rect.collidepoint(mouse_pos):
+            if self.opened:
+                pygame.draw.rect(surface, ROW_HOVER, self.head_rect,
+                                 border_top_left_radius=6, border_top_right_radius=6)
+            else:
+                pygame.draw.rect(surface, ROW_HOVER, self.head_rect, border_radius=6)
+            pygame.draw.rect(surface, ROW_BORDER, self.rect, 1, border_radius=6)
+        self._draw_content(surface, self.head_rect)
+        if not self.details:
+            return
+        self._draw_chevron(surface)
+        if self.opened:
+            self._draw_details(surface)
+
+    def _draw_chevron(self, surface):
+        """Стрелка справа: вправо у свёрнутой вкладки, вниз у раскрытой."""
+        cx = self.head_rect.right - ROW_PAD - CHEV_W // 2
+        cy = self.head_rect.centery
+        if self.opened:
+            pts = [(cx - 6, cy - 3), (cx, cy + 3), (cx + 6, cy - 3)]
+        else:
+            pts = [(cx - 3, cy - 6), (cx + 3, cy), (cx - 3, cy + 6)]
+        pygame.draw.lines(surface, TEXT_DIM, False, pts, 2)
+
+    def _draw_details(self, surface):
+        y = self.head_rect.bottom
+        pygame.draw.line(surface, ROW_BORDER, (self.rect.x + ROW_PAD, y),
+                         (self.rect.right - ROW_PAD, y), 1)
+        y += DETAIL_PAD
+        x = self.rect.x + self._text_dx
+        for lines in self._detail_lines:
+            pygame.draw.circle(surface, TEXT_DIM, (x + 4, y + LINE_H // 2), 2)
+            for line in lines:
+                surface.blit(get_text(line, FONT_SIZE_LABEL, DETAIL_COLOR), (x + BULLET_W, y))
+                y += LINE_H
+            y += DETAIL_GAP
 
 # ==========================================
 # СТРОКА «КЛАВИШИ + ОПИСАНИЕ»

@@ -70,7 +70,6 @@ class MapEditorScene(Scene):
         ctx = SimpleNamespace(terrain=self.terrain, fleet=_NoFleet(), walls=self.walls,
                               effects=EffectsSystem())
         self.renderer = Renderer(WorldGenerator(map_data.seed), ctx)
-        self.renderer.preload(self.camera)
 
         # --- интерфейс и ввод (первым слоем стоит модальное окно) ---
         self.dialog = Dialog()

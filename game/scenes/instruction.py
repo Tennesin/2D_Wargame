@@ -3,7 +3,7 @@
 import pygame
 
 from engine import get_text
-from ui import Button, ScrollArea, ACTIVE_BUTTON_COLORS, draw_plate
+from ui import Button, ScrollArea, AccordionRow, ACTIVE_BUTTON_COLORS, draw_plate
 from ui.theme import LINE_COLOR, SCROLLBAR_GAP
 from .base import Scene
 from ..content import texts
@@ -118,6 +118,12 @@ class InstructionScene(Scene):
                 if self.back_button.collidepoint(event.pos):
                     self.on_back()
                     return
+                if self.content_rect.collidepoint(event.pos):
+                    for item in self._items:
+                        if isinstance(item, AccordionRow) and item.hit(event.pos):
+                            item.toggle()
+                            self._place_items()
+                            break
                 for i, tab in enumerate(self.tabs):
                     if tab.collidepoint(event.pos):
                         self._set_page(i)

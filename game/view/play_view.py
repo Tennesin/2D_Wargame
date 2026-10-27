@@ -20,7 +20,6 @@ class PlayView:
 
         ctx = match.ctx
         self.renderer = Renderer(world, ctx)
-        self.renderer.preload(match.camera)
         self.markers = BotMarkers(match.fleet, match.camera)
         self.stun_indicator = StunIndicator(match.fleet, match.camera)
         self.warning = SpawnWarning(match.spawner, match.camera)

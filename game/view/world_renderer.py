@@ -57,7 +57,15 @@ class Renderer:
         for renderer in self.vehicle_renderers.values():
             renderer.set_view_zoom(self._ppm, moving)
 
+    def preload_iter(self, camera):
+        """Земля (70% работы) и вода (30%) по кусочкам: доля готовности 0..1."""
+        size = (camera.view_w, camera.view_h)
+        for part in self.ground_renderer.preload_iter(camera, size):
+            yield part * 0.7
+        for part in self.terrain_renderer.preload_iter(camera, size, self.terrain):
+            yield 0.7 + part * 0.3
+
     def preload(self, camera):
         """Заранее строит землю и воду вокруг стартовой точки, чтобы на экране не было подгрузки."""
-        self.ground_renderer.preload(camera, (camera.view_w, camera.view_h))
-        self.terrain_renderer.preload(camera, (camera.view_w, camera.view_h), self.terrain)
+        for _ in self.preload_iter(camera):
+            pass

@@ -11,6 +11,7 @@ MENU_QUIT = "Выйти"
 
 # Инструкция
 INSTRUCTION_TITLE = "Инструкция"
+GUIDE_EXPAND_HINT = "Нажмите на блок со стрелкой справа, чтобы раскрыть подробности."
 
 # Настройки
 SETTINGS_TITLE = "Настройки"
@@ -155,3 +156,10 @@ EDITOR_SAVE_FAILED = "Не удалось сохранить карту"
 EDITOR_NOTHING = "Нечего сохранять"
 EDITOR_HINT = "WASD / ПКМ — камера, колесо — зум, Ctrl+S — сохранить"
 EDITOR_START = "Старт"
+
+# Загрузка
+LOADING_TITLE = "Загрузка"
+LOADING_MAP = "Создание карты"
+LOADING_BATTLE = "Подготовка боя"
+LOADING_SCENERY = "Прорисовка местности"
+LOADING_EDITOR = "Открытие редактора"

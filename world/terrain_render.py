@@ -125,11 +125,18 @@ class TerrainRenderer:
         self._scaled.discard(key)
         return tex
 
-    def preload(self, camera, size, terrain):
-        """Синхронно строит все видимые блоки (зовётся при создании партии)."""
+    def preload_iter(self, camera, size, terrain):
+        """Строит видимые блоки воды по одному, отдавая долю готовности 0..1."""
         grid = terrain.grid
-        for bx, by in self._visible_blocks(camera, size, grid):
+        blocks = self._visible_blocks(camera, size, grid)
+        for n, (bx, by) in enumerate(blocks, 1):
             self._block_texture(grid, bx, by)
+            yield n / len(blocks)
+
+    def preload(self, camera, size, terrain):
+        """Синхронно строит все видимые блоки."""
+        for _ in self.preload_iter(camera, size, terrain):
+            pass
 
     def _draw_water(self, screen, camera, grid):
         z = camera.zoom

@@ -65,3 +65,9 @@ class AlphaLayer:
         layer = buf.subsurface((0, 0, w, h))
         layer.fill((0, 0, 0, 0))
         return layer
+
+def blur_surface(surface, factor=10):
+    """«Мыльная» копия картинки: уменьшаем в factor раз и растягиваем обратно. Дёшево и без циклов."""
+    w, h = surface.get_size()
+    small = pygame.transform.smoothscale(surface, (max(1, w // factor), max(1, h // factor)))
+    return pygame.transform.smoothscale(small, (w, h))

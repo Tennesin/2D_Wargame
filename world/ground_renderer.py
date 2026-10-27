@@ -72,16 +72,24 @@ class GroundRenderer:
         self._chunk_cache.trim(max(MIN_CACHED_CHUNKS, count))
         self._scaled_cache.trim(max(40, count))
 
-    def preload(self, camera, size):
-        """Синхронно строит всё, что видно сейчас, и кольцо вокруг. Зовётся при создании партии."""
+    def preload_iter(self, camera, size):
+        """Строит видимые чанки и кольцо вокруг по одному. После каждого отдаёт долю готовности 0..1."""
         rng = self._visible_range(camera, size)
         if rng is None:
             return
         cx0, cx1, cy0, cy1 = rng
         lx0, lx1, ly0, ly1 = self._chunk_limits()
-        for cy in range(max(cy0 - PREFETCH_RING, ly0), min(cy1 + PREFETCH_RING, ly1) + 1):
-            for cx in range(max(cx0 - PREFETCH_RING, lx0), min(cx1 + PREFETCH_RING, lx1) + 1):
-                self._get_chunk(cx, cy)
+        coords = [(cx, cy)
+                  for cy in range(max(cy0 - PREFETCH_RING, ly0), min(cy1 + PREFETCH_RING, ly1) + 1)
+                  for cx in range(max(cx0 - PREFETCH_RING, lx0), min(cx1 + PREFETCH_RING, lx1) + 1)]
+        for n, (cx, cy) in enumerate(coords, 1):
+            self._get_chunk(cx, cy)
+            yield n / len(coords)
+
+    def preload(self, camera, size):
+        """Синхронно строит всё, что видно сейчас, и кольцо вокруг."""
+        for _ in self.preload_iter(camera, size):
+            pass
 
     # ==========================================
     # ЧАНКИ
