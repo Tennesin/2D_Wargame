@@ -86,6 +86,22 @@ class Backdrop:
         self._phase = Phase.COOLDOWN
         self._first = True
 
+    def build_iter(self, size):
+        """Генератор для экрана загрузки."""
+        if self.failed or 0 in size:
+            return
+        WORLD.set_size(BACKDROP_WORLD_M, BACKDROP_WORLD_M)
+        stage = Stage(self.session, size, preload=False)      # тяжёлый шаг: карта и стартовый участок
+        yield 0.30
+        for part in stage.renderer.preload_iter(stage.camera):
+            yield 0.30 + 0.70 * part
+        self.stage = stage
+        self._make_veil(size)
+        self._gen = None
+        self._wait = None
+        self._fade = 0.0                                      # экран загрузки уже скрыл подгрузку: из чёрного не включаемся
+        self._start_cooldown()
+
     def play(self, key):
         """Отладка: прервать текущее событие и сразу запустить указанное."""
         if self.stage is None or key not in EVENTS:

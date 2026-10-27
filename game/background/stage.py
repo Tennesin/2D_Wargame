@@ -69,7 +69,7 @@ class _Crowd:
         return best
 
 class Stage:
-    def __init__(self, session, size):
+    def __init__(self, session, size, preload=True):
         self.rng = random.Random()
         self.casting = Casting(session, self.rng)
         self.size = size
@@ -87,7 +87,7 @@ class Stage:
         self.nav_ctx = None
         self.targets = None
         self._new_world()
-        self.relocate()
+        self.relocate(preload=preload)
 
     # ==========================================
     # МИР И КАМЕРА
@@ -126,7 +126,7 @@ class Stage:
         i0, i1, j0, j1 = grid.cell_range(cx - ex, cy - ey, cx + ex, cy + ey)
         return not grid.has_deep_in(i0, i1, j0, j1)
 
-    def relocate(self, new_world=False):
+    def relocate(self, new_world=False, preload=True):
         """Новый случайный участок карты (и при new_world новая карта). Звать, пока экран чёрный."""
         if new_world:
             self._new_world()
@@ -138,7 +138,8 @@ class Stage:
             self.camera.center_on(self.rng.uniform(-mx, mx), self.rng.uniform(-my, my))
             if self._spot_ok():
                 break
-        self.renderer.preload(self.camera)
+        if preload:
+            self.renderer.preload(self.camera)
 
     def resize(self, size):
         self.size = size

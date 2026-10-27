@@ -158,6 +158,7 @@ EDITOR_HINT = "WASD / ПКМ — камера, колесо — зум, Ctrl+S �
 EDITOR_START = "Старт"
 
 # Загрузка
+LOADING_STARTUP = "Запуск игры"
 LOADING_TITLE = "Загрузка"
 LOADING_MAP = "Создание карты"
 LOADING_BATTLE = "Подготовка боя"

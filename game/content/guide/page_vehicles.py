@@ -10,6 +10,7 @@ from vehicles.gun.params import CALIBER, GUN_DAMAGE_RANGE, GUN_PEN_RANGE, HEAT_S
 from vehicles.tank.hull_rules import CAL_MAX_AT_LIGHT, CAL_MIN_AT_HEAVY
 from vehicles.td.params import (TD_ARC_MAX_DEG, TD_ARC_MIN_DEG, MOUNT_CAL,
                                 TD_TRAVERSE_MIN, TD_TRAVERSE_MAX)
+from world import Camera
 from .. import texts
 
 VEHICLE_ICON_SIZE = (170, 190)

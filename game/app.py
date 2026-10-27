@@ -36,25 +36,28 @@ class App:
 
     def __init__(self, seed=None):
         pygame.init()
-        pygame.display.set_mode((1000, 700), pygame.RESIZABLE)   # размер «восстановленного» окна
+        pygame.display.set_mode((1000, 700), pygame.RESIZABLE)      # размер «восстановленного» окна
         pygame.display.set_caption(GAME_TITLE)
         _maximize_window()
-        pygame.event.pump()                                      # применить новый размер до создания меню
+        pygame.event.pump()                                         # применить новый размер до создания меню
         self.clock = pygame.time.Clock()
-        self.seed = seed                 # None: у каждой новой игры свой случайный мир
-        self.session = Session()         # настройки техники живут здесь, пока открыто приложение
-        self.backdrop = Backdrop(self.session)   # фоновая симуляция (создаётся лениво, при первом показе)
+        self.seed = seed                                            # None: у каждой новой игры свой случайный мир
+        self.session = Session()                                    # настройки техники живут здесь, пока открыто приложение
+        self.backdrop = Backdrop(self.session)                      # фоновая симуляция (создаётся лениво, при первом показе)
 
         self.running = True
         self.scene = None
-        self._next = None                # функция, создающая следующую сцену (применяется в конце кадра)
+        self._next = None                                           # функция, создающая следующую сцену (применяется в конце кадра)
 
-        self.show_menu()
+        if BACKGROUND_ENABLED:
+            self._load(self._startup_task())                        # фон меню собирается под экраном загрузки
+        else:
+            self.show_menu()
         self._apply_pending()
 
     # ---------- смена сцен (их передают сценам как колбэки) ----------
-    def show_menu(self):
-        self._next = lambda: MenuScene(
+    def _make_menu(self):
+        return MenuScene(
             on_play=self.show_newgame,
             on_maps=self.show_maps,
             on_constructor=self.show_constructor,
@@ -62,6 +65,9 @@ class App:
             on_settings=self.show_settings,
             on_stats=self.show_stats,
             on_quit=self.quit)
+
+    def show_menu(self):
+        self._next = self._make_menu
 
     def show_newgame(self):
         self._next = lambda: NewGameScene(self.session, on_play=self.start_game,
@@ -117,6 +123,13 @@ class App:
         """Показать экран загрузки."""
         self._next = lambda: LoadingScene(task, self._loading_background(),
                                           on_done=self._loaded, on_fail=self.show_menu, on_quit=self.quit)
+
+    def _startup_task(self):
+        """Задача для экрана загрузки при запуске приложения: собрать фон меню и вернуть само меню."""
+        size = pygame.display.get_surface().get_size()
+        yield 0.0, texts.LOADING_STARTUP
+        yield from self.backdrop.build_iter(size)
+        return self._make_menu()
 
     def _loaded(self, scene):
         self._next = lambda: scene
