@@ -8,7 +8,7 @@ from world import CHUNK_SIZE
 
 class DebugOverlay:
     """Строки отладки (Tab)."""
-    TOP = 52
+    TOP = 12
     LINE_H = 20
 
     def __init__(self, *, clock, ctx, camera_ctrl, tank, world, seed, input_handler, modes, spawner,
@@ -67,8 +67,7 @@ class DebugOverlay:
             f"bots {len(self.fleet.bots)}  spawned {self.spawner.spawned}",
             f"Fit: {self.spawner.fit_info}",
             f"Threat: " + "  ".join(f"{name} {v:.2f}" for name, v in self.spawner.profile.items()),
-            f"Spawn mult: " + "  ".join(f"{name} x{v:.1f}" for name, v in self.spawner.multipliers.items()),
-        ]
+        ] + self._mult_lines()
 
     def draw(self, screen):
         if self.visible:
@@ -84,6 +83,17 @@ class DebugOverlay:
             screen.blit(shadow, (11, y + 1))
             screen.blit(label, (10, y))
             y += self.LINE_H
+
+    def _mult_lines(self):
+        """Множители шансов архетипов, разбитые на две строки (вторая со сдвигом под первой)."""
+        items = [f"{name} x{v:.1f}" for name, v in self.spawner.multipliers.items()]
+        if not items:
+            return ["Spawn mult: -"]
+        half = (len(items) + 1) // 2
+        lines = ["Spawn mult: " + "  ".join(items[:half])]
+        if items[half:]:
+            lines.append("                  " + "  ".join(items[half:]))
+        return lines
 
     def _arty_status(self):
         """Сколько САУ, сколько из них не стреляют из-за своих и сколько готовы к выстрелу."""

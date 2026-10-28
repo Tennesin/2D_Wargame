@@ -12,7 +12,17 @@ def run(stage):
                  amp=rng.uniform(0.08, 0.15), waves=1.5, phase=rng.uniform(0.0, math.tau))
     me = stage.spawn_player(route[0])
     me.drive(stage.route(route), speed=0.16)
-    yield 1.0
+
+    going_right = x1 > x0
+
+    def at_middle():
+        """Танк дошёл до середины экрана (или уже убран со сцены)."""
+        if me.removed:
+            return True
+        fx = stage.frac(me.v.x, me.v.y)[0]
+        return fx >= 0.5 if going_right else fx <= 0.5
+
+    yield at_middle
     for _ in range(rng.randint(4, 6)):
         if me.removed:
             break

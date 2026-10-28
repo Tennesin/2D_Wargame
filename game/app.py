@@ -61,7 +61,6 @@ class App:
         return MenuScene(
             on_play=self.show_newgame,
             on_maps=self.show_maps,
-            on_constructor=self.show_constructor,
             on_instruction=self.show_instruction,
             on_settings=self.show_settings,
             on_stats=self.show_stats,
@@ -76,8 +75,8 @@ class App:
                                           on_back=self.show_menu, on_quit=self.quit)
 
     def show_constructor(self):
-        self._next = lambda: ConstructorScene(self.session, on_play=self.show_newgame,
-                                              on_menu=self.show_menu, on_quit=self.quit)
+        self._next = lambda: ConstructorScene(self.session, on_back=self.show_newgame,
+                                              on_quit=self.quit)
 
     def show_settings(self):
         self._next = lambda: SettingsScene(self.session.settings,

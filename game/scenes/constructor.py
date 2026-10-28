@@ -14,6 +14,7 @@ from vehicles import (
     estimate_mass, sloped_nose_for_mass, SPECIAL_HEAT, HESH_MIN_CAL_MM
 )
 from world import Camera
+from ..content import texts
 from ..content.panels import PanelMode, PANEL_OF, build_tank_panel, build_td_panel
 from .base import Scene
 try:
@@ -32,10 +33,9 @@ KIND_MARGIN = 10
 
 class ConstructorScene(Scene):
     BACKGROUND = False
-    def __init__(self, session, on_play, on_menu, on_quit):
+    def __init__(self, session, on_back, on_quit):
         self.session = session
-        self.on_play = on_play
-        self.on_menu = on_menu
+        self.on_back = on_back
         self.on_quit = on_quit
 
         size = pygame.display.get_surface().get_size()
@@ -54,13 +54,10 @@ class ConstructorScene(Scene):
         self.input = InputHandler([self.ui])
 
         # --- кнопки ---
-        self.play_button = Button((10, 10, 150, 36), "Новая игра")
-        self.menu_button = Button((10, 52, 150, 36), "В меню")
+        self.back_button = Button((10, 10, 150, 36), texts.BACK)
         self.mbt_button = Button((KIND_MARGIN, 0, KIND_BTN_W, KIND_BTN_H), VEHICLE_TYPES[VehicleKind.MBT].label)
         self.td_button = Button((KIND_MARGIN + KIND_BTN_W + KIND_GAP, 0, KIND_BTN_W, KIND_BTN_H),
                                 VEHICLE_TYPES[VehicleKind.TD].label)
-        self._place_kind_buttons(size)
-        self._toast = None  # всплывающее сообщение: [текст, цвет, секунд осталось]
 
         # --- выбранная техника: границы ползунков, значения, превью, характеристики ---
         self._load_kind(kind)
@@ -226,18 +223,15 @@ class ConstructorScene(Scene):
 
         for button, pos in self.input.pop_world_clicks():
             if button == 1:
-                if self.play_button.collidepoint(pos):
-                    self.on_play()
-                    return
-                if self.menu_button.collidepoint(pos):
-                    self.on_menu()
+                if self.back_button.collidepoint(pos):
+                    self.on_back()
                     return
                 if self.mbt_button.collidepoint(pos):
                     self._set_kind(VehicleKind.MBT)
                 elif self.td_button.collidepoint(pos):
                     self._set_kind(VehicleKind.TD)
         if self.input.was_pressed(Action.CANCEL):
-            self.on_menu()
+            self.on_back()
             return
         if (self.input.was_pressed(Action.SNAPSHOT)
                 and self.input.lctrl and self.input.lshift):
@@ -258,8 +252,7 @@ class ConstructorScene(Scene):
         self.renderer.draw(screen, self.camera, self.vehicle)
         mouse = self.input.mouse_pos
         self.ui.draw(screen, mouse)
-        self.play_button.draw(screen, mouse, colors=ACTIVE_BUTTON_COLORS)
-        self.menu_button.draw(screen, mouse)
+        self.back_button.draw(screen, mouse)
         is_mbt = self.session.kind is VehicleKind.MBT
         self.mbt_button.draw(screen, mouse, colors=ACTIVE_BUTTON_COLORS if is_mbt else None)
         self.td_button.draw(screen, mouse, colors=None if is_mbt else ACTIVE_BUTTON_COLORS)

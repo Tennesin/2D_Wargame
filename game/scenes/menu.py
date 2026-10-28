@@ -13,21 +13,20 @@ TITLE_TEXT = GAME_TITLE
 TITLE_COLOR = (230, 230, 230)
 TITLE_SIZE = 48
 TITLE_OFFSET = 110          # насколько заголовок выше первой кнопки
-BLOCK_SHIFT = 100           # на сколько весь блок поднят выше центра окна (кнопок семь)
+BLOCK_SHIFT = 80            # на сколько весь блок поднят выше центра окна (кнопок шесть)
 
 BUTTON_W, BUTTON_H = 260, 52
 BUTTON_GAP = 16
 BUTTON_FONT = 24
 
 class MenuScene(Scene):
-    def __init__(self, on_play, on_maps, on_constructor, on_instruction, on_settings, on_stats, on_quit):
+    def __init__(self, on_play, on_maps, on_instruction, on_settings, on_stats, on_quit):
         self.on_play = on_play                      # начать игру
         self.on_quit = on_quit                      # закрыть приложение
 
         # сверху вниз: (подпись, колбэк, цвета кнопки или None)
         specs = ((texts.MENU_PLAY, on_play, None),
                  (texts.MENU_MAPS, on_maps, None),
-                 (texts.MENU_CONSTRUCTOR, on_constructor, None),
                  (texts.MENU_INSTRUCTION, on_instruction, None),
                  (texts.MENU_SETTINGS, on_settings, None),
                  (texts.MENU_STATS, on_stats, None),
