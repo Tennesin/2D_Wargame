@@ -30,7 +30,7 @@ class RamController:
 
         self.terrain.rocks.update(dt, self._obbs_near)
         for tank in self.fleet.vehicles:
-            if tank.alive:
+            if tank.alive and (tank.push_vx or tank.push_vy):
                 tank.update_push(dt, self.ctx.obstacles_for(tank), self.terrain)
 
         self.fleet.remove_dead()                             # кто погиб от тарана

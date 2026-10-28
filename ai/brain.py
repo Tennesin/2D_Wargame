@@ -111,9 +111,10 @@ class BotBrain:
         self.cover.tick(dt)
         self.breach.tick(dt)
         self.firepos.tick(dt)
-        if self._think_in <= 0.0:                                 # редко: решения и проверки местности
+        if self._think_in <= 0.0:
             self._think_in += 1.0 / self.skill.think_hz
             self._decide(me, enemy, ctx)
+            self._pick_ammo(me, enemy)
 
         if self.intent is Intent.BREACH:
             aim = self.breach.point
@@ -137,7 +138,6 @@ class BotBrain:
             throttle, steer = -1.0, self.stuck.turn
         self._was_reversing = reversing
 
-        self._pick_ammo(me, enemy)
         fire = self._gunnery(dt, me, enemy, ctx, aim)
         return VehicleCommand(throttle=throttle, steer=steer, aim_point=aim, fire=fire)
 

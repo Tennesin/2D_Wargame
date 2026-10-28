@@ -89,7 +89,7 @@ SCOUT = Archetype(
     (110, 175, 235),
     engage_dist_m=26.0, flank_bias=0.8,
     retreat_hp=0.3, cover_bias=0.2,
-    budget_k=0.6, spawn_weight=1.2, edge_k=1.0,
+    spawn_weight=1.2, edge_k=1.0,
     aspect_deg=165.0, aspect_tol_deg=25.0, aspect_drive=2.5,
     damage_band=(0.00, 0.25), pen_band=(0.40, 0.60),
     caps={"gun_caliber_mm": 105, "front_armor_mm": 150, "side_armor_mm": 100,

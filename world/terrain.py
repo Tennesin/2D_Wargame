@@ -110,6 +110,7 @@ class Patch:
         self.vy = 0.0
         self.cell = None                     # ячейка, в списке которой камень лежит сейчас
         self.source = None                   # RockData, из которой создан камень (редактор карт)
+        self._thickness = None               # кэш thickness_stats: при сдвиге камня фигура не меняется
 
     def _make_tris(self):
         n = len(self.pts)
@@ -145,14 +146,16 @@ class Patch:
         return self.volume_m3 * self.kind.density
 
     def thickness_stats(self):
-        """(средняя, наименьшая) толщина в метрах."""
-        widths = []
-        for k in range(THICKNESS_SAMPLES):
-            a = math.pi * k / THICKNESS_SAMPLES
-            ax, ay = math.cos(a), math.sin(a)
-            proj = [px * ax + py * ay for px, py in self.pts]
-            widths.append(max(proj) - min(proj))
-        return sum(widths) / len(widths) / PX_PER_M, min(widths) / PX_PER_M
+        """(средняя, наименьшая) толщина в метрах. Считается один раз: камень только сдвигается."""
+        if self._thickness is None:
+            widths = []
+            for k in range(THICKNESS_SAMPLES):
+                a = math.pi * k / THICKNESS_SAMPLES
+                ax, ay = math.cos(a), math.sin(a)
+                proj = [px * ax + py * ay for px, py in self.pts]
+                widths.append(max(proj) - min(proj))
+            self._thickness = (sum(widths) / len(widths) / PX_PER_M, min(widths) / PX_PER_M)
+        return self._thickness
 
     def describe(self):
         avg, low = self.thickness_stats()

@@ -1,5 +1,6 @@
 """game/app.py — окно, главный цикл и смена сцен. Логики игры здесь нет."""
 import sys
+import traceback
 import pygame
 
 from engine import blur_surface
@@ -124,12 +125,33 @@ class App:
         self._next = lambda: LoadingScene(task, self._loading_background(),
                                           on_done=self._loaded, on_fail=self.show_menu, on_quit=self.quit)
 
+    def _backdrop_iter(self, size):
+        """Сборка фона с защитой: при ошибке фон отключается, приложение не падает и не зацикливается."""
+        try:
+            yield from self.backdrop.build_iter(size)
+        except Exception:
+            traceback.print_exc()
+            self.backdrop.failed = True
+
     def _startup_task(self):
         """Задача для экрана загрузки при запуске приложения: собрать фон меню и вернуть само меню."""
         size = pygame.display.get_surface().get_size()
         yield 0.0, texts.LOADING_STARTUP
-        yield from self.backdrop.build_iter(size)
+        yield from self._backdrop_iter(size)
         return self._make_menu()
+
+    def _backdrop_task(self, scene):
+        """Задача для экрана загрузки: собрать фон и вернуть уже созданную сцену."""
+        size = pygame.display.get_surface().get_size()
+        yield 0.0, texts.LOADING_STARTUP
+        yield from self._backdrop_iter(size)
+        return scene
+
+    def _needs_backdrop(self, scene):
+        """Сцене нужен фон, а он ещё не собран (после партии или редактора)."""
+        size = pygame.display.get_surface().get_size()
+        return (BACKGROUND_ENABLED and scene.BACKGROUND and self.backdrop.stage is None
+                and not self.backdrop.failed and 0 not in size)
 
     def _loaded(self, scene):
         self._next = lambda: scene
@@ -149,7 +171,11 @@ class App:
         """Сцену подменяем только между кадрами, а не посреди её собственного update."""
         if self._next is not None:
             factory, self._next = self._next, None
-            self.scene = factory()
+            scene = factory()
+            if self._needs_backdrop(scene):
+                self._load(self._backdrop_task(scene))
+                return
+            self.scene = scene
 
     def _update_background(self, dt, screen):
         """Фон под сценой: симуляция или (если выключена) плоская заливка. Сцены с BACKGROUND = False

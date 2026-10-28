@@ -56,7 +56,12 @@ class WallRenderer:
         view = screen.get_rect()
         ppm = PX_PER_M * camera.zoom
         visible = []
+        z = camera.zoom
         for wall in walls.items:
+            sx, sy = camera.world_to_screen(wall.x, wall.y)
+            r = wall.radius_px * z + 60
+            if sx + r < view.left or sx - r > view.right or sy + r < view.top or sy - r > view.bottom:
+                continue
             quad = self._quad(camera, wall)
             if self._bounds(quad).inflate(60, 60).colliderect(view):
                 visible.append((wall, quad))

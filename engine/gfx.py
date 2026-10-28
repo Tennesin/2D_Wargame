@@ -31,8 +31,15 @@ def get_text(text, size, color):
     return surf
 
 
+_wrap_cache = LRUCache(1024)
+
 def wrap_text(font, text, max_width):
-    """Разбивает текст на строки по словам так, чтобы каждая влезала в max_width."""
+    """Разбивает текст на строки по словам так, чтобы каждая влезала в max_width.
+    Результат кэшируется (шрифты живут весь процесс, поэтому id(font) безопасен)."""
+    key = (id(font), text, max_width)
+    cached = _wrap_cache.get(key)
+    if cached is not None:
+        return list(cached)                # копия: вызывающий код может менять свой список
     lines = []
     line = ""
     for word in text.split(" "):
@@ -44,6 +51,7 @@ def wrap_text(font, text, max_width):
             line = candidate
     if line:
         lines.append(line)
+    _wrap_cache.put(key, tuple(lines))
     return lines
 
 class AlphaLayer:

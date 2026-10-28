@@ -140,13 +140,15 @@ class NavGrid:
         for w in walls.items:
             if not w.alive:
                 continue
-            per_cell = None                                           # None: непроходима
+            i0, i1, j0, j1 = self._box(w.x, w.y, w.radius_px + R)
+            if i0 > i1 or j0 > j1:
+                continue
+            per_cell = None
             if not no_breach and id(w) not in forbidden:
                 secs = seconds_to_break(me, w, WALL_EST_COS, None, MIN_USEFUL_DAMAGE)
                 if secs is not None and secs <= BREACH_MAX_S:
                     cells_across = max(1, math.ceil((w.thickness_m * PX_PER_M + 2.0 * R) / CELL_PX))
                     per_cell = secs * est_speed / cells_across
-            i0, i1, j0, j1 = self._box(w.x, w.y, w.radius_px + R)
             for j in range(j0, j1 + 1):
                 for i in range(i0, i1 + 1):
                     x, y = self.center(i, j)
