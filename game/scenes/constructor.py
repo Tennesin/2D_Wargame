@@ -58,6 +58,7 @@ class ConstructorScene(Scene):
         self.mbt_button = Button((KIND_MARGIN, 0, KIND_BTN_W, KIND_BTN_H), VEHICLE_TYPES[VehicleKind.MBT].label)
         self.td_button = Button((KIND_MARGIN + KIND_BTN_W + KIND_GAP, 0, KIND_BTN_W, KIND_BTN_H),
                                 VEHICLE_TYPES[VehicleKind.TD].label)
+        self._toast = None  # всплывающее сообщение: [текст, цвет, секунд осталось]
 
         # --- выбранная техника: границы ползунков, значения, превью, характеристики ---
         self._load_kind(kind)
