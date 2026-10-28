@@ -24,10 +24,10 @@ class AmmoStats:
     speed_px: float                  # скорость снаряда, px/с
     range_px: float                  # дальность, px
     reload: float                    # перезарядка после выстрела этим снарядом, с
-    ricochet: bool = True            # может ли рикошетить (шаг КС)
-    aoe_radius_px: float = 0.0       # радиус взрыва по площади, 0 = нет (шаг ФГ)
-    min_frac: float = 0.0            # гарантированная доля урона, 0 = нет (шаг ФГ)
-    explode_at_range: bool = False   # взрывается на пределе дальности (шаг ФГ)
+    ricochet: bool = True            # может ли рикошетить (у КС, HESH и ФГ нет)
+    aoe_radius_px: float = 0.0       # радиус взрыва по площади, 0 = нет (ФГ и HESH)
+    min_frac: float = 0.0            # гарантированная доля урона, 0 = нет (ФГ и HESH)
+    explode_at_range: bool = False   # взрывается на пределе дальности (ФГ)
     module_pen_k: float = 1.0        # множитель пробития после внешнего модуля-гусеницы (1.0 = не влияет)
     screen_pen_k: float = 1.0        # то же для лобового экрана
     stun_s: float = 0.0             # длительность оглушения цели при прямом попадании, с
@@ -45,9 +45,9 @@ class ArtilleryStats:
     range_min_px: float        # мёртвая зона вокруг САУ
     range_max_px: float        # максимальная дальность
     caliber_mm: float
-    edge_k: float = 0.25       # доля урона на границе внешнего радиуса (применяет этап 4)
-    wall_k: float = 1.5        # множитель урона по стенам (этап 4)
-    armor_ref_mm: float = 50.0 # опорная броня для ослабления урона в кольце (этап 4)
+    edge_k: float = 0.25       # доля урона на границе внешнего радиуса (combat/artillery.py)
+    wall_k: float = 1.5        # множитель урона по стенам
+    armor_ref_mm: float = 50.0 # опорная броня для ослабления урона в кольце
 
 @dataclass
 class Shot:

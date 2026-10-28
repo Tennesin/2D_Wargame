@@ -44,6 +44,7 @@ def write_json(name, data, subdir=None, indent=2):
     """Записывает json. Сначала пишем во временный файл, потом подменяем:
     если игра вылетит посреди записи, старый файл останется целым. indent=None: компактно
     (для карт). Возвращает True при успехе."""
+    tmp = None
     try:
         path = os.path.join(_folder(subdir), name)
         tmp = path + ".tmp"
@@ -54,7 +55,12 @@ def write_json(name, data, subdir=None, indent=2):
                 json.dump(data, f, ensure_ascii=False, indent=indent)
         os.replace(tmp, path)
         return True
-    except OSError:
+    except (OSError, TypeError, ValueError):
+        if tmp is not None:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
         return False
 
 def list_files(subdir=None, ext=".json"):

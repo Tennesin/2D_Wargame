@@ -131,11 +131,6 @@ def preferred_distance_m(me, enemy, base_m, edge_k=1.0):
 # УГОЛ КОРПУСА
 # ==========================================
 
-def _frac_from(me, pen, from_deg, hull_deg, laterals=AIM_LATERALS_M):
-    """Доля урона, если враг стреляет в мой корпус с азимута from_deg (от меня к нему),
-    а корпус развёрнут на hull_deg. Грань, плиту и угол определяет раскладка корпуса."""
-    return _mean_frac(me, pen, from_deg, hull_deg, laterals)
-
 def best_hull_heading(me, enemy, to_enemy_deg):
     """Курс корпуса, при котором враг наносит мне меньше урона (с запасом на неточность его прицела).
     Если поворот ничего не даёт, возвращает курс прямо на врага."""
@@ -143,7 +138,7 @@ def best_hull_heading(me, enemy, to_enemy_deg):
     best_h, best_key = to_enemy_deg, None
     for off in HULL_ANGLES:
         h = to_enemy_deg + off
-        expo = max(_frac_from(me, pen, to_enemy_deg + j, h)
+        expo = max(_mean_frac(me, pen, to_enemy_deg + j, h)
                    for j in (-AIM_JITTER_DEG, 0.0, AIM_JITTER_DEG))
         key = (round(expo, 2), abs(off))               # при равенстве выбираем меньший поворот
         if best_key is None or key < best_key:

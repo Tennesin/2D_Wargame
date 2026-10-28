@@ -18,7 +18,11 @@ from vehicles.chassis.hulls import ArmorPlate
 from vehicles.chassis.hull_noses import screen_pieces
 from vehicles.render.base import Pen, SHADOW_HULL_M, SHADOW_TURRET_M, GunVehicleRenderer
 
-SNAPSHOT_DIR = r"d:\Akmal\Personal\AI developed Mini-games\2D_Wargame\tank_data"
+try:
+    from tools.local_paths import TANK_DATA_DIR as SNAPSHOT_DIR
+except ImportError:
+    SNAPSHOT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__)))), "2D_Wargame_tank_data")
 FORMAT_VERSION = 1
 
 # ==========================================
@@ -72,7 +76,6 @@ LAYOUT_RU = {
     "skirt_pitch_m": "шаг плит бортового экрана",
     "front_kit_poly": "накладка лба: полигон (уровень 1)", "front_kit_bar": "накладка лба: планка x,y,w,h (уровень 2)",
     "front_kit_wedge": "накладка лба: правый клин (уровень 2)",
-    "screen_x": "лобовые экраны: x", "screen_y": "лобовые экраны: y",
     "exhaust_xs": "выхлоп: x", "exhaust_y": "выхлоп: y",
     "fender_rects": "подкрылки x,y,w,h: правый, левый", "front_plate": "лобовая плита (полигон)",
     "deck_rect": "палуба x,y,w,h", "canvas_half_m": "половина холста спрайта",

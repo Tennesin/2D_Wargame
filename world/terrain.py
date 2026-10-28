@@ -108,7 +108,6 @@ class Patch:
         # --- подвижные камни (таран) ---
         self.vx = 0.0                        # скорость, px/с
         self.vy = 0.0
-        self.uid = None                      # ставит TerrainMap: номер камня в MapData
         self.cell = None                     # ячейка, в списке которой камень лежит сейчас
         self.source = None                   # RockData, из которой создан камень (редактор карт)
 
@@ -249,14 +248,12 @@ class TerrainMap:
     def __init__(self, map_data):
         self.map = map_data
         self.grid = map_data.landscape
-        self.seed = map_data.seed
         self.half_w = map_data.half_w_px             # границы мира берём из самой карты
         self.half_h = map_data.half_h_px
         self._cells = {}                             # (ix, iy) -> [камни], чей центр лежит в этой ячейке
         self.rocks = RockMover(self)                 # подвижные камни (таран): толчок, скольжение, перенос
-        for n, rd in enumerate(map_data.rocks):
+        for rd in map_data.rocks:
             patch = Patch(ROCK, rd.x, rd.y, [(px, py) for px, py in rd.pts])
-            patch.uid = (0, 0, n)
             patch.source = rd
             patch.cell = self.cell_of(patch.x, patch.y)
             self._cells.setdefault(patch.cell, []).append(patch)
@@ -276,7 +273,6 @@ class TerrainMap:
         self.map.rocks.append(rock_data)
         patch = Patch(ROCK, rock_data.x, rock_data.y, [(px, py) for px, py in rock_data.pts])
         patch.source = rock_data
-        patch.uid = (0, 1, len(self.map.rocks))
         patch.cell = self.cell_of(patch.x, patch.y)
         self._cells.setdefault(patch.cell, []).append(patch)
         return patch
@@ -401,8 +397,6 @@ class TerrainMap:
         return self._hits_deep(cx, cy, hw, hl, ang)
 
     # --- те же вопросы без заранее собранного списка (для кода вне танка) ---
-    def kind_at(self, x, y):
-        return self.kind_in(self.patches_near(x, y, 0.0), x, y)
 
     def speed_factor(self, x, y):
         return self.speed_in(self.patches_near(x, y, 0.0), x, y)

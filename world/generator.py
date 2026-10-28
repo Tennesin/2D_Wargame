@@ -32,10 +32,6 @@ class WorldGenerator:
         return clamp((n - 0.5) * 2.0 + 0.5, 0.0, 1.0)
 
     @staticmethod
-    def grass_color(g):
-        return lerp_color(DRY_GRASS, LUSH_GRASS, g)
-
-    @staticmethod
     def _lattice(coord, period):
         """Клетка шума и сглаженная дробная часть для одной координаты."""
         u = coord / period

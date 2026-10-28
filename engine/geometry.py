@@ -265,14 +265,6 @@ def to_local_frame(x, y, cx, cy, angle_deg, scale=1.0):
     dx, dy = x - cx, y - cy
     return (dx * c + dy * s) / scale, (-dx * s + dy * c) / scale
 
-def from_local_frame(u, v, cx, cy, angle_deg, scale=1.0):
-    """Обратное к to_local_frame: локальная точка -> мировая."""
-    rad = math.radians(angle_deg)
-    c, s = math.cos(rad), math.sin(rad)
-    u *= scale
-    v *= scale
-    return cx + u * c - v * s, cy + u * s + v * c
-
 def vec_to_local(dx, dy, angle_deg):
     """Мировой вектор (например, нормаль) -> локальный. Только поворот, без сдвига и масштаба."""
     rad = math.radians(angle_deg)

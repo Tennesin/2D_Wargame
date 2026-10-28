@@ -203,7 +203,6 @@ class BotBrain:
         if self.arch.standoff and self.intent in (Intent.ADVANCE, Intent.ENGAGE, Intent.FLANK):
             goal, go = self._standoff(me, enemy, ctx, dist, engage, goal, go)
         elif self.intent is Intent.ADVANCE:
-            squad = getattr(ctx, "squad", None)
             slot = squad.slot(self) if squad is not None else None
             if slot is not None and dist > engage * SLOT_FAR_K:
                 sx, sy = heading_vector(slot)

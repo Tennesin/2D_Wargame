@@ -23,7 +23,6 @@ ZONE_K = {"front": 0.5, "side": 1.0, "rear": 1.3}   # лоб крепче все
 class RamResult:
     u1: float          # новая скорость тела 1 вдоль нормали, м/с
     u2: float          # новая скорость тела 2 вдоль нормали, м/с
-    impulse: float     # переданный импульс, т·м/с
 
 # ==========================================
 # 3. ФОРМУЛЫ
@@ -38,7 +37,7 @@ def resolve_ram(m1, u1, m2, u2, restitution):
     (плюс = в сторону тела 2). Возвращает новые скорости обоих тел."""
     closing = u1 - u2
     j = (1.0 + restitution) * (m1 * m2 / (m1 + m2)) * closing
-    return RamResult(u1 - j / m1, u2 + j / m2, j)
+    return RamResult(u1 - j / m1, u2 + j / m2)
 
 def ram_damage(dv_ms, zone):
     """Урон танку от тарана. dv_ms — на сколько м/с изменилась ЕГО скорость, zone — грань, принявшая удар."""

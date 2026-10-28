@@ -1,5 +1,5 @@
 """vehicles/gun/vehicle.py — техника с орудием: башня (ОБТ) или лафет с ограниченным сектором (ПТ-САУ).
-Имена turret_angle / turret_rel_angle сохранены: их читают ai, combat и overlays.
+Имена turret_angle / turret_rel_angle сохранены: их читают ai, combat, hud и фон меню.
 У техники без башни это угол орудия."""
 import math
 

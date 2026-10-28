@@ -7,14 +7,21 @@
 import ast
 import os
 import shutil
+import sys
 
 PROJECT_NAME = "2D Wargame"
 
+MAIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, MAIN_DIR)
+
 # Куда складывать снимок. ВНИМАНИЕ: папка очищается при каждом запуске, поэтому
 # указывай отдельную папку, в которой нет ничего нужного.
-# По умолчанию: рядом с папкой проекта.
-MAIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUTPUT_DIR = r"d:\Akmal\Personal\AI developed Mini-games\2D_Wargame\temporary"
+# Путь берётся из tools/local_paths.py (файл в .gitignore). Если его нет,
+# снимок кладётся в папку «2D_Wargame_snapshot» рядом с папкой проекта.
+try:
+    from tools.local_paths import SNAPSHOT_OUTPUT_DIR as OUTPUT_DIR
+except ImportError:
+    OUTPUT_DIR = os.path.join(os.path.dirname(MAIN_DIR), "2D_Wargame_snapshot")
 
 # Папки верхнего уровня, которые попадают в снимок (вложенные берутся автоматически)
 ALLOWED_SUBDIRS = {"engine", "combat", "world", "vehicles", "structures",
@@ -93,10 +100,18 @@ def skip_script(root, name):
 # 1. КОПИРОВАНИЕ ФАЙЛОВ
 # ==========================================
 
+def check_output_dir():
+    """Защита от потери данных: не очищаем папку проекта, её родителей и корень диска."""
+    out = os.path.normcase(os.path.realpath(OUTPUT_DIR))
+    root = os.path.normcase(os.path.realpath(MAIN_DIR))
+    if out == root or root.startswith(out + os.sep) or os.path.dirname(out) == out:
+        raise SystemExit(f"Небезопасная папка снимка, очистка отменена: {OUTPUT_DIR}")
+
 def copy_files():
     # старый снимок удаляем целиком, чтобы не оставалось файлов от удалённых модулей
     # очищаем только содержимое папки, а саму папку не удаляем:
     # Windows не даёт удалить папку, если она открыта в Проводнике или редакторе
+    check_output_dir()
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     for entry in os.listdir(OUTPUT_DIR):
         path = os.path.join(OUTPUT_DIR, entry)

@@ -240,7 +240,7 @@ class Stage:
         """yield stage.all_done(a, b): ждать, пока все перечисленные актёры закончат маршрут."""
         return lambda: all(a.is_done() for a in actors)
 
-    def empty(self):
+    def empty(self):  # запас API: события пока не используют
         return not self.actors
 
     def quiet(self):

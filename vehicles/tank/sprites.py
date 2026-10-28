@@ -1,5 +1,5 @@
-"""vehicles/tank/sprites.py — отрисовка ОБТ: корпус и башня строятся из раскладки (vehicles/hulls.py).
-Общая часть (гусеницы, ствол, тень, кэши) лежит в vehicles/base.py."""
+"""vehicles/tank/sprites.py — отрисовка ОБТ: корпус и башня строятся из раскладки (vehicles/chassis/hulls.py).
+Общая часть (гусеницы, ствол, тень, кэши) лежит в vehicles/render/base.py."""
 import math
 import pygame
 

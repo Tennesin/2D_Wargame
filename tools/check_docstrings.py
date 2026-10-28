@@ -1,5 +1,5 @@
-"""tests/check_docstrings.py — первая строка docstring должна начинаться с пути от корня проекта.
-Запуск: python tests/check_docstrings.py (отчёт) или python tests/check_docstrings.py --fix"""
+"""tools/check_docstrings.py — первая строка docstring должна начинаться с пути от корня проекта.
+Запуск: python tools/check_docstrings.py (отчёт) или python tools/check_docstrings.py --fix"""
 import ast
 import pathlib
 import re

@@ -16,7 +16,7 @@ from world.mapdata import DEFAULT_NAME, MAX_NAME_LEN
 
 from .base import Scene
 from ..content import texts
-from ..content.panels import (PanelMode, build_editor_panels, TOOL_MODE, WallPanelLink,
+from ..content.panels import (build_editor_panels, TOOL_MODE, WallPanelLink,
                               RockPanelLink, LandPanelLink,
                               STAT_NAME, STAT_SIZE, STAT_ROCKS, STAT_WALLS, STAT_FILE)
 from ..editor import (EditorBar, Dialog, WallTool, RockTool, LandTool, RockOverlay, BrushOverlay,
@@ -121,7 +121,7 @@ class MapEditorScene(Scene):
 
     def _sync_map(self):
         """Собирает данные живых объектов обратно в MapData перед записью.
-        Камни и ландшафт редактируются прямо в map (этапы 7 и 8), стены живут в WallManager."""
+        Камни и ландшафт редактируются прямо в map, стены живут в WallManager."""
         self.map.walls = collect_walls(self.walls)
 
     # ==========================================

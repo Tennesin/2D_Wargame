@@ -9,3 +9,4 @@ venv/
 .venv/
 *.pyc
 *.spec
+tools/local_paths.py

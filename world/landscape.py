@@ -133,7 +133,7 @@ class Landscape:
         self._touch(bi0, bi1, j0, j1)
 
     def paint_circle(self, x, y, r_px, level, mode="set"):
-        """Закрасить круг (мировые px). Основа кисти редактора (этап 8)."""
+        """Закрасить круг (мировые px). Используется кистью редактора."""
         cx = (x + self.half_w_px) / CELL_PX
         cy = (y + self.half_h_px) / CELL_PX
         r = r_px / CELL_PX
@@ -223,9 +223,7 @@ class Landscape:
                 k = data.find(L_DEEP, k + 1, end)
         return out
 
-    # ---------- копия и файл ----------
-    def copy(self):
-        return Landscape(self.cols, self.rows, self.data)
+    # ---------- файл ----------
 
     def to_dict(self):
         blob = zlib.compress(bytes(self.data), 6)

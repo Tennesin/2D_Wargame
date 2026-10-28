@@ -25,6 +25,7 @@ STALL_S = 6.0                     # столько секунд без прод�
 STALL_SKIP = 3                    # на сколько точек вперёд
 
 class Actor:
+    """Актёр фона: техника и её «пилот»."""
     def __init__(self, stage, vehicle):
         self.stage = stage
         self.v = vehicle

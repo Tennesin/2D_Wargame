@@ -1,5 +1,5 @@
 """ai/tactics/cover_planner.py — поведение «спрятаться и ждать»: поездка к укрытию, ожидание, выход.
-Само место укрытия ищет ai/cover.py. Команду (курс, газ) планировщик кладёт в поля heading и go."""
+Само место укрытия ищет ai/tactics/cover.py. Команду (курс, газ) планировщик кладёт в поля heading и go."""
 import math
 
 from engine import PX_PER_M, bearing_deg

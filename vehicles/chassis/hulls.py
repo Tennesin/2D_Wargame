@@ -49,14 +49,6 @@ class ArmorPlate:
         n = edge_normal_away(a[0], a[1], b[0], b[1], inside[0], inside[1])
         return cls((float(a[0]), float(a[1])), (float(b[0]), float(b[1])), zone, float(k), n)
 
-    @property
-    def mid(self):
-        return (self.a[0] + self.b[0]) / 2.0, (self.a[1] + self.b[1]) / 2.0
-
-    @property
-    def length(self):
-        return math.hypot(self.b[0] - self.a[0], self.b[1] - self.a[1])
-
 def _rect(hw, hl, cx=0.0, cy=0.0):
     """Углы прямоугольника: верхний левый, верхний правый, нижний правый, нижний левый."""
     return ((cx - hw, cy - hl), (cx + hw, cy - hl), (cx + hw, cy + hl), (cx - hw, cy + hl))
@@ -111,8 +103,6 @@ class HullLayout:
     front_kit_poly: tuple        # накладная броня лба, уровень 1: многоугольник
     front_kit_bar: tuple         # уровень 2: планка (x, y, w, h)
     front_kit_wedge: tuple       # уровень 2: правый боковой клин (левый зеркальный)
-    screen_x: tuple              # лобовые экраны: (x_слева, x_справа)
-    screen_y: float              # лобовые экраны: y передней грани, от которой они выступают
     exhaust_xs: tuple            # выхлопные патрубки: x
     exhaust_y: float             # и y
     fender_rects: tuple          # подкрылки: ((x, y, w, h), ...) — правый и левый
@@ -224,14 +214,13 @@ LIGHT_LAYOUT = HullLayout(
                _rect(0.32, 3.15, -1.45, 0.0),         # левая гусеница
                _rect(0.32, 3.15, 1.45, 0.0)),         # правая гусеница
     plates=_rect_plates(1.77, 3.15),
-    ring_r_m=0.9, turret_style="oval", hull_style="classic",
+    ring_r_m=0.9, turret_style="oval", hull_style=HULL_STYLE_CLASSIC,
     skirt_outer_x=1.80,
     skirt_levels=((-2.2, 2.6, 0.36), (-2.9, 3.0, 0.46)),
     skirt_pitch_m=1.1,
     front_kit_poly=((-0.85, -2.72), (0.85, -2.72), (1.15, -2.20), (-1.15, -2.20)),
     front_kit_bar=(-1.20, -2.12, 2.40, 0.18),
     front_kit_wedge=((1.25, -2.10), (1.25, -1.35), (1.00, -2.06)),
-    screen_x=(-0.90, 0.90), screen_y=-2.82,
     exhaust_xs=(-0.65, 0.65), exhaust_y=2.90,
     fender_rects=((1.25, -2.1, 0.20, 4.8), (-1.45, -2.1, 0.20, 4.8)),
     front_plate=((-1.00, -2.80), (1.00, -2.80), (1.25, -2.15), (-1.25, -2.15)),
@@ -256,14 +245,13 @@ MEDIUM_LAYOUT = HullLayout(
     coll_half_w_m=_MED_HW, coll_half_l_m=_MED_HL,
     hit_parts=(_rect(_MED_HW, _MED_HL),),
     plates=_rect_plates(_MED_HW, _MED_HL),
-    ring_r_m=1.35, turret_style="hex", hull_style="classic",
+    ring_r_m=1.35, turret_style="hex", hull_style=HULL_STYLE_CLASSIC,
     skirt_outer_x=1.95,
     skirt_levels=((-2.2, 2.4, 0.42), (-2.9, 3.0, 0.50)),
     skirt_pitch_m=1.15,
     front_kit_poly=((-0.85, -2.82), (0.85, -2.82), (1.18, -2.15), (-1.18, -2.15)),
     front_kit_bar=(-1.2, -2.08, 2.4, 0.20),
     front_kit_wedge=((1.35, -2.10), (1.35, -1.20), (1.05, -2.05)),
-    screen_x=(-1.0, 1.0), screen_y=-2.92,
     exhaust_xs=(-0.7, 0.7), exhaust_y=2.65,
     fender_rects=((1.35, -2.1, 0.22, 4.75), (-1.57, -2.1, 0.22, 4.75)),
     front_plate=((-1.00, -2.9), (1.00, -2.9), (1.35, -2.1), (-1.35, -2.1)),
@@ -290,7 +278,6 @@ HEAVY_LAYOUT = HullLayout(
     front_kit_poly=((-1.15, -2.67), (1.15, -2.67), (1.45, -2.25), (-1.45, -2.25)),
     front_kit_bar=(-1.5, -2.17, 3.0, 0.22),
     front_kit_wedge=((1.55, -2.20), (1.55, -1.30), (1.25, -2.15)),
-    screen_x=(-1.15, 1.15), screen_y=-2.77,
     exhaust_xs=(-1.0, 1.0), exhaust_y=2.75,
     fender_rects=(),
     front_plate=((-1.35, -2.75), (1.35, -2.75), (1.55, -2.20), (-1.55, -2.20)),
@@ -338,7 +325,6 @@ def stretch_layout(base, k):
         front_kit_bar=(base.front_kit_bar[0], base.front_kit_bar[1] * k,
                        base.front_kit_bar[2], base.front_kit_bar[3]),   # планка тонкая: толщину не трогаем
         front_kit_wedge=pts(base.front_kit_wedge),
-        screen_y=base.screen_y * k,
         exhaust_y=base.exhaust_y * k,
         fender_rects=tuple(box(r) for r in base.fender_rects),
         front_plate=pts(base.front_plate),
