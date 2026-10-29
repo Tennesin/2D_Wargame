@@ -6,7 +6,7 @@ from structures import WallRenderer
 from combat import AimRenderer
 
 class Renderer:
-    def __init__(self, world_generator, ctx):
+    def __init__(self, world_generator, ctx, wide=False):
         self.terrain = ctx.terrain
         self.fleet = ctx.fleet
         self.walls = ctx.walls
@@ -15,9 +15,9 @@ class Renderer:
         self._zoom = None                   # зум, под который сейчас построены кэши
         self._ppm = 0.0                     # пикселей экрана на метр эталонного спрайта (= PX_PER_M * zoom)
 
-        self.ground_renderer = GroundRenderer(world_generator)
+        self.ground_renderer = GroundRenderer(world_generator, wide=wide)
         self.bounds_renderer = WorldBoundsRenderer()
-        self.terrain_renderer = TerrainRenderer()
+        self.terrain_renderer = TerrainRenderer(wide=wide)
         self.vehicle_renderers = {key: cls() for key, cls in RENDERERS.items()}
         self.wall_renderer = WallRenderer()
         self.aim_renderer = AimRenderer()

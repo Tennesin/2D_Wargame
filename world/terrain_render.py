@@ -35,6 +35,7 @@ EDGE_LEVEL = 84              # порог кромки: ниже заливки,
 BUILD_MS = 8.0               # сколько мс за кадр можно тратить на сборку блоков
 BLOCK_CACHE = 500
 SCALED_CACHE = 200
+WATER_PRELOAD_MAX = 600      # сколько текстур воды (≈150 КБ каждая) предзагружать впрок за пределами экрана
 PALETTE = [(0, 0, 0), (255, 255, 255)]
 
 def _table(test):
@@ -63,9 +64,10 @@ def _window(grid, bx, by):
     return b"".join(rows), n
 
 class TerrainRenderer:
-    def __init__(self):
-        self._blocks = LRUCache(BLOCK_CACHE)     # (bx, by) -> (версия, текстура или None)
-        self._scaled = LRUCache(SCALED_CACHE)    # (bx, by) -> (версия, текстура под текущий зум)
+    def __init__(self, wide=False):
+        self.wide = wide
+        self._blocks = LRUCache(BLOCK_CACHE)
+        self._scaled = LRUCache(SCALED_CACHE)
         self._zoom = None
 
     # ==========================================
@@ -126,12 +128,31 @@ class TerrainRenderer:
         return tex
 
     def preload_iter(self, camera, size, terrain):
-        """Строит видимые блоки воды по одному, отдавая долю готовности 0..1."""
+        """Строит блоки воды по одному, отдавая долю готовности 0..1."""
         grid = terrain.grid
-        blocks = self._visible_blocks(camera, size, grid)
+        visible = self._visible_blocks(camera, size, grid)
+        blocks = visible
+        if self.wide:
+            nx = -(-grid.cols // BLOCK_CELLS)
+            ny = -(-grid.rows // BLOCK_CELLS)
+            self._blocks.limit = max(BLOCK_CACHE, nx * ny)    # в кэше должны поместиться все блоки карты
+            seen = set(visible)
+            block_px = BLOCK_CELLS * PX_PER_M
+            cbx = (camera.x + grid.half_w_px) / block_px - 0.5
+            cby = (camera.y + grid.half_h_px) / block_px - 0.5
+            rest = [(bx, by) for by in range(ny) for bx in range(nx) if (bx, by) not in seen]
+            rest.sort(key=lambda b: (b[0] - cbx) ** 2 + (b[1] - cby) ** 2)
+            blocks = visible + rest
+        total = max(1, len(blocks))
+        textures = 0
         for n, (bx, by) in enumerate(blocks, 1):
-            self._block_texture(grid, bx, by)
-            yield n / len(blocks)
+            tex = self._block_texture(grid, bx, by)
+            if self.wide and n > len(visible) and tex is not None:
+                textures += 1
+                if textures >= WATER_PRELOAD_MAX:              # запас памяти: дальше достроится в бою
+                    break
+            yield n / total
+        yield 1.0
 
     def preload(self, camera, size, terrain):
         """Синхронно строит все видимые блоки."""

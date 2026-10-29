@@ -8,3 +8,5 @@ if __name__ == "__main__":
     app.run()
     pygame.quit()
     sys.exit()
+
+# pyinstaller --onedir --noconsole --name "2D Wargame" main.py

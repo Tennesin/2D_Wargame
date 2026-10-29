@@ -15,14 +15,18 @@ MIN_CACHED_CHUNKS = 1200    # базовые текстуры лёгкие (16 �
 BUILD_MS = 6.0              # сколько мс за кадр можно тратить на достройку видимых чанков
 PREFETCH_MS = 2.0           # и на предзагрузку кольца за краем экрана
 PREFETCH_RING = 1
+WIDE_PREFETCH_MS = 3.0      # бюджет мс за кадр на достройку «окна максимального отдаления»
 FALLBACK_COLOR = (102, 148, 74)   # средняя трава: показывается на месте чанка, который не успели построить
 FLAT_SPAN_PX = 40.0         # чанк мельче этого на экране: земля одной заливкой (дальний зум редактора)
 
 class GroundRenderer:
-    def __init__(self, world_generator):
+    def __init__(self, world_generator, wide=False):
         self.world = world_generator
-        self._chunk_cache = LRUCache()    # (cx, cy) -> Surface TEX x TEX
-        self._scaled_cache = LRUCache()   # (cx, cy) -> Surface под текущий зум
+        self.wide = wide                  # True: держать готовым всё, что видно при самом далёком зуме
+        self._chunk_cache = LRUCache()
+        self._scaled_cache = LRUCache()
+        self._wide_key = None             # окно, для которого уже проверяли чанки
+        self._wide_done = False           # все чанки этого окна уже в кэше
 
     def set_zoom(self):
         """Зум сменился: масштабированные чанки устарели, базовые остаются."""
@@ -67,21 +71,34 @@ class GroundRenderer:
             tile = self._get_scaled_chunk(cx, cy, base, size)
             screen.blit(tile, (round(cx * span) - left, round(cy * span) - top))
 
-        ring = self._prefetch(cx0, cx1, cy0, cy1)
-        count = len(coords) + ring + 12
-        self._chunk_cache.trim(max(MIN_CACHED_CHUNKS, count))
-        self._scaled_cache.trim(max(40, count))
+        if self.wide:
+            ring = self._prefetch_wide(camera, screen.get_size())
+            keep = ring                                    # окно уже включает видимые чанки
+        else:
+            ring = self._prefetch(cx0, cx1, cy0, cy1)
+            keep = len(coords) + ring
+        self._chunk_cache.trim(max(MIN_CACHED_CHUNKS, keep + 12))
+        self._scaled_cache.trim(max(40, len(coords) + 12))
 
     def preload_iter(self, camera, size):
-        """Строит видимые чанки и кольцо вокруг по одному. После каждого отдаёт долю готовности 0..1."""
-        rng = self._visible_range(camera, size)
-        if rng is None:
-            return
-        cx0, cx1, cy0, cy1 = rng
-        lx0, lx1, ly0, ly1 = self._chunk_limits()
-        coords = [(cx, cy)
-                  for cy in range(max(cy0 - PREFETCH_RING, ly0), min(cy1 + PREFETCH_RING, ly1) + 1)
-                  for cx in range(max(cx0 - PREFETCH_RING, lx0), min(cx1 + PREFETCH_RING, lx1) + 1)]
+        """Строит чанки по одному."""
+        if self.wide:
+            rng = self._wide_range(camera, size)
+            if rng is None:
+                return
+            x0, x1, y0, y1 = rng
+            mx, my = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+            coords = sorted(((cx, cy) for cy in range(y0, y1 + 1) for cx in range(x0, x1 + 1)),
+                            key=lambda c: (c[0] - mx) ** 2 + (c[1] - my) ** 2)
+        else:
+            rng = self._visible_range(camera, size)
+            if rng is None:
+                return
+            cx0, cx1, cy0, cy1 = rng
+            lx0, lx1, ly0, ly1 = self._chunk_limits()
+            coords = [(cx, cy)
+                      for cy in range(max(cy0 - PREFETCH_RING, ly0), min(cy1 + PREFETCH_RING, ly1) + 1)
+                      for cx in range(max(cx0 - PREFETCH_RING, lx0), min(cx1 + PREFETCH_RING, lx1) + 1)]
         for n, (cx, cy) in enumerate(coords, 1):
             self._get_chunk(cx, cy)
             yield n / len(coords)
@@ -136,6 +153,48 @@ class GroundRenderer:
                     continue
                 self._get_chunk(cx, cy)
         return count
+
+    def _wide_range(self, camera, size):
+        """(cx0, cx1, cy0, cy1) чанков, видимых при самом далёком зуме вокруг центра камеры
+        (плюс кольцо), обрезанных по миру. None, если смотреть не на что."""
+        # ниже порога FLAT_SPAN_PX земля рисуется одной заливкой, строить её незачем
+        zmin = max(camera.zoom_min, FLAT_SPAN_PX / CHUNK_SIZE)
+        span = CHUNK_SIZE * zmin
+        w, h = size
+        left = camera.x * zmin - w / 2.0
+        top = camera.y * zmin - h / 2.0
+        lx0, lx1, ly0, ly1 = self._chunk_limits()
+        cx0 = max(math.floor(left / span) - PREFETCH_RING, lx0)
+        cx1 = min(math.floor((left + w - 1) / span) + PREFETCH_RING, lx1)
+        cy0 = max(math.floor(top / span) - PREFETCH_RING, ly0)
+        cy1 = min(math.floor((top + h - 1) / span) + PREFETCH_RING, ly1)
+        if cx0 > cx1 or cy0 > cy1:
+            return None
+        return cx0, cx1, cy0, cy1
+
+    def _prefetch_wide(self, camera, size):
+        """Достраивает окно максимального отдаления в рамках WIDE_PREFETCH_MS, ближние чанки первыми."""
+        rng = self._wide_range(camera, size)
+        if rng is None:
+            return 0
+        x0, x1, y0, y1 = rng
+        total = (x1 - x0 + 1) * (y1 - y0 + 1)
+        if rng == self._wide_key and self._wide_done:
+            return total
+        cache = self._chunk_cache
+        missing = [(cx, cy) for cy in range(y0, y1 + 1) for cx in range(x0, x1 + 1)
+                   if cache.get((cx, cy)) is None]
+        self._wide_key = rng
+        self._wide_done = not missing
+        if missing:
+            mx, my = (x0 + x1) / 2.0, (y0 + y1) / 2.0
+            missing.sort(key=lambda c: (c[0] - mx) ** 2 + (c[1] - my) ** 2)
+            deadline = time.perf_counter() + WIDE_PREFETCH_MS / 1000.0
+            for c in missing:
+                if time.perf_counter() >= deadline:
+                    break
+                self._get_chunk(*c)
+        return total
 
     def _get_scaled_chunk(self, cx, cy, base, size):
         key = (cx, cy)
