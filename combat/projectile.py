@@ -54,7 +54,7 @@ class Shell:
                     if self.stats.ricochet and self.bounces < RICOCHET_MAX and is_ricochet(cos_i):
                         self._ricochet(hx, hy, normal, target)
                         return
-                    self.hit_cos = impact_cos(self.stats, cos_i)
+                    self.hit_cos = impact_cos(self.stats, cos_i, target, (hx, hy))
 
                 self.x, self.y = hx, hy
                 self.hit_target = target

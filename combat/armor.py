@@ -11,7 +11,8 @@ from typing import Optional
 
 RICOCHET_ANGLE = 70.0                                   # при угле к нормали больше этого — рикошет
 RICOCHET_COS = math.cos(math.radians(RICOCHET_ANGLE))
-PIERCE_SPREAD = 0.07                                    # окно ±7% вокруг пробития
+PIERCE_SPREAD = 0.10                                    # окно ±10% вокруг пробития
+NORMALIZATION_MODULE_K = 0.5                            # на экране или гусенице нормализация даёт только эту долю
 
 # ==========================================
 # РЕЗУЛЬТАТ ПОПАДАНИЯ
@@ -57,16 +58,31 @@ def resolve_hit(penetration, armor_mm, cos_impact=1.0):
     eff = effective_armor(armor_mm, cos_impact)
     return HitResult(armor_mm, eff, damage_fraction(penetration, eff))
 
-def impact_cos(stats, cos_impact):
-    """Косинус угла, который идёт в расчёт урона. Снаряды без рикошета (КС, ФГ) не отскакивают:
-    слишком косой удар считается ровно на границе рикошета. Броня при этом растёт
-    (броня / cos 70°, примерно x2,9), но пробить её по-прежнему можно."""
-    return cos_impact if stats.ricochet else max(cos_impact, RICOCHET_COS)
+def normalize_cos(cos_impact, degrees):
+    """Косинус угла после доворота к нормали на degrees градусов (угол не уходит ниже 0)."""
+    if degrees <= 0.0:
+        return cos_impact
+    angle = math.degrees(math.acos(min(1.0, max(0.0, cos_impact))))
+    return math.cos(math.radians(max(0.0, angle - degrees)))
+
+def _on_module(target, x, y):
+    """Попала ли точка (x, y) в целую гусеницу или лобовой экран цели."""
+    fn = getattr(target, "module_at", None)
+    return fn is not None and fn(x, y) is not None
+
+def impact_cos(stats, cos_impact, target=None, point=None):
+    """Косинус угла, который идёт в расчёт урона."""
+    if not stats.ricochet:
+        cos_impact = max(cos_impact, RICOCHET_COS)
+    degrees = stats.normalization_deg
+    if degrees > 0.0 and not is_ricochet(cos_impact):
+        if target is not None and point is not None and _on_module(target, *point):
+            degrees *= 1.0 + NORMALIZATION_MODULE_K
+        cos_impact = normalize_cos(cos_impact, degrees)
+    return cos_impact
 
 def pen_after_modules(target, penetration, stats, x, y):
-    """Пробитие после внешнего модуля цели в точке попадания (x, y).
-    Цели без модулей (стены, камни: у них нет метода module_at) пробитие не меняют.
-    У гусеницы и экрана свои множители: stats.module_pen_k и stats.screen_pen_k."""
+    """Пробитие после внешнего модуля цели в точке попадания (x, y)."""
     if stats.module_pen_k >= 1.0 and stats.screen_pen_k >= 1.0:
         return penetration                                    # ББ и ФГ: быстрый выход
     fn = getattr(target, "module_at", None)
@@ -79,7 +95,7 @@ def pen_after_modules(target, penetration, stats, x, y):
     return penetration * k
 
 class Damageable:
-    """Миксин для целей: объект задаёт hit_result(...) и поле hp, а take_hit общий."""
+    """Миксин для целей."""
 
     def hit_result(self, penetration, cos_impact=1.0, normal=None):
         raise NotImplementedError
@@ -100,8 +116,7 @@ class Damageable:
         return float(min(damage, max(1, math.ceil(damage * caliber_mm / eff))))
 
     def take_hit(self, penetration, damage, cos_impact=1.0, normal=None, min_frac=0.0, caliber_mm=0.0):
-        """Попадание снаряда. min_frac > 0 = снаряд с осколками (ФГ, HESH).
-        Есть хоть частичное пробитие: обычный расчёт. Нет пробития: формула осколков."""
+        """Попадание снаряда."""
         res = self.hit_result(penetration, cos_impact, normal)
         if res.damage_frac > 0.0 or min_frac <= 0.0:
             dealt = damage * res.damage_frac

@@ -10,7 +10,7 @@ from vehicles.gun.params import (
     HEAT_MODULE_PEN_K, HEAT_SCREEN_PEN_K, HEAT_DAMAGE_K, HEAT_PEN_K, HEAT_SPEED_K, HEAT_RELOAD_K,
     HE_DAMAGE_K, HE_PEN_K, HE_SPEED_K, HE_RELOAD_K, HE_MIN_FRAC, HE_RADIUS_PX_PER_MM,
     HESH_DAMAGE_K, HESH_PEN_K, HESH_SPEED_K, HESH_RELOAD_K, HESH_RANGE_K, HESH_MIN_FRAC,
-    HESH_RADIUS_PX_PER_MM, HESH_STUN_FRAC, HESH_STUN_MIN_S,
+    HESH_RADIUS_PX_PER_MM, HESH_STUN_FRAC, HESH_STUN_MIN_S, AP_NORMALIZATION_DEG
 )
 
 SPECIAL_HEAT = "heat"      # значения переключателя «спецснаряд» в конструкторе
@@ -33,9 +33,10 @@ class AmmoType:
     range_k: float = 1.0  # множитель дальности относительно ББ
     stun_frac: tuple = (0.0, 0.0)      # оглушение как доля перезарядки снаряда (мин. и макс. калибр); (0, 0) = не оглушает
     stun_min_s: float = 0.0            # нижняя граница длительности оглушения, с
+    normalization_deg: float = 0.0     # на сколько градусов снаряд доворачивает к нормали (0 = нет)
 
 AMMO_TYPES = {
-    AmmoKind.AP: AmmoType(AmmoKind.AP, "ББ"),
+    AmmoKind.AP: AmmoType(AmmoKind.AP, "ББ", normalization_deg=AP_NORMALIZATION_DEG),
     AmmoKind.HEAT: AmmoType(AmmoKind.HEAT, "КС",
                             dmg_k=HEAT_DAMAGE_K, pen_k=HEAT_PEN_K,
                             speed_k=HEAT_SPEED_K, reload_k=HEAT_RELOAD_K,
@@ -86,4 +87,5 @@ def ammo_stats(spec, kind):
         screen_pen_k=t.screen_pen_k,
         stun_s=stun_s,
         caliber_mm=spec.cal,
+        normalization_deg=t.normalization_deg,
     )

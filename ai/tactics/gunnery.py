@@ -2,9 +2,10 @@
 import math
 from dataclasses import dataclass
 
-from combat import resolve_hit, impact_cos, pen_after_modules
+from combat import resolve_hit, impact_cos, pen_after_modules, is_ricochet, normalize_cos
 from engine import clamp, PX_PER_M
 from vehicles import ammo_stats
+from vehicles.gun.params import AP_NORMALIZATION_DEG
 from vehicles.chassis.params import KMH_TO_PX
 
 def lead_point(shooter, target, lead_k=1.0):
@@ -21,15 +22,15 @@ def lead_point(shooter, target, lead_k=1.0):
 
 AIM_LATERALS_M = (-0.36, 0.0, 0.36)      # = AIM_SPREAD_M * 0.3
 
-def _mean_frac(defender, pen, from_deg, hull_deg, laterals=AIM_LATERALS_M):
-    """Средняя доля урона по броне defender для лучей с азимута from_deg при курсе корпуса hull_deg.
-    Лучи, прошедшие мимо корпуса, не считаются. Если мимо все: 1.0 (худший случай для защитника)."""
+def _mean_frac(defender, pen, from_deg, hull_deg, laterals=AIM_LATERALS_M, norm_deg=0.0):
     total, n = 0.0, 0
     for lat in laterals:
         res = defender.armor_along(from_deg, hull_deg, lat)
         if res is None:
             continue
         armor, cos_i = res
+        if norm_deg > 0.0 and not is_ricochet(cos_i):
+            cos_i = normalize_cos(cos_i, norm_deg)
         total += resolve_hit(pen, armor, cos_i).damage_frac
         n += 1
     return total / n if n else 1.0
@@ -40,9 +41,9 @@ def damage_by_aspect(me, enemy):
     pen = me.spec.penetration
     h = enemy.hull_angle
     return {
-        "front": _mean_frac(enemy, pen, h, h),
-        "side": _mean_frac(enemy, pen, h + 90.0, h),
-        "rear": _mean_frac(enemy, pen, h + 180.0, h),
+        "front": _mean_frac(enemy, pen, h, h, norm_deg=AP_NORMALIZATION_DEG),
+        "side": _mean_frac(enemy, pen, h + 90.0, h, norm_deg=AP_NORMALIZATION_DEG),
+        "rear": _mean_frac(enemy, pen, h + 180.0, h, norm_deg=AP_NORMALIZATION_DEG),
     }
 
 def seconds_to_break(me, wall, cos_impact=1.0, normal=None, min_frac=0.15):
@@ -138,9 +139,9 @@ def best_hull_heading(me, enemy, to_enemy_deg):
     best_h, best_key = to_enemy_deg, None
     for off in HULL_ANGLES:
         h = to_enemy_deg + off
-        expo = max(_mean_frac(me, pen, to_enemy_deg + j, h)
+        expo = max(_mean_frac(me, pen, to_enemy_deg + j, h, norm_deg=AP_NORMALIZATION_DEG)
                    for j in (-AIM_JITTER_DEG, 0.0, AIM_JITTER_DEG))
-        key = (round(expo, 2), abs(off))               # при равенстве выбираем меньший поворот
+        key = (round(expo, 2), abs(off))
         if best_key is None or key < best_key:
             best_key, best_h = key, h
     return best_h % 360.0
@@ -172,7 +173,7 @@ def ammo_value(me, target, kind, normal, cos_i, point):
     pen = stats.penetration
     if point is not None:
         pen = pen_after_modules(target, pen, stats, *point)           # КС на гусенице
-    frac = target.hit_result(pen, impact_cos(stats, cos_i), normal).damage_frac
+    frac = target.hit_result(pen, impact_cos(stats, cos_i, target, point), normal).damage_frac
     dps = stats.damage * max(frac, stats.min_frac) / stats.reload      # min_frac: гарантия осколков фугаса
     return dps * (stats.speed_px / me.spec.SHELL_SPEED_PX) ** AMMO_SPEED_EXP
 
@@ -223,5 +224,6 @@ def shot_fraction_now(me, enemy):
         hx, hy = me.x + (end_x - me.x) * t_hit, me.y + (end_y - me.y) * t_hit
         for st in rounds:
             pen = pen_after_modules(enemy, st.penetration, st, hx, hy)
-            best = max(best, enemy.hit_result(pen, impact_cos(st, cos_i), normal).damage_frac)
+            cos_n = impact_cos(st, cos_i, enemy, (hx, hy))
+            best = max(best, enemy.hit_result(pen, cos_n, normal).damage_frac)
     return best

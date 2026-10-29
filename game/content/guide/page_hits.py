@@ -1,13 +1,14 @@
 """game/content/guide/page_hits.py — страница инструкции «Попадания»."""
 import math
 
-from combat import RICOCHET_ANGLE
+from combat import RICOCHET_ANGLE, NORMALIZATION_MODULE_K
 from combat.aim import C_YES, C_CHANCE, C_NO
 from combat.armor import PIERCE_SPREAD
 from combat.ram import ZONE_K, SAFE_DV_MS, DAMAGE_PER_MS
 from inputs import Action
 from ui import SectionHeader, InfoText, AccordionRow, make_swatch_icon
 from vehicles import TRACKS, nose_front_factor, wedge_front_factor
+from vehicles.gun.params import AP_NORMALIZATION_DEG
 from vehicles.chassis.params import TRACK_REPAIR_S, ONE_TRACK_SPEED_K, TRACK_EDGE_ZONE_M
 from .. import texts
 from .common import k as _k
@@ -52,6 +53,9 @@ def build():
                          f"поэтому броня для них толще примерно в {cos_k:.1f} раза, но пробить её можно.",
                          "Перед сравнением с бронёй пробитие кумулятивного снижается, если снаряд сработал на гусенице "
                          "или лобовом экране.",
+                         f"Бронебойный перед ударом доворачивает к нормали на {AP_NORMALIZATION_DEG:.0f}° (если рикошета нет). "
+                         f"На целой гусенице или лобовом экране добавляется ещё {AP_NORMALIZATION_DEG * NORMALIZATION_MODULE_K:.0f}°. "
+                         "Остальные снаряды не нормализуются.",
                      ]),
         AccordionRow(None, "Грани",
                      "У техники три грани: лоб, борт и корма, у каждой своя броня.", [

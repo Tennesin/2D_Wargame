@@ -32,6 +32,7 @@ class AmmoStats:
     screen_pen_k: float = 1.0        # то же для лобового экрана
     stun_s: float = 0.0             # длительность оглушения цели при прямом попадании, с
     caliber_mm: float = 0.0          # калибр орудия (для урона осколков фугасов)
+    normalization_deg: float = 0.0   # доворот к нормали при попадании, градусы (только ББ)
 
 @dataclass(frozen=True)
 class ArtilleryStats:
