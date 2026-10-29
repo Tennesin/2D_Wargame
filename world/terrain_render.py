@@ -188,8 +188,11 @@ class TerrainRenderer:
                 continue
             cached = self._scaled.get(key)
             if cached is None or cached[0] != ver:
-                surf = pygame.transform.smoothscale(tex, (size, size))
-                self._scaled.put(key, (ver, surf))
+                if camera.is_zooming:
+                    surf = pygame.transform.scale(tex, (size, size))
+                else:
+                    surf = pygame.transform.smoothscale(tex, (size, size))
+                    self._scaled.put(key, (ver, surf))
             else:
                 surf = cached[1]
             x = round((-grid.half_w_px + bx * BLOCK_CELLS * PX_PER_M) * z) - left

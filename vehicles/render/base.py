@@ -40,6 +40,7 @@ class GunVehicleRenderer(HullPartsMixin):
     def __init__(self):
         self._ppm = 0.0
         self._k = 1.0
+        self._moving = False
         self._hull_cache = LRUCache(240)
         self._turret_cache = LRUCache(40)
         self._barrel_cache = LRUCache(80)
@@ -82,6 +83,7 @@ class GunVehicleRenderer(HullPartsMixin):
         if self._ppm <= 0.0 or (not moving and abs(ppm / self._ppm - 1.0) > REBUILD_TOL):
             self.set_zoom(ppm)
         self._k = ppm / self._ppm
+        self._moving = moving
 
     # ---------- главный метод ----------
 
@@ -177,6 +179,14 @@ class GunVehicleRenderer(HullPartsMixin):
 
     def _rotated(self, kind, base_key, get_base, bucket, scale):
         """Повёрнутая копия спрайта из кэша."""
+        k = self._k
+        if self._moving and abs(k - 1.0) > 1e-4:
+            base = scale / k                                   # масштаб без поправки на зум
+            key = (kind, base_key, bucket, round(base, 3))
+            surf = self._rot_cache.get_or_build(
+                key, lambda: pygame.transform.rotozoom(get_base(), -bucket * ANGLE_STEP, base))
+            w, h = surf.get_size()
+            return pygame.transform.scale(surf, (max(1, round(w * k)), max(1, round(h * k))))
         key = (kind, base_key, bucket, round(scale, 3))
         return self._rot_cache.get_or_build(
             key, lambda: pygame.transform.rotozoom(get_base(), -bucket * ANGLE_STEP, scale))
