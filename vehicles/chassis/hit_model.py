@@ -67,7 +67,7 @@ class HitModelMixin:
         if zone == "front":
             base += s.screen_mm
         elif zone == "side":
-            base += s.gear.armor_mm
+            base += s.track_mm
         return base * ARMOR_K
 
     def armor_along(self, from_deg, hull_deg=None, lateral=0.0):

@@ -94,18 +94,29 @@ def impact_cos(stats, cos_impact, target=None, point=None):
         cos_impact = normalize_cos(cos_impact, degrees)
     return cos_impact
 
-def pen_after_modules(target, penetration, stats, x, y):
-    """Пробитие после внешнего модуля цели в точке попадания (x, y)."""
-    if stats.module_pen_k >= 1.0 and stats.screen_pen_k >= 1.0:
-        return penetration                                    # ББ и ФГ: быстрый выход
-    fn = getattr(target, "module_at", None)
-    if fn is None:
-        return penetration
-    module = fn(x, y)
+@dataclass(frozen=True)
+class ModuleHit:
+    module: Optional[str]           # "left" / "right" / "screen" / None
+    pen: float                      # пробитие после модуля (остаток, идущий в корпус)
+    track_damage: float = 0.0       # урон гусенице, HP её шкалы (только для гусеницы)
+
+def module_hit(target, penetration, damage, stats, cos_impact, x, y):
+    """Что делает внешний модуль цели в точке попадания (x, y)."""
+    module_at = getattr(target, "module_at", None)
+    if module_at is None:
+        return ModuleHit(None, penetration)
+    module = module_at(x, y)
     if module is None:
-        return penetration
-    k = stats.screen_pen_k if module == "screen" else stats.module_pen_k
-    return penetration * k
+        return ModuleHit(None, penetration)
+    if module == "screen":
+        return ModuleHit(module, penetration * stats.screen_pen_k)
+    eff = effective_armor(target.track_thickness_mm, cos_impact)
+    loss = min(penetration, eff * stats.module_loss_k)
+    return ModuleHit(module, penetration - loss, damage * damage_fraction(penetration, eff))
+
+def pen_after_modules(target, penetration, stats, x, y, cos_impact=1.0):
+    """Только остаточное пробитие (для прицела и мозга ботов). Считает то же, что module_hit."""
+    return module_hit(target, penetration, 0.0, stats, cos_impact, x, y).pen
 
 class Damageable:
     """Миксин для целей."""

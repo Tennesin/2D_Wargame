@@ -175,10 +175,11 @@ def shot_geometry(me, enemy):
 def ammo_value(me, target, kind, normal, cos_i, point):
     """Ожидаемый урон в секунду снарядом kind по цели при такой геометрии удара."""
     stats = ammo_stats(me.spec, kind)
+    cos_n = impact_cos(stats, cos_i, target, point)
     pen = stats.penetration
     if point is not None:
-        pen = pen_after_modules(target, pen, stats, *point)           # КС на гусенице
-    frac = target.hit_result(pen, impact_cos(stats, cos_i, target, point), normal).damage_frac
+        pen = pen_after_modules(target, pen, stats, *point, cos_impact=cos_n)
+    frac = target.hit_result(pen, cos_n, normal).damage_frac
     if stats.splash_frac > 0.0 and stats.damage > 0.0:                # осколки ФГ и HESH с учётом брони
         frag = target.frag_damage(pen, stats.damage, stats.splash_frac, normal) / stats.damage
         frac = max(frac, frag)
@@ -186,8 +187,7 @@ def ammo_value(me, target, kind, normal, cos_i, point):
     return dps * (stats.speed_px / me.spec.SHELL_SPEED_PX) ** AMMO_SPEED_EXP
 
 def best_ammo(me, target, normal, cos_i, point, banned=()):
-    """Лучший тип снаряда по цели. Текущий меняем, только если выигрыш заметный (гистерезис).
-    banned: типы, которыми сейчас бить нельзя (если запрещён текущий, уходим с него при любом выигрыше)."""
+    """Лучший тип снаряда по цели."""
     scores = {k: ammo_value(me, target, k, normal, cos_i, point)
               for k in me.spec.ammo_kinds if k not in banned}
     if not scores:
@@ -231,7 +231,7 @@ def shot_fraction_now(me, enemy):
         cos_i = 1.0 if normal is None else abs(ux * normal[0] + uy * normal[1])
         hx, hy = me.x + (end_x - me.x) * t_hit, me.y + (end_y - me.y) * t_hit
         for st in rounds:
-            pen = pen_after_modules(enemy, st.penetration, st, hx, hy)
             cos_n = impact_cos(st, cos_i, enemy, (hx, hy))
+            pen = pen_after_modules(enemy, st.penetration, st, hx, hy, cos_n)
             best = max(best, enemy.hit_result(pen, cos_n, normal).damage_frac)
     return best

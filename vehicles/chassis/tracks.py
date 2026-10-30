@@ -54,12 +54,27 @@ class TracksMixin:
             return "screen"
         return None
 
-    def knock_track(self, x, y):
-        """Попали в точку (x, y): сбить гусеницу, если это её край. Возвращает сторону или None."""
-        side = self.track_at(x, y)
-        if side is None or not self.tracks.break_track(side):
-            return None
-        return side
+    @property
+    def track_thickness_mm(self):
+        """Толщина гусеницы (производная от габарита, см. ChassisSpec._calc_tracks)."""
+        return self.spec.track_mm
+
+    def nearest_track(self, x, y):
+        """Ближайшая к точке (x, y) гусеница: (сторона, расстояние в мировых px до её прямоугольника).
+        Состояние не учитывается. При равном расстоянии (взрыв ровно по оси) берётся левая."""
+        u, v = self._to_hull_local(x, y)
+        best_side, best_d = None, None
+        for side, (x0, y0, x1, y1) in zip((LEFT, RIGHT), self.spec.layout.track_rects):
+            du = max(x0 - u, 0.0, u - x1)
+            dv = max(y0 - v, 0.0, v - y1)
+            d = math.hypot(du, dv)
+            if best_d is None or d < best_d:
+                best_side, best_d = side, d
+        return best_side, best_d * self.spec.HULL_SCALE * PX_PER_M
+
+    def damage_track(self, side, damage_hp):
+        """Урон гусенице стороны side в HP гусеницы. True, если она только что сбита."""
+        return self.tracks.damage(side, damage_hp / self.spec.track_max_hp)
 
     # ---------- ремонт и состояние ----------
     def start_repair(self, side=None):

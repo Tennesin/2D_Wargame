@@ -165,14 +165,14 @@ class Notifier:
             self.say("Враг оглушён", C_GOOD)
             self.float_at(target.x, target.y, "оглушение", C_GOOD)
 
-    def on_module_absorb(self, owner, target, module):
-        """Кумулятив сработал на внешнем модуле (гусеница, экран): пробитие упало."""
+    def on_module_absorb(self, owner, target, module, lost_mm):
+        """Внешний модуль (гусеница, экран) съел часть пробития."""
         me = self.player
         where = MODULE_ON.get(module, "модуле")
         if target is me:
-            self.say(f"КС сработал на {where}: пробитие снижено", C_GOOD)
+            self.say(f"Пробитие снижено на {lost_mm:.0f} мм на {where}", C_GOOD)
         elif owner is me and target.target_type is TargetType.VEHICLE:
-            self.say(f"КС сработал на {where}: пробитие снижено", C_WARN)
+            self.say(f"Пробитие снижено на {lost_mm:.0f} мм на {where}", C_WARN)
 
     # ---------- разбор попаданий ----------
     def _hit_on_player(self, normal, res, dealt, frag=False):

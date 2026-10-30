@@ -6,13 +6,14 @@ from dataclasses import dataclass
 from typing import Optional
 
 from vehicles.chassis.hulls import HullLayout
-from engine import PX_PER_M, clamp, round_to
+from engine import PX_PER_M, clamp, round_to, lerp
 from vehicles.chassis.params import (
     STEEL_T_PER_M3, V_CAP_KMH, PW_SCALE, V_MASS_EXP, V_MIN_KMH, V_MAX_CLAMP_KMH,
     V_AVG_BASE, V_AVG_GAIN, BACK_SPEED_K, V_BACK_CAP_KMH,
     ACCEL_K, ACCEL_MIN, ACCEL_MAX, ACCEL_TAIL_FLOOR, REVERSE_ACCEL_K, COAST_DECEL, BRAKE_DECEL,
     HULL_TURN_CAP, HULL_TURN_MIN, HULL_ALPHA_REF, HULL_ALPHA_MIN, HULL_ALPHA_MAX,
     HP_EXP, HP_STEP, FRONT_SCREEN, SCREEN_MASS_K, SCREEN_TURN_LOSS,
+    TRACK_HP_K, TRACK_MM_RANGE, TRACK_MM_STEP, TRACK_SIZE_K_RANGE
 )
 from vehicles.chassis.running_gear import RunningGear, TRACKS
 
@@ -74,6 +75,7 @@ class ChassisSpec:
         self._calc_ratios()
         self._calc_mobility()
         self._calc_hp()
+        self._calc_tracks()
         self._calc_collision()
 
     def _calc_mass(self):
@@ -140,6 +142,15 @@ class ChassisSpec:
         b = self.body
         raw = b.hp_ref * (self.filling / b.ref_filling_t) ** HP_EXP
         self.hp = max(HP_STEP, round_to(raw, HP_STEP))
+
+    def _calc_tracks(self):
+        """Шкала и толщина гусеницы. Шкала считается от итогового HP (у САУ _calc_hp переопределён,
+        вызов полиморфный, поэтому порядок работает сам). Толщина растёт с габаритом."""
+        self.track_max_hp = TRACK_HP_K * self.hp
+        lo, hi = TRACK_SIZE_K_RANGE
+        t = clamp((self.size_k - lo) / (hi - lo), 0.0, 1.0)
+        mm_lo, mm_hi = TRACK_MM_RANGE
+        self.track_mm = clamp(round_to(lerp(mm_lo, mm_hi, t), TRACK_MM_STEP), mm_lo, mm_hi)
 
     def _calc_collision(self):
         """Хитбокс корпуса. Всё, что торчит из корпуса (ствол), в столкновениях не участвует."""

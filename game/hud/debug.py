@@ -62,6 +62,8 @@ class DebugOverlay:
             f"Combat ({k[Action.COMBAT]}): {'ON' if self.modes.combat else 'OFF'}",
             f"Speed: {t.speed_kmh:.1f} km/h",
             f"Terrain speed k: {t.terrain_k:.2f}",
+            f"Tracks HP: L {t.tracks.health['left'] * 100:.0f}%  R {t.tracks.health['right'] * 100:.0f}%  "
+            f"({s.track_mm:.0f} мм, шкала {s.track_max_hp:.0f})",
             f"Arty: {self._arty_status()}  shells in flight {len(self.effects.artillery_shells)}",
             f"Round {self.spawner.round} {self.spawner.phase.name}  left {self.spawner.time_left:.0f}s  "
             f"bots {len(self.fleet.bots)}  spawned {self.spawner.spawned}",

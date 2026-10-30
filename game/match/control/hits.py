@@ -2,7 +2,8 @@
 import math
 
 from engine import TargetType
-from combat import compute_aim, splash_damage, pen_after_modules, blast_damage, frag_armor_factor
+from vehicles import TRACK_SIDES
+from combat import compute_aim, splash_damage, module_hit, blast_damage, frag_armor_factor
 
 SPLASH_ORIGIN_PUSH_PX = 3.0      # на сколько px точка взрыва отодвигается от грани, в которую попал снаряд
 
@@ -43,22 +44,44 @@ class CombatController:
     def _direct_hit(self, im):
         stats, target = im.stats, im.target
         full_pen = stats.penetration * im.power
-        pen = pen_after_modules(target, full_pen, stats, im.x, im.y)
+        full_dmg = stats.damage * im.power
+        mh = module_hit(target, full_pen, full_dmg, stats, im.cos, im.x, im.y)
+        pen = mh.pen                                      # остаток пробития после гусеницы или экрана
         res = target.hit_result(pen, im.cos, im.normal)
         hp_before = getattr(target, "hp", 0.0)
-        dealt = target.take_hit(pen, stats.damage * im.power, im.cos, im.normal, stats.splash_frac)
-        if target.target_type is TargetType.VEHICLE:
+        dealt = target.take_hit(pen, full_dmg, im.cos, im.normal, stats.splash_frac)
+        is_vehicle = target.target_type is TargetType.VEHICLE
+        if is_vehicle:
             self.match_stats.on_damage(im.owner, target, hp_before - target.hp, "shot", direct=True)
-        if pen < full_pen:
-            self.notifier.on_module_absorb(im.owner, target, target.module_at(im.x, im.y))
+        if mh.module is not None and mh.pen < full_pen:
+            self.notifier.on_module_absorb(im.owner, target, mh.module, full_pen - mh.pen)
         self.notifier.on_hit(im.owner, target, im.normal, res, dealt)
-        if target.target_type is TargetType.VEHICLE and target.alive:
-            side = target.knock_track(im.x, im.y)
-            if side is not None:
-                self.notifier.on_track_broken(im.owner, target, side)
+        if is_vehicle and target.alive:
+            self._hit_tracks(im, target, mh, full_pen, full_dmg)
             if stats.stun_s > 0.0:                       # оглушает только прямое попадание, осколки нет
                 target.apply_stun(stats.stun_s)
                 self.notifier.on_stun(im.owner, target)
+
+    def _hit_tracks(self, im, target, mh, full_pen, full_dmg):
+        """Урон гусеницам при прямом попадании: гусеница, в которую попали, плюс (для ФГ и HESH)
+        ближайшая к взрыву. Если это одна и та же гусеница, берётся бо́льший из двух уронов."""
+        damage = {}
+        if mh.module in TRACK_SIDES:
+            damage[mh.module] = mh.track_damage
+        if im.stats.splash_frac > 0.0:
+            side, frag = self._frag_track_damage(im, target, full_pen, full_dmg)
+            damage[side] = max(damage.get(side, 0.0), frag)
+        for side, amount in damage.items():
+            if target.damage_track(side, amount):
+                self.notifier.on_track_broken(im.owner, target, side)
+
+    @staticmethod
+    def _frag_track_damage(im, target, pen, base):
+        """(сторона, урон) осколков по ЕДИНСТВЕННОЙ, ближайшей к взрыву гусенице.
+        Расстояние считается до прямоугольника гусеницы, а не до корпуса."""
+        side, dist = target.nearest_track(im.x, im.y)
+        k = frag_armor_factor(target.spec.track_mm, pen)
+        return side, splash_damage(base, im.stats.splash_frac * k, dist, im.stats.aoe_radius_px)
 
     # ---------- взрывы САУ ----------
     def _apply_blasts(self, blasts):
@@ -103,6 +126,10 @@ class CombatController:
                 continue
             if not self._splash_reaches(ox, oy, target):
                 continue
+            if target.target_type is TargetType.VEHICLE:
+                side, frag = self._frag_track_damage(im, target, pen, base)
+                if frag > 0.0 and target.damage_track(side, frag):
+                    self.notifier.on_track_broken(im.owner, target, side)
             k = self._frag_k(target, im.x, im.y, pen)
             dealt = splash_damage(base, stats.splash_frac * k, dist, stats.aoe_radius_px)
             if dealt <= 0.0:

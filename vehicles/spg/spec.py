@@ -212,6 +212,7 @@ class SPGSpec(GunVehicleSpec):
             "Удельная мощность": f"{self.pw:.1f} л.с./т",
             "Масса орудия": f"{self.m_gun:.1f} т",
             "Бронированность": f"{self.q_arm:.2f}",
+            "Гусеница: толщина / HP": f"{self.track_mm:.0f} мм / {self.track_max_hp:.0f}",
             "Масштаб корпуса": f"{self.HULL_SCALE:.2f}",
             "Угл. разгон корпуса": f"{self.hull_alpha:.0f} °/с²",
             "Наводка орудия": f"{self.turret_turn:.0f} °/с",

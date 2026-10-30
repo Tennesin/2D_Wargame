@@ -7,9 +7,13 @@ from combat.armor import PIERCE_SPREAD
 from combat.ram import ZONE_K, SAFE_DV_MS, DAMAGE_PER_MS
 from inputs import Action
 from ui import SectionHeader, InfoText, AccordionRow, make_swatch_icon
-from vehicles import TRACKS, nose_front_factor, wedge_front_factor
-from vehicles.gun.params import AP_NORMALIZATION_DEG
-from vehicles.chassis.params import TRACK_REPAIR_S, ONE_TRACK_SPEED_K, TRACK_EDGE_ZONE_M
+from vehicles import nose_front_factor, wedge_front_factor
+from vehicles.gun.params import AP_NORMALIZATION_DEG, HEAT_MODULE_LOSS_K
+from vehicles.chassis.params import (
+    TRACK_REPAIR_S, ONE_TRACK_SPEED_K, TRACK_EDGE_ZONE_M, TRACK_REPAIR_S,
+    ONE_TRACK_SPEED_K, TRACK_EDGE_ZONE_M, TRACK_HP_K, TRACK_REGEN_K, TRACK_REGEN_DELAY_S,
+    TRACK_MM_RANGE
+)
 from .. import texts
 from .common import k as _k
 
@@ -63,19 +67,26 @@ def build():
         AccordionRow(None, "Грани",
                      "У техники три грани: лоб, борт и корма, у каждой своя броня.", [
                          "Толщина каждой грани задаётся своим ползунком в Конструкторе.",
-                         f"Гусеница закрывает борт и добавляет к нему {TRACKS.armor_mm:.0f} мм.",
+                         f"Гусеница закрывает борт и добавляет к нему {TRACK_MM_RANGE[0]:.0f}–{TRACK_MM_RANGE[1]:.0f} мм (зависит от габарита).",
                          "Лобовые экраны добавляют свою толщину ко лбу. Для осколков экраны считаются втрое.",
                          f"У щучьего носа удар строго в лоб эквивалентен броне ×{nose_front_factor():.2f} от ползунка «Лоб»; "
                          f"у боковых скосов клина ×{wedge_front_factor():.2f}, у центральной плиты клина ×1.",
                          "Как правило, выгоднее целиться в борт и корму.",
                      ]),
         AccordionRow(None, "Гусеницы",
-                     "Попадание в передний или задний край гусеницы сбивает её.", [
+                     "У каждой гусеницы своя скрытая шкала прочности. Сбита она только при нуле.", [
                          f"Уязвимы только концы гусеницы длиной {TRACK_EDGE_ZONE_M:g} м спереди и сзади.",
+                         f"Толщина гусеницы {TRACK_MM_RANGE[0]:.0f}–{TRACK_MM_RANGE[1]:.0f} мм (растёт с габаритом машины). "
+                         "Снаряд, попавший в целую гусеницу, теряет пробитие на её приведённую толщину и наносит ей урон. "
+                         f"На корпус идёт остаток пробития. Кумулятивный теряет в {HEAT_MODULE_LOSS_K:g} раза больше.",
+                         f"Шкала гусеницы {TRACK_HP_K * 100:.0f}% здоровья машины и от урона по корпусу не зависит. "
+                         f"Через {TRACK_REGEN_DELAY_S:g} с после последнего попадания неполная гусеница восстанавливается "
+                         f"({TRACK_REGEN_K * 100:.0f}% здоровья машины в секунду), сбитая сама не восстанавливается.",
+                         "Осколки ФГ и HESH бьют только ближайшую к взрыву гусеницу, даже если задевают обе.",
                          f"С одной сбитой гусеницей машина ползёт по дуге вокруг неё (тяга ×{ONE_TRACK_SPEED_K:g}), "
                          "с двумя стоит на месте.",
-                         f"Ремонт ({_k(Action.REPAIR)}): {TRACK_REPAIR_S:.0f} с на гусеницу, по одной за раз. Боты чинятся сами.",
-                         "Пока гусеница цела, она снижает пробитие кумулятивного. Сбитая гусеница заряд уже не поглощает.",
+                         f"Ремонт ({_k(Action.REPAIR)}): {TRACK_REPAIR_S:.0f} с на гусеницу, по одной за раз, "
+                         "после него гусеница снова на 100%. Боты чинятся сами.",
                      ]),
         AccordionRow(None, "Таран",
                      "Удар о камень или танк толкает обоих.", [

@@ -177,6 +177,7 @@ class TDSpec(GunVehicleSpec):
             "Калибр / платформа": f"{self.q_gun:.2f}",
             "Бронированность": f"{self.q_arm:.2f}",
             "Лоб с экранами": f"{self.front + self.screen_mm:.0f} мм",
+            "Гусеница: толщина / HP": f"{self.track_mm:.0f} мм / {self.track_max_hp:.0f}",
             "Длина ствола": f"{self.l_cal:.1f} кал.",
             "Инерция орудия": f"{self.i_turret:.1f} т·м²",
             "Угл. разгон корпуса": f"{self.hull_alpha:.0f} °/с²",
