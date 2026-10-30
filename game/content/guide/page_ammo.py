@@ -10,7 +10,7 @@ from vehicles.gun.params import (
     CALIBER, HESH_MIN_CAL_MM, HEAT_PEN_K, HEAT_SPEED_K, HEAT_RELOAD_K, HEAT_MODULE_PEN_K, HEAT_SCREEN_PEN_K,
     HE_DAMAGE_K, HE_PEN_K, HE_MIN_FRAC, HE_RADIUS_PX_PER_MM,
     HESH_DAMAGE_K, HESH_PEN_K, HESH_RANGE_K, HESH_MIN_FRAC, HESH_RADIUS_PX_PER_MM,
-    HESH_STUN_FRAC, HESH_STUN_MIN_S,
+    HESH_STUN_FRAC, HESH_STUN_MIN_S, HE_SPLASH_FRAC
 )
 from .. import texts
 from .common import k as _k
@@ -86,14 +86,13 @@ def _details():
         AmmoKind.HE: [
             f"Относительно бронебойного: урон {_pct(HE_DAMAGE_K)}, пробитие {_pct(HE_PEN_K)}. "
             "Скорость и перезарядка те же. Не рикошетит.",
+            "Прямое попадание считается по обычным правилам пробития: гарантированного урона нет.",
             "Если снаряд ничего не задел, он взрывается на пределе дальности и всё равно бьёт осколками.",
             f"Радиус осколков: {_radius_m(HE_RADIUS_PX_PER_MM, 125):.1f} м при 125 мм, "
             f"{_radius_m(HE_RADIUS_PX_PER_MM, CALIBER.max):.1f} м при {CALIBER.max:.0f} мм.",
-            f"Цели вокруг получают гарантированно {_fracs(HE_MIN_FRAC)} урона снаряда (растёт с калибром), "
-            f"к краю радиуса урон падает до {SPLASH_EDGE_K * 100:.0f}%. Броня не учитывается.",
-            "Если прямое попадание не пробило броню, урон считается как урон × калибр / приведённая броня, "
-            "но не больше номинала.",
-            "Стены и камни закрывают технику за ними от осколков, но сами тоже получают осколочный урон. "
+            f"Осколки в центре наносят {_fracs(HE_SPLASH_FRAC)} урона снаряда (растёт с калибром), "
+            f"к краю радиуса падают до {SPLASH_EDGE_K * 100:.0f}%, и броня цели их ослабляет.",
+            "Стены и камни закрывают технику за ними от осколков, но сами получают урон. "
             "При включённом «Уроне по союзникам» осколки ранят и своих.",
         ],
     }

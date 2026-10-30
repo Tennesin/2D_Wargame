@@ -4,7 +4,9 @@ import itertools
 import math
 
 from engine import clamp, round_to
-from vehicles.gun.params import GUN_TUNE_COST_D, GUN_TUNE_COST_P
+from vehicles.gun.params import (
+    GUN_TUNE_COST_D, GUN_TUNE_COST_P, GUN_PROFILE_COST_D, GUN_PROFILE_COST_P
+)
 from vehicles.gun.spec import turret_masses, REF_CAL, REF_POWER
 from vehicles.gun.tuning import tuning_k_bounds
 from .tank.params import (
@@ -19,9 +21,8 @@ _POWER = PARAMS["engine_power_hp"]
 
 _REF_HULL_MASS = FIXED_MASS_T + turret_masses(REF_CAL)[1]
 
-def _cost_index(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0):
-    """Ценность машины относительно эталона (у эталона 1.0). Зависит только от входных параметров.
-    dmg_k и pen_k: выбранные урон и пробитие относительно номинала калибра (1.0 = номинал)."""
+def _cost_index(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0, prof_d=1.0, prof_p=1.0):
+    """Ценность машины относительно эталона."""
     turret = turret_masses(cal)[1]
     zf, zs, zr = COST_ARMOR_ZONES
     levels = {
@@ -29,7 +30,8 @@ def _cost_index(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0):
                    + zr * rear / _REAR.default) / (zf + zs + zr),
         "hull":   (FIXED_MASS_T + turret) / _REF_HULL_MASS,
         "engine": power / REF_POWER,
-        "gun":    cal / REF_CAL * dmg_k ** GUN_TUNE_COST_D * pen_k ** GUN_TUNE_COST_P,
+        "gun":    (cal / REF_CAL * dmg_k ** GUN_TUNE_COST_D * pen_k ** GUN_TUNE_COST_P
+                   * prof_d ** GUN_PROFILE_COST_D * prof_p ** GUN_PROFILE_COST_P),
     }
     return sum(weight * levels[name] ** power_k for name, (weight, power_k) in COST_PARTS.items())
 
@@ -45,7 +47,7 @@ COST_EXP_HIGH = math.log(COST_MAX / COST_REF) / math.log(INDEX_MAX)
 def _price(index):
     return COST_REF * index ** (COST_EXP_LOW if index < 1.0 else COST_EXP_HIGH)
 
-def raw_cost(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0):
+def raw_cost(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0, prof_d=1.0, prof_p=1.0):
     """Цена до округления."""
     return _price(_cost_index(cal, front, side, rear, power, dmg_k, pen_k))
 
@@ -53,6 +55,6 @@ def round_cost(raw):
     """Округление цены до шага и в допустимых границах."""
     return clamp(round_to(raw, COST_STEP), COST_MIN, COST_MAX)
 
-def cost_for(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0):
+def cost_for(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0, prof_d=1.0, prof_p=1.0):
     """Цена машины по входным параметрам без полного расчёта спецификации."""
     return round_cost(raw_cost(cal, front, side, rear, power, dmg_k, pen_k))

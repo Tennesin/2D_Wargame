@@ -32,7 +32,9 @@ class AmmoStats:
     screen_pen_k: float = 1.0        # то же для лобового экрана
     stun_s: float = 0.0             # длительность оглушения цели при прямом попадании, с
     caliber_mm: float = 0.0          # калибр орудия (для урона осколков фугасов)
-    normalization_deg: float = 0.0   # доворот к нормали при попадании, градусы (только ББ)
+    normalization_deg: float = 0.0   # доворот к нормали при попадании, градусы
+    splash_frac: float = 0.0         # доля урона осколков в центре (ФГ и HESH)
+    splash_armor_ref_mm: float = 0.0 # >0: осколки ослабляются бронёй (ФГ); 0: броня не учитывается (HESH)
 
 @dataclass(frozen=True)
 class ArtilleryStats:

@@ -21,6 +21,7 @@ from vehicles.gun.params import (
     SMOKE_REACH_BASE_PX, SMOKE_REACH_PER_MM, SMOKE_WIDTH_MIN_PX, SMOKE_WIDTH_CAL_DIV,
     BLAST_SIZE_PER_MM, BLAST_TIME_BASE_S, BLAST_TIME_GAIN_S, BLAST_DIRT_BASE, BLAST_DIRT_CAL_DIV,
     SCORCH_RADIUS_PER_MM, SCORCH_TIME_BASE_S, SCORCH_TIME_GAIN_S,
+    GUN_RELOAD_CAL_EXP, GUN_RELOAD_PLATFORM_EXP
 )
 
 _CAL = CALIBER
@@ -89,11 +90,11 @@ class GunSpec:
             self.cal, damage, penetration, self.profile)
 
         # базовая перезарядка: ровно как раньше (пол GUN_RELOAD_MIN действует ДО тюнинга)
-        reload = max(GUN_RELOAD_MIN, GUN_RELOAD_REF * cr * self.q_gun ** 0.5)
+        reload = max(GUN_RELOAD_MIN, GUN_RELOAD_REF * cr ** GUN_RELOAD_CAL_EXP * self.q_gun ** GUN_RELOAD_PLATFORM_EXP)
         overload = max(0.0, self.q_gun - GUN_OVERLOAD_Q)
         reload *= 1.0 + GUN_OVERLOAD_K * overload
 
-        # тюнинг: больше урон или пробитие = дольше перезарядка
+        # тюнинг: больше пробитие = дольше перезарядка
         reload *= reload_factor(self.damage_k, self.pen_k)
         self.reload = max(GUN_TUNE_RELOAD_MIN, reload)
         self.dps = self.damage / self.reload

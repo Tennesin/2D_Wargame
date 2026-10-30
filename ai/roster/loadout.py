@@ -43,12 +43,14 @@ def loadout_cost(values, vtype=None):
     vtype: тип техники; у типов со своей ценой (САУ) считает его cost_fn."""
     if vtype is not None and vtype.cost_fn is not None:
         return vtype.cost_fn(values)
+    profile = vtype.gun_profile if vtype is not None else MBT_GUN
     cal = values["gun_caliber_mm"]
     front = values["front_armor_mm"] + values.get("front_screen_mm", 0.0)
     return raw_cost(cal, front, values["side_armor_mm"],
                     values["rear_armor_mm"], values["engine_power_hp"],
-                    values["gun_damage"] / nominal_damage(cal),
-                    values["gun_penetration"] / nominal_pen(cal))
+                    values["gun_damage"] / nominal_damage(cal, profile),
+                    values["gun_penetration"] / nominal_pen(cal, profile),
+                    profile.dmg_mult(cal), profile.pen_mult(cal))
 
 def fit_loadout(arch, budget, rng):
     """Значения ползунков архетипа под бюджет (цена попадает в бюджет с точностью около ±1-2%).

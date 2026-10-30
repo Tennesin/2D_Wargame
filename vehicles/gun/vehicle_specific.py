@@ -67,12 +67,10 @@ class GunVehicleSpec(ChassisSpec):
         self.REACH_PX = max(self.HULL_REACH_PX, barrel_reach) + COLLISION_MARGIN_PX
 
     def _calc_economy(self):
-        """Цена по формуле танка. Бонус профиля орудия (у ПТ-САУ сильнее) входит множителем:
-        у профиля ОБТ он ровно 1.0, поэтому для танка цена не меняется."""
+        """Цена по формуле танка."""
         prof = self.profile
         raw = raw_cost(self.cal, self.front + self.screen_mm, self.side, self.rear, self.power,
-                       self.damage_k * prof.dmg_mult(self.cal),
-                       self.pen_k * prof.pen_mult(self.cal))
+                       self.damage_k, self.pen_k, prof.dmg_mult(self.cal), prof.pen_mult(self.cal))
         self.cost = round_cost(raw)
 
     def _calc_look(self):
