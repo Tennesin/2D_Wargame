@@ -3,9 +3,8 @@ import math
 from dataclasses import dataclass
 
 from combat import resolve_hit, impact_cos, pen_after_modules, is_ricochet, normalize_cos
-from engine import clamp, PX_PER_M
+from engine import clamp, PX_PER_M, AmmoKind
 from vehicles import ammo_stats
-from vehicles.gun.params import AP_NORMALIZATION_DEG
 from vehicles.chassis.params import KMH_TO_PX
 
 def lead_point(shooter, target, lead_k=1.0):
@@ -35,15 +34,20 @@ def _mean_frac(defender, pen, from_deg, hull_deg, laterals=AIM_LATERALS_M, norm_
         n += 1
     return total / n if n else 1.0
 
+def ap_normalization(spec):
+    """Доворот бронебойного орудия spec к нормали, градусы (зависит от калибра)."""
+    return ammo_stats(spec, AmmoKind.AP).normalization_deg
+
 def damage_by_aspect(me, enemy):
     """Доля урона моего снаряда по лбу, борту и корме врага (лучи с трёх направлений от его корпуса,
     среднее по AIM_LATERALS_M). Броню и угол даёт раскладка корпуса, а не нормали с cos = 1."""
     pen = me.spec.penetration
     h = enemy.hull_angle
+    norm = ap_normalization(me.spec)
     return {
-        "front": _mean_frac(enemy, pen, h, h, norm_deg=AP_NORMALIZATION_DEG),
-        "side": _mean_frac(enemy, pen, h + 90.0, h, norm_deg=AP_NORMALIZATION_DEG),
-        "rear": _mean_frac(enemy, pen, h + 180.0, h, norm_deg=AP_NORMALIZATION_DEG),
+        "front": _mean_frac(enemy, pen, h, h, norm_deg=norm),
+        "side": _mean_frac(enemy, pen, h + 90.0, h, norm_deg=norm),
+        "rear": _mean_frac(enemy, pen, h + 180.0, h, norm_deg=norm),
     }
 
 def seconds_to_break(me, wall, cos_impact=1.0, normal=None, min_frac=0.15):
@@ -136,10 +140,11 @@ def best_hull_heading(me, enemy, to_enemy_deg):
     """Курс корпуса, при котором враг наносит мне меньше урона (с запасом на неточность его прицела).
     Если поворот ничего не даёт, возвращает курс прямо на врага."""
     pen = enemy.spec.penetration
+    norm = ap_normalization(enemy.spec)
     best_h, best_key = to_enemy_deg, None
     for off in HULL_ANGLES:
         h = to_enemy_deg + off
-        expo = max(_mean_frac(me, pen, to_enemy_deg + j, h, norm_deg=AP_NORMALIZATION_DEG)
+        expo = max(_mean_frac(me, pen, to_enemy_deg + j, h, norm_deg=norm)
                    for j in (-AIM_JITTER_DEG, 0.0, AIM_JITTER_DEG))
         key = (round(expo, 2), abs(off))
         if best_key is None or key < best_key:

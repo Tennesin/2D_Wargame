@@ -34,7 +34,7 @@ class AmmoType:
     range_k: float = 1.0               # множитель дальности относительно ББ
     stun_frac: tuple = (0.0, 0.0)      # оглушение как доля перезарядки снаряда (мин. и макс. калибр); (0, 0) = не оглушает
     stun_min_s: float = 0.0            # нижняя граница длительности оглушения, с
-    normalization_deg: float = 0.0     # на сколько градусов снаряд доворачивает к нормали (0 = нет)
+    normalization_deg: tuple = (0.0, 0.0)   # доворот к нормали при мин. и макс. калибре, градусы ((0, 0) = нет)
     splash_frac: tuple = (0.0, 0.0)    # доля урона осколков в центре при мин. и макс. калибре
     splash_armor_ref_mm: float = 0.0   # >0: осколки ослабляются бронёй цели
 
@@ -93,7 +93,7 @@ def ammo_stats(spec, kind):
         screen_pen_k=t.screen_pen_k,
         stun_s=stun_s,
         caliber_mm=spec.cal,
-        normalization_deg=t.normalization_deg,
+        normalization_deg=lerp(t.normalization_deg[0], t.normalization_deg[1], cal_t),
         splash_frac=lerp(t.splash_frac[0], t.splash_frac[1], cal_t),
         splash_armor_ref_mm=t.splash_armor_ref_mm,
     )
