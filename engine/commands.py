@@ -26,15 +26,13 @@ class AmmoStats:
     reload: float                    # перезарядка после выстрела этим снарядом, с
     ricochet: bool = True            # может ли рикошетить (у КС, HESH и ФГ нет)
     aoe_radius_px: float = 0.0       # радиус взрыва по площади, 0 = нет (ФГ и HESH)
-    min_frac: float = 0.0            # гарантированная доля урона, 0 = нет (ФГ и HESH)
     explode_at_range: bool = False   # взрывается на пределе дальности (ФГ)
     module_pen_k: float = 1.0        # множитель пробития после внешнего модуля-гусеницы (1.0 = не влияет)
     screen_pen_k: float = 1.0        # то же для лобового экрана
     stun_s: float = 0.0             # длительность оглушения цели при прямом попадании, с
     caliber_mm: float = 0.0          # калибр орудия (для урона осколков фугасов)
     normalization_deg: float = 0.0   # доворот к нормали при попадании, градусы
-    splash_frac: float = 0.0         # доля урона осколков в центре (ФГ и HESH)
-    splash_armor_ref_mm: float = 0.0 # >0: осколки ослабляются бронёй (ФГ); 0: броня не учитывается (HESH)
+    splash_frac: float = 0.0         # доля урона осколков в центре (ФГ и HESH), 0 = осколков нет
 
 @dataclass(frozen=True)
 class ArtilleryStats:

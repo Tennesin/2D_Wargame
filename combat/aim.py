@@ -24,8 +24,8 @@ class AimInfo:
     end: tuple                            # точка попадания или конец дальности
     result: Optional[HitResult] = None    # результат попадания (None, если линия свободна)
     target: object = None                 # цель, в которую упирается линия (None, если свободна)
-    min_frac: float = 0.0                 # гарантированная доля урона (фугас), 0 = нет
-    frag_damage: float = 0.0              # урон осколков при непробитии (0 = не применимо)
+    min_frac: float = 0.0                 # доля урона от осколков при этом попадании (фугас), 0 = нет
+    frag_damage: float = 0.0              # урон осколков, если он превышает урон пробития (0 = не применимо)
 
 def compute_aim(tank, targets):
     """Траектория от дульного среза вдоль башни. Отрезок для проверки начинается в центре танка,
@@ -44,13 +44,17 @@ def compute_aim(tank, targets):
     point = (tank.x + (end[0] - tank.x) * t, tank.y + (end[1] - tank.y) * t)
     cos_impact = 1.0 if normal is None else impact_cos(
         stats, abs(dx * normal[0] + dy * normal[1]), target, point)
-    min_frac = 0.0 if target.target_type is TargetType.TERRAIN else stats.min_frac
     pen = pen_after_modules(target, stats.penetration, stats, *point)
     res = target.hit_result(pen, cos_impact, normal)
-    frag = 0.0
-    if min_frac > 0.0 and res.damage_frac <= 0.0:
-        frag = target.frag_damage(res, stats.damage, stats.caliber_mm, cos_impact, normal)
-    return AimInfo(start, point, res, target, min_frac, frag)
+
+    frag_frac = 0.0 if target.target_type is TargetType.TERRAIN else stats.splash_frac
+    eff_frac, frag = 0.0, 0.0
+    if frag_frac > 0.0 and stats.damage > 0.0:
+        potential = target.frag_damage(pen, stats.damage, frag_frac, normal)
+        eff_frac = potential / stats.damage                    # какую долю урона дадут осколки
+        if potential > stats.damage * res.damage_frac:         # осколки сильнее пробития (или пробития нет)
+            frag = potential
+    return AimInfo(start, point, res, target, eff_frac, frag)
 
 class AimRenderer:
 

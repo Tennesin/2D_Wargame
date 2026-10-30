@@ -164,6 +164,7 @@ class TDSpec(GunVehicleSpec):
             "Нос корпуса": NOSE_RU[self.nose],
             "Урон": f"{self.damage:.0f}",
             "Пробитие": f"{self.penetration:.0f} мм",
+            "Нормализация": f"{self.normalization_deg:.1f}°",
             "Перезарядка": f"{self.reload:.2f} с",
             "Скорость снаряда": f"{self.SHELL_SPEED_PX / PX_PER_M:.0f} м/с",
             "Дальность": f"{self.SHELL_RANGE_PX / PX_PER_M:.0f} м",

@@ -179,7 +179,10 @@ def ammo_value(me, target, kind, normal, cos_i, point):
     if point is not None:
         pen = pen_after_modules(target, pen, stats, *point)           # КС на гусенице
     frac = target.hit_result(pen, impact_cos(stats, cos_i, target, point), normal).damage_frac
-    dps = stats.damage * max(frac, stats.min_frac) / stats.reload      # min_frac: гарантия осколков фугаса
+    if stats.splash_frac > 0.0 and stats.damage > 0.0:                # осколки ФГ и HESH с учётом брони
+        frag = target.frag_damage(pen, stats.damage, stats.splash_frac, normal) / stats.damage
+        frac = max(frac, frag)
+    dps = stats.damage * frac / stats.reload
     return dps * (stats.speed_px / me.spec.SHELL_SPEED_PX) ** AMMO_SPEED_EXP
 
 def best_ammo(me, target, normal, cos_i, point, banned=()):
@@ -205,7 +208,7 @@ def shot_fraction_now(me, enemy):
     """Максимальная доля урона по броне (любым пробивным снарядом) из текущей позиции.
     Фугас не считаем: его осколочный минимум не должен скрывать «бить нечем»."""
     rounds = [s for s in (ammo_stats(me.spec, k) for k in me.spec.ammo_kinds)
-              if s.min_frac <= 0.0]
+              if s.splash_frac <= 0.0]
     ex, ey = enemy.x, enemy.y
     dx, dy = ex - me.x, ey - me.y
     ln = math.hypot(dx, dy)

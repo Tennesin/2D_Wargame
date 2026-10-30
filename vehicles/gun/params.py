@@ -114,6 +114,9 @@ HEAT_RELOAD_K = 1.3
 HEAT_MODULE_PEN_K = 0.5      # КС сработал на гусенице
 HEAT_SCREEN_PEN_K = 0.6      # КС сработал на лобовом экране
 
+# Осколки ФГ и HESH
+FRAG_DAMAGE_FRAC = (0.15, 0.45)   # доля урона снаряда в осколках при мин. и макс. калибре
+
 # HESH
 HESH_MIN_CAL_MM = 105
 HESH_DAMAGE_K = 1.6          # урон на 60% выше
@@ -121,7 +124,6 @@ HESH_PEN_K = 0.4             # пробитие на 60% ниже
 HESH_SPEED_K = HEAT_SPEED_K  # скорость и перезарядка как у КС (связаны, а не продублированы)
 HESH_RELOAD_K = HEAT_RELOAD_K
 HESH_RANGE_K = 0.75          # дальность: 75% от ББ
-HESH_MIN_FRAC = (0.12, 0.32) # гарантированная доля урона осколков при мин. и макс. калибре
 HESH_RADIUS_PX_PER_MM = 3.5  # радиус осколков на 1 мм калибра, px мира
 HESH_STUN_FRAC = (0.30, 0.60)
 HESH_STUN_MIN_S = 0.5
@@ -131,8 +133,6 @@ HE_DAMAGE_K = HESH_DAMAGE_K
 HE_PEN_K = 0.2
 HE_SPEED_K = 1.0
 HE_RELOAD_K = 1.0
-HE_SPLASH_FRAC = HESH_MIN_FRAC     # доля урона осколков в центре (при мин. и макс. калибре)
-HE_SPLASH_ARMOR_REF_MM = 100.0     # осколки ослабляются как 1 / (1 + броня / это число)
 HE_RADIUS_PX_PER_MM = HESH_RADIUS_PX_PER_MM
 
 # ==========================================

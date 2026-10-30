@@ -2,7 +2,7 @@
 import math
 
 from engine import TargetType
-from combat import compute_aim, splash_damage, pen_after_modules, blast_damage
+from combat import compute_aim, splash_damage, pen_after_modules, blast_damage, frag_armor_factor
 
 SPLASH_ORIGIN_PUSH_PX = 3.0      # на сколько px точка взрыва отодвигается от грани, в которую попал снаряд
 
@@ -46,8 +46,7 @@ class CombatController:
         pen = pen_after_modules(target, full_pen, stats, im.x, im.y)
         res = target.hit_result(pen, im.cos, im.normal)
         hp_before = getattr(target, "hp", 0.0)
-        dealt = target.take_hit(pen, stats.damage * im.power, im.cos, im.normal,
-                                stats.min_frac, stats.caliber_mm)
+        dealt = target.take_hit(pen, stats.damage * im.power, im.cos, im.normal, stats.splash_frac)
         if target.target_type is TargetType.VEHICLE:
             self.match_stats.on_damage(im.owner, target, hp_before - target.hp, "shot", direct=True)
         if pen < full_pen:
@@ -93,9 +92,10 @@ class CombatController:
 
     # ---------- осколки ----------
     def _splash(self, im):
-        """Осколки по всем целям в радиусе."""
+        """Осколки по всем целям в радиусе, кроме прямой цели."""
         stats = im.stats
         base = stats.damage * im.power
+        pen = stats.penetration * im.power
         ox, oy = self._splash_origin(im)
         shooter = None if self.settings.friendly_fire else im.owner
         for target, dist in self.targets.in_circle(im.x, im.y, stats.aoe_radius_px, ignore=shooter):
@@ -103,7 +103,8 @@ class CombatController:
                 continue
             if not self._splash_reaches(ox, oy, target):
                 continue
-            dealt = splash_damage(base, stats.min_frac, dist, stats.aoe_radius_px)
+            k = self._frag_k(target, im.x, im.y, pen)
+            dealt = splash_damage(base, stats.splash_frac * k, dist, stats.aoe_radius_px)
             if dealt <= 0.0:
                 continue
             real = min(dealt, target.hp)
@@ -111,6 +112,15 @@ class CombatController:
             if target.target_type is TargetType.VEHICLE:
                 self.match_stats.on_damage(im.owner, target, real, "shot")
             self.notifier.on_splash(im.owner, target, dealt)
+
+    @staticmethod
+    def _frag_k(target, x, y, pen):
+        """Множитель осколков по броне ближайшей к взрыву грани. Стены и прочее без брони: 1.0."""
+        facing = getattr(target, "facing_normal", None)
+        if facing is None:
+            return 1.0
+        armor = target.frag_nominal_armor(facing(x, y))
+        return 1.0 if armor is None else frag_armor_factor(armor, pen)
 
     @staticmethod
     def _splash_origin(im):

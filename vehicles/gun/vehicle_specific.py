@@ -2,13 +2,13 @@
 Общее для ОБТ и ПТ-САУ: создание орудия, радиус отсечения, цена, уровни оформления, фабрики."""
 import math
 
-from engine import PX_PER_M, clamp
+from engine import PX_PER_M, clamp, AmmoKind
 from ..chassis.hulls import NOSE_FLAT
 from ..chassis.params import COLLISION_MARGIN_PX, FRONT_SCREEN, SCREEN_LOOK_STEPS
 from ..chassis.spec import ChassisSpec
 from ..cost import raw_cost, round_cost
 from ..look import Look, level
-from .ammo import SPECIAL_HEAT
+from .ammo import SPECIAL_HEAT, ammo_stats
 
 class GunVehicleSpec(ChassisSpec):
     """Подкласс обязан задать атрибуты класса PARAMS и LOOK_*_RATIO, а до вызова __init__
@@ -141,6 +141,8 @@ class GunVehicleSpec(ChassisSpec):
     def SHELL_LEN_PX(self): return self.gun.SHELL_LEN_PX
     @property
     def SHELL_THICK_PX(self): return self.gun.SHELL_THICK_PX
+    @property
+    def normalization_deg(self): return ammo_stats(self, AmmoKind.AP).normalization_deg
 
     # --- эффекты выстрела и взрыва ---
     @property

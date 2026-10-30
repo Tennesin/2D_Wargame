@@ -1,5 +1,5 @@
 """game/content/guide/page_ammo.py — страница инструкции «Снаряды»."""
-from combat import RICOCHET_ANGLE, SPLASH_EDGE_K
+from combat import RICOCHET_ANGLE, SPLASH_EDGE_K, FRAG_ARMOR_FULL_K, FRAG_ARMOR_ZERO_K
 from combat.projectile import RICOCHET_LOSS, RICOCHET_RANGE_K, RICOCHET_MAX
 from engine import AmmoKind, PX_PER_M
 from inputs import AMMO_HOTKEYS
@@ -8,9 +8,8 @@ from ui.ammo_icons import make_ammo_icon
 from vehicles import AMMO_ORDER, AMMO_TYPES
 from vehicles.gun.params import (
     CALIBER, HESH_MIN_CAL_MM, HEAT_PEN_K, HEAT_SPEED_K, HEAT_RELOAD_K, HEAT_MODULE_PEN_K, HEAT_SCREEN_PEN_K,
-    HE_DAMAGE_K, HE_PEN_K, HE_RADIUS_PX_PER_MM,
-    HESH_DAMAGE_K, HESH_PEN_K, HESH_RANGE_K, HESH_MIN_FRAC, HESH_RADIUS_PX_PER_MM,
-    HESH_STUN_FRAC, HESH_STUN_MIN_S, HE_SPLASH_FRAC
+    HE_DAMAGE_K, HE_PEN_K, HE_RADIUS_PX_PER_MM, HESH_DAMAGE_K, HESH_PEN_K, HESH_RANGE_K, HESH_RADIUS_PX_PER_MM,
+    HESH_STUN_FRAC, HESH_STUN_MIN_S, FRAG_DAMAGE_FRAC
 )
 from .. import texts
 from .common import k as _k
@@ -74,13 +73,12 @@ def _details():
             f"дальность {HESH_RANGE_K * 100:.0f}% от бронебойного. Скорость и перезарядка как у кумулятивного. Не рикошетит.",
             f"Оглушение при прямом попадании: {_fracs(HESH_STUN_FRAC)} времени перезарядки снаряда (растёт с калибром), "
             f"но не короче {HESH_STUN_MIN_S:g} с. Оглушённая техника не едет и не стреляет, перезарядка стоит.",
-            "Осколки (взрыв рядом с целью) оглушения не дают, оглушает только прямое попадание.",
-            f"Радиус осколков: {_radius_m(HESH_RADIUS_PX_PER_MM, HESH_MIN_CAL_MM):.1f} м при {HESH_MIN_CAL_MM} мм "
-            f"и {_radius_m(HESH_RADIUS_PX_PER_MM, CALIBER.max):.1f} м при {CALIBER.max:.0f} мм.",
-            f"Цели вокруг получают осколочный урон: гарантированно {_fracs(HESH_MIN_FRAC)} урона снаряда "
-            f"(растёт с калибром), к краю радиуса он падает до {SPLASH_EDGE_K * 100:.0f}%. Броня не учитывается.",
-            "Если прямое попадание не пробило броню, урон считается как урон × калибр / приведённая броня, "
-            "но не больше номинала.",
+            f"Осколки дают {_fracs(FRAG_DAMAGE_FRAC)} урона снаряда (растёт с калибром), "
+            f"к краю радиуса урон падает до {SPLASH_EDGE_K * 100:.0f}%.",
+            "По цели прямого попадания осколки работают, только если снаряд совсем не пробил броню. "
+            "Если пробил хотя бы частично, урон обычный (но не меньше, чем дали бы осколки).",
+            f"Осколки ослабляются номинальной бронёй ближайшей грани (без учёта угла): до {FRAG_ARMOR_FULL_K * 100:.0f}% "
+            f"пробития снаряда они бьют в полную силу, при {FRAG_ARMOR_ZERO_K * 100:.0f}% и выше урона нет.",
             "Стены и камни закрывают от осколков. При включённом «Уроне по союзникам» осколки ранят и своих.",
         ],
         AmmoKind.HE: [
@@ -90,8 +88,11 @@ def _details():
             "Если снаряд ничего не задел, он взрывается на пределе дальности и всё равно бьёт осколками.",
             f"Радиус осколков: {_radius_m(HE_RADIUS_PX_PER_MM, 125):.1f} м при 125 мм, "
             f"{_radius_m(HE_RADIUS_PX_PER_MM, CALIBER.max):.1f} м при {CALIBER.max:.0f} мм.",
-            f"Осколки в центре наносят {_fracs(HE_SPLASH_FRAC)} урона снаряда (растёт с калибром), "
-            f"к краю радиуса падают до {SPLASH_EDGE_K * 100:.0f}%, и броня цели их ослабляет.",
+            f"Осколки дают {_fracs(FRAG_DAMAGE_FRAC)} урона снаряда (растёт с калибром), "
+            f"к краю радиуса урон падает до {SPLASH_EDGE_K * 100:.0f}%.",
+            "По цели прямого попадания осколки работают, только если снаряд совсем не пробил броню. "
+            f"Осколки ослабляются номинальной бронёй ближайшей грани: до {FRAG_ARMOR_FULL_K * 100:.0f}% пробития "
+            f"они бьют в полную силу, при {FRAG_ARMOR_ZERO_K * 100:.0f}% и выше урона нет.",
             "Стены и камни закрывают технику за ними от осколков, но сами получают урон. "
             "При включённом «Уроне по союзникам» осколки ранят и своих.",
         ],
