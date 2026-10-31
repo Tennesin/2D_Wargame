@@ -68,6 +68,7 @@ HINT_TRACK_REPAIR = "Ремонт: {side} гусеница, {t:.1f} с"
 ROUND_TITLE = "Раунд {n}"
 ROUND_STARTS_IN = "Начало через {t} с"
 ROUND_WAITING = "Группа выходит…"
+ROUND_WAIT_ROOM = "Ожидание: на карте нет места для новой группы"
 ROUND_TIME_LEFT = "До конца раунда: {t} с"
 ROUND_ENEMIES = "Врагов в группе: {alive} / {total}"
 

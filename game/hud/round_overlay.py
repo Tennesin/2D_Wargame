@@ -22,7 +22,9 @@ class RoundOverlay:
 
         rows = [(texts.ROUND_TITLE.format(n=sp.round), FONT_SIZE_TITLE, (235, 235, 235))]
         if sp.phase is RoundPhase.COUNTDOWN:
-            if sp.time_left > 0.0:
+            if sp.waiting_for_room:
+                rows.append((texts.ROUND_WAIT_ROOM, FONT_SIZE_LABEL, (240, 210, 70)))
+            elif sp.time_left > 0.0:
                 rows.append((texts.ROUND_STARTS_IN.format(t=math.ceil(sp.time_left)),
                              FONT_SIZE_LABEL, (240, 210, 70)))
             else:

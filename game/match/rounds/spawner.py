@@ -36,6 +36,7 @@ class BotSpawner:
         self.anchor = None                 # точка появления группы (мировые px) или None
         self.anchor_is_fallback = False    # анкер выбран запасным планом (у границы мира)
         self.on_round_finished = None      # колбэк(): раунд завершён (для статистики)
+        self.waiting_for_room = False      # группа готова, но на карте нет свободных слотов (отсчёт не идёт)
 
         self._clock = 0.0
         self._t = 0.0                      # время в текущей фазе
@@ -76,6 +77,10 @@ class BotSpawner:
     def fit_info(self):
         return self.composer.fit_info
 
+    def _has_room(self):
+        """Поместится ли ожидающая группа в лимит MAX_BOTS вместе с живыми ботами."""
+        return len(self.fleet.bots) + len(self._pending) <= MAX_BOTS
+
     # ---------- кадр ----------
     def update(self, dt):
         if not self.fleet.player.alive:
@@ -86,24 +91,40 @@ class BotSpawner:
         self._t += dt
 
         if self.phase is RoundPhase.COUNTDOWN:
-            if self._clock < self._retry_at:
-                return
-            if self.anchor is None:                       # анкер выбрать не удалось: пробуем снова
-                if not self._pick_anchor():
-                    self._retry_at = self._clock + RETRY_S
-                return
-            if self._t >= COUNTDOWN_S:
-                if self._spawn_group():
-                    self.phase = RoundPhase.FIGHT
-                    self._t = 0.0
-                else:
-                    self._retry_at = self._clock + RETRY_S
-                    self._pick_anchor()                   # вдруг повезёт с другим местом
+            self._update_countdown()
         else:
             if self._t >= self.settings.round_time_s or self.group_alive == 0:
                 if self.on_round_finished is not None:
                     self.on_round_finished()
                 self._begin_round(self.round + 1)
+
+    def _update_countdown(self):
+        """Отсчёт перед появлением группы. Он начинается только когда на карте есть место,
+        а якорь выбирается непосредственно перед отсчётом, чтобы треугольник не прыгал."""
+        if not self._has_room():
+            self.waiting_for_room = True      # ждём, пока боты погибнут: треугольника нет, таймер стоит
+            self.anchor = None
+            self._t = 0.0
+            return
+        self.waiting_for_room = False
+
+        if self._clock < self._retry_at:
+            return
+        if self.anchor is None:
+            if self._pick_anchor():
+                self._t = 0.0                 # треугольник появился: полный отсчёт с нуля
+            else:
+                self._retry_at = self._clock + RETRY_S
+            return
+        if self._t >= COUNTDOWN_S:
+            if self._spawn_group():
+                self.phase = RoundPhase.FIGHT
+                self._t = 0.0
+            else:
+                # не нашлось места под все танки: убираем якорь и даём игроку новое предупреждение
+                self._retry_at = self._clock + RETRY_S
+                self.anchor = None
+                self._t = 0.0
 
     # ---------- начало раунда ----------
     def _begin_round(self, n):
@@ -114,8 +135,7 @@ class BotSpawner:
         self._pending = self.composer.compose(n, self.fleet.player)
         self.anchor = None
         self.anchor_is_fallback = False
-        if not self._pick_anchor():
-            self._retry_at = self._clock + RETRY_S
+        self.waiting_for_room = False
 
     # ---------- точка появления ----------
     def _ring_radii(self):
