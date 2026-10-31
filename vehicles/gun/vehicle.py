@@ -62,13 +62,13 @@ class GunVehicle(Vehicle):
             if math.hypot(dx, dy) >= self.AIM_DEAD_ZONE:
                 want = shortest_angle_diff(bearing_deg(self.x, self.y, *aim_point), self.hull_angle)
                 if limited:
-                    diff = clamp(want, -half, half) - rel      # без «короткого пути» через запретный сектор
+                    diff = clamp(want, -half, half) - rel
                 else:
                     diff = shortest_angle_diff(want, rel)
                 allowed = math.sqrt(2.0 * alpha * abs(diff))
                 target_rate = math.copysign(min(turn, allowed), diff)
 
-            self.turret_rate = self._approach(self.turret_rate, target_rate, alpha, alpha, dt)
+        self.turret_rate = self._approach(self.turret_rate, target_rate, alpha, alpha, dt)
 
         delta = self.turret_rate * dt
         if diff != 0.0 and delta * diff > 0.0 and abs(delta) > abs(diff):

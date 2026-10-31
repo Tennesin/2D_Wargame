@@ -24,6 +24,8 @@ class Action(Enum):
     REPAIR = auto()
     SNAPSHOT = auto()
     SAVE = auto()
+    TAKE_UPGRADE = auto()
+    DECLINE_UPGRADE = auto()
 
 class MouseOwner(Enum):
     """Кому сейчас принадлежит нажатая кнопка мыши (до её отпускания)."""
@@ -58,6 +60,8 @@ PRESS_KEYMAP = {
     Action.REPAIR:          (pygame.K_r,),
     Action.SNAPSHOT:        (pygame.K_v,),
     Action.SAVE:            (pygame.K_s,),
+    Action.TAKE_UPGRADE:    (pygame.K_q,),
+    Action.DECLINE_UPGRADE: (pygame.K_f,),
 }
 
 # Обратная таблица для быстрого поиска по событию KEYDOWN: клавиша -> действие

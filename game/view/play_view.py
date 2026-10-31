@@ -21,6 +21,7 @@ class PlayView:
 
         ctx = match.ctx
         self.renderer = Renderer(world, ctx, wide=True)
+        self.loot_view = LootView(match.loot)
         self.markers = BotMarkers(match.fleet, match.camera)
         self.stun_indicator = StunIndicator(match.fleet, match.camera)
         self.warning = SpawnWarning(match.spawner, match.camera)
@@ -44,6 +45,8 @@ class PlayView:
 
         self.renderer.draw(screen, m.camera, aim=m.combat.aim_info(),
                            ground_layer=self.loot_view.draw_ground)
+        if alive:
+            self.loot_view.draw_overlay(screen, m.camera)
         self.markers.draw(screen)
         self.stun_indicator.draw(screen)
         self.artillery_warning.draw(screen)

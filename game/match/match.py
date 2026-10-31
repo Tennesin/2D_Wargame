@@ -57,7 +57,7 @@ class Match:
         self.spawner = BotSpawner(self.fleet, finder, camera, self.seed, prefs, settings)
         self.bot_ctrl = BotController(self.ctx)
         self.ram = RamController(self.ctx)
-        self.loot = LootController(self.ctx)
+        self.loot = LootController(self.ctx, input_handler)
         self.spawner.on_round_finished = self.stats.on_round_finished
         self.fleet.on_destroyed = self.stats.on_enemy_destroyed
         self.fleet.on_removed = self.loot.on_bots_removed
@@ -86,6 +86,7 @@ class Match:
             self.camera_ctrl.follow(self.player, dt)
             self.modes.handle_hotkeys()
             self.tank_ctrl.handle_hotkeys()
+            self.loot.handle_hotkeys()
 
             self.clicks.update()
             self.tank_ctrl.update(dt)

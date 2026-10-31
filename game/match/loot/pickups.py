@@ -2,7 +2,7 @@
 import math
 
 from engine import heading_vector
-from .params import WRECK_LIFE_S, WRECK_HOLD_S
+from .params import WRECK_LIFE_S, WRECK_HOLD_S, UPGRADE_LIFE_S
 
 # обход прямоугольника по кругу: (доля ширины, доля длины)
 _RING = ((-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0))
@@ -41,3 +41,13 @@ class Wreck:
     @property
     def hold_frac(self):
         return min(1.0, self.hold / WRECK_HOLD_S)
+
+class UpgradeRemains:
+    """Останки улучшения. Лежат UPGRADE_LIFE_S секунд; игрок может взять их или отказаться."""
+
+    def __init__(self, x, y, key, color):
+        self.x, self.y = x, y
+        self.key = key                  # ключ улучшения (= ключ архетипа)
+        self.color = color              # цвет архетипа
+        self.life = UPGRADE_LIFE_S      # сколько секунд осталось
+        self.gone = False               # взяты или отклонены: убрать

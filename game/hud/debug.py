@@ -12,7 +12,7 @@ class DebugOverlay:
     LINE_H = 20
 
     def __init__(self, *, clock, ctx, camera_ctrl, tank, world, seed, input_handler, modes, spawner,
-                 show_fps=False):
+                 loot=None, show_fps=False):
         self.clock = clock
         self.camera = ctx.camera
         self.camera_ctrl = camera_ctrl
@@ -24,6 +24,7 @@ class DebugOverlay:
         self.walls = ctx.walls
         self.fleet = ctx.fleet
         self.effects = ctx.effects
+        self.loot = loot
         self.spawner = spawner
         self.visible = False
         self.show_fps = show_fps
@@ -64,6 +65,7 @@ class DebugOverlay:
             f"Mods: dmg x{t.mods.dmg_k:.2f} pen x{t.mods.pen_k:.2f} spd x{t.mods.shell_speed_k:.2f} "
             f"rng x{t.mods.shell_range_k:.2f} arm x{t.mods.armor_k:.2f} pwr x{t.mods.power_k:.2f} "
             f"turn x{t.mods.turn_k:.2f} blast x{t.mods.blast_taken_k:.2f}",
+            f"Upgrades: {self._upgrades()}",
             f"Terrain speed k: {t.terrain_k:.2f}",
             f"Tracks HP: L {t.tracks.health['left'] * 100:.0f}%  R {t.tracks.health['right'] * 100:.0f}%  "
             f"({s.track_mm:.0f} мм, шкала {s.track_max_hp:.0f})",
@@ -111,6 +113,13 @@ class DebugOverlay:
             hold += brain.hold_reason == "ally"
             pending += brain.pending_zone is not None
         return f"{total}  hold(ally) {hold}  pending {pending}" if total else "-"
+
+    def _upgrades(self):
+        """Ячейки улучшений и сколько обломков и останков лежит на карте."""
+        if self.loot is None:
+            return "-"
+        cells = " | ".join(f"{s[0]} {s[1]}" if s else "-" for s in self.loot.slots.slots)
+        return f"{cells}   remains {len(self.loot.remains)}  wrecks {len(self.loot.wrecks)}"
 
     def _bot_hulls(self):
         """Сколько ботов каждого вида."""

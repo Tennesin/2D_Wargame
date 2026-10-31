@@ -162,6 +162,15 @@ class Notifier:
         self.say(f"Обломки: восстановлено {healed:.0f} HP", C_GOOD)
         self.float_at(player.x, player.y, f"+{healed:.0f}", C_GOOD)
 
+    def on_upgrade_drop(self, title):
+        """С последнего бота раунда выпали останки улучшения."""
+        self.say(f"Останки улучшения: «{title}»", C_WARN)
+
+    def on_upgrade(self, player, title, level):
+        """Игрок взял улучшение (или повысил его уровень)."""
+        self.say(f"Улучшение «{title}»: уровень {level}", C_GOOD)
+        self.float_at(player.x, player.y, f"{title} {level}", C_GOOD)
+
     def on_stun(self, owner, target):
         """Цель оглушена прямым попаданием HESH. Показываем только связанное с игроком."""
         me = self.player
