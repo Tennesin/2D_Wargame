@@ -7,6 +7,7 @@ class Fleet:
         self.player = player                # любая Vehicle
         self.bots = []                      # список ai.Bot
         self.on_destroyed = None            # колбэк(танк): бот уничтожен (для статистики)
+        self.on_removed = None
 
     @property
     def vehicles(self):
@@ -23,6 +24,8 @@ class Fleet:
         if self.on_destroyed is not None:
             for b in dead:
                 self.on_destroyed(b.tank)
+        if self.on_removed is not None:
+            self.on_removed(dead)
         return len(dead)
 
     def obbs_near(self, me, radius):

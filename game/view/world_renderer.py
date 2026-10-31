@@ -22,18 +22,20 @@ class Renderer:
         self.wall_renderer = WallRenderer()
         self.aim_renderer = AimRenderer()
 
-    def draw(self, screen, camera, build_preview=None, aim=None):
+    def draw(self, screen, camera, build_preview=None, aim=None, ground_layer=None):
         self._sync_zoom(camera)
         self.ground_renderer.draw(screen, camera)
         self.terrain_renderer.draw(screen, camera, self.terrain)
-        self.effects.draw_ground(screen, camera)         # пятна от взрывов лежат под танками и стенами
+        self.effects.draw_ground(screen, camera)
+        if ground_layer is not None:
+            ground_layer(screen, camera)
         self.wall_renderer.draw_all(screen, camera, self.walls)
         for vehicle in self.fleet.vehicles:
             if vehicle.alive and self._on_screen(screen, camera, vehicle):
                 self.vehicle_renderers[vehicle.renderer_key].draw(screen, camera, vehicle)
-        if build_preview is not None:                    # призрак стены поверх танков, чтобы красное было видно
+        if build_preview is not None:
             self.wall_renderer.draw_preview(screen, camera, *build_preview)
-        if aim is not None:                              # линия выстрела под снарядами и вспышкой
+        if aim is not None:
             self.aim_renderer.draw(screen, camera, aim)
         self.effects.draw(screen, camera)
         self.bounds_renderer.draw(screen, camera)        # темнота за краем мира накрывает всё, что туда залетело

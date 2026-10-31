@@ -61,6 +61,9 @@ class DebugOverlay:
             f"Mouse owner: {owner}",
             f"Combat ({k[Action.COMBAT]}): {'ON' if self.modes.combat else 'OFF'}",
             f"Speed: {t.speed_kmh:.1f} km/h",
+            f"Mods: dmg x{t.mods.dmg_k:.2f} pen x{t.mods.pen_k:.2f} spd x{t.mods.shell_speed_k:.2f} "
+            f"rng x{t.mods.shell_range_k:.2f} arm x{t.mods.armor_k:.2f} pwr x{t.mods.power_k:.2f} "
+            f"turn x{t.mods.turn_k:.2f} blast x{t.mods.blast_taken_k:.2f}",
             f"Terrain speed k: {t.terrain_k:.2f}",
             f"Tracks HP: L {t.tracks.health['left'] * 100:.0f}%  R {t.tracks.health['right'] * 100:.0f}%  "
             f"({s.track_mm:.0f} мм, шкала {s.track_max_hp:.0f})",

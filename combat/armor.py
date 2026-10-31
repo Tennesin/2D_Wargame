@@ -154,3 +154,7 @@ class Damageable:
     def take_damage(self, amount):
         """Прямой урон без брони и рикошета (осколки, таран)."""
         self.hp = max(0.0, self.hp - amount)
+
+    def incoming_k(self, kind):
+        """Множитель входящего урона от взрывного снаряда kind (AmmoKind). Цели без сопротивления: 1.0."""
+        return 1.0

@@ -11,6 +11,7 @@ from ..hud.status import HudOverlay
 from ..hud.stun_indicator import StunIndicator
 from ..hud.artillery_warning import ArtilleryWarning
 from .world_renderer import Renderer
+from .loot_view import LootView
 
 class PlayView:
     def __init__(self, world, clock, match, ammo_bar, notifier, settings):
@@ -41,7 +42,8 @@ class PlayView:
         mouse = m.input.mouse_pos
         alive = m.player.alive
 
-        self.renderer.draw(screen, m.camera, aim=m.combat.aim_info())
+        self.renderer.draw(screen, m.camera, aim=m.combat.aim_info(),
+                           ground_layer=self.loot_view.draw_ground)
         self.markers.draw(screen)
         self.stun_indicator.draw(screen)
         self.artillery_warning.draw(screen)

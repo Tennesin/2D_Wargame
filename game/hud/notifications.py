@@ -155,6 +155,13 @@ class Notifier:
         if vehicle is self.player:
             self.say(f"{TRACK_RU[side].capitalize()} гусеница починена", C_GOOD)
 
+    def on_wreck_heal(self, player, healed):
+        """Игрок подобрал обломки и восстановил здоровье."""
+        if healed <= 0.0:
+            return
+        self.say(f"Обломки: восстановлено {healed:.0f} HP", C_GOOD)
+        self.float_at(player.x, player.y, f"+{healed:.0f}", C_GOOD)
+
     def on_stun(self, owner, target):
         """Цель оглушена прямым попаданием HESH. Показываем только связанное с игроком."""
         me = self.player

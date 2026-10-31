@@ -5,3 +5,4 @@ from dataclasses import dataclass
 class Bot:
     tank: object
     brain: object
+    round: int = 0

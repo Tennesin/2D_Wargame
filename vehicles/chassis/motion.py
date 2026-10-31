@@ -51,11 +51,12 @@ class MotionMixin:
     # ---------- поворот корпуса ----------
     def _rotate_hull(self, steer, dt, obstacles=()):
         s = self.spec
+        k = self.mods.turn_k
         # на ходу развернуться тяжелее, чем с места
         speed_k = 1.0 - HULL_TURN_SPEED_LOSS * min(1.0, abs(self.speed_kmh) / s.v_max)
-        target = steer * s.hull_turn * speed_k * (0.5 + 0.5 * self.terrain_k)
+        target = steer * s.hull_turn * k * speed_k * (0.5 + 0.5 * self.terrain_k)
         self.hull_rate = self._approach(self.hull_rate, target,
-                                        s.hull_alpha, s.hull_alpha * HULL_BRAKE_K, dt)
+                                        s.hull_alpha * k, s.hull_alpha * k * HULL_BRAKE_K, dt)
         delta = self.hull_rate * dt
 
         old = self.hull_angle

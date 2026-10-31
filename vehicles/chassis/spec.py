@@ -65,6 +65,7 @@ class ChassisSpec:
         if body.layout is None:
             raise ValueError("ChassisBody без раскладки корпуса: задайте layout (vehicles/chassis/hulls.py)")
         self.screen_mm = screen_mm
+        self.power_boost = 1.0
         self.body = body
         self.gear = body.gear
         self.layout = body.layout
@@ -91,10 +92,11 @@ class ChassisSpec:
     def _calc_ratios(self):
         b = self.body
         self.HULL_SCALE = self.layout.scale_for(self.size_k)
-        self.pw = self.power / self.mass                              # удельная мощность
-        self.s = 1.0 - math.exp(-self.pw / PW_SCALE)                  # «ходовая отдача» 0..1
-        self.q_pw = self.pw / b.ref_pw                                # мощность относительно эталона
-        self.q_arm = (self.m_armor / self.mass) / b.ref_armor_share   # доля брони относительно эталона
+        self.pw = self.power * self.power_boost / self.mass            # удельная мощность с улучшением
+        self.s = 1.0 - math.exp(-self.pw / PW_SCALE)                   # «ходовая отдача» 0..1
+        self.q_pw = (self.power / self.mass) / b.ref_pw                # без улучшения: оформление и оценка угрозы
+        self.q_drive = self.pw / b.ref_pw                              # с улучшением: поворот корпуса
+        self.q_arm = (self.m_armor / self.mass) / b.ref_armor_share
 
     def _calc_mobility(self):
         b = self.body
@@ -104,7 +106,7 @@ class ChassisSpec:
         self.v_back = min(BACK_SPEED_K * self.v_max, V_BACK_CAP_KMH)
 
         # момент сопротивления ~ M * size_k, момент тяги ~ P * size_k, инерция ~ M * size_k²
-        self.q_turn = self.q_pw / self.size_k
+        self.q_turn = self.q_drive / self.size_k
         screen_k = 1.0 - SCREEN_TURN_LOSS * self.screen_mm / FRONT_SCREEN.max
         turn_k = screen_k * self.layout.turn_k                 # экраны и форма носа (клин)
         self.hull_turn = max(
@@ -118,6 +120,15 @@ class ChassisSpec:
         self.decel_brake = BRAKE_DECEL
         self.t_avg = self.v_avg / self.accel
         self.t_max = self._time_to_speed(self.v_max - 0.5)
+
+    def set_power_boost(self, k):
+        """Улучшение двигателя: пересчитывает ход, разгон и поворот корпуса. Масса, цена и вид не меняются."""
+        k = float(k)
+        if k == self.power_boost:
+            return
+        self.power_boost = k
+        self._calc_ratios()
+        self._calc_mobility()
 
     def accel_at(self, v):
         """Ускорение (км/ч/с) при скорости v >= 0 км/ч.

@@ -18,6 +18,7 @@ from .control.player import TankController
 from .control.ram import RamController
 from .rounds.spawner import BotSpawner
 from ..editor.mapio import load_walls
+from .loot.controller import LootController
 
 PLAYER_SEARCH_M = 40.0       # в каком радиусе от центра ищем место для танка игрока
 
@@ -56,8 +57,10 @@ class Match:
         self.spawner = BotSpawner(self.fleet, finder, camera, self.seed, prefs, settings)
         self.bot_ctrl = BotController(self.ctx)
         self.ram = RamController(self.ctx)
+        self.loot = LootController(self.ctx)
         self.spawner.on_round_finished = self.stats.on_round_finished
         self.fleet.on_destroyed = self.stats.on_enemy_destroyed
+        self.fleet.on_removed = self.loot.on_bots_removed
 
     def _load_walls(self, map_data):
         """Стены карты становятся обычными разрушаемыми стенами."""
@@ -94,6 +97,7 @@ class Match:
         self.ram.update(dt)
         self.camera_ctrl.follow(self.player)
         self.combat.update(dt)
+        self.loot.update(dt)
 
     def _handle_dead_input(self):
         """Игрок мёртв: ввод принимается только для Esc (выход в меню)."""

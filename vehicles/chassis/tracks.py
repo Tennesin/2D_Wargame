@@ -66,7 +66,7 @@ class TracksMixin:
     @property
     def track_thickness_mm(self):
         """Толщина гусеницы (производная от габарита, см. ChassisSpec._calc_tracks)."""
-        return self.spec.track_mm
+        return self.spec.track_mm * self.mods.armor_k
 
     def nearest_track(self, x, y):
         """Ближайшая к точке (x, y) гусеница: (сторона, расстояние в мировых px до её прямоугольника).

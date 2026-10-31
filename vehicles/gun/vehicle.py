@@ -6,6 +6,7 @@ import math
 from engine import shortest_angle_diff, Shot, heading_vector, bearing_deg, clamp, AmmoKind
 from vehicles.chassis.vehicle import Vehicle
 from vehicles.gun.ammo import ammo_stats
+from vehicles.mods import apply_to_ammo
 
 class GunVehicle(Vehicle):
     AIM_DEAD_ZONE = 100.0   # если курсор ближе к оси орудия (1 м), орудие не дёргается
@@ -47,6 +48,8 @@ class GunVehicle(Vehicle):
     def _aim_turret(self, aim_point, dt):
         if self.stunned: aim_point = None
         s = self.spec
+        k = self.mods.turn_k
+        turn, alpha = s.turret_turn * k, s.turret_alpha * k
         half = s.TURRET_ARC_DEG / 2.0
         limited = half < 180.0                             # круговая башня или ограниченный сектор
         rel = shortest_angle_diff(self.turret_rel_angle, 0.0)   # угол к корпусу: -180..180
@@ -62,11 +65,11 @@ class GunVehicle(Vehicle):
                     diff = clamp(want, -half, half) - rel      # без «короткого пути» через запретный сектор
                 else:
                     diff = shortest_angle_diff(want, rel)
-                allowed = math.sqrt(2.0 * s.turret_alpha * abs(diff))
-                target_rate = math.copysign(min(s.turret_turn, allowed), diff)
+                allowed = math.sqrt(2.0 * alpha * abs(diff))
+                target_rate = math.copysign(min(turn, allowed), diff)
 
-        self.turret_rate = self._approach(self.turret_rate, target_rate,
-                                          s.turret_alpha, s.turret_alpha, dt)
+            self.turret_rate = self._approach(self.turret_rate, target_rate, alpha, alpha, dt)
+
         delta = self.turret_rate * dt
         if diff != 0.0 and delta * diff > 0.0 and abs(delta) > abs(diff):
             delta = diff
@@ -101,11 +104,11 @@ class GunVehicle(Vehicle):
         return self.x + fx * dist, self.y + fy * dist
 
     def round_stats(self):
-        """Характеристики выстрела текущим снарядом. Зовётся каждый кадр (HUD, прицел), поэтому кэшируется.
-        Сравнение по идентичности: set_spec() подменяет объект spec, и кэш обновится сам."""
+        """Характеристики выстрела текущим снарядом с учётом улучшений."""
         c = self._round_cache
-        if c is None or c[0] is not self.spec or c[1] is not self.ammo:
-            c = self._round_cache = (self.spec, self.ammo, ammo_stats(self.spec, self.ammo))
+        if c is None or c[0] is not self.spec or c[1] is not self.ammo or c[3] is not self.mods:
+            stats = apply_to_ammo(ammo_stats(self.spec, self.ammo), self.mods)
+            c = self._round_cache = (self.spec, self.ammo, stats, self.mods)
         return c[2]
 
     def select_ammo(self, kind):

@@ -5,9 +5,10 @@
   hit_model.py  — луч снаряда, грани, плиты и приведённая броня.
 Оружия и башни тут нет: подкласс переопределяет _update_weapons() и возвращает Shot или None."""
 from engine import (
-    obb_hits_obb, VehicleCommand, heading_vector, Team,
+    obb_hits_obb, VehicleCommand, heading_vector, Team, AmmoKind,
     TargetType, fmt_num, to_local_frame, PX_PER_M,
 )
+from vehicles.mods import NO_MODS
 from combat import Damageable
 from vehicles.chassis.hulls import NOSE_PIKE, NOSE_WEDGE, NOSE_RU
 from vehicles.chassis.hit_model import HitModelMixin
@@ -46,6 +47,7 @@ class Vehicle(MotionMixin, TracksMixin, HitModelMixin, Damageable):
         self.stun_left = 0.0            # сколько секунд осталось оглушения
         self.stun_total = 0.0           # длительность текущего оглушения (для индикатора)
         self.repaired_track = None      # сторона гусеницы, которую починили в ЭТОМ кадре (для сообщений)
+        self.mods = NO_MODS             # улучшения (у ботов всегда пустые)
 
     # ---------- параметры ----------
     @property
@@ -66,6 +68,26 @@ class Vehicle(MotionMixin, TracksMixin, HitModelMixin, Damageable):
         frac = self.hp / self.spec.hp if self.spec.hp > 0 else 1.0
         self.spec = spec
         self.hp = spec.hp * max(0.0, min(1.0, frac))
+        self.spec.set_power_boost(self.mods.power_k)
+
+    def set_mods(self, mods):
+        """Применить набор улучшений (StatMods). Двигатель пересчитывает сама спецификация."""
+        self.mods = mods
+        self.spec.set_power_boost(mods.power_k)
+
+    def heal(self, amount):
+        """Восстановить здоровье, не выше максимума. Возвращает, сколько реально восстановлено."""
+        if amount <= 0.0 or not self.alive:
+            return 0.0
+        before = self.hp
+        self.hp = min(self.max_hp, self.hp + amount)
+        return self.hp - before
+
+    def incoming_k(self, kind):
+        """Множитель входящего урона от снаряда типа kind. Сопротивление действует только на ФГ и HESH."""
+        if kind is AmmoKind.HE or kind is AmmoKind.HESH:
+            return self.mods.blast_taken_k
+        return 1.0
 
     @property
     def stunned(self):
@@ -73,6 +95,7 @@ class Vehicle(MotionMixin, TracksMixin, HitModelMixin, Damageable):
 
     def apply_stun(self, seconds):
         """Оглушение не складывается: новое просто заменяет старое, если оно длиннее остатка."""
+        seconds *= self.mods.blast_taken_k
         if seconds > self.stun_left:
             self.stun_left = self.stun_total = seconds
 

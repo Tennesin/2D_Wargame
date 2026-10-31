@@ -1,7 +1,7 @@
 """game/match/control/hits.py — попадания снарядов, линия прицела, уведомления о боях."""
 import math
 
-from engine import TargetType
+from engine import TargetType, AmmoKind
 from vehicles import TRACK_SIDES
 from combat import compute_aim, splash_damage, module_hit, blast_damage, frag_armor_factor
 
@@ -29,6 +29,12 @@ class CombatController:
         self._apply_hits(hits)
         self._apply_blasts(blasts)
 
+    @staticmethod
+    def _incoming_k(target, kind):
+        """Множитель входящего урона цели от снаряда kind (у стен, камней и границы: 1.0)."""
+        fn = getattr(target, "incoming_k", None)
+        return 1.0 if fn is None else fn(kind)
+
     def _apply_hits(self, impacts):
         """Попадание: прямой урон по правилам armor.py (стена и танк одинаково), затем взрыв, если он есть."""
         if not impacts:
@@ -44,7 +50,7 @@ class CombatController:
     def _direct_hit(self, im):
         stats, target = im.stats, im.target
         full_pen = stats.penetration * im.power
-        full_dmg = stats.damage * im.power
+        full_dmg = stats.damage * im.power * self._incoming_k(target, stats.kind)
         mh = module_hit(target, full_pen, full_dmg, stats, im.cos, im.x, im.y)
         pen = mh.pen                                      # остаток пробития после гусеницы или экрана
         res = target.hit_result(pen, im.cos, im.normal)
@@ -80,7 +86,7 @@ class CombatController:
         """(сторона, урон) осколков по ЕДИНСТВЕННОЙ, ближайшей к взрыву гусенице.
         Расстояние считается до прямоугольника гусеницы, а не до корпуса."""
         side, dist = target.nearest_track(im.x, im.y)
-        k = frag_armor_factor(target.spec.track_mm, pen)
+        k = frag_armor_factor(target.track_thickness_mm, pen)
         return side, splash_damage(base, im.stats.splash_frac * k, dist, im.stats.aoe_radius_px)
 
     # ---------- взрывы САУ ----------
@@ -103,6 +109,7 @@ class CombatController:
                 stunned = False                                  # стены не оглушаются
             else:
                 dealt, stunned = blast_damage(stats, dist, target.armor_facing(blast.x, blast.y))
+            dealt *= self._incoming_k(target, AmmoKind.HE)
             if dealt <= 0.0:
                 continue
             real = min(dealt, target.hp)
@@ -130,12 +137,13 @@ class CombatController:
                 continue
             if not self._splash_reaches(ox, oy, target):
                 continue
+            ik = self._incoming_k(target, stats.kind)
             if target.target_type is TargetType.VEHICLE:
-                side, frag = self._frag_track_damage(im, target, pen, base)
+                side, frag = self._frag_track_damage(im, target, pen, base * ik)
                 if frag > 0.0 and target.damage_track(side, frag):
                     self.notifier.on_track_broken(im.owner, target, side)
             k = self._frag_k(target, im.x, im.y, pen)
-            dealt = splash_damage(base, stats.splash_frac * k, dist, stats.aoe_radius_px)
+            dealt = splash_damage(base * ik, stats.splash_frac * k, dist, stats.aoe_radius_px)
             if dealt <= 0.0:
                 continue
             real = min(dealt, target.hp)

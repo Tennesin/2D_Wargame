@@ -241,7 +241,7 @@ class BotSpawner:
                 return False
             tank.place_at(spot)
             brain = make_brain(arch, DEFAULT_SKILL, random.Random(self.rng.random()))
-            bot = Bot(tank, brain)
+            bot = Bot(tank, brain, self.round)
             self.fleet.bots.append(bot)                   # следующий танк увидит этот как препятствие
             placed.append(bot)
 

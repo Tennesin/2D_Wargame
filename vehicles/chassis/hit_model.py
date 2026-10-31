@@ -56,9 +56,7 @@ class HitModelMixin:
         return layout.plate_by_normal(nu, nv)
 
     def armor_at(self, normal, hull_angle=None):
-        """Броня грани, в которую попали (мм, с коэффициентом ARMOR_K).
-        Зона берётся из zone_at (одна на весь проект), коэффициент толщины из плиты.
-        Борт прикрыт гусеницей, лоб экранами: эти добавки идут поверх плиты и на k не умножаются."""
+        """Броня грани, в которую попали."""
         s = self.spec
         zone = self.zone_at(normal, hull_angle)
         base = {"front": s.front, "side": s.side, "rear": s.rear}[zone]
@@ -68,7 +66,7 @@ class HitModelMixin:
             base += s.screen_mm
         elif zone == "side":
             base += s.track_mm
-        return base * ARMOR_K
+        return base * ARMOR_K * self.mods.armor_k
 
     def armor_along(self, from_deg, hull_deg=None, lateral=0.0):
         """Броня и косинус угла для луча, пришедшего с азимута from_deg (от этой техники к стрелку)."""
@@ -119,5 +117,5 @@ class HitModelMixin:
     def frag_armor_bonus(self, normal=None):
         """Экраны для осколков считаются втрое: 1x уже есть в armor_at, добавляем ещё 2x (только на лбу)."""
         if self.spec.screen_mm > 0.0 and self.zone_at(normal) == "front":
-            return 2.0 * self.spec.screen_mm * ARMOR_K
+            return 2.0 * self.spec.screen_mm * ARMOR_K * self.mods.armor_k
         return 0.0

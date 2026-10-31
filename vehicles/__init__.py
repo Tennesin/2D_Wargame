@@ -17,6 +17,7 @@ from .gun.vehicle_specific import GunVehicleSpec
 from .td import TDSpec, TankDestroyer, TDRenderer, TD_PARAMS, gun_arc_deg
 from .spg import SPGSpec, ArtilleryVehicle, SPGRenderer, SPG_PARAMS
 from .registry import VehicleType, VEHICLE_TYPES, RENDERERS, make_vehicle
+from .mods import StatMods, NO_MODS, apply_to_ammo
 from vehicles.chassis.running_gear import RunningGear, TRACKS, TRACK_SIDES
 from vehicles.chassis.hulls import (
     HullClass, HullLayout, ArmorPlate, LAYOUTS, layout_for, MEDIUM_LAYOUT,
@@ -39,4 +40,4 @@ __all__ = ["Vehicle", "GunVehicle", "Tank", "TankSpec", "TankRenderer", "TANK_PA
            "SUPERHEAVY_MASS_T", "WEDGE_ACCEL_K", "WEDGE_TURN_K", "wedge_front_factor",
            "sloped_nose_for_mass", "resolve_nose", "HESH_MIN_CAL_MM", "ammo_kinds",
            "SPECIAL_HEAT", "SPECIAL_HESH", "GunVehicleSpec", "SPGSpec", "ArtilleryVehicle", "SPGRenderer",
-           "SPG_PARAMS"]
+           "SPG_PARAMS", "StatMods", "NO_MODS", "apply_to_ammo"]
