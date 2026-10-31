@@ -5,12 +5,13 @@ import pygame
 
 from engine import Team, WORLD
 from inputs import InputHandler, AMMO_HOTKEYS, key_label
-from ui import AmmoBar
+from ui import AmmoBar, UpgradeBar
 from vehicles import make_vehicle, AMMO_TYPES
 from world import Camera, WorldGenerator
 
 from ..content import texts
 from ..hud.notifications import Notifier
+from ..hud.upgrade_link import UpgradeLink
 from ..match.match import Match
 from ..view.play_view import PlayView
 from .base import Scene
@@ -47,14 +48,16 @@ class PlayScene(Scene):
         self.ammo_bar = AmmoBar([(kind, AMMO_TYPES[kind].code, key_label(action))
                                  for kind, action in zip(tank.spec.ammo_kinds, AMMO_HOTKEYS)],
                                 tank.select_ammo)
-        self.input = InputHandler([self.ammo_bar])
+        self.upgrade_bar = UpgradeBar()
+        self.input = InputHandler([self.upgrade_bar, self.ammo_bar])
         self.notifier = Notifier(tank)
         self.match = Match(self.map_data, tank, self.camera, self.input, self.notifier,
                            session.prefs, session.settings, on_exit=self._leave)
+        self.upgrade_link = UpgradeLink(self.upgrade_bar, self.match.loot)
 
         yield 0.55, texts.LOADING_SCENERY
         self.view = PlayView(WorldGenerator(self.seed), self._clock, self.match,
-                             self.ammo_bar, self.notifier, session.settings)
+                             self.ammo_bar, self.upgrade_bar, self.notifier, session.settings)
         for part in self.view.renderer.preload_iter(self.camera):
             yield 0.60 + 0.40 * part
         return self
@@ -85,10 +88,12 @@ class PlayScene(Scene):
             return
 
         self.ammo_bar.update(size)
+        self.upgrade_bar.update(size)
         if self.match.player.alive:
             self.view.handle_hotkeys()
 
         self.match.update(dt, size)
+        self.upgrade_link.update()
         if not self.match.player.alive:
             self._finish_match()                         # игрок погиб: итог записываем сразу, не дожидаясь Esc
         self.notifier.update(dt)

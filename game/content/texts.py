@@ -165,3 +165,10 @@ LOADING_MAP = "Создание карты"
 LOADING_BATTLE = "Подготовка боя"
 LOADING_SCENERY = "Прорисовка местности"
 LOADING_EDITOR = "Открытие редактора"
+
+# Улучшения
+UPGRADE_NEW = "Новое: {effect}"
+UPGRADE_LEVEL = "Уровень {a} → {b}: {effect}"
+UPGRADE_REPLACE = "Все ячейки заняты. Выберите ячейку для замены. {effect}"
+UPGRADE_TAKE = "Взять [{key}]"
+UPGRADE_DECLINE = "Отказаться [{key}]"

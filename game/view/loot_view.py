@@ -2,10 +2,8 @@
 import math
 import pygame
 
-from engine import AlphaLayer, get_text, FONT_SIZE_LABEL
-from inputs import Action, key_label
-from ..match.loot.params import WRECK_FADE_S, UPGRADE_LIFE_S, UPGRADE_FADE_S, UPGRADE_STOPGAP_SLOT
-from ..match.loot.upgrades import UPGRADES, Plan
+from engine import AlphaLayer
+from ..match.loot.params import WRECK_FADE_S, UPGRADE_LIFE_S, UPGRADE_FADE_S
 
 BODY = (52, 48, 44)
 SCORCH = (30, 27, 24)
@@ -13,8 +11,6 @@ TURRET = (66, 60, 54)
 EDGE = (22, 20, 18)
 HEAL = (110, 220, 110)
 UPG_RING = (240, 210, 70)
-TEXT = (235, 235, 235)
-TEXT_DIM = (170, 176, 186)
 PAD = 10                     # запас вокруг объекта в слое, px экрана
 UPGRADE_R_PX = 90.0          # радиус значка останков, px мира
 UPGRADE_MIN_R = 7            # меньше этого на экране значок не делаем
@@ -94,41 +90,9 @@ class LootView:
         diamond = [(c[0], c[1] - d), (c[0] + d, c[1]), (c[0], c[1] + d), (c[0] - d, c[1])]
         pygame.draw.polygon(layer, (*u.color, alpha), diamond)
         pygame.draw.polygon(layer, (*EDGE, alpha), diamond, 1)
-        pygame.draw.circle(layer, (*UPG_RING, alpha), c, rad, 2)
+        chosen = u is self.loot.offer
+        pygame.draw.circle(layer, (*UPG_RING, alpha), c, rad, 4 if chosen else 2)
         ring = pygame.Rect(c[0] - rad - 4, c[1] - rad - 4, 2 * (rad + 4), 2 * (rad + 4))
         stop = math.pi / 2 + 2.0 * math.pi * max(0.0, u.life / UPGRADE_LIFE_S)
         pygame.draw.arc(layer, (*UPG_RING, alpha), ring, math.pi / 2, stop, 3)
         screen.blit(layer, area.topleft)
-
-    # ---------- подсказка поверх техники ----------
-    def draw_overlay(self, screen, camera):
-        """Текст под останками, над которыми стоит игрок. В этапе 4 заменится карточкой."""
-        offer = self.loot.offer
-        if offer is None:
-            return
-        d = UPGRADES[offer.key]
-        slots = self.loot.slots
-        plan = slots.plan(offer.key)
-        take = key_label(Action.TAKE_UPGRADE)
-        decline = key_label(Action.DECLINE_UPGRADE)
-        if plan is Plan.LEVEL_UP:
-            level = slots.slots[slots.index_of(offer.key)][1]
-            info = f"Уровень {level} → {level + 1}: {d.effect(level + 1)}"
-            action = f"{take} — взять, {decline} — отказаться"
-        elif plan is Plan.FREE:
-            info = f"Новое: {d.effect(1)}"
-            action = f"{take} — взять, {decline} — отказаться"
-        else:
-            info = f"Ячейки заняты. {d.effect(1)}"
-            action = (f"{take} — заменить ячейку {UPGRADE_STOPGAP_SLOT + 1} (временно), "
-                      f"{decline} — отказаться")
-
-        sx, sy = camera.world_to_screen(offer.x, offer.y)
-        y = sy + max(UPGRADE_MIN_R, UPGRADE_R_PX * camera.zoom) + 24
-        for text, color in ((d.title, offer.color), (info, TEXT), (action, TEXT_DIM)):
-            shadow = get_text(text, FONT_SIZE_LABEL, (0, 0, 0))
-            label = get_text(text, FONT_SIZE_LABEL, color)
-            pos = (round(sx), round(y))
-            screen.blit(shadow, shadow.get_rect(center=(pos[0] + 1, pos[1] + 1)))
-            screen.blit(label, label.get_rect(center=pos))
-            y += label.get_height() + 2

@@ -9,7 +9,7 @@ from ...state.stats import archetype_key
 from .params import (
     WRECK_HOLD_S, WRECK_PICKUP_PX, WRECK_HEAL_PCT, WRECK_HEAL_DEFAULT,
     UPGRADE_MIN_ROUND, UPGRADE_PICKUP_PX, UPGRADE_OFFSET_PX, UPGRADE_CLEAR_PX,
-    UPGRADE_SPOT_TRIES, UPGRADE_STOPGAP_SLOT,
+    UPGRADE_SPOT_TRIES,
 )
 from .pickups import Wreck, UpgradeRemains
 from .upgrades import UpgradeSlots, UPGRADES, Plan
@@ -69,15 +69,14 @@ class LootController:
 
     # ---------- ввод ----------
     def handle_hotkeys(self):
-        """Взять или отказаться. Зовётся до update (см. Match.update)."""
+        """Взять или отказаться."""
         if self.offer is None:
             return
         if self.input.was_pressed(Action.DECLINE_UPGRADE):
             self.decline()
         elif self.input.was_pressed(Action.TAKE_UPGRADE):
-            # ВРЕМЕННО (этап 4): выбор ячейки появится в панели, пока заменяется фиксированная
-            slot = UPGRADE_STOPGAP_SLOT if self.slots.plan(self.offer.key) is Plan.REPLACE else None
-            self.take(slot)
+            if self.slots.plan(self.offer.key) is not Plan.REPLACE:
+                self.take()
 
     def take(self, slot=None):
         """Взять предложенное улучшение. slot нужен только если все ячейки заняты. True при успехе."""

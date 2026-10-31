@@ -5,6 +5,7 @@ from ui import TankHud
 from ..hud.bot_markers import BotMarkers
 from ..hud.debug import DebugOverlay
 from ..hud.inspector import HoverInspector
+from ..hud.loot_pointers import RemainsPointers
 from ..hud.round_overlay import RoundOverlay
 from ..hud.spawn_warning import SpawnWarning
 from ..hud.status import HudOverlay
@@ -14,9 +15,10 @@ from .world_renderer import Renderer
 from .loot_view import LootView
 
 class PlayView:
-    def __init__(self, world, clock, match, ammo_bar, notifier, settings):
+    def __init__(self, world, clock, match, ammo_bar, upgrade_bar, notifier, settings):
         self.match = match
         self.ammo_bar = ammo_bar
+        self.upgrade_bar = upgrade_bar
         self.notifier = notifier
 
         ctx = match.ctx
@@ -25,10 +27,11 @@ class PlayView:
         self.markers = BotMarkers(match.fleet, match.camera)
         self.stun_indicator = StunIndicator(match.fleet, match.camera)
         self.warning = SpawnWarning(match.spawner, match.camera)
+        self.remains_pointers = RemainsPointers(match.loot, match.camera)
         self.artillery_warning = ArtilleryWarning(ctx.effects, match.camera)
         self.debug = DebugOverlay(clock=clock, ctx=ctx, camera_ctrl=match.camera_ctrl, tank=match.player,
                                   world=world, seed=match.seed, input_handler=match.input,
-                                  modes=match.modes, spawner=match.spawner,
+                                  modes=match.modes, spawner=match.spawner, loot=match.loot,
                                   show_fps=settings.show_fps)
         self.hud = HudOverlay(TankHud(), match.player, match.modes, match.camera_ctrl, match.stats)
         self.round_overlay = RoundOverlay(match.spawner, match.player)
@@ -45,16 +48,16 @@ class PlayView:
 
         self.renderer.draw(screen, m.camera, aim=m.combat.aim_info(),
                            ground_layer=self.loot_view.draw_ground)
-        if alive:
-            self.loot_view.draw_overlay(screen, m.camera)
         self.markers.draw(screen)
         self.stun_indicator.draw(screen)
         self.artillery_warning.draw(screen)
         if alive:
+            self.remains_pointers.draw(screen)
             self.warning.draw(screen)
         self.debug.draw(screen)
         if alive:
             self.ammo_bar.draw(screen, mouse, m.player.ammo)
+            self.upgrade_bar.draw(screen, mouse)
         self.hud.draw(screen)
         self.round_overlay.draw(screen)
         self.inspector.draw(screen)

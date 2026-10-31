@@ -7,20 +7,26 @@ from .theme import BUTTON_COLORS, PANEL_BORDER, TEXT_COLOR, TEXT_DIM
 from .hud import MARGIN, WIDTH, HEIGHT
 from .ammo_icons import make_ammo_icon
 
-OFFSET_X = 8                # зазор между мини-панелью и столбиком
+OFFSET_Y = 8                       # зазор между рядом кнопок и сводкой
 ICON_SIZE = (28, 16)
 SELECT_COLOR = COLOR_GOOD
 CODE_SIZE = 14
 KEY_SIZE = 12
 GAP = 6
-BTN = (HEIGHT - 2 * GAP) // 3
+BTN_W = (WIDTH - 2 * GAP) // 3     # три кнопки ровно по ширине сводки
+BTN_H = 44
+
+def occupied_corner(screen_h):
+    """(правая граница, верхняя граница) области левого нижнего угла, занятой сводкой и рядом снарядов.
+    Нужна указателям у края экрана, чтобы не залезать под интерфейс."""
+    return MARGIN + WIDTH, screen_h - MARGIN - HEIGHT - OFFSET_Y - BTN_H
 
 class AmmoBar:
     def __init__(self, items, on_select):
         """items — [(ключ снаряда, двухбуквенный код, подпись клавиши), ...]; on_select(ключ)."""
         self.items = items
         self.on_select = on_select
-        self.rects = [pygame.Rect(0, 0, BTN, BTN) for _ in items]
+        self.rects = [pygame.Rect(0, 0, BTN_W, BTN_H) for _ in items]
         self._icons = {kind: make_ammo_icon(kind, ICON_SIZE) for kind, _, _ in items}
         self._size = None
         self.update(pygame.display.get_surface().get_size())
@@ -30,11 +36,11 @@ class AmmoBar:
         if screen_size == self._size:
             return
         self._size = screen_size
-        x = MARGIN + WIDTH + OFFSET_X
-        y = screen_size[1] - MARGIN - HEIGHT
+        x = MARGIN
+        y = screen_size[1] - MARGIN - HEIGHT - OFFSET_Y - BTN_H
         for rect in self.rects:
             rect.topleft = (x, y)
-            y += BTN + GAP
+            x += BTN_W + GAP
 
     # ---------- интерфейс слоя ----------
     def covers(self, pos):

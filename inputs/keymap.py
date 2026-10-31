@@ -60,7 +60,7 @@ PRESS_KEYMAP = {
     Action.REPAIR:          (pygame.K_r,),
     Action.SNAPSHOT:        (pygame.K_v,),
     Action.SAVE:            (pygame.K_s,),
-    Action.TAKE_UPGRADE:    (pygame.K_q,),
+    Action.TAKE_UPGRADE:    (pygame.K_e,),
     Action.DECLINE_UPGRADE: (pygame.K_f,),
 }
 

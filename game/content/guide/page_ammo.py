@@ -103,7 +103,7 @@ def build():
     texts_by_kind = _texts()
     details = _details()
     items = [
-        InfoText(f"Слотов три. Выбор: кнопки справа от сводки танка или клавиши {keys}. "
+        InfoText(f"Слотов три. Выбор: кнопки над сводкой танка или клавиши {keys}. "
                  "Тип можно менять прямо в бою."),
         InfoText(texts.GUIDE_EXPAND_HINT),
         SectionHeader("Виды снарядов"),

@@ -2,6 +2,12 @@
 import math
 import pygame
 
+from engine import clamp
+from ui.ammo_bar import occupied_corner
+from ui.upgrade_bar import right_zone
+
+CLEARANCE = 12          # зазор до интерфейса, px
+
 def edge_point(width, height, sx, sy, inset):
     """Точка на рамке экрана (с отступом inset), в которую упирается луч от центра экрана к (sx, sy).
     Работает и для точки внутри экрана: указатель всё равно ставится у рамки по направлению.
@@ -30,3 +36,31 @@ def marker_lift_px(tank, zoom):
     """На сколько экранных px выше центра техники стоит её указатель.
     Общая высота для синего маркера бота и для линии оглушения."""
     return (tank.spec.COLLISION_HALF_L_PX + 60.0) * zoom + 10.0
+
+def avoid_interface(w, h, px, py, size, inset):
+    """Точку px, py на рамке экрана (отступ inset), занятую интерфейсом, сдвигает вдоль рамки.
+    Учитываются левый нижний угол (сводка и ряд снарядов) и панель улучшений у правой стороны.
+    size: размер самого указателя, нужен для зазора."""
+    pad = size + CLEARANCE
+
+    right, top = occupied_corner(h)
+    if px < right + pad and py > top - pad:
+        free_y = max(inset, top - pad)                      # куда подняться вдоль левой стороны
+        free_x = min(w - inset, right + pad)                # куда уехать вдоль нижней стороны
+        on_left = px <= inset + 1.0
+        on_bottom = py >= h - inset - 1.0
+        if on_left and on_bottom:                           # угол: идём туда, где короче
+            if py - free_y <= free_x - px:
+                py = free_y
+            else:
+                px = free_x
+        elif on_left:
+            py = free_y
+        elif on_bottom:
+            px = free_x
+
+    zone = right_zone((w, h))
+    if px >= w - inset - 1.0 and px > zone.left - pad and zone.top - pad < py < zone.bottom + pad:
+        above, below = zone.top - pad, zone.bottom + pad    # на правой кромке: обходим панель сверху или снизу
+        py = clamp(above if py - above <= below - py else below, inset, h - inset)
+    return px, py
