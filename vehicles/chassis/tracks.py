@@ -33,6 +33,15 @@ class TracksMixin:
                 return side
         return None
 
+    def track_under(self, x, y):
+        """Какая гусеница лежит под точкой (x, y) целиком, по всей длине: "left" / "right" / None.
+        Нужен взрывам САУ: в отличие от track_at, зона краёв и допуск не учитываются."""
+        u, v = self._to_hull_local(x, y)
+        for side, (x0, y0, x1, y1) in zip((LEFT, RIGHT), self.spec.layout.track_rects):
+            if x0 <= u <= x1 and y0 <= v <= y1:
+                return side
+        return None
+
     def screen_at(self, x, y):
         """Попала ли точка (x, y) прямо в лист лобового экрана (а не просто в лоб).
         Если экранов нет (screen_mm = 0), всегда False."""

@@ -111,6 +111,10 @@ class CombatController:
                 self.match_stats.on_damage(blast.owner, target, real, "shot")
             if stunned:
                 target.apply_stun(stats.stun_s)
+            if target.target_type is TargetType.VEHICLE and target.alive:
+                side = target.track_under(blast.x, blast.y)
+                if side is not None and target.tracks.break_track(side):
+                    self.notifier.on_track_broken(blast.owner, target, side)
             self.notifier.on_artillery(blast.owner, target, dealt, stunned)
 
     # ---------- осколки ----------

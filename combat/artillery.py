@@ -8,15 +8,14 @@ def armor_k(armor_mm, ref_mm):
     return 1.0 / (1.0 + max(0.0, armor_mm) / ref_mm)
 
 def blast_damage(stats, dist, armor_mm=None, k=1.0):
-    """Урон взрыва цели, чья ближайшая точка в dist px от центра. Возвращает (урон, оглушить ли).
-    Зона максимума (dist <= inner): полный урон, броня не учитывается, цель оглушается.
-    Кольцо: урон падает линейно от полного к доле edge_k на внешней границе и режется бронёй.
-    За внешним радиусом: 0. k — множитель урона (для стен stats.wall_k)."""
+    """Урон взрыва цели, чья ближайшая точка в dist px от центра."""
     outer, inner = stats.outer_radius_px, stats.inner_radius_px
     if dist >= outer:
         return 0.0, False
-    if dist <= inner:
-        return stats.damage * k, True
-    t = (dist - inner) / max(outer - inner, 1e-9)
-    falloff = 1.0 - (1.0 - stats.edge_k) * t
-    return stats.damage * falloff * armor_k(armor_mm, stats.armor_ref_mm) * k, False
+    stunned = dist <= inner
+    if stunned:
+        falloff = 1.0
+    else:
+        t = (dist - inner) / max(outer - inner, 1e-9)
+        falloff = 1.0 - (1.0 - stats.edge_k) * t
+    return stats.damage * falloff * armor_k(armor_mm, stats.armor_ref_mm) * k, stunned
