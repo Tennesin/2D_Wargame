@@ -27,6 +27,7 @@ from vehicles.chassis.hull_noses import (
     NOSE_MIN_FRONT_MM, layout_with_nose, nose_front_factor, SUPERHEAVY_MASS_T,
     WEDGE_ACCEL_K, WEDGE_TURN_K, wedge_front_factor, sloped_nose_for_mass, resolve_nose
 )
+from vehicles.render.silhouette import build_silhouette, Silhouette
 
 __all__ = ["Vehicle", "GunVehicle", "Tank", "TankSpec", "TankRenderer", "TANK_PARAMS", "COST_REF",
            "LOOK_FRONT_RATIO", "LOOK_GUN_RATIO", "LOOK_SPEED_RATIO", "cost_for", "caliber_range_for",
@@ -40,4 +41,4 @@ __all__ = ["Vehicle", "GunVehicle", "Tank", "TankSpec", "TankRenderer", "TANK_PA
            "SUPERHEAVY_MASS_T", "WEDGE_ACCEL_K", "WEDGE_TURN_K", "wedge_front_factor",
            "sloped_nose_for_mass", "resolve_nose", "HESH_MIN_CAL_MM", "ammo_kinds",
            "SPECIAL_HEAT", "SPECIAL_HESH", "GunVehicleSpec", "SPGSpec", "ArtilleryVehicle", "SPGRenderer",
-           "SPG_PARAMS", "StatMods", "NO_MODS", "apply_to_ammo"]
+           "SPG_PARAMS", "StatMods", "NO_MODS", "apply_to_ammo", "build_silhouette", "Silhouette"]

@@ -9,11 +9,11 @@ from .plate import draw_plate
 from .theme import (ACTIVE_BUTTON_COLORS, BUTTON_COLORS, PANEL_BORDER, SLIDER_BG_COLOR,
                     TEXT_COLOR, TEXT_DIM)
 from .widgets import Button
+from .tank_panel import panel_rect
 
 SLOTS = 3
 CELL = 52                  # сторона ячейки
 GAP = 8                    # зазор между ячейками и до соседних элементов
-EDGE_MARGIN = 10           # от правого края окна до треугольника
 BOTTOM_MARGIN = 10         # от нижнего края окна до нижней ячейки
 TRI_W, TRI_H = 18, 44
 ROW_W = 340                # ширина раскрытой строки
@@ -46,11 +46,13 @@ class OfferView(NamedTuple):
     decline_label: str
 
 def _geometry(size):
-    """(треугольник, [прямоугольники ячеек]) для окна size. Колонка прижата к правому нижнему углу."""
+    """(треугольник, [прямоугольники ячеек]) для окна size. Колонка стоит на одной линии с панелью танка
+    и прижата к ней слева."""
     w, h = size
     col_h = SLOTS * CELL + (SLOTS - 1) * GAP
     top = h - BOTTOM_MARGIN - col_h
-    tri = pygame.Rect(w - EDGE_MARGIN - TRI_W, top + col_h // 2 - TRI_H // 2, TRI_W, TRI_H)
+    right = panel_rect(size).left - GAP
+    tri = pygame.Rect(right - TRI_W, top + col_h // 2 - TRI_H // 2, TRI_W, TRI_H)
     x = tri.left - GAP - CELL
     return tri, [pygame.Rect(x, top + i * (CELL + GAP), CELL, CELL) for i in range(SLOTS)]
 

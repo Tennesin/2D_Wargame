@@ -5,8 +5,8 @@ import pygame
 
 from engine import Team, WORLD
 from inputs import InputHandler, AMMO_HOTKEYS, key_label
-from ui import AmmoBar, UpgradeBar
-from vehicles import make_vehicle, AMMO_TYPES
+from ui import AmmoBar, UpgradeBar, TankPanel, SILHOUETTE_BOX
+from vehicles import make_vehicle, AMMO_TYPES, VEHICLE_TYPES, RENDERERS, build_silhouette
 from world import Camera, WorldGenerator
 
 from ..content import texts
@@ -49,7 +49,10 @@ class PlayScene(Scene):
                                  for kind, action in zip(tank.spec.ammo_kinds, AMMO_HOTKEYS)],
                                 tank.select_ammo)
         self.upgrade_bar = UpgradeBar()
-        self.input = InputHandler([self.upgrade_bar, self.ammo_bar])
+        self.tank_panel = TankPanel()
+        renderer = RENDERERS[VEHICLE_TYPES[session.kind].renderer_key]()    # одноразовый: кэши не пересекаются с игровыми
+        self.tank_panel.set_silhouette(build_silhouette(renderer, tank, SILHOUETTE_BOX))
+        self.input = InputHandler([self.upgrade_bar, self.tank_panel, self.ammo_bar])
         self.notifier = Notifier(tank)
         self.match = Match(self.map_data, tank, self.camera, self.input, self.notifier,
                            session.prefs, session.settings, on_exit=self._leave)
@@ -57,7 +60,8 @@ class PlayScene(Scene):
 
         yield 0.55, texts.LOADING_SCENERY
         self.view = PlayView(WorldGenerator(self.seed), self._clock, self.match,
-                             self.ammo_bar, self.upgrade_bar, self.notifier, session.settings)
+                             self.ammo_bar, self.upgrade_bar, self.tank_panel,
+                             self.notifier, session.settings)
         for part in self.view.renderer.preload_iter(self.camera):
             yield 0.60 + 0.40 * part
         return self
@@ -89,6 +93,7 @@ class PlayScene(Scene):
 
         self.ammo_bar.update(size)
         self.upgrade_bar.update(size)
+        self.tank_panel.update(size)
         if self.match.player.alive:
             self.view.handle_hotkeys()
 

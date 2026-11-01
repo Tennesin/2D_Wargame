@@ -5,7 +5,8 @@ import pygame
 
 from engine import LRUCache, SHADOW_ALPHA, heading_vector, clamp, Team, PX_PER_M
 from vehicles.chassis.params import TRACK_LINK_M
-from vehicles.gun.params import BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M
+from vehicles.gun.params import (BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M,
+                                 BARREL_MIN_STEPS)
 from vehicles.render.hull_parts import HullPartsMixin
 from vehicles.chassis.running_gear import LEFT, RIGHT
 from vehicles.render.pen import (Pen, SS, apply_grain, TRACK_BODY, TRACK_LINK, TRACK_BROKEN,
@@ -25,6 +26,7 @@ ANGLE_STEP = 360.0 / ANGLE_STEPS
 ROT_CACHE_BYTES = 48 * 1024 * 1024       # бюджет памяти под кэш повёрнутых поверхностей
 
 REBUILD_TOL = 0.05                       # после остановки зума спрайты пересобираются, если масштаб ушёл дальше этого
+PANEL_MUZZLE_OVER_M = 1.2                # в панели танка дульный срез выходит за лоб корпуса не дальше этого, м
 
 # ==========================================
 # ОБЩИЙ ОТРИСОВЩИК
@@ -259,6 +261,49 @@ class GunVehicleRenderer(HullPartsMixin):
         surf = self._get_gear(spec).copy()
         surf.blit(self._get_hull(paint, look, spec), (0, 0))
         return surf
+
+    @staticmethod
+    def _scaled_layer(surf, k):
+        """Копия слоя в масштабе k (rotozoom без поворота сглаживает и держит альфа-канал)."""
+        return surf if abs(k - 1.0) < 1e-3 else pygame.transform.rotozoom(surf, 0.0, k)
+
+    def panel_sprite(self, vehicle):
+        """Вид сверху без поворота, тени и отката: ходовая, корпус, ствол, башня или маска одним спрайтом.
+        Центр холста = ось орудия (башни). Ствол укорочен: иначе у крупных калибров он длиннее корпуса
+        и корпус в панели получается мелким. Для этого нужен отдельный экземпляр рендерера:
+        set_zoom сбрасывает его кэши."""
+        spec = vehicle.spec
+        look = spec.LOOK
+        team = vehicle.team_color
+        paint = None if vehicle.team is Team.PLAYER else team
+        ppm = self._ppm
+        hs, ts = spec.HULL_SCALE, spec.TURRET_SCALE
+
+        # ствол: дульный срез не дальше PANEL_MUZZLE_OVER_M за лбом корпуса
+        front_m = (-spec.layout.front_face_m - spec.layout.axis_fwd_m) * hs    # лоб впереди оси, м
+        max_len = (front_m + PANEL_MUZZLE_OVER_M) / ts - spec.GUN_FRONT_M
+        bl_full = int(round(spec.BARREL_LEN_M / BARREL_LEN_STEP_M))
+        bl = max(BARREL_MIN_STEPS, min(bl_full, int(max_len / BARREL_LEN_STEP_M + 1e-9)))
+        bt = int(round(spec.BARREL_THICK_M / BARREL_THICK_STEP_M))
+        f_px = (spec.GUN_FRONT_M + bl * BARREL_LEN_STEP_M / 2.0 - BARREL_HIDDEN_M / 2.0) * ppm * ts
+
+        # слои снизу вверх, как в draw(): ходовая, корпус, ствол, башня, маска
+        layers = [(self._get_gear(spec), hs, 0.0),
+                  (self._get_hull(paint, look, spec), hs, 0.0),
+                  (self._get_barrel(bl, bt, look), ts, f_px)]
+        if self.HAS_TURRET_SPRITE:
+            layers.append((self._get_turret(team, paint, look, vehicle.emblem, spec), ts, 0.0))
+        build_mantlet = getattr(self, "_build_mantlet", None)      # есть у ПТ-САУ и САУ
+        if build_mantlet is not None:
+            layers.append((build_mantlet(team, paint, look, spec), hs, 0.0))
+
+        scaled = [(self._scaled_layer(surf, k), shift) for surf, k, shift in layers]
+        half = 4 + math.ceil(max(scaled[0][0].get_width() / 2.0,
+                                 f_px + scaled[2][0].get_height() / 2.0))
+        canvas = pygame.Surface((2 * half, 2 * half), pygame.SRCALPHA)
+        for surf, shift in scaled:
+            canvas.blit(surf, surf.get_rect(center=(half, half - round(shift))))
+        return canvas
 
     def _draw_track_links(self, screen, tank, cx, cy, hull_k, scale, spec, broken):
         """Бегущие звенья целых гусениц: линии прямо на экране. Сбитая гусеница стоит без звеньев."""

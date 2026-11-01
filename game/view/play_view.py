@@ -15,10 +15,11 @@ from .world_renderer import Renderer
 from .loot_view import LootView
 
 class PlayView:
-    def __init__(self, world, clock, match, ammo_bar, upgrade_bar, notifier, settings):
+    def __init__(self, world, clock, match, ammo_bar, upgrade_bar, tank_panel, notifier, settings):
         self.match = match
         self.ammo_bar = ammo_bar
         self.upgrade_bar = upgrade_bar
+        self.tank_panel = tank_panel
         self.notifier = notifier
 
         ctx = match.ctx
@@ -52,8 +53,9 @@ class PlayView:
         self.stun_indicator.draw(screen)
         self.artillery_warning.draw(screen)
         if alive:
-            self.remains_pointers.draw(screen)
-            self.warning.draw(screen)
+            self.ammo_bar.draw(screen, mouse, m.player.ammo)
+            self.upgrade_bar.draw(screen, mouse)
+            self.tank_panel.draw(screen, mouse)
         self.debug.draw(screen)
         if alive:
             self.ammo_bar.draw(screen, mouse, m.player.ammo)

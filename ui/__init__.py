@@ -10,9 +10,10 @@ from .guide_blocks import IconRow, AccordionRow, KeyRow, make_mouse_icon, make_s
 from .plate import draw_plate
 from .minimap import MiniMap
 from .upgrade_bar import UpgradeBar, CellView, OfferView
+from .tank_panel import TankPanel, SILHOUETTE_BOX
 
 __all__ = ["DELETE_BUTTON_COLORS", "ACTIVE_BUTTON_COLORS", "Button", "Checkbox", "Slider", "ScrollArea",
            "SectionHeader", "ParamRow", "make_param_row", "StatsBlock", "InfoText", "AmmoBar",
            "ActionButton", "Panel", "SidePanel", "TankHud", "InfoCard", "ChoiceRow", "IconRow",
            "KeyRow", "make_mouse_icon", "make_swatch_icon", "draw_plate", "ListBox", "TextInput",
-           "MiniMap", "AccordionRow", "UpgradeBar", "CellView", "OfferView"]
+           "MiniMap", "AccordionRow", "UpgradeBar", "CellView", "OfferView","TankPanel", "SILHOUETTE_BOX"]
