@@ -60,7 +60,11 @@ def avoid_interface(w, h, px, py, size, inset):
             px = free_x
 
     zone = right_zone((w, h))
-    if px >= w - inset - 1.0 and px > zone.left - pad and zone.top - pad < py < zone.bottom + pad:
-        above, below = zone.top - pad, zone.bottom + pad    # на правой кромке: обходим панель сверху или снизу
-        py = clamp(above if py - above <= below - py else below, inset, h - inset)
+    in_x = px > zone.left - pad
+    in_y = zone.top - pad < py < zone.bottom + pad
+    if in_x and in_y:
+        if py >= h - inset - 1.0:                    # на нижней кромке: уезжаем влево от панели
+            px = max(inset, zone.left - pad)
+        elif px >= w - inset - 1.0:                  # на правой кромке: поднимаемся выше панели
+            py = max(inset, zone.top - pad)
     return px, py

@@ -6,6 +6,7 @@ from .page_ammo import build as _ammo
 from .page_hits import build as _hits
 from .page_enemies import build as _enemies
 from .page_editor import build as _editor
+from .page_remains import build as _remains
 
 PAGES = [
     ("Управление", _controls),
@@ -14,6 +15,7 @@ PAGES = [
     ("Снаряды", _ammo),
     ("Попадания", _hits),
     ("Враги", _enemies),
+    ("Останки", _remains),
     ("Редактор карт", _editor),
 ]
 

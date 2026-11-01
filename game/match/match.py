@@ -82,6 +82,7 @@ class Match:
         self.camera_ctrl.update_view(dt, size)
 
         if self.player.alive:
+            self.stats.on_time(dt)
             self.camera_ctrl.handle_hotkeys()
             self.camera_ctrl.follow(self.player, dt)
             self.modes.handle_hotkeys()

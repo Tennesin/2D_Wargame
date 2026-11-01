@@ -12,6 +12,7 @@ from vehicles.gun.params import (
     HESH_STUN_FRAC, HESH_STUN_MIN_S, FRAG_DAMAGE_FRAC
 )
 from .. import texts
+from ...match.loot.upgrades import UPGRADES, MAX_LEVEL
 from .common import k as _k
 
 AMMO_ICON_SIZE = (56, 32)
@@ -19,6 +20,7 @@ AMMO_COL_W = 72
 
 AMMO_NAMES = {AmmoKind.AP: "Бронебойный", AmmoKind.HEAT: "Кумулятивный",
               AmmoKind.HESH: "HESH (пластичный фугас)", AmmoKind.HE: "Осколочно-фугасный"}
+AMMO_FIELDS = {"dmg_k", "pen_k", "shell_speed_k", "shell_range_k", "blast_taken_k"}
 
 def _pct(k):
     """Множитель -> «+25%» / «-35%»."""
@@ -98,6 +100,16 @@ def _details():
         ],
     }
 
+def _upgrade_rows():
+    """Улучшения, которые трогают снаряды, из тех же данных, что и расчёт."""
+    rows = []
+    for d in UPGRADES.values():
+        if AMMO_FIELDS & set(d.fields):
+            bonuses = " / ".join(f"{b * 100:g}%" for b in d.bonus)
+            label = d.label[0].lower() + d.label[1:]
+            rows.append(f"«{d.title}»: {label}, +{bonuses} по уровням 1–{MAX_LEVEL}.")
+    return rows
+
 def build():
     keys = "/".join(_k(a) for a in AMMO_HOTKEYS)
     texts_by_kind = _texts()
@@ -112,4 +124,18 @@ def build():
         title = f"{AMMO_NAMES[kind]} ({AMMO_TYPES[kind].code})"
         items.append(AccordionRow(make_ammo_icon(kind, AMMO_ICON_SIZE), title,
                                   texts_by_kind[kind], details[kind], col_w=AMMO_COL_W))
+    items += [
+        SectionHeader("Улучшения и снаряды"),
+        InfoText("Числа на этой странице базовые, как в Конструкторе. Улучшения из останков меняют их прямо "
+                 "в бою (подробнее на странице «Останки»)."),
+        AccordionRow(None, "Что меняют улучшения",
+                     "Урон, пробитие, скорость и дальность ваших снарядов, а также стойкость к ФГ и HESH.",
+                     _upgrade_rows()),
+        AccordionRow(None, "Снаряды артиллерии",
+                     "Фугасы вражеских САУ не выбираются и летят по дуге: стены и камни от них не защищают.", [
+                         "САУ стреляет только фугасом: типов снарядов у неё нет.",
+                         "Подробности про круг поражения смотрите на странице «Враги».",
+                         "«Противоосколочная защита» уменьшает и урон взрыва артиллерии, и длительность оглушения.",
+                     ]),
+    ]
     return items

@@ -108,6 +108,26 @@ STATS_REC_ROUNDS = "Раундов за матч"
 STATS_REC_DAMAGE = "Урона за матч"
 STATS_REC_KILLS = "Врагов за матч"
 
+STATS_TIME = "Время в бою"
+STATS_DISTANCE = "Пройдено"
+STATS_MISSES = "Промахов"
+STATS_BEST_HIT = "Самый сильный выстрел"
+STATS_RIC_OWN = "Рикошетов ваших снарядов"
+STATS_RIC_ARMOR = "Рикошетов от вашей брони"
+STATS_SEC_CONTROL = "Оглушения и гусеницы"
+STATS_STUNS_DEALT = "Врагов оглушено"
+STATS_STUNS_TAKEN = "Вас оглушили"
+STATS_TRACKS_BROKEN = "Гусениц сбито у врагов"
+STATS_TRACKS_LOST = "Ваших гусениц сбито"
+STATS_TRACKS_REPAIRED = "Гусениц починено"
+STATS_SEC_LOOT = "Добыча"
+STATS_WRECKS = "Обломков подобрано"
+STATS_HEALED = "Восстановлено HP"
+STATS_UPGRADES_TAKEN = "Улучшений взято"
+STATS_SEC_UPGRADES = "Улучшения по видам"
+STATS_REC_BEST_HIT = "Самый сильный выстрел"
+STATS_REC_TIME = "Время в бою за матч"
+
 AMMO_RU = {"AP": "Бронебойные", "HEAT": "Кумулятивные",
            "HESH": "HESH", "HE": "Осколочно-фугасные"}
 

@@ -24,8 +24,10 @@ class CombatController:
         hits, ricochets, misses, blasts = self.effects.update(dt, self.targets)
         for owner, target in ricochets:
             self.notifier.on_ricochet(owner, target)
+            self.match_stats.on_ricochet(owner, target)
         for owner in misses:
             self.notifier.on_miss(owner)
+            self.match_stats.on_miss(owner)
         self._apply_hits(hits)
         self._apply_blasts(blasts)
 
@@ -64,9 +66,10 @@ class CombatController:
         self.notifier.on_hit(im.owner, target, im.normal, res, dealt)
         if is_vehicle and target.alive:
             self._hit_tracks(im, target, mh, full_pen, full_dmg)
-            if stats.stun_s > 0.0:                       # оглушает только прямое попадание, осколки нет
+            if stats.stun_s > 0.0:
                 target.apply_stun(stats.stun_s)
                 self.notifier.on_stun(im.owner, target)
+                self.match_stats.on_stun(im.owner, target)
 
     def _hit_tracks(self, im, target, mh, full_pen, full_dmg):
         """Урон гусеницам при прямом попадании: гусеница, в которую попали, плюс (для ФГ и HESH)
@@ -80,6 +83,7 @@ class CombatController:
         for side, amount in damage.items():
             if target.damage_track(side, amount):
                 self.notifier.on_track_broken(im.owner, target, side)
+                self.match_stats.on_track_broken(im.owner, target)
 
     @staticmethod
     def _frag_track_damage(im, target, pen, base):
@@ -118,10 +122,12 @@ class CombatController:
                 self.match_stats.on_damage(blast.owner, target, real, "shot")
             if stunned:
                 target.apply_stun(stats.stun_s)
+                self.match_stats.on_stun(blast.owner, target)
             if target.target_type is TargetType.VEHICLE and target.alive:
                 side = target.track_under(blast.x, blast.y)
                 if side is not None and target.tracks.break_track(side):
                     self.notifier.on_track_broken(blast.owner, target, side)
+                    self.match_stats.on_track_broken(blast.owner, target)
             self.notifier.on_artillery(blast.owner, target, dealt, stunned)
 
     # ---------- осколки ----------
@@ -142,6 +148,7 @@ class CombatController:
                 side, frag = self._frag_track_damage(im, target, pen, base * ik)
                 if frag > 0.0 and target.damage_track(side, frag):
                     self.notifier.on_track_broken(im.owner, target, side)
+                    self.match_stats.on_track_broken(im.owner, target)
             k = self._frag_k(target, im.x, im.y, pen)
             dealt = splash_damage(base * ik, stats.splash_frac * k, dist, stats.aoe_radius_px)
             if dealt <= 0.0:

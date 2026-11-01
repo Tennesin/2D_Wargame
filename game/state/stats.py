@@ -1,15 +1,18 @@
 """game/state/stats.py — игровая статистика: показатели одной партии, накопленная «Статистика» и «Рекорды».
 Файл: Documents/2D Wargame/stats.json."""
 from ai import ARCHETYPES
-from engine import Team
+from engine import Team, TargetType
 from . import storage
 
 STATS_FILE = "stats.json"
 FORMAT_VERSION = 1
 
-NUMBERS = ("rounds", "damage_shots", "damage_ram", "shots_fired", "hits", "taken_shots", "taken_ram")
-TABLES = ("kills", "ammo", "taken_from")      # словари: ключ архетипа или имя снаряда -> число
-RECORDS = ("rounds", "damage", "kills")       # что попадает в «Рекорды»
+NUMBERS = ("rounds", "damage_shots", "damage_ram", "shots_fired", "hits", "taken_shots", "taken_ram",
+           "play_time", "distance_px", "misses", "ricochets_own", "ricochets_armor",
+           "stuns_dealt", "stuns_taken", "tracks_broken", "tracks_lost", "tracks_repaired",
+           "wrecks_taken", "healed", "upgrades_taken")
+TABLES = ("kills", "ammo", "taken_from", "upgrades")
+RECORDS = ("rounds", "damage", "kills", "best_hit", "time")
 
 _KEY_BY_NAME = {arch.name: key for key, arch in ARCHETYPES.items()}
 
@@ -30,6 +33,7 @@ def _is_number(v):
 class StatsData:
     """Набор показателей. Общий для одной партии и для накопленной статистики:
     таблицы интерфейса строятся по одним и тем же полям."""
+    best_hit = 0.0        # самый сильный выстрел: у партии своё значение, у Career это рекорд (property)
 
     def __init__(self):
         for name in NUMBERS:
@@ -65,6 +69,7 @@ class MatchStats(StatsData):
         self.active = True               # False после конца партии: поздние события не считаются
         self.new_records = set()         # какие рекорды побиты этой партией (заполняет Career.add_match)
         self._hurt = set()               # id врагов, которым игрок нанёс урон (для зачёта убийств)
+        self.best_hit = 0.0              # урон самого сильного прямого попадания игрока
 
     def stop(self):
         self.active = False
@@ -104,6 +109,7 @@ class MatchStats(StatsData):
                 self.damage_shots += amount
                 if direct:
                     self.hits += 1
+                    self.best_hit = max(self.best_hit, amount)
         elif target is me and source is not None and source is not me:
             if via == "ram":
                 self.taken_ram += amount
@@ -112,6 +118,62 @@ class MatchStats(StatsData):
             key = archetype_key(source)
             if key is not None:
                 _inc(self.taken_from, key, amount)
+
+    def on_time(self, dt):
+        """Секунды, прожитые игроком в бою."""
+        if self.active:
+            self.play_time += dt
+
+    def on_move(self, distance_px):
+        """Сколько игрок проехал за кадр."""
+        if self.active and distance_px > 0.0:
+            self.distance_px += distance_px
+
+    def on_miss(self, owner):
+        if self.active and owner is self.player:
+            self.misses += 1
+
+    def on_ricochet(self, owner, target):
+        """Рикошет от техники: свой снаряд отскочил от врага или вражеский от вашей брони."""
+        if not self.active or target.target_type is not TargetType.VEHICLE:
+            return
+        me = self.player
+        if owner is me and target is not me:
+            self.ricochets_own += 1
+        elif target is me and owner is not me:
+            self.ricochets_armor += 1
+
+    def on_stun(self, source, target):
+        if not self.active:
+            return
+        me = self.player
+        if source is me and target is not me:
+            self.stuns_dealt += 1
+        elif target is me:
+            self.stuns_taken += 1
+
+    def on_track_broken(self, source, target):
+        if not self.active:
+            return
+        me = self.player
+        if target is me:
+            self.tracks_lost += 1
+        elif source is me:
+            self.tracks_broken += 1
+
+    def on_track_repaired(self, vehicle):
+        if self.active and vehicle is self.player:
+            self.tracks_repaired += 1
+
+    def on_wreck_collected(self, healed):
+        if self.active and healed > 0.0:
+            self.wrecks_taken += 1
+            self.healed += healed
+
+    def on_upgrade_taken(self, key):
+        if self.active:
+            self.upgrades_taken += 1
+            _inc(self.upgrades, key)
 
 # ==========================================
 # НАКОПЛЕННАЯ СТАТИСТИКА И РЕКОРДЫ
@@ -123,6 +185,11 @@ class Career(StatsData):
         self.matches = 0
         self.records = {name: 0 for name in RECORDS}
         self._load()
+
+    @property
+    def best_hit(self):
+        """У накопленной статистики это рекорд."""
+        return self.records["best_hit"]
 
     def add_match(self, m):
         """Прибавляет партию к «Статистике» и обновляет «Рекорды» (только если новое значение лучше).
@@ -136,7 +203,8 @@ class Career(StatsData):
                 _inc(mine, key, value)
 
         broken = set()
-        for name, value in (("rounds", m.rounds), ("damage", round(m.damage)), ("kills", m.kills_total)):
+        for name, value in (("rounds", m.rounds), ("damage", round(m.damage)), ("kills", m.kills_total),
+                            ("best_hit", round(m.best_hit)), ("time", round(m.play_time))):
             if value > self.records[name]:
                 self.records[name] = value
                 broken.add(name)

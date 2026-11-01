@@ -26,6 +26,7 @@ class LootController:
         self.offer = None                    # останки, которые сейчас предлагаются игроку (или None)
         self.slots = UpgradeSlots()          # ячейки игрока (живут одну партию)
         self._rng = random.Random()          # рисунок обломков и место останков: на игру не влияет
+        self.match_stats = ctx.match_stats
 
     # ---------- события ----------
     def on_bots_removed(self, bots):
@@ -38,10 +39,7 @@ class LootController:
         self._drop_upgrades(bots)
 
     def _drop_upgrades(self, dead):
-        """Улучшение выпадает с последнего бота раунда (раунд не ниже UPGRADE_MIN_ROUND).
-        К моменту колбэка fleet.bots уже без погибших, поэтому «последний» = в списке не осталось
-        ни одного живого бота с тем же номером раунда. Если за кадр погибло несколько ботов
-        одного раунда, берём самого дорогого."""
+        """Улучшение выпадает с последнего бота раунда."""
         alive_rounds = {b.round for b in self.fleet.bots}
         for rnd in sorted({b.round for b in dead}):
             if rnd < UPGRADE_MIN_ROUND or rnd in alive_rounds:
@@ -88,6 +86,7 @@ class LootController:
             return False
         r.gone = True
         self.offer = None
+        self.match_stats.on_upgrade_taken(r.key)
         player = self.fleet.player
         player.set_mods(self.slots.build_mods())
         self.notifier.on_upgrade(player, UPGRADES[r.key].title, done[1])
@@ -145,4 +144,5 @@ class LootController:
         pct = WRECK_HEAL_PCT.get(wreck.key, WRECK_HEAL_DEFAULT)
         healed = player.heal(player.max_hp * pct)
         wreck.taken = True
+        self.match_stats.on_wreck_collected(healed)
         self.notifier.on_wreck_heal(player, healed)

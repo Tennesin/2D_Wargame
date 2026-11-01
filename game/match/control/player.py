@@ -1,4 +1,5 @@
 """game/match/control/player.py — танк игрока: команда из ввода и обновление."""
+from math import hypot
 from inputs import Action, AMMO_HOTKEYS
 
 class TankController:
@@ -14,7 +15,9 @@ class TankController:
         command = self.input.read_command(self.camera,
                                           follow_mouse=modes.turret_follow,
                                           combat=modes.combat)
+        x0, y0 = self.tank.x, self.tank.y
         shot = self.ctx.step_vehicle(self.tank, command, dt)
+        self.ctx.match_stats.on_move(hypot(self.tank.x - x0, self.tank.y - y0))
         if shot is not None:
             self.ctx.match_stats.on_shot(shot.ammo.kind)
 

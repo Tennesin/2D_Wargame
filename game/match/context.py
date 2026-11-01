@@ -24,6 +24,7 @@ class GameContext:
         shot = vehicle.update(command, dt, self.obstacles_for(vehicle), self.terrain)
         if vehicle.repaired_track is not None:
             self.notifier.on_track_repaired(vehicle, vehicle.repaired_track)
+            self.match_stats.on_track_repaired(vehicle)
         if shot is not None:
             self.effects.spawn_shot(shot, vehicle.spec, vehicle)
         return shot

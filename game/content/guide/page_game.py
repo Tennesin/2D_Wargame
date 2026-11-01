@@ -5,6 +5,7 @@ from ...hud.artillery_warning import RED
 from ...hud.colors import FILL
 from ...hud.stun_indicator import COLOR as STUN_COLOR
 from .. import texts
+from ...hud.loot_pointers import FILL as REMAINS_FILL
 from .common import k as _k
 
 def build():
@@ -43,6 +44,11 @@ def build():
                          "Внутренний круг — зона максимального урона и оглушения, внешний — граница взрыва.",
                          "Если круг за экраном, у края показан указатель с секундами до падения.",
                          "Подробнее об артиллерии на странице «Враги».",
+                     ], col_w=sw),
+        AccordionRow(make_swatch_icon(REMAINS_FILL), "Жёлтый треугольник",
+                     "Останки улучшения за краем экрана: показывает направление и секунды до исчезновения.", [
+                         "Если останки в кадре, треугольника нет: они видны прямо в мире.",
+                         "Подробнее на странице «Останки».",
                      ], col_w=sw),
 
         SectionHeader("Новая игра"),
