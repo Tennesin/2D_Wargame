@@ -7,6 +7,7 @@ import pygame
 
 BUILD_PPM = 20.0                  # масштаб, в котором строятся спрайты (px на метр)
 FIT_MAX_K = 1.5                   # сильнее увеличивать силуэт не нужно
+FIT_SHRINK = 0.70                 # силуэт занимает эту долю области: запас по краям, чтобы влезал ствол
 FILL_TINT = (150, 175, 200)       # умножение цвета: уводит палитру корпуса в холодный серый
 FILL_LIFT = (40, 50, 60)          # затем осветляем
 FILL_ALPHA = 125                  # общая прозрачность заливки (0..255)
@@ -33,7 +34,7 @@ def build_silhouette(renderer, vehicle, box):
     cx, cy = sprite.get_width() / 2.0, sprite.get_height() / 2.0       # ось орудия на холсте
 
     bb = sprite.get_bounding_rect()
-    k = min(box[0] / bb.w, box[1] / bb.h, FIT_MAX_K)
+    k = min(box[0] / bb.w, box[1] / bb.h, FIT_MAX_K) * FIT_SHRINK
     size = (max(1, round(bb.w * k)), max(1, round(bb.h * k)))
     surf = pygame.transform.smoothscale(sprite.subsurface(bb).copy(), size)
     axis = ((cx - bb.x) * k, (cy - bb.y) * k)

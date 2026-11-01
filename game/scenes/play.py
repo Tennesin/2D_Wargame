@@ -12,6 +12,7 @@ from world import Camera, WorldGenerator
 from ..content import texts
 from ..hud.notifications import Notifier
 from ..hud.upgrade_link import UpgradeLink
+from ..hud.tank_panel_link import TankPanelLink
 from ..match.match import Match
 from ..view.play_view import PlayView
 from .base import Scene
@@ -57,6 +58,7 @@ class PlayScene(Scene):
         self.match = Match(self.map_data, tank, self.camera, self.input, self.notifier,
                            session.prefs, session.settings, on_exit=self._leave)
         self.upgrade_link = UpgradeLink(self.upgrade_bar, self.match.loot)
+        self.panel_link = TankPanelLink(self.tank_panel, tank, self.match.modes)
 
         yield 0.55, texts.LOADING_SCENERY
         self.view = PlayView(WorldGenerator(self.seed), self._clock, self.match,
@@ -99,6 +101,7 @@ class PlayScene(Scene):
 
         self.match.update(dt, size)
         self.upgrade_link.update()
+        self.panel_link.update()
         if not self.match.player.alive:
             self._finish_match()                         # игрок погиб: итог записываем сразу, не дожидаясь Esc
         self.notifier.update(dt)
