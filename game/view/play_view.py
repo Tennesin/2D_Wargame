@@ -51,6 +51,8 @@ class PlayView:
                            ground_layer=self.loot_view.draw_ground)
         self.markers.draw(screen)
         self.stun_indicator.draw(screen)
+        self.warning.draw(screen)
+        self.remains_pointers.draw(screen)
         self.artillery_warning.draw(screen)
         if alive:
             self.ammo_bar.draw(screen, mouse, m.player.ammo)
