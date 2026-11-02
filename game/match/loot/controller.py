@@ -7,9 +7,8 @@ from engine import obb_distance_to_point
 from inputs import Action
 from ...state.stats import archetype_key
 from .params import (
-    WRECK_HOLD_S, WRECK_PICKUP_PX, WRECK_HEAL_PCT, WRECK_HEAL_DEFAULT,
+    WRECK_HOLD_S, WRECK_HEAL_PCT, WRECK_HEAL_DEFAULT, UPGRADE_SPOT_TRIES,
     UPGRADE_MIN_ROUND, UPGRADE_PICKUP_PX, UPGRADE_OFFSET_PX, UPGRADE_CLEAR_PX,
-    UPGRADE_SPOT_TRIES,
 )
 from .pickups import Wreck, UpgradeRemains
 from .upgrades import UpgradeSlots, UPGRADES, Plan
@@ -27,6 +26,7 @@ class LootController:
         self.slots = UpgradeSlots()          # ячейки игрока (живут одну партию)
         self._rng = random.Random()          # рисунок обломков и место останков: на игру не влияет
         self.match_stats = ctx.match_stats
+        self._active = None                  # обломки, которые игрок собирает прямо сейчас
 
     # ---------- события ----------
     def on_bots_removed(self, bots):
@@ -110,17 +110,34 @@ class LootController:
     def _update_wrecks(self, dt, player, hull):
         for w in self.wrecks:
             w.life -= dt
-            if hull is None or w.life <= 0.0:
-                w.hold = 0.0
-                continue
-            on_it = obb_distance_to_point(hull, w.x, w.y) <= WRECK_PICKUP_PX
-            if on_it and player.hp < player.max_hp:         # при полном здоровье обломки не «съедаются»
+        active = self._active_wreck(player, hull)
+        for w in self.wrecks:
+            if w is active:
                 w.hold += dt
                 if w.hold >= WRECK_HOLD_S:
                     self._collect(w, player)
             else:
                 w.hold = 0.0
         self.wrecks = [w for w in self.wrecks if w.life > 0.0 and not w.taken]
+
+    def _active_wreck(self, player, hull):
+        """Обломки, которые собираются сейчас."""
+        if hull is None or player.hp >= player.max_hp:
+            self._active = None
+            return None
+        cur = self._active
+        if (cur is not None and cur in self.wrecks and cur.life > 0.0 and not cur.taken
+                and obb_distance_to_point(hull, cur.x, cur.y) <= cur.zone):
+            return cur
+        best, best_d = None, None
+        for w in self.wrecks:
+            if w.life <= 0.0 or w.taken:
+                continue
+            d = obb_distance_to_point(hull, w.x, w.y)
+            if d <= w.zone and (best_d is None or d < best_d):
+                best, best_d = w, d
+        self._active = best
+        return best
 
     def _update_remains(self, dt, hull):
         """Таймеры останков и выбор того, что предлагается игроку (ближайшее из тех, над которыми он стоит)."""

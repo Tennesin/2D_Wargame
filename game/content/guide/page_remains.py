@@ -1,9 +1,12 @@
 """game/content/guide/page_remains.py — страница инструкции «Останки»: обломки (лечение) и останки улучшений."""
 from ai import ARCHETYPES
 from inputs import Action
-from ui import SectionHeader, InfoText, AccordionRow, make_swatch_icon
-from ...match.loot.params import (WRECK_LIFE_S, WRECK_HOLD_S, WRECK_HEAL_PCT,
-                                  UPGRADE_MIN_ROUND, UPGRADE_LIFE_S)
+from engine import shade_color
+from ui import SectionHeader, InfoText, AccordionRow, make_swatch_icon, make_upgrade_icon
+from ...match.loot.params import (
+    WRECK_LIFE_S, WRECK_HOLD_S, WRECK_HEAL_PCT,
+    UPGRADE_MIN_ROUND, UPGRADE_LIFE_S, WRECK_ZONE_MARGIN_M
+)
 from ...match.loot.upgrades import UPGRADES, SLOT_COUNT, MAX_LEVEL
 from ...view.loot_view import HEAL, UPG_RING
 from .. import texts
@@ -22,8 +25,8 @@ def _upgrade_rows():
         arch = ARCHETYPES[key]
         details = [f"Уровень {lvl}: {d.effect(lvl)}." for lvl in range(1, MAX_LEVEL + 1)]
         details.append(f"Выпадает с врага «{arch.name}».")
-        rows.append(AccordionRow(make_swatch_icon(arch.color), d.title,
-                                 f"{d.label}. Источник: «{arch.name}».", details, col_w=40))
+        rows.append(AccordionRow(make_upgrade_icon(d.icon, (32, 32), 2, bg=shade_color(arch.color, 0.55)),
+                                 d.title, f"{d.label}. Источник: «{arch.name}».", details, col_w=40))
     return rows
 
 def build():
@@ -37,10 +40,13 @@ def build():
 
         SectionHeader("Обломки: лечение"),
         AccordionRow(make_swatch_icon(HEAL), "Обломки",
-                     "Тёмный силуэт уничтоженной машины со знаком «+». Стоя на нём, вы чините себя.", [
+                     "Тёмный силуэт уничтоженной машины с едва заметным кругом вокруг. "
+                     "Пока вы в круге, вы чините себя.", [
                          f"Обломки лежат {WRECK_LIFE_S:g} с, последние секунды они бледнеют.",
-                         f"Заедьте корпусом на центр обломков и простойте {WRECK_HOLD_S:g} с: вокруг идёт зелёная дуга прогресса.",
-                         "Если съехать раньше времени, отсчёт сбрасывается.",
+                         f"Заедьте в круг вокруг обломков (он шире самих обломков на {WRECK_ZONE_MARGIN_M:g} м) "
+                         f"и пробудьте в нём {WRECK_HOLD_S:g} с: вокруг обломков идёт зелёная дуга прогресса.",
+                         "Если выехать за круг раньше времени, отсчёт сбрасывается. "
+                         "Если рядом несколько обломков, собираются они по одному.",
                          "При полном здоровье обломки не расходуются: они подождут, пока вы получите урон.",
                          "Подобрать можно и обломки, оставшиеся от прошлых врагов, пока они не пропали.",
                      ], col_w=sw),

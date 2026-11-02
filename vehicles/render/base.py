@@ -268,10 +268,7 @@ class GunVehicleRenderer(HullPartsMixin):
         return surf if abs(k - 1.0) < 1e-3 else pygame.transform.rotozoom(surf, 0.0, k)
 
     def panel_sprite(self, vehicle):
-        """Вид сверху без поворота, тени и отката: ходовая, корпус, ствол, башня или маска одним спрайтом.
-        Центр холста = ось орудия (башни). Ствол укорочен: иначе у крупных калибров он длиннее корпуса
-        и корпус в панели получается мелким. Для этого нужен отдельный экземпляр рендерера:
-        set_zoom сбрасывает его кэши."""
+        """Вид сверху без поворота, тени и отката."""
         spec = vehicle.spec
         look = spec.LOOK
         team = vehicle.team_color
@@ -279,11 +276,7 @@ class GunVehicleRenderer(HullPartsMixin):
         ppm = self._ppm
         hs, ts = spec.HULL_SCALE, spec.TURRET_SCALE
 
-        # ствол: дульный срез не дальше PANEL_MUZZLE_OVER_M за лбом корпуса
-        front_m = (-spec.layout.front_face_m - spec.layout.axis_fwd_m) * hs    # лоб впереди оси, м
-        max_len = (front_m + PANEL_MUZZLE_OVER_M) / ts - spec.GUN_FRONT_M
-        bl_full = int(round(spec.BARREL_LEN_M / BARREL_LEN_STEP_M))
-        bl = max(BARREL_MIN_STEPS, min(bl_full, int(max_len / BARREL_LEN_STEP_M + 1e-9)))
+        bl = int(round(spec.BARREL_LEN_M / BARREL_LEN_STEP_M))
         bt = int(round(spec.BARREL_THICK_M / BARREL_THICK_STEP_M))
         f_px = (spec.GUN_FRONT_M + bl * BARREL_LEN_STEP_M / 2.0 - BARREL_HIDDEN_M / 2.0) * ppm * ts
 

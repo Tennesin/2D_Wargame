@@ -27,15 +27,25 @@ class MotionMixin:
 
     def _sample_terrain(self):
         """Множитель скорости: среднее по трём точкам под корпусом,
-        поэтому при въезде в воду техника тормозится постепенно."""
+        поэтому при въезде в воду техника тормозится постепенно.
+        Заодно запоминаем, какая вязкая местность тормозит сильнее всего (для панели танка)."""
         terrain = self._terrain
         if terrain is None:
             self.terrain_k = 1.0
+            self.terrain_kind = None
             return
         total = 0.0
+        loss = None                                          # вид -> суммарная потеря скорости (создаётся лениво)
         for px, py in self.ground_probes_at(self.x, self.y, self.hull_angle):
-            total += terrain.speed_in(self._patches, px, py)
+            kind = terrain.kind_in(self._patches, px, py)
+            k = 1.0 if kind is None else kind.speed_k
+            total += k
+            if kind is not None and not kind.solid:          # камень и глубокая вода сюда не заезжают
+                if loss is None:
+                    loss = {}
+                loss[kind] = loss.get(kind, 0.0) + (1.0 - k)
         self.terrain_k = max(TERRAIN_MIN_K, total / 3.0)
+        self.terrain_kind = max(loss, key=loss.get) if loss else None
 
     @staticmethod
     def _approach(current, target, accel, brake, dt):

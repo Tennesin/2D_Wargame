@@ -66,7 +66,7 @@ class DebugOverlay:
             f"rng x{t.mods.shell_range_k:.2f} arm x{t.mods.armor_k:.2f} pwr x{t.mods.power_k:.2f} "
             f"turn x{t.mods.turn_k:.2f} blast x{t.mods.blast_taken_k:.2f}",
             f"Upgrades: {self._upgrades()}",
-            f"Terrain speed k: {t.terrain_k:.2f}",
+            f"Terrain speed k: {t.terrain_k:.2f}  kind: {t.terrain_kind.name if t.terrain_kind else '-'}",
             f"Tracks HP: L {t.tracks.health['left'] * 100:.0f}%  R {t.tracks.health['right'] * 100:.0f}%  "
             f"({s.track_mm:.0f} мм, шкала {s.track_max_hp:.0f})",
             f"Arty: {self._arty_status()}  shells in flight {len(self.effects.artillery_shells)}",

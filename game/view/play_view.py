@@ -57,9 +57,6 @@ class PlayView:
             self.upgrade_bar.draw(screen, mouse)
             self.tank_panel.draw(screen, mouse)
         self.debug.draw(screen)
-        if alive:
-            self.ammo_bar.draw(screen, mouse, m.player.ammo)
-            self.upgrade_bar.draw(screen, mouse)
         self.hud.draw(screen)
         self.round_overlay.draw(screen)
         self.inspector.draw(screen)

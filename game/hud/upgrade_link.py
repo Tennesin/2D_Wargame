@@ -2,7 +2,7 @@
 в простые данные для виджета и отдаёт ему действия «взять / отказаться / заменить». Сам виджет про игру не знает."""
 from ai import ARCHETYPES
 from inputs import Action, key_label
-from ui import CellView, OfferView
+from ui import CellView, OfferView, make_upgrade_icon, CELL_ICON_PX
 from ..content import texts
 from ..match.loot.upgrades import UPGRADES, Plan, MAX_LEVEL
 
@@ -15,6 +15,7 @@ class UpgradeLink:
         bar.on_take = loot.take            # take(slot=None)
         bar.on_replace = loot.take         # take(номер ячейки)
         bar.on_decline = loot.decline
+        self._icons = {}                   # (значок, уровень) -> готовая поверхность
         self.update()
 
     def update(self):
@@ -26,7 +27,8 @@ class UpgradeLink:
                 continue
             key, level = s
             d = UPGRADES[key]
-            cells.append(CellView(d.title, level, MAX_LEVEL, ARCHETYPES[key].color, d.effect(level)))
+            cells.append(CellView(d.title, level, MAX_LEVEL, ARCHETYPES[key].color,
+                                  d.effect(level), self._icon(d, level)))
         self.bar.set_state(cells, self._offer())
 
     def _offer(self):
@@ -47,3 +49,11 @@ class UpgradeLink:
             info = texts.UPGRADE_REPLACE.format(effect=d.effect(1))
         return OfferView(d.title, ARCHETYPES[r.key].color, info, plan is Plan.REPLACE,
                          self._take, self._decline)
+
+    def _icon(self, d, level):
+        """Иконка улучшения (кэшируется: поверхности строятся один раз)."""
+        key = (d.icon, level)
+        icon = self._icons.get(key)
+        if icon is None:
+            icon = self._icons[key] = make_upgrade_icon(d.icon, (CELL_ICON_PX, CELL_ICON_PX), level)
+        return icon

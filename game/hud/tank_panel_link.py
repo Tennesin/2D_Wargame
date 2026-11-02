@@ -1,7 +1,12 @@
-"""game/hud/tank_panel_link.py — связка панели танка с игрой: состояние гусениц, режим стрельбы и снаряд
-превращаются в простые данные для виджета. Сам виджет про танки не знает."""
-from ui import ModuleView, MODULE_OK, MODULE_BROKEN, MODULE_REPAIR
+"""game/hud/tank_panel_link.py — связка панели танка с игрой: состояние гусениц, режим стрельбы, снаряд,
+оглушение и местность превращаются в простые данные для виджета. Сам виджет про танки не знает."""
+from ui import (ModuleView, MODULE_OK, MODULE_BROKEN, MODULE_REPAIR,
+                TERRAIN_PLAIN, TERRAIN_WATER, TERRAIN_MUD)
 from vehicles import TRACK_SIDES
+from world import SHALLOWS, MID_WATER, MUD
+
+# вид местности из физики -> значение для виджета (всё остальное: обычная местность)
+_TERRAIN_OF = {SHALLOWS: TERRAIN_WATER, MID_WATER: TERRAIN_WATER, MUD: TERRAIN_MUD}
 
 class TankPanelLink:
     def __init__(self, panel, tank, modes):
@@ -13,7 +18,8 @@ class TankPanelLink:
 
     def update(self):
         """Каждый кадр после Match.update."""
-        tracks = self.tank.tracks
+        tank = self.tank
+        tracks = tank.tracks
         views = []
         for side, rect in zip(TRACK_SIDES, self._rects):
             if tracks.repair_side == side:                    # проверяем первым: у чинимой гусеницы health ещё 0
@@ -25,4 +31,6 @@ class TankPanelLink:
             else:
                 views.append(ModuleView(rect, MODULE_OK))
         self.panel.set_modules(views)
-        self.panel.set_weapon(self.tank.ammo, self.modes.combat)
+        self.panel.set_weapon(tank.ammo, self.modes.combat)
+        self.panel.set_stun(tank.stun_left)
+        self.panel.set_terrain(_TERRAIN_OF.get(tank.terrain_kind, TERRAIN_PLAIN), tank.terrain_k)

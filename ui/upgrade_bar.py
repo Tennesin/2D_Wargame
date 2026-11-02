@@ -36,6 +36,7 @@ class CellView(NamedTuple):
     max_level: int
     color: tuple
     effect: str            # текст эффекта текущего уровня
+    icon: object = None    # готовая поверхность иконки или None (тогда рисуется ромб)
 
 class OfferView(NamedTuple):
     title: str
@@ -201,10 +202,13 @@ class UpgradeBar:
         else:
             pygame.draw.rect(screen, shade_color(cell.color, 0.65 if hover else 0.45), rect, border_radius=6)
             pygame.draw.rect(screen, cell.color, rect, 2, border_radius=6)
-            cx, cy, d = rect.centerx, rect.y + 22, 11
-            diamond = [(cx, cy - d), (cx + d, cy), (cx, cy + d), (cx - d, cy)]
-            pygame.draw.polygon(screen, cell.color, diamond)
-            pygame.draw.polygon(screen, LIGHT_EDGE, diamond, 1)
+            if cell.icon is not None:
+                screen.blit(cell.icon, cell.icon.get_rect(center=(rect.centerx, rect.y + 21)))
+            else:  # запасной вариант: ромб цвета архетипа
+                cx, cy, d = rect.centerx, rect.y + 22, 11
+                diamond = [(cx, cy - d), (cx + d, cy), (cx, cy + d), (cx - d, cy)]
+                pygame.draw.polygon(screen, cell.color, diamond)
+                pygame.draw.polygon(screen, LIGHT_EDGE, diamond, 1)
             total = cell.max_level * PIP + (cell.max_level - 1) * PIP_GAP
             x = rect.centerx - total // 2
             for i in range(cell.max_level):

@@ -1,8 +1,8 @@
 """game/match/loot/pickups.py — предметы на земле. Сейчас только обломки; останки улучшений добавятся рядом."""
 import math
 
-from engine import heading_vector
-from .params import WRECK_LIFE_S, WRECK_HOLD_S, UPGRADE_LIFE_S
+from engine import heading_vector, PX_PER_M
+from .params import WRECK_LIFE_S, WRECK_HOLD_S, UPGRADE_LIFE_S, WRECK_ZONE_MARGIN_M
 
 # обход прямоугольника по кругу: (доля ширины, доля длины)
 _RING = ((-1, -1), (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0))
@@ -32,6 +32,7 @@ class Wreck:
         self.turret_pos = offset(rng.uniform(-0.25, 0.25), rng.uniform(-0.20, 0.35))
         self.turret_r = half_w * 0.45
         self.extent = max(math.hypot(px, py) for px, py in self.body) + 4.0    # радиус описанного круга
+        self.zone = self.extent + WRECK_ZONE_MARGIN_M * PX_PER_M     # радиус зоны сбора, px мира
 
     @classmethod
     def from_tank(cls, tank, key, color, rng):

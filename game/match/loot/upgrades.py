@@ -16,6 +16,7 @@ class UpgradeDef:
     fields: tuple       # поля StatMods, которые двигает улучшение
     bonus: tuple        # прирост по уровням 1..3 (доли)
     reduce: bool = False    # True: множитель уменьшается (сопротивление), иначе растёт
+    icon: str = ""          # название значка в ui/upgrade_icons.py
 
     def factor(self, level):
         """Множитель для полей StatMods на этом уровне."""
@@ -28,19 +29,19 @@ class UpgradeDef:
 
 UPGRADES = {d.key: d for d in (
     UpgradeDef("universal", "Мощный заряд", "Урон снарядов",
-               ("dmg_k",), (0.10, 0.15, 0.20)),
+               ("dmg_k",), (0.10, 0.15, 0.20), icon="damage"),
     UpgradeDef("bunker", "Усиленная броня", "Эффективность брони",
-               ("armor_k",), (0.10, 0.15, 0.20)),
+               ("armor_k",), (0.10, 0.15, 0.20), icon="armor"),
     UpgradeDef("scout", "Форсаж двигателя", "Эффективность двигателя",
-               ("power_k",), (0.10, 0.15, 0.20)),
+               ("power_k",), (0.10, 0.15, 0.20), icon="engine"),
     UpgradeDef("destroyer", "Бронебойный сердечник", "Пробитие снарядов",
-               ("pen_k",), (0.10, 0.175, 0.25)),
+               ("pen_k",), (0.10, 0.175, 0.25), icon="pierce"),
     UpgradeDef("assault", "Быстрые приводы", "Скорость поворота башни и корпуса",
-               ("turn_k",), (0.20, 0.35, 0.50)),
+               ("turn_k",), (0.20, 0.35, 0.50), icon="drives"),
     UpgradeDef("sniper", "Баллистика", "Дальность и скорость снарядов",
-               ("shell_range_k", "shell_speed_k"), (0.20, 0.30, 0.40)),
+               ("shell_range_k", "shell_speed_k"), (0.20, 0.30, 0.40), icon="ballistics"),
     UpgradeDef("artillery", "Противоосколочная защита", "Сопротивление ФГ и HESH",
-               ("blast_taken_k",), (0.15, 0.20, 0.25), reduce=True),
+               ("blast_taken_k",), (0.15, 0.20, 0.25), reduce=True, icon="blast"),
 )}
 
 class Plan(Enum):

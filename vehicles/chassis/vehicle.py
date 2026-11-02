@@ -38,6 +38,7 @@ class Vehicle(MotionMixin, TracksMixin, HitModelMixin, Damageable):
         self.right_track_offset = 0.0
         self.speed_kmh = 0.0            # текущая скорость вдоль корпуса, км/ч (минус = назад)
         self.terrain_k = 1.0            # множитель скорости от местности под корпусом
+        self.terrain_kind = None        # вид вязкой местности под корпусом (TerrainKind) или None: трава
         self._terrain = None            # карта препятствий; её передаёт GameContext в update()
         self._patches = ()              # пятна карты рядом с техникой; обновляется в начале update()
         self.impact_kmh = None          # скорость в момент удара в ЭТОМ кадре (None: удара не было)

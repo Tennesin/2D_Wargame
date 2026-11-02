@@ -14,6 +14,9 @@ UPG_RING = (240, 210, 70)
 PAD = 10                     # запас вокруг объекта в слое, px экрана
 UPGRADE_R_PX = 90.0          # радиус значка останков, px мира
 UPGRADE_MIN_R = 7            # меньше этого на экране значок не делаем
+ZONE_FILL_ALPHA = 14         # заливка зоны сбора (едва заметная)
+ZONE_RING_ALPHA = 55         # кольцо зоны
+ZONE_RING_ACTIVE_ALPHA = 120 # кольцо, пока идёт сбор
 
 class LootView:
     def __init__(self, loot):
@@ -27,10 +30,10 @@ class LootView:
         view = screen.get_rect()
         for w in self.loot.wrecks:
             sx, sy = camera.world_to_screen(w.x, w.y)
-            r = w.extent * z
-            if self._outside(view, sx, sy, r):
+            zr = w.zone * z
+            if self._outside(view, sx, sy, zr):
                 continue
-            self._draw_wreck(screen, w, sx, sy, z, r)
+            self._draw_wreck(screen, w, sx, sy, z, w.extent * z, zr)
         for u in self.loot.remains:
             sx, sy = camera.world_to_screen(u.x, u.y)
             r = max(UPGRADE_MIN_R, round(UPGRADE_R_PX * z))
@@ -43,8 +46,9 @@ class LootView:
         return (sx + r + PAD < view.left or sx - r - PAD > view.right
                 or sy + r + PAD < view.top or sy - r - PAD > view.bottom)
 
-    def _draw_wreck(self, screen, w, sx, sy, z, r):
-        side = int(2 * (r + PAD)) + 2
+    def _draw_wreck(self, screen, w, sx, sy, z, r, zr):
+        """r: радиус самих обломков, zr: радиус зоны сбора (оба в px экрана)."""
+        side = int(2 * (zr + PAD)) + 2
         area = pygame.Rect(round(sx) - side // 2, round(sy) - side // 2, side, side).clip(screen.get_rect())
         if area.w <= 0 or area.h <= 0:
             return
@@ -54,8 +58,17 @@ class LootView:
         def pt(p):
             return ox + p[0] * z, oy + p[1] * z
 
-        body = [pt(p) for p in w.body]
         layer = self._alpha.begin(area.size)
+
+        # зона сбора: рисуется первой, обломки ложатся поверх
+        k = alpha / 255.0
+        zc = (round(ox), round(oy))
+        zrad = max(2, round(zr))
+        ring_a = ZONE_RING_ACTIVE_ALPHA if w.hold > 0.0 else ZONE_RING_ALPHA
+        pygame.draw.circle(layer, (*HEAL, round(ZONE_FILL_ALPHA * k)), zc, zrad)
+        pygame.draw.circle(layer, (*HEAL, round(ring_a * k)), zc, zrad, 1)
+
+        body = [pt(p) for p in w.body]
         pygame.draw.polygon(layer, (*BODY, alpha), body)
         pygame.draw.polygon(layer, (*SCORCH, alpha), [pt(p) for p in w.scorch])
         tx, ty = pt(w.turret_pos)
@@ -65,12 +78,7 @@ class LootView:
         pygame.draw.circle(layer, (*w.color, alpha), center, tr, min(tr, 2))   # кольцо цвета архетипа
         pygame.draw.polygon(layer, (*EDGE, alpha), body, 1)
 
-        arm = max(4, round(tr * 0.7))                        # знак «+»: здесь можно подлечиться
-        cx, cy = round(ox), round(oy)
-        pygame.draw.line(layer, (*HEAL, alpha), (cx - arm, cy), (cx + arm, cy), 2)
-        pygame.draw.line(layer, (*HEAL, alpha), (cx, cy - arm), (cx, cy + arm), 2)
-
-        if w.hold > 0.0:                                     # дуга удержания
+        if w.hold > 0.0:
             rect = pygame.Rect(round(ox - r), round(oy - r), round(2 * r), round(2 * r))
             stop = math.pi / 2 + 2.0 * math.pi * w.hold_frac
             pygame.draw.arc(layer, (*HEAL, 255), rect, math.pi / 2, stop, 4)
