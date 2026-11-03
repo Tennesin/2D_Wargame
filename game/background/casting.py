@@ -20,7 +20,7 @@ class Casting:
         values = fit_loadout(arch, budget, self.rng)
         spec = VEHICLE_TYPES[arch.kind].spec_cls.from_values(values, unbounded=True)
         return make_vehicle(arch.kind, spec, team_color=arch.color, team=Team.BOTS,
-                            label=arch.name, emblem=arch.emblem)
+                            label=arch.name, emblem=arch.emblem, arch_key=key)
 
     def arty_spec(self, cal=200):
         """Спецификация САУ: из неё берутся параметры снаряда, взрыва и вспышки. Самих САУ на экране нет."""

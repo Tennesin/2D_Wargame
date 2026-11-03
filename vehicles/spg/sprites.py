@@ -7,8 +7,7 @@ import pygame
 from engine import shade_color
 from vehicles.render.pen import (
     Pen as _Pen, apply_paint as _paint, SS, OUTLINE,
-    HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, GRILL,
-    TURRET_MAIN, TURRET_LIGHT, TURRET_DARK,
+    HULL_DARK, GRILL, TURRET_MAIN, TURRET_LIGHT, TURRET_DARK,
 )
 from vehicles.td.params import TD_TURRET_HALF_M
 from vehicles.td.sprites import TDRenderer
@@ -33,60 +32,43 @@ class SPGRenderer(TDRenderer):
         return super()._build_barrel(bl, max(bt, round(bt * BARREL_THICK_K)), look)
 
     # ==========================================
-    # КОРПУС
+    # КОРПУС (общий шаблон в TDRenderer._build_hull)
     # ==========================================
 
-    def _build_hull(self, paint, look, spec):
-        ppm = self._ppm
+    def _draw_hull_back(self, pen, paint, look, spec):
+        """Сошник за кормой: рисуем первым, корпус перекроет его начало."""
         layout = spec.layout
-        size = 2 * math.ceil(self.HULL_HALF_M * ppm)
-        big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
-        mount = layout.axis_fwd_m
-        axis = -mount                                   # ось орудия в координатах корпуса (перёд = -y)
-        pen = _Pen(big, ppm * SS, 0.0, mount)           # центр спрайта = ось орудия
-        g = spec.CASE_K
-
-        hull_main = _paint(HULL_MAIN, paint)
-        hull_light = _paint(HULL_LIGHT, paint)
         hull_dark = _paint(HULL_DARK, paint)
-        deck = _paint(DECK, paint)
+        tail = max(y for _, y in layout.outline)         # корма корпуса
+        depth = SPADE_DEPTH_M[0] if spec.SUPPORT <= 1 else SPADE_DEPTH_M[1]
+        sw = SPADE_HALF_W_M
+        pen.poly(hull_dark, [(-sw, tail - 0.05), (sw, tail - 0.05),
+                             (sw - 0.15, tail + depth), (-(sw - 0.15), tail + depth)])
+        if spec.SUPPORT >= 2:                            # большой сошник: две гидроопоры
+            for sx in (-1, 1):
+                pen.line(GRILL, sx * 0.62, tail - 0.10, sx * 0.48, tail + depth * 0.8, 0.12)
+
+    def _draw_superstructure(self, pen, paint, look, spec):
+        """САУ: моторная крышка, кормовая плита и открытое боевое отделение с ящиками боекомплекта."""
+        layout = spec.layout
+        axis = -layout.axis_fwd_m                        # ось орудия в координатах корпуса (перёд = -y)
+        g = spec.CASE_K
+        hull_dark = _paint(HULL_DARK, paint)
         case_main = _paint(TURRET_MAIN, paint)
         case_light = _paint(TURRET_LIGHT, paint)
         case_dark = _paint(TURRET_DARK, paint)
         crate = _paint(CRATE, paint)
 
         # --- геометрия боевого отделения ---
-        tail = max(y for _, y in layout.outline)        # корма корпуса
+        tail = max(y for _, y in layout.outline)
         front = axis - CASE_FRONT_M
         rear = min(axis + CASE_REACH_M * g, tail - REAR_MARGIN_M)
         rear = max(rear, front + 1.6)
-        wf = 0.80 + 0.30 * g                            # полуширина спереди
-        wr = wf + 0.18                                  # и сзади (отделение расширяется к корме)
+        wf = 0.80 + 0.30 * g                             # полуширина спереди
+        wr = wf + 0.18                                   # и сзади (отделение расширяется к корме)
 
-        # --- сошник за кормой (рисуем первым: корпус перекроет его начало) ---
-        depth = SPADE_DEPTH_M[0] if spec.SUPPORT <= 1 else SPADE_DEPTH_M[1]
-        sw = SPADE_HALF_W_M
-        pen.poly(hull_dark, [(-sw, tail - 0.05), (sw, tail - 0.05),
-                             (sw - 0.15, tail + depth), (-(sw - 0.15), tail + depth)])
-        if spec.SUPPORT >= 2:                           # большой сошник: две гидроопоры
-            for sx in (-1, 1):
-                pen.line(GRILL, sx * 0.62, tail - 0.10, sx * 0.48, tail + depth * 0.8, 0.12)
-
-        # --- корпус, подкрылки, экраны ---
-        pen.poly(hull_main, layout.outline)
-        for fx, fy, fw, fh in layout.fender_rects:
-            pen.rect(hull_dark, fx, fy, fw, fh)
-        self._draw_skirts(pen, look.side + layout.base_skirt, paint, layout)
-
-        pen.poly(hull_light, layout.front_plate)
-        pen.rect(deck, *layout.deck_rect)
-        self._draw_seams(pen, layout, hull_dark)
-        self._draw_front_kit(pen, look.front, paint, layout)
-
-        # --- моторная крышка между носом и боевым отделением ---
+        # --- моторная крышка между носом и боевым отделением, кормовая плита ---
         self._draw_deck(pen, front, hull_dark, layout.deck_rect[1], lead=0.45)
-
-        # --- кормовая плита (под отделением и выхлопом) ---
         pen.rect(hull_dark, *layout.rear_plate)
 
         # --- открытое боевое отделение: светлые кромки стенок и тёмный пол ---
@@ -100,16 +82,13 @@ class SPGRenderer(TDRenderer):
                  (-(wr - inset), rear - 0.25 - inset * 0.4), (-(wr - inset), front + 0.45 + inset * 0.4)]
         pen.poly(case_dark, inner, outline=case_main)
 
-        cy0 = rear - inset - 0.55                       # ящики боекомплекта у задней стенки
+        cy0 = rear - inset - 0.55                        # ящики боекомплекта у задней стенки
         for cx in (-0.62, 0.02):
             pen.rect(crate, cx, cy0, 0.58, 0.45, r=0.04)
 
-        if look.speed > 0:                              # антенна
+        if look.speed > 0:                               # антенна
             pen.line(OUTLINE, -wr + 0.12, rear - 0.9, -wr + 0.05, rear - 0.2, 0.04)
             pen.ellipse(case_dark, -wr + 0.12, rear - 0.9, 0.08, 0.08)
-
-        self._draw_exhaust(pen, look.speed, layout)
-        return self._finish(pygame.transform.smoothscale(big, (size, size)))
 
     # ==========================================
     # ЩИТ ОРУДИЯ

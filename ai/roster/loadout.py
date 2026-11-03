@@ -1,6 +1,4 @@
-"""ai/roster/loadout.py — подбор значений ползунков архетипа под бюджет.
-Для ботов верхние границы ползунков и ограничение калибра по классу корпуса не действуют:
-единственный предел — бюджет (плюс технический потолок T_LIMIT от абсурда)."""
+"""ai/roster/loadout.py — подбор значений ползунков архетипа под бюджет."""
 from vehicles import (
     VEHICLE_TYPES, GUN_TUNE_PARAMS, FRONT_SCREEN, damage_range,
     pen_range, remap, nominal_damage, nominal_pen, raw_cost,

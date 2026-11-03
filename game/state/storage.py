@@ -1,3 +1,4 @@
+"""game/state/storage.py — чтение и запись файлов игры в Documents/2D Wargame: json, подпапки, список, удаление."""
 import functools
 import json
 import os
@@ -8,9 +9,7 @@ MAPS_SUBDIR = "maps"
 
 @functools.lru_cache(maxsize=None)
 def documents_dir():
-    """Папка «Документы» пользователя. На Windows спрашиваем у системы: она может быть перенесена
-    (например, в OneDrive), и тогда простой путь ~/Documents окажется неверным.
-    Результат кэшируется: ответ системы за время работы не меняется."""
+    """Папка «Документы» пользователя."""
     if sys.platform == "win32":
         try:
             import ctypes
@@ -47,13 +46,10 @@ def read_json(name, subdir=None):
         return None
 
 def write_json(name, data, subdir=None, indent=2):
-    """Записывает json. Сначала пишем во временный файл, потом подменяем:
-    если игра вылетит посреди записи, старый файл останется целым. indent=None: компактно
-    (для карт). Возвращает True при успехе."""
+    """Записывает json."""
     tmp = None
     try:
         path = os.path.join(_folder(subdir), name)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
         tmp = path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             if indent is None:

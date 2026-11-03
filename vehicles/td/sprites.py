@@ -36,42 +36,27 @@ class TDRenderer(GunVehicleRenderer):
         return spec.layout.axis_fwd_m
 
     def _build_hull(self, paint, look, spec):
+        """Шаблон корпуса безбашенной техники (ПТ-САУ и САУ). Наследник меняет только хуки:
+        _draw_hull_back, _draw_fender_details и _draw_superstructure."""
         ppm = self._ppm
         layout = spec.layout
         size = 2 * math.ceil(self.HULL_HALF_M * ppm)
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
-        mount = layout.axis_fwd_m
-        axis = -mount                                  # ось орудия в координатах корпуса (перед = -y)
-        support = spec.SUPPORT
-        g = spec.CASE_K
-        pen = _Pen(big, ppm * SS, 0.0, mount)          # центр спрайта = ось орудия
+        pen = _Pen(big, ppm * SS, 0.0, layout.axis_fwd_m)       # центр спрайта = ось орудия
+        self._draw_hull_back(pen, paint, look, spec)
+        self._draw_hull_base(pen, paint, look, spec)
+        self._draw_superstructure(pen, paint, look, spec)
+        self._draw_exhaust(pen, look.speed, layout)
+        return self._finish(pygame.transform.smoothscale(big, (size, size)))
 
-        hull_main = _paint(HULL_MAIN, paint)
-        hull_light = _paint(HULL_LIGHT, paint)
-        hull_dark = _paint(HULL_DARK, paint)
-        deck = _paint(DECK, paint)
-        case_main = _paint(TURRET_MAIN, paint)
-        case_light = _paint(TURRET_LIGHT, paint)
-        case_dark = _paint(TURRET_DARK, paint)
-        sup_main = _paint(SUPPORT_MAIN, paint)
-        sup_dark = _paint(SUPPORT_DARK, paint)
+    # ---------- хуки ----------
+
+    def _draw_hull_back(self, pen, paint, look, spec):
+        """Хук: то, что лежит позади корпуса и перекрывается им (сошник САУ). По умолчанию ничего."""
+
+    def _draw_fender_details(self, pen, paint, layout):
+        """ПТ-САУ: ящики ЗИП на левом крыле и буксирный трос на правом."""
         tool = _paint(TOOLBOX, paint)
-
-        # --- границы рубки: выводятся из раскладки (для TD_LAYOUT это -2.55 и 2.8, как раньше) ---
-        front_limit = min(y for _, y in layout.front_plate) + HULL_FRONT_MARGIN
-        rear_limit = max(y for _, y in layout.outline) - HULL_REAR_MARGIN
-        front = max(axis - TD_CASEMATE_AHEAD_M, front_limit)
-        rear = min(axis + CASEMATE_REACH[support] * g, rear_limit)
-        rear = max(rear, front + 1.3)
-        wf = 0.65 + 0.30 * g
-        wr = 0.80 + 0.35 * g + (0.10 if support >= 2 else 0.0)
-
-        # Корпус и подкрылки
-        pen.poly(hull_main, layout.outline)
-        for fx, fy, fw, fh in layout.fender_rects:
-            pen.rect(hull_dark, fx, fy, fw, fh)
-
-        # Детали на крыльях: ящики ЗИП слева, буксирный трос справа (от положения подкрылков)
         (rfx, _, rfw, _), (lfx, _, lfw, _) = layout.fender_rects
         pen.rect(tool, lfx, 0.45, lfw, 0.95, r=0.04)
         pen.rect(tool, lfx, -1.75, lfw, 0.55, r=0.04)
@@ -80,9 +65,22 @@ class TDRenderer(GunVehicleRenderer):
         for cy in (-1.3, 0.2, 1.7):
             pen.rect(GRILL, rfx + 0.05, cy, 0.12, 0.14, outline=None)
 
+    # ---------- общая часть ----------
+
+    def _draw_hull_base(self, pen, paint, look, spec):
+        """Корпус, подкрылки, бортовые экраны, лоб, палуба, швы, накладная броня и лобовые экраны."""
+        layout = spec.layout
+        hull_main = _paint(HULL_MAIN, paint)
+        hull_light = _paint(HULL_LIGHT, paint)
+        hull_dark = _paint(HULL_DARK, paint)
+        deck = _paint(DECK, paint)
+
+        pen.poly(hull_main, layout.outline)
+        for fx, fy, fw, fh in layout.fender_rects:
+            pen.rect(hull_dark, fx, fy, fw, fh)
+        self._draw_fender_details(pen, paint, layout)
         self._draw_skirts(pen, look.side + layout.base_skirt, paint, layout)
 
-        # Лобовая плита, палуба, накладная броня и экраны
         if layout.nose == NOSE_PIKE:
             pen.rect(deck, *layout.deck_rect)
             self._draw_pike_plate(pen, layout, paint)
@@ -92,6 +90,31 @@ class TDRenderer(GunVehicleRenderer):
         self._draw_seams(pen, layout, hull_dark)
         self._draw_front_kit(pen, look.front, paint, layout)
         self._draw_front_screen(pen, look.screen, paint, layout)
+
+    # ---------- рубка ----------
+
+    def _draw_superstructure(self, pen, paint, look, spec):
+        """ПТ-САУ: моторная часть, крышка, опора, рубка, амбразура и детали крыши."""
+        layout = spec.layout
+        axis = -layout.axis_fwd_m                      # ось орудия в координатах корпуса (перёд = -y)
+        support = spec.SUPPORT
+        g = spec.CASE_K
+
+        hull_dark = _paint(HULL_DARK, paint)
+        case_main = _paint(TURRET_MAIN, paint)
+        case_light = _paint(TURRET_LIGHT, paint)
+        case_dark = _paint(TURRET_DARK, paint)
+        sup_main = _paint(SUPPORT_MAIN, paint)
+        sup_dark = _paint(SUPPORT_DARK, paint)
+
+        # --- границы рубки: выводятся из раскладки (для TD_LAYOUT это -2.55 и 2.8, как раньше) ---
+        front_limit = min(y for _, y in layout.front_plate) + HULL_FRONT_MARGIN
+        rear_limit = max(y for _, y in layout.outline) - HULL_REAR_MARGIN
+        front = max(axis - TD_CASEMATE_AHEAD_M, front_limit)
+        rear = min(axis + CASEMATE_REACH[support] * g, rear_limit)
+        rear = max(rear, front + 1.3)
+        wf = 0.65 + 0.30 * g
+        wr = 0.80 + 0.35 * g + (0.10 if support >= 2 else 0.0)
 
         # Моторная часть позади рубки (только когда орудие на лбу)
         if support == 0 and rear < 2.0:
@@ -164,9 +187,6 @@ class TDRenderer(GunVehicleRenderer):
             ay = axis + 0.95
             pen.line(OUTLINE_ANT, -0.80, ay, -0.95, min(ay + 0.6, rear - 0.1), 0.04)
             pen.ellipse(case_dark, -0.80, ay, 0.09, 0.09)
-
-        self._draw_exhaust(pen, look.speed, layout)
-        return self._finish(pygame.transform.smoothscale(big, (size, size)))
 
     # ==========================================
     # ЛАФЕТ ОРУДИЯ

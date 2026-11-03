@@ -1,8 +1,9 @@
 """vehicles/td/entity.py — ПТ-САУ: орудие в лафете с ограниченным сектором наводки."""
 from vehicles.gun.vehicle import GunVehicle
+from engine import VehicleKind
 
 class TankDestroyer(GunVehicle):
-    renderer_key = "td"
+    kind = VehicleKind.TD
     PLAYER_TITLE = "Ваша ПТ-САУ"
 
     def __init__(self, x=0.0, y=0.0, *, label="ПТ-САУ", **kwargs):

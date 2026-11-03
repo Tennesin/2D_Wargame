@@ -19,15 +19,16 @@ from vehicles.chassis.tracks import TracksMixin
 class Vehicle(MotionMixin, TracksMixin, HitModelMixin, Damageable):
     # Порядок баз важен: HitModelMixin раньше Damageable, иначе hit_result станет заглушкой.
     target_type = TargetType.VEHICLE
-    renderer_key = None                         # ключ в реестре рендереров (Renderer.vehicle_renderers)
+    kind = None
     PLAYER_TITLE = "Ваша техника"               # заголовок сводки у техники игрока; потомки переопределяют
 
     def __init__(self, x=0.0, y=0.0, *, spec, team_color=(200, 40, 40),
-                 team=Team.PLAYER, label="техника", emblem=""):
+                 team=Team.PLAYER, label="техника", emblem="", arch_key=None):
         self.spec = spec
         self.team_color = team_color
         self.team = team
-        self.label = label              # название архетипа для сводки (у игрока не используется)
+        self.label = label              # название архетипа для сводки
+        self.arch_key = arch_key        # ключ архетипа
         self.emblem = emblem
         self.x = float(x)
         self.y = float(y)

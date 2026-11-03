@@ -32,7 +32,7 @@ class Renderer:
         self.wall_renderer.draw_all(screen, camera, self.walls)
         for vehicle in self.fleet.vehicles:
             if vehicle.alive and self._on_screen(screen, camera, vehicle):
-                self.vehicle_renderers[vehicle.renderer_key].draw(screen, camera, vehicle)
+                self.vehicle_renderers[vehicle.kind].draw(screen, camera, vehicle)
         if build_preview is not None:
             self.wall_renderer.draw_preview(screen, camera, *build_preview)
         if aim is not None:

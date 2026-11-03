@@ -48,21 +48,9 @@ NEWGAME_FILE_INFO = ("Размер задан в файле карты: {w}×{l}
                      "Игрок появляется в центре карты.")
 
 # Подсказки над HUD
-HINT_IDLE = "{combat} — боевой режим, {camera} — камера, {debug} — отладка"
-HINT_COMBAT = "БОЕВОЙ РЕЖИМ: ЛКМ — огонь"
-HINT_AMMO = "{a}/{b}/{c} — тип снаряда"
-HINT_FREE_CAM = "Свободная камера ({key}): ПКМ — двигать"
-HINT_VISCOUS = "Вязкая местность: скорость ×{k:.2f}"
-HINT_STUNNED = "Оглушение: {t:.1f} с"
-HINT_TURRET_LOCKED = "Башня зафиксирована ({key})"
-KILLS = "Уничтожено: {n}"
 DEATH_TITLE = "Машина уничтожена"
 DEATH_HINT = "{key} — итоги боя"
-
-# Гусеницы
 TRACK_RU = {"left": "левая", "right": "правая"}
-HINT_TRACK_BROKEN = "Гусеница сбита ({sides}): {key} — ремонт"
-HINT_TRACK_REPAIR = "Ремонт: {side} гусеница, {t:.1f} с"
 
 # Раунды
 ROUND_TITLE = "Раунд {n}"

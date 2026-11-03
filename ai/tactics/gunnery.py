@@ -151,7 +151,7 @@ def best_hull_heading(me, enemy, to_enemy_deg):
     """Курс корпуса, при котором враг наносит мне меньше урона."""
     pen = enemy.spec.penetration
     norm = ap_normalization(enemy.spec)
-    cache = me.spec.__dict__.setdefault("_hull_offset_cache", {})
+    cache = me.spec.hull_offset_cache
     key = (round(pen), round(norm, 1), round(me.mods.armor_k, 3))
     off = cache.get(key)
     if off is None:

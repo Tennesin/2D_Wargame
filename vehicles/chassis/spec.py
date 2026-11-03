@@ -66,6 +66,7 @@ class ChassisSpec:
             raise ValueError("ChassisBody без раскладки корпуса: задайте layout (vehicles/chassis/hulls.py)")
         self.screen_mm = screen_mm
         self.power_boost = 1.0
+        self.hull_offset_cache = {}
         self.body = body
         self.gear = body.gear
         self.layout = body.layout

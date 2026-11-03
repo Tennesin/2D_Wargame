@@ -10,7 +10,8 @@ from vehicles.gun.params import (
 from vehicles.gun.spec import turret_masses, REF_CAL, REF_POWER
 from vehicles.gun.tuning import tuning_k_bounds
 from .tank.params import (
-    PARAMS, FIXED_MASS_T, COST_REF, COST_MIN, COST_MAX, COST_STEP, COST_ARMOR_ZONES, COST_PARTS,
+    PARAMS, FIXED_MASS_T, COST_REF, COST_MIN, COST_MAX, COST_CAP,
+    COST_STEP, COST_ARMOR_ZONES, COST_PARTS,
 )
 
 _CAL = PARAMS["gun_caliber_mm"]
@@ -53,7 +54,7 @@ def raw_cost(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0, prof_d=1.0, pr
 
 def round_cost(raw):
     """Округление цены до шага и в допустимых границах."""
-    return clamp(round_to(raw, COST_STEP), COST_MIN, COST_MAX)
+    return clamp(round_to(raw, COST_STEP), COST_MIN, COST_CAP)
 
 def cost_for(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0, prof_d=1.0, prof_p=1.0):
     """Цена машины по входным параметрам без полного расчёта спецификации."""

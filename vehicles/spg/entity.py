@@ -3,12 +3,12 @@
 import math
 
 from engine import (WORLD, Shot, AmmoKind, PX_PER_M, bearing_deg, clamp,
-                    shortest_angle_diff)
+                    shortest_angle_diff, VehicleKind)
 from vehicles.gun.vehicle import GunVehicle
 from .params import SPG_AIM_TOLERANCE_DEG
 
 class ArtilleryVehicle(GunVehicle):
-    renderer_key = "spg"
+    kind = VehicleKind.SPG
     PLAYER_TITLE = "Ваша САУ"
     AIM_TOLERANCE_DEG = SPG_AIM_TOLERANCE_DEG
 

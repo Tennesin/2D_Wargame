@@ -1,21 +1,19 @@
 """game/scenes/constructor.py — конструктор: настройка техники (ОБТ или ПТ-САУ) без езды, стрельбы и стен."""
 import os
 import traceback
-
 import pygame
 
-from engine import PX_PER_M, VehicleCommand, VehicleKind, clamp
+from engine import PX_PER_M, VehicleCommand, clamp
 from inputs import InputHandler, Action
 from ui import SidePanel, Button, ACTIVE_BUTTON_COLORS
 from ui.theme import PANEL_WIDTH
 from vehicles import (
     GUN_TUNE_PARAMS, damage_range, pen_range, remap, VEHICLE_TYPES, RENDERERS,
-    make_vehicle, caliber_range_for, NOSE_FLAT, NOSE_MIN_FRONT_MM, NOSE_RU,
-    estimate_mass, sloped_nose_for_mass, SPECIAL_HEAT, HESH_MIN_CAL_MM
+    make_vehicle, NOSE_FLAT, NOSE_MIN_FRONT_MM, NOSE_RU, SPECIAL_HEAT, HESH_MIN_CAL_MM
 )
 from world import Camera
 from ..content import texts
-from ..content.panels import PanelMode, PANEL_OF, build_tank_panel, build_td_panel
+from ..content.panels import build_vehicle_panels
 from .base import Scene
 try:
     from tools.tank_snapshot import save_snapshot
@@ -45,19 +43,18 @@ class ConstructorScene(Scene):
         self.camera.zoom_by(PREVIEW_ZOOM_STEPS)
         self.camera.center_on(PANEL_WIDTH / 2 / self.camera.zoom, 0.0)
 
-        # --- интерфейс: панель каждого типа техники ---
+        # --- интерфейс: по панели на каждый играбельный тип техники ---
         kind = session.kind
-        self.ui = SidePanel(size, {PanelMode.TANK: build_tank_panel(), PanelMode.TD: build_td_panel()},
-                            PANEL_OF[kind], start_open=True)
-        for mode in (PanelMode.TANK, PanelMode.TD):
-            self.ui.set_on_change(mode, self._on_change)
+        panels = build_vehicle_panels()
+        self.ui = SidePanel(size, panels, kind, start_open=True)
+        for k in panels:
+            self.ui.set_on_change(k, self._on_change)
         self.input = InputHandler([self.ui])
 
         # --- кнопки ---
         self.back_button = Button((10, 10, 150, 36), texts.BACK)
-        self.mbt_button = Button((KIND_MARGIN, 0, KIND_BTN_W, KIND_BTN_H), VEHICLE_TYPES[VehicleKind.MBT].label)
-        self.td_button = Button((KIND_MARGIN + KIND_BTN_W + KIND_GAP, 0, KIND_BTN_W, KIND_BTN_H),
-                                VEHICLE_TYPES[VehicleKind.TD].label)
+        self.kind_buttons = [(k, Button((0, 0, KIND_BTN_W, KIND_BTN_H), VEHICLE_TYPES[k].label))
+                             for k in panels]
         self._toast = None  # всплывающее сообщение: [текст, цвет, секунд осталось]
 
         # --- выбранная техника: границы ползунков, значения, превью, характеристики ---
@@ -65,14 +62,16 @@ class ConstructorScene(Scene):
 
     # ---------- тип техники ----------
     def _make_renderer(self, kind):
-        renderer = RENDERERS[VEHICLE_TYPES[kind].renderer_key]()
+        renderer = RENDERERS[kind]()
         renderer.set_zoom(PX_PER_M * self.camera.zoom)
         return renderer
 
     def _place_kind_buttons(self, size):
         y = size[1] - KIND_MARGIN - KIND_BTN_H
-        self.mbt_button.rect.y = y
-        self.td_button.rect.y = y
+        x = KIND_MARGIN
+        for _, btn in self.kind_buttons:
+            btn.rect.topleft = (x, y)
+            x += KIND_BTN_W + KIND_GAP
 
     def _set_kind(self, kind):
         """Переключение ОБТ / ПТ-САУ кнопками."""
@@ -81,12 +80,11 @@ class ConstructorScene(Scene):
         self._load_kind(kind)
 
     def _load_kind(self, kind):
-        """Единая загрузка типа техники: и при открытии сцены, и при переключении.
-        Порядок важен: сначала границы ползунков, потом значения (иначе set_value
-        обрежет их по старому диапазону)."""
+        """Единая загрузка типа техники."""
         self.session.kind = kind
-        self._mode = PANEL_OF[kind]
-        self._profile = VEHICLE_TYPES[kind].gun_profile
+        self._vtype = VEHICLE_TYPES[kind]
+        self._mode = kind                      # режим панели = вид техники
+        self._profile = self._vtype.gun_profile
 
         values = self.session.values[kind]
         self._cal = self._want_cal = values["gun_caliber_mm"]
@@ -123,21 +121,18 @@ class ConstructorScene(Scene):
                         remap(values["gun_penetration"], p_rng, (0.0, 1.0)))
 
     def _apply_nose_rules(self, values):
-        """Правило носа."""
+        """Скошенный нос доступен при лобовой броне больше порога."""
+        hook = self._vtype.sloped_nose
+        if hook is None:
+            return values
         values = dict(values)
+        sloped = hook(values)
+        self.ui.set_choice_options(self._mode, "front_nose",
+                                   [(NOSE_FLAT, NOSE_RU[NOSE_FLAT].capitalize()),
+                                    (sloped, NOSE_RU[sloped].capitalize())])
+        if values["front_nose"] != NOSE_FLAT:
+            values["front_nose"] = sloped
         allowed = values["front_armor_mm"] > NOSE_MIN_FRONT_MM
-
-        if self.session.kind is VehicleKind.MBT:
-            mass = estimate_mass(values["gun_caliber_mm"], values["front_armor_mm"],
-                                 values["side_armor_mm"], values["rear_armor_mm"],
-                                 values["engine_power_hp"], values.get("front_screen_mm", 0.0))
-            sloped = sloped_nose_for_mass(mass)
-            self.ui.set_choice_options(self._mode, "front_nose",
-                                       [(NOSE_FLAT, NOSE_RU[NOSE_FLAT].capitalize()),
-                                        (sloped, NOSE_RU[sloped].capitalize())])
-            if values["front_nose"] != NOSE_FLAT:
-                values["front_nose"] = sloped            # масса перешагнула 90 т: щучий <-> клин
-
         if not allowed:
             values["front_nose"] = NOSE_FLAT
         self.ui.set_enabled(self._mode, "front_nose", allowed)
@@ -155,16 +150,14 @@ class ConstructorScene(Scene):
         return values
 
     def _apply_class_rules(self, values):
-        """Калибр зависит от тяжести корпуса (броня и мощность). Для ПТ-САУ правило не действует.
-        _want_cal: калибр, который игрок выбрал сам; границы могут его временно срезать,
-        а при возврате диапазона он восстанавливается."""
-        if self.session.kind is not VehicleKind.MBT:
+        """Допустимый калибр задаёт хук типа техники."""
+        hook = self._vtype.caliber_limits
+        if hook is None:
             return values
         values = dict(values)
         if values["gun_caliber_mm"] != self._cal:          # калибр двинул сам игрок
             self._want_cal = values["gun_caliber_mm"]
-        lo, hi = caliber_range_for(values["front_armor_mm"], values["side_armor_mm"],
-                                   values["rear_armor_mm"], values["engine_power_hp"])
+        lo, hi = hook(values)
         values["gun_caliber_mm"] = clamp(self._want_cal, lo, hi)
         self.ui.set_range(self._mode, "gun_caliber_mm", lo, hi)
         self.ui.set_values(self._mode, {"gun_caliber_mm": values["gun_caliber_mm"]})
@@ -227,10 +220,10 @@ class ConstructorScene(Scene):
                 if self.back_button.collidepoint(pos):
                     self.on_back()
                     return
-                if self.mbt_button.collidepoint(pos):
-                    self._set_kind(VehicleKind.MBT)
-                elif self.td_button.collidepoint(pos):
-                    self._set_kind(VehicleKind.TD)
+                for kind, btn in self.kind_buttons:
+                    if btn.collidepoint(pos):
+                        self._set_kind(kind)
+                        break
         if self.input.was_pressed(Action.CANCEL):
             self.on_back()
             return
@@ -255,5 +248,5 @@ class ConstructorScene(Scene):
         self.ui.draw(screen, mouse)
         self.back_button.draw(screen, mouse)
         is_mbt = self.session.kind is VehicleKind.MBT
-        self.mbt_button.draw(screen, mouse, colors=ACTIVE_BUTTON_COLORS if is_mbt else None)
-        self.td_button.draw(screen, mouse, colors=None if is_mbt else ACTIVE_BUTTON_COLORS)
+        for kind, btn in self.kind_buttons:
+            btn.draw(screen, mouse, colors=ACTIVE_BUTTON_COLORS if kind is self.session.kind else None)

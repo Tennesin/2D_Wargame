@@ -25,7 +25,7 @@ def vehicle_icon(kind):
     camera = Camera(*VEHICLE_ICON_SIZE)
     camera.zoom_by(VEHICLE_ICON_ZOOM_LEVEL - camera.zoom_level)
     camera.center_on(0.0, VEHICLE_ICON_CENTER_Y)
-    renderer = RENDERERS[vtype.renderer_key]()
+    renderer = RENDERERS[kind]()
     renderer.set_zoom(PX_PER_M * camera.zoom)
 
     surf = pygame.Surface(VEHICLE_ICON_SIZE)

@@ -6,7 +6,7 @@ import pygame
 from engine import Team, WORLD
 from inputs import InputHandler, AMMO_HOTKEYS, key_label
 from ui import AmmoBar, UpgradeBar, TankPanel, SILHOUETTE_BOX
-from vehicles import make_vehicle, AMMO_TYPES, VEHICLE_TYPES, RENDERERS, build_silhouette
+from vehicles import make_vehicle, AMMO_TYPES, RENDERERS, build_silhouette
 from world import Camera, WorldGenerator
 
 from ..content import texts
@@ -51,7 +51,7 @@ class PlayScene(Scene):
                                 tank.select_ammo)
         self.upgrade_bar = UpgradeBar()
         self.tank_panel = TankPanel()
-        renderer = RENDERERS[VEHICLE_TYPES[session.kind].renderer_key]()    # одноразовый: кэши не пересекаются с игровыми
+        renderer = RENDERERS[session.kind]()
         self.tank_panel.set_silhouette(build_silhouette(renderer, tank, SILHOUETTE_BOX))
         self.input = InputHandler([self.upgrade_bar, self.tank_panel, self.ammo_bar])
         self.notifier = Notifier(tank)

@@ -60,7 +60,7 @@ class WorldBoundsRenderer:
         for band in bands:
             if band.w <= 0 or band.h <= 0:
                 continue
-            area = band.clip(view)
+            area = band.clip(view).clip(outer)
             if area.w <= 0 or area.h <= 0:
                 continue
             layer = self._alpha.begin(area.size)

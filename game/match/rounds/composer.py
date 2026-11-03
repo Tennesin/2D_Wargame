@@ -33,7 +33,7 @@ class GroupComposer:
             values = fit_loadout(arch, budget, self.rng)
             spec = VEHICLE_TYPES[arch.kind].spec_cls.from_values(values, unbounded=True)
             tank = make_vehicle(arch.kind, spec, team_color=arch.color, team=Team.BOTS,
-                                label=arch.name, emblem=arch.emblem)
+                                label=arch.name, emblem=arch.emblem, arch_key=key)
             result.append((arch, tank))
             info.append(f"{arch.name} {loadout_cost(values, VEHICLE_TYPES[arch.kind]) / budget * 100:.0f}%")
         self.fit_info = ", ".join(info)

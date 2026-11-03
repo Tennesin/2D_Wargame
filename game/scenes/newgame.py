@@ -117,7 +117,7 @@ class NewGameScene(Scene):
         camera = Camera(*ICON_SIZE)
         camera.zoom_by(ICON_ZOOM_LEVEL - camera.zoom_level)
         camera.center_on(0.0, ICON_CENTER_Y)
-        renderer = RENDERERS[VEHICLE_TYPES[kind].renderer_key]()
+        renderer = RENDERERS[kind]()
         renderer.set_zoom(PX_PER_M * camera.zoom)
         surf = pygame.Surface(ICON_SIZE)
         surf.fill(ICON_BG)

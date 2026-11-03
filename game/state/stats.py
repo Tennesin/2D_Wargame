@@ -1,6 +1,4 @@
-"""game/state/stats.py — игровая статистика: показатели одной партии, накопленная «Статистика» и «Рекорды».
-Файл: Documents/2D Wargame/stats.json."""
-from ai import ARCHETYPES
+"""game/state/stats.py — игровая статистика."""
 from engine import Team, TargetType
 from . import storage
 
@@ -14,11 +12,9 @@ NUMBERS = ("rounds", "damage_shots", "damage_ram", "shots_fired", "hits", "taken
 TABLES = ("kills", "ammo", "taken_from", "upgrades")
 RECORDS = ("rounds", "damage", "kills", "best_hit", "time")
 
-_KEY_BY_NAME = {arch.name: key for key, arch in ARCHETYPES.items()}
-
 def archetype_key(tank):
-    """Ключ архетипа по танку (композитор кладёт имя архетипа в tank.label). У игрока None."""
-    return _KEY_BY_NAME.get(getattr(tank, "label", None))
+    """Ключ архетипа техники."""
+    return getattr(tank, "arch_key", None)
 
 def _inc(table, key, amount=1):
     table[key] = table.get(key, 0) + amount

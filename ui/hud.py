@@ -25,7 +25,7 @@ class TankHud:
         self._bg = None
 
     def draw(self, screen, tank):
-        """Рисует сводку и возвращает y её верхнего края (чтобы над ней можно было поставить подсказки)."""
+        """Рисует сводку по танку."""
         rect = pygame.Rect(MARGIN, screen.get_height() - MARGIN - HEIGHT, WIDTH, HEIGHT)
         if self._bg is None:
             self._bg = pygame.Surface(rect.size, pygame.SRCALPHA)
@@ -61,8 +61,6 @@ class TankHud:
         if tank.speed_kmh < -0.5:
             speed += " (назад)"
         self._row(screen, x0, x1, y, "Скорость", speed)
-
-        return rect.top
 
     @staticmethod
     def _row(screen, x0, x1, y, name, value):
