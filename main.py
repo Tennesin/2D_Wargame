@@ -9,4 +9,5 @@ if __name__ == "__main__":
     pygame.quit()
     sys.exit()
 
-# pyinstaller --onedir --noconsole --name "2D Wargame" main.py
+# build_env/scripts/activate
+# pyinstaller --onedir --noconsole --name "game" main.py

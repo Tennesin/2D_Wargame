@@ -14,7 +14,8 @@ from .params import (
 CRACK_COUNT_MIN, CRACK_COUNT_MAX = 8, 40
 
 class Wall(Damageable):
-    """Осевой прямоугольник на земле. x, y — центр (мировые px). Ширина по X, длина по Y."""
+    """Прямоугольник на земле, повёрнутый на angle. x, y — центр (мировые px).
+    При angle = 0 ширина идёт по X, длина по Y."""
 
     target_type = TargetType.WALL
 

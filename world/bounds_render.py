@@ -51,10 +51,21 @@ class WorldBoundsRenderer:
 
         if not outer.colliderect(view):
             return
-        layer = self._alpha.begin(view.size)
-        layer.fill((*DARK, OUTSIDE_ALPHA))                   # всё затемняем...
-        layer.fill((0, 0, 0, 0), world)                      # ...кроме мира (fill на SRCALPHA заменяет пиксели)
-        screen.blit(layer, (0, 0))
+        bands = (
+            pygame.Rect(view.left, view.top, view.w, world.top - view.top),
+            pygame.Rect(view.left, world.bottom, view.w, view.bottom - world.bottom),
+            pygame.Rect(view.left, world.top, world.left - view.left, world.h),
+            pygame.Rect(world.right, world.top, view.right - world.right, world.h),
+        )
+        for band in bands:
+            if band.w <= 0 or band.h <= 0:
+                continue
+            area = band.clip(view)
+            if area.w <= 0 or area.h <= 0:
+                continue
+            layer = self._alpha.begin(area.size)
+            layer.fill((*DARK, OUTSIDE_ALPHA))
+            screen.blit(layer, area.topleft)
 
     # ---------- стены и башни ----------
     def _draw_walls(self, screen, view, world, z):

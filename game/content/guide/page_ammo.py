@@ -1,4 +1,6 @@
 """game/content/guide/page_ammo.py — страница инструкции «Снаряды»."""
+import math
+
 from combat import RICOCHET_ANGLE, SPLASH_EDGE_K, FRAG_ARMOR_FULL_K, FRAG_ARMOR_ZERO_K
 from combat.projectile import RICOCHET_LOSS, RICOCHET_RANGE_K, RICOCHET_MAX
 from engine import AmmoKind, PX_PER_M
@@ -49,7 +51,6 @@ def _texts():
     }
 
 def _details():
-    import math
     cos_k = 1.0 / math.cos(math.radians(RICOCHET_ANGLE))
     return {
         AmmoKind.AP: [

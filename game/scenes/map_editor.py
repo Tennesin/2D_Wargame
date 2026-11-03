@@ -227,6 +227,8 @@ class MapEditorScene(Scene):
         self.input.process_events()
         if self.input.quit_requested:
             self.input.quit_requested = False
+            if self.dialog.active:
+                self.dialog.close()
             self._request_exit(self.on_quit)
             return
 

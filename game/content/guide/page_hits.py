@@ -10,9 +10,8 @@ from ui import SectionHeader, InfoText, AccordionRow, make_swatch_icon
 from vehicles import nose_front_factor, wedge_front_factor
 from vehicles.gun.params import AP_NORMALIZATION_DEG, HEAT_MODULE_LOSS_K
 from vehicles.chassis.params import (
-    TRACK_REPAIR_S, ONE_TRACK_SPEED_K, TRACK_EDGE_ZONE_M, TRACK_REPAIR_S,
-    ONE_TRACK_SPEED_K, TRACK_EDGE_ZONE_M, TRACK_HP_K, TRACK_REGEN_K, TRACK_REGEN_DELAY_S,
-    TRACK_MM_RANGE
+    TRACK_REPAIR_S, ONE_TRACK_SPEED_K, TRACK_EDGE_ZONE_M, TRACK_HP_K,
+    TRACK_REGEN_K, TRACK_REGEN_DELAY_S, TRACK_MM_RANGE
 )
 from .. import texts
 from .common import k as _k

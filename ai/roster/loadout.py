@@ -3,7 +3,8 @@
 единственный предел — бюджет (плюс технический потолок T_LIMIT от абсурда)."""
 from vehicles import (
     VEHICLE_TYPES, GUN_TUNE_PARAMS, FRONT_SCREEN, damage_range,
-    pen_range, remap, nominal_damage, nominal_pen, raw_cost
+    pen_range, remap, nominal_damage, nominal_pen, raw_cost,
+    MBT_GUN
 )
 
 DMG_STEP = GUN_TUNE_PARAMS["gun_damage"].step

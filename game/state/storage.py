@@ -1,4 +1,4 @@
-"""game/state/storage.py — папка игры в Documents и чтение/запись json-файлов (в том числе в подпапках)."""
+import functools
 import json
 import os
 import sys
@@ -6,9 +6,11 @@ import sys
 APP_DIR_NAME = "2D Wargame"
 MAPS_SUBDIR = "maps"
 
+@functools.lru_cache(maxsize=None)
 def documents_dir():
     """Папка «Документы» пользователя. На Windows спрашиваем у системы: она может быть перенесена
-    (например, в OneDrive), и тогда простой путь ~/Documents окажется неверным."""
+    (например, в OneDrive), и тогда простой путь ~/Documents окажется неверным.
+    Результат кэшируется: ответ системы за время работы не меняется."""
     if sys.platform == "win32":
         try:
             import ctypes
@@ -20,17 +22,21 @@ def documents_dir():
             pass
     return os.path.join(os.path.expanduser("~"), "Documents")
 
-def app_dir():
-    """Папка игры Documents/2D Wargame; создаётся, если её ещё нет."""
-    path = os.path.join(documents_dir(), APP_DIR_NAME)
-    os.makedirs(path, exist_ok=True)
-    return path
+_ready = set()      # пути, которые уже созданы в этом запуске
 
 def _folder(subdir=None):
-    """Папка игры или её подпапка (создаётся при необходимости)."""
-    path = app_dir() if not subdir else os.path.join(app_dir(), subdir)
-    os.makedirs(path, exist_ok=True)
+    """Папка игры или её подпапка. makedirs вызывается один раз на путь, а не на каждое обращение."""
+    path = os.path.join(documents_dir(), APP_DIR_NAME)
+    if subdir:
+        path = os.path.join(path, subdir)
+    if path not in _ready:
+        os.makedirs(path, exist_ok=True)
+        _ready.add(path)
     return path
+
+def app_dir():
+    """Папка игры Documents/2D Wargame; создаётся, если её ещё нет."""
+    return _folder()
 
 def read_json(name, subdir=None):
     """Содержимое json-файла или None (нет файла, битый файл, нет доступа)."""
@@ -47,6 +53,7 @@ def write_json(name, data, subdir=None, indent=2):
     tmp = None
     try:
         path = os.path.join(_folder(subdir), name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
         tmp = path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             if indent is None:

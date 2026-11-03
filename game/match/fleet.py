@@ -8,11 +8,19 @@ class Fleet:
         self.bots = []                      # список ai.Bot
         self.on_destroyed = None            # колбэк(танк): бот уничтожен (для статистики)
         self.on_removed = None
+        self._veh_src = None                # список ботов, для которого собран кэш (ссылка, не id)
+        self._veh_len = -1
+        self._veh_cache = ()
 
     @property
     def vehicles(self):
         """Сначала боты, потом игрок (игрок рисуется сверху)."""
-        return [b.tank for b in self.bots] + [self.player]
+        bots = self.bots
+        if bots is not self._veh_src or len(bots) != self._veh_len:
+            self._veh_src = bots
+            self._veh_len = len(bots)
+            self._veh_cache = tuple(b.tank for b in bots) + (self.player,)
+        return self._veh_cache
 
     def remove_dead(self):
         """Убирает уничтоженных ботов, учитывает их в kills и возвращает сколько убрано.

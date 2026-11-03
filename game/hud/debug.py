@@ -10,6 +10,7 @@ class DebugOverlay:
     """Строки отладки (Tab)."""
     TOP = 12
     LINE_H = 20
+    REFRESH_MS = 200
 
     def __init__(self, *, clock, ctx, camera_ctrl, tank, world, seed, input_handler, modes, spawner,
                  loot=None, show_fps=False):
@@ -30,6 +31,9 @@ class DebugOverlay:
         self.show_fps = show_fps
         self._font = pygame.font.Font(None, 22)
         self._k = {a: key_label(a) for a in Action}
+        self._rendered = []         # [(тень, текст), ...] готовые поверхности
+        self._next_refresh = 0      # момент (мс), когда пора пересобрать строки
+        self._mode = None           # "full" / "fps" / None: что показывалось в прошлый раз
 
     def handle_hotkeys(self):
         if self.input.was_pressed(Action.TOGGLE_DEBUG):
@@ -78,15 +82,24 @@ class DebugOverlay:
 
     def draw(self, screen):
         if self.visible:
-            lines = self._lines()
+            mode = "full"
         elif self.show_fps:
-            lines = [f"FPS: {self.clock.get_fps():.0f}"]
+            mode = "fps"
         else:
+            self._mode = None
             return
+
+        now = pygame.time.get_ticks()
+        if mode != self._mode or now >= self._next_refresh:
+            lines = self._lines() if mode == "full" else [f"FPS: {self.clock.get_fps():.0f}"]
+            self._rendered = [(self._font.render(text, True, (0, 0, 0)),
+                               self._font.render(text, True, (255, 255, 255)))
+                              for text in lines]
+            self._mode = mode
+            self._next_refresh = now + self.REFRESH_MS
+
         y = self.TOP
-        for text in lines:
-            shadow = self._font.render(text, True, (0, 0, 0))
-            label = self._font.render(text, True, (255, 255, 255))
+        for shadow, label in self._rendered:
             screen.blit(shadow, (11, y + 1))
             screen.blit(label, (10, y))
             y += self.LINE_H

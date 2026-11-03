@@ -136,20 +136,27 @@ def preferred_distance_m(me, enemy, base_m, edge_k=1.0):
 # УГОЛ КОРПУСА
 # ==========================================
 
-def best_hull_heading(me, enemy, to_enemy_deg):
-    """Курс корпуса, при котором враг наносит мне меньше урона (с запасом на неточность его прицела).
-    Если поворот ничего не даёт, возвращает курс прямо на врага."""
-    pen = enemy.spec.penetration
-    norm = ap_normalization(enemy.spec)
-    best_h, best_key = to_enemy_deg, None
+def _best_hull_offset(me, pen, norm):
+    """Лучшее смещение курса корпуса (градусы) от направления на врага при данном пробитии и нормализации."""
+    best_off, best_key = 0.0, None
     for off in HULL_ANGLES:
-        h = to_enemy_deg + off
-        expo = max(_mean_frac(me, pen, to_enemy_deg + j, h, norm_deg=norm)
+        expo = max(_mean_frac(me, pen, j, off, norm_deg=norm)
                    for j in (-AIM_JITTER_DEG, 0.0, AIM_JITTER_DEG))
         key = (round(expo, 2), abs(off))
         if best_key is None or key < best_key:
-            best_key, best_h = key, h
-    return best_h % 360.0
+            best_key, best_off = key, off
+    return best_off
+
+def best_hull_heading(me, enemy, to_enemy_deg):
+    """Курс корпуса, при котором враг наносит мне меньше урона."""
+    pen = enemy.spec.penetration
+    norm = ap_normalization(enemy.spec)
+    cache = me.spec.__dict__.setdefault("_hull_offset_cache", {})
+    key = (round(pen), round(norm, 1), round(me.mods.armor_k, 3))
+    off = cache.get(key)
+    if off is None:
+        off = cache[key] = _best_hull_offset(me, pen, norm)
+    return (to_enemy_deg + off) % 360.0
 
 # ==========================================
 # ВЫБОР СНАРЯДА

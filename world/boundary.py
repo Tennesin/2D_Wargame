@@ -39,6 +39,6 @@ class WorldBoundary:
     def hit_result(self, penetration, cos_impact=1.0, normal=None):
         return resolve_hit(penetration, BOUNDARY_ARMOR_MM, cos_impact)
 
-    def take_hit(self, penetration, damage, cos_impact=1.0, normal=None, min_frac=0.0, caliber_mm=0.0):
+    def take_hit(self, penetration, damage, cos_impact=1.0, normal=None, frag_frac=0.0):
         """Граница неразрушаема."""
         return 0.0

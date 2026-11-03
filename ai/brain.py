@@ -86,6 +86,7 @@ class BotBrain:
         self._hold = 0.0                                          # сколько ещё держим намерение
         self._think_in = rng.uniform(0.0, 1.0 / skill.think_hz)   # сдвиг фаз между ботами
         self._heading, self._go = 0.0, 0.0                        # результат последнего «размышления»
+        self._first_frame = True                                  # первый кадр: курс ещё не выбран
         self._flank_t = 0.0                                       # сколько секунд подряд идёт обход
         self._flank_block_until = 0.0                             # до этого момента обход запрещён
         self._flank_side = rng.choice((-1, 1))
@@ -103,6 +104,10 @@ class BotBrain:
         """ctx — объект с полями targets, terrain, walls, fleet, budget, nav"""
         if not enemy.alive:
             return VehicleCommand()
+
+        if self._first_frame:
+            self._first_frame = False
+            self._heading = me.hull_angle
 
         self._clock += dt
         self._hold -= dt

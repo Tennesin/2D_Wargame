@@ -49,7 +49,7 @@ def _price(index):
 
 def raw_cost(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0, prof_d=1.0, prof_p=1.0):
     """Цена до округления."""
-    return _price(_cost_index(cal, front, side, rear, power, dmg_k, pen_k))
+    return _price(_cost_index(cal, front, side, rear, power, dmg_k, pen_k, prof_d, prof_p))
 
 def round_cost(raw):
     """Округление цены до шага и в допустимых границах."""
@@ -57,4 +57,4 @@ def round_cost(raw):
 
 def cost_for(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0, prof_d=1.0, prof_p=1.0):
     """Цена машины по входным параметрам без полного расчёта спецификации."""
-    return round_cost(raw_cost(cal, front, side, rear, power, dmg_k, pen_k))
+    return round_cost(raw_cost(cal, front, side, rear, power, dmg_k, pen_k, prof_d, prof_p))

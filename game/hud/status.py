@@ -6,12 +6,9 @@ from ..content import texts
 class HudOverlay:
     """Сводка по танку и экран смерти. Подсказки и статусы над сводкой убраны: их заменит новая индикация."""
 
-    def __init__(self, hud, tank, modes, camera_ctrl, stats=None):
+    def __init__(self, hud, tank):
         self.hud = hud
         self.tank = tank
-        self.modes = modes
-        self.camera_ctrl = camera_ctrl
-        self.stats = stats
         self._k = {a: key_label(a) for a in Action}
 
     def draw(self, screen):
