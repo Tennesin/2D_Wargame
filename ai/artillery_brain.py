@@ -82,7 +82,7 @@ class ArtilleryBrain:
 
         heading, go = self.avoid.adjust(dt, me, heading, self._go, ctx)
         throttle, steer = steer_to(me, heading, go)
-        pushing = (throttle != 0.0 or steer != 0.0) and not me.stunned
+        pushing = (throttle != 0.0 or steer != 0.0 or self.nav.stranded) and not me.stunned
         reversing = self.stuck.update(dt, me, pushing, self.rng)
         if reversing:
             if not self._was_reversing:

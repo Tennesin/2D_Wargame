@@ -21,7 +21,7 @@ BREAK_MARK_OFFSETS = (1.3, 2.9, 4.5)     # м от переднего края �
 SHADOW_HULL_M = (0.25, 0.35)             # смещение тени корпуса, м
 SHADOW_TURRET_M = (0.40, 0.55)           # башня выше, поэтому тень дальше
 
-ANGLE_STEPS = 480
+ANGLE_STEPS = 360
 ANGLE_STEP = 360.0 / ANGLE_STEPS
 ROT_CACHE_BYTES = 48 * 1024 * 1024       # бюджет памяти под кэш повёрнутых поверхностей
 
@@ -78,7 +78,9 @@ class GunVehicleRenderer(HullPartsMixin):
         # размер повёрнутой поверхности растёт с зумом, поэтому лимит записей считаем от бюджета памяти
         side = 2.0 * self.HULL_HALF_M * ppm * 1.42
         per_surface = max(1.0, side * side * 4.0)
-        self._rot_cache.limit = int(clamp(ROT_CACHE_BYTES / per_surface, 40, 3000))
+        limit = int(clamp(ROT_CACHE_BYTES / per_surface, 40, 3000))
+        self._rot_cache.limit = limit
+        self._sil_cache.limit = max(40, limit // 2)
 
     def set_view_zoom(self, ppm, moving=False):
         """Плавный зум в партии."""
@@ -127,17 +129,10 @@ class GunVehicleRenderer(HullPartsMixin):
 
         hox, hoy = (round(v * ppm * hs) for v in SHADOW_HULL_M)
         tox, toy = (round(v * ppm * ts) for v in SHADOW_TURRET_M)
-        sil_hull = self._rotated(
-            "sil_hull", (look.hull_key, var),
-            lambda: self._get_sil(("hull", look.hull_key, var), self._gear_plus_hull(spec, paint, look)),
-            hull_k, hs)
-        sil_barrel = self._rotated(
-            "sil_barrel", barrel_key,
-            lambda: self._get_sil(("barrel", bl, bt, look.barrel_key), self._get_barrel(bl, bt, look)),
-            turret_k, ts)
         parts = [
-            (sil_hull, sil_hull.get_rect(center=hull_rect.center).move(hox, hoy)),
-            (sil_barrel, sil_barrel.get_rect(center=barrel_rect.center).move(tox, toy)),
+            (self._shadow("gear", var, hull_k, hs, gear_rot), gear_rect.move(hox, hoy)),
+            (self._shadow("hull", (look.hull_key, var), hull_k, hs, hull_rot), hull_rect.move(hox, hoy)),
+            (self._shadow("barrel", barrel_key, turret_k, ts, barrel_rot), barrel_rect.move(tox, toy)),
         ]
 
         turret_rot = turret_rect = None
@@ -146,12 +141,8 @@ class GunVehicleRenderer(HullPartsMixin):
             turret_rot = self._rotated("turret", turret_key,
                                        lambda: self._get_turret(team, paint, look, emblem, spec), turret_k, ts)
             turret_rect = turret_rot.get_rect(center=(cx, cy))
-            sil_turret = self._rotated(
-                "sil_turret", (look.turret_key, var),
-                lambda: self._get_sil(("turret", look.turret_key, var),
-                                      self._get_turret(team, paint, look, emblem, spec)),
-                turret_k, ts)
-            parts.append((sil_turret, sil_turret.get_rect(center=turret_rect.center).move(tox, toy)))
+            parts.append((self._shadow("turret", (look.turret_key, var), turret_k, ts, turret_rot),
+                          turret_rect.move(tox, toy)))
 
         union = parts[0][1].unionall([r for _, r in parts[1:]])
         buf = self._ensure_shadow_buf(union.w, union.h)
@@ -170,9 +161,18 @@ class GunVehicleRenderer(HullPartsMixin):
 
     # ---------- тень и кэши ----------
     @staticmethod
-    def _make_silhouette(surface):
-        mask = pygame.mask.from_surface(surface)
-        return mask.to_surface(setcolor=(0, 0, 0, 255), unsetcolor=(0, 0, 0, 0))
+    def _blacken(surf):
+        """Чёрный силуэт: цвет обнуляется, альфа-канал остаётся."""
+        out = surf.copy()
+        out.fill((0, 0, 0, 255), special_flags=pygame.BLEND_RGBA_MULT)
+        return out
+
+    def _shadow(self, kind, base_key, bucket, scale, rotated):
+        """Тень слоя из уже повёрнутого спрайта."""
+        if self._moving and abs(self._k - 1.0) > 1e-4:
+            return self._blacken(rotated)
+        key = ("sil", kind, base_key, bucket, round(scale, 3))
+        return self._sil_cache.get_or_build(key, lambda: self._blacken(rotated))
 
     @staticmethod
     def _bucket(angle):
@@ -206,9 +206,6 @@ class GunVehicleRenderer(HullPartsMixin):
         """Финальная обработка готового спрайта корпуса, башни или маски: зерно."""
         apply_grain(surf, self._ppm, offset)
         return surf
-
-    def _get_sil(self, key, surface):
-        return self._sil_cache.get_or_build(key, lambda: self._make_silhouette(surface))
 
     def _get_hull(self, paint, look, spec):
         return self._hull_cache.get_or_build(
@@ -255,12 +252,6 @@ class GunVehicleRenderer(HullPartsMixin):
         return self._gear_cache.get_or_build(
             (spec.HULL_VARIANT, left_broken, right_broken),
             lambda: self._build_gear(spec, left_broken, right_broken))
-
-    def _gear_plus_hull(self, spec, paint, look):
-        """Ходовая + корпус одним спрайтом: из него строится силуэт тени. Зовётся только при промахе кэша."""
-        surf = self._get_gear(spec).copy()
-        surf.blit(self._get_hull(paint, look, spec), (0, 0))
-        return surf
 
     @staticmethod
     def _scaled_layer(surf, k):

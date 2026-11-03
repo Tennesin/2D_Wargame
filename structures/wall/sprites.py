@@ -55,9 +55,12 @@ class WallRenderer:
     def draw_all(self, screen, camera, walls):
         view = screen.get_rect()
         ppm = PX_PER_M * camera.zoom
-        visible = []
         z = camera.zoom
-        for wall in walls.items:
+        pad = 60.0 / z
+        x0, y0 = camera.screen_to_world(view.left, view.top)
+        x1, y1 = camera.screen_to_world(view.right, view.bottom)
+        visible = []
+        for wall in walls.in_rect(x0 - pad, y0 - pad, x1 + pad, y1 + pad):
             sx, sy = camera.world_to_screen(wall.x, wall.y)
             r = wall.radius_px * z + 60
             if sx + r < view.left or sx - r > view.right or sy + r < view.top or sy - r > view.bottom:

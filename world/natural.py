@@ -3,7 +3,10 @@
 import math
 import random
 
-from engine import hash_int, SEED_SALT, shrink_polygon, PX_PER_M, WORLD_MIN_M, WORLD_MAX_M, clamp
+from engine import (
+    hash_int, SEED_SALT, shrink_polygon, PX_PER_M,
+    WORLD_MIN_M, WORLD_MAX_M, clamp, LRUCache
+)
 from .landscape import Landscape, L_MUD, L_SHALLOWS, L_WATER, L_DEEP
 from .mapdata import MapData, RockData, MODE_NATURAL
 from .patch_geometry import patches_overlap
@@ -111,14 +114,21 @@ def _cell_features(gen):
                      and not any(lake.contains(r.x, r.y) for lake in near)]
             yield lakes, mud, rocks
 
+_FEATURES = LRUCache(2)
+
+def cell_features(seed, width_m, length_m):
+    """Список (озёра ячейки, грязь, камни) для мира; результат читать можно, менять нельзя."""
+    key = (seed, width_m, length_m)
+    return _FEATURES.get_or_build(
+        key, lambda: list(_cell_features(_Generator(seed, width_m, length_m))))
+
 def build_natural(seed, width_m, length_m, name=None):
     """Естественная карта."""
     width_m = int(round(clamp(float(width_m), WORLD_MIN_M, WORLD_MAX_M)))
     length_m = int(round(clamp(float(length_m), WORLD_MIN_M, WORLD_MAX_M)))
-    gen = _Generator(seed, width_m, length_m)
     land = Landscape(width_m, length_m)
     rocks = []
-    for lakes, mud, cell_rocks in _cell_features(gen):
+    for lakes, mud, cell_rocks in cell_features(seed, width_m, length_m):
         for shore in lakes:
             land.fill_polygon(shore.pts, L_SHALLOWS)
             land.fill_polygon(shrink_polygon(shore.pts, shore.x, shore.y, MID_SCALE), L_WATER)
@@ -131,12 +141,10 @@ def build_natural(seed, width_m, length_m, name=None):
     return MapData(name or f"Сид {seed}", width_m, length_m, MODE_NATURAL, seed, land, rocks)
 
 def natural_shapes(seed, width_m, length_m):
-    """Сырые формы естественной карты без запекания в сетку (для дешёвого превью)."""
     width_m = int(round(clamp(float(width_m), WORLD_MIN_M, WORLD_MAX_M)))
     length_m = int(round(clamp(float(length_m), WORLD_MIN_M, WORLD_MAX_M)))
-    gen = _Generator(seed, width_m, length_m)
     muds, lakes_out, rocks = [], [], []
-    for lakes, mud, cell_rocks in _cell_features(gen):
+    for lakes, mud, cell_rocks in cell_features(seed, width_m, length_m):
         for shore in lakes:
             lakes_out.append((shore.pts,
                               shrink_polygon(shore.pts, shore.x, shore.y, MID_SCALE),

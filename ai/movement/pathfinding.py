@@ -5,7 +5,7 @@ import math
 from vehicles.chassis.params import KMH_TO_PX
 from engine import PX_PER_M, WORLD
 from ..tactics.gunnery import seconds_to_break, BREACH_MAX_S, MIN_USEFUL_DAMAGE
-from .nav_cache import seg_dist2, CELL_PX, CHUNK_CELLS
+from .nav_cache import seg_dist2, CELL_PX, CHUNK_CELLS, NAV_CAP_PX, quantize_up, quantize_near
 
 # ==========================================
 # НАСТРОЙКИ
@@ -84,8 +84,8 @@ class NavGrid:
         self.gj0 = math.floor(cy / CELL_PX) - HALF_CELLS
         self.x0 = self.gi0 * CELL_PX
         self.y0 = self.gj0 * CELL_PX
-        self.radius = radius               # «безопасный» радиус: раздувание препятствий
-        self.core_radius = core_radius     # «жёсткий» радиус: корпус здесь физически не поместится
+        self.radius = min(quantize_up(radius), NAV_CAP_PX)
+        self.core_radius = min(quantize_near(core_radius), self.radius)
         self.blocked = bytearray(N * N)
         self.core = bytearray(N * N)       # подмножество blocked: зона, из которой не выпускаем
         self.slow = [1.0] * (N * N)        # множитель времени: 1 / скорость_местности
@@ -112,32 +112,31 @@ class NavGrid:
 
     # ---------- заполнение ----------
     def _fill_terrain(self, nav):
-        """Рельеф берём из кэша: клетка заблокирована, если до твёрдого пятна ближе радиуса танка."""
+        """Рельеф из кэша: маски и вязкость копируются срезами строк."""
         R, Rc = self.radius, self.core_radius
         B = CHUNK_CELLS
         gi0, gj0 = self.gi0, self.gj0
         blocked, core, slow = self.blocked, self.core, self.slow
         for cj in range(gj0 // B, (gj0 + N - 1) // B + 1):
             for ci in range(gi0 // B, (gi0 + N - 1) // B + 1):
-                dist, chunk_slow = nav.chunk(ci, cj)
+                chunk = nav.chunk(ci, cj)
+                blocked_m, core_m, slow_m = chunk.mask(R), chunk.mask(Rc), chunk.slow
                 i_lo, i_hi = max(ci * B, gi0), min(ci * B + B, gi0 + N)
                 j_lo, j_hi = max(cj * B, gj0), min(cj * B + B, gj0 + N)
+                n = i_hi - i_lo
                 for gj in range(j_lo, j_hi):
-                    src = (gj - cj * B) * B - ci * B          # + gi даёт индекс в блоке
-                    dst = (gj - gj0) * N - gi0                # + gi даёт индекс в окне
-                    for gi in range(i_lo, i_hi):
-                        d = dist[src + gi]
-                        idx = dst + gi
-                        if d < R:
-                            blocked[idx] = 1
-                            if d < Rc:
-                                core[idx] = 1
-                        slow[idx] = chunk_slow[src + gi]
+                    src = (gj - cj * B) * B + (i_lo - ci * B)
+                    dst = (gj - gj0) * N + (i_lo - gi0)
+                    blocked[dst:dst + n] = blocked_m[src:src + n]
+                    core[dst:dst + n] = core_m[src:src + n]
+                    slow[dst:dst + n] = slow_m[src:src + n]
 
     def _fill_walls(self, walls, me, forbidden, no_breach):
         R, Rc = self.radius, self.core_radius
         est_speed = max(me.spec.v_avg, 5.0) * KMH_TO_PX
-        for w in walls.items:
+        half = N * CELL_PX / 2.0
+        reach = half * 1.4143 + R
+        for w in walls.near_walls(self.x0 + half, self.y0 + half, reach):
             if not w.alive:
                 continue
             i0, i1, j0, j1 = self._box(w.x, w.y, w.radius_px + R)
@@ -347,23 +346,36 @@ class NavGrid:
             points[-1] = (gx, gy)
         return Path(points, goal_req, breach, best == goal)
 
+RETRY_PROGRESS = 0.7        # вторая сетка нужна, если первый путь сократил расстояние до цели хуже чем на 30%
+
+def _needs_retry(path, me, goal):
+    if path is None:
+        return True
+    if path.reached:
+        return False
+    d0 = math.hypot(goal[0] - me.x, goal[1] - me.y)
+    ex, ey = path.points[-1]
+    return math.hypot(goal[0] - ex, goal[1] - ey) > d0 * RETRY_PROGRESS
+
 def find_path(me, goal, walls, nav, forbidden=(), bad_spots=(), no_breach=False, hazards=(), allies=()):
-    """Путь для танка me к точке goal = (x, y) или None."""
+    """Путь для танка me к точке goal = (x, y) или None.
+    Сначала сетка с «большим» радиусом (по диагонали корпуса). Узкая сетка строится только если первый
+    путь не найден или почти не продвинулся к цели."""
     spec = me.spec
     hw, hl = spec.COLLISION_HALF_W_PX, spec.COLLISION_HALF_L_PX
     big = math.hypot(hw, hl) + NAV_MARGIN_PX
     tight = (hw + hl) / 2.0 + NAV_MARGIN_PX
     core = hw + CORE_MARGIN_PX
 
-    first = None
-    for radius in (big, tight):
-        grid = NavGrid(
-            me.x, me.y, radius, core, nav, walls, me,
-            forbidden, bad_spots, no_breach, hazards, allies
-        )
-        path = grid.search(me.x, me.y, goal[0], goal[1])
-        if path is not None and path.reached:
-            return path
-        if first is None:
-            first = path
-    return first
+    def search(radius):
+        grid = NavGrid(me.x, me.y, radius, core, nav, walls, me,
+                       forbidden, bad_spots, no_breach, hazards, allies)
+        return grid.search(me.x, me.y, goal[0], goal[1])
+
+    path = search(big)
+    if not _needs_retry(path, me, goal):
+        return path
+    second = search(tight)
+    if second is not None and (second.reached or path is None):
+        return second
+    return path

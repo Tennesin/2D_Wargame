@@ -8,6 +8,32 @@ CELL_PX = 3.0 * PX_PER_M          # размер клетки, px мира
 NAV_CAP_PX = 8.0 * PX_PER_M       # дальше этого расстояния до препятствия клетка «свободна»; должно быть больше любого радиуса танка
 CHUNK_CELLS = 8                   # сторона блока кэша, клеток (8 × 3 м = 24 м)
 CACHE_CHUNKS = 400                # сколько блоков держим в памяти
+RADIUS_STEP_PX = 0.25 * PX_PER_M      # радиусы танков для масок округляются до этого шага
+
+def quantize_up(radius_px):
+    """Радиус вверх до шага: препятствия раздуваются не меньше, чем просили."""
+    return math.ceil(radius_px / RADIUS_STEP_PX) * RADIUS_STEP_PX
+
+def quantize_near(radius_px):
+    """Радиус до ближайшего шага (не меньше одного шага)."""
+    return max(RADIUS_STEP_PX, round(radius_px / RADIUS_STEP_PX) * RADIUS_STEP_PX)
+
+class NavChunk:
+    """Один блок рельефа: расстояния, вязкость и кэш масок по радиусам."""
+    __slots__ = ("dist", "slow", "_masks")
+
+    def __init__(self, dist, slow):
+        self.dist = dist
+        self.slow = slow
+        self._masks = {}
+
+    def mask(self, radius_px):
+        """bytes по CHUNK_CELLS² клеткам: 1, если расстояние до препятствия меньше radius_px.
+        Радиусы должны быть квантованы (quantize_up / quantize_near), иначе кэш разрастётся."""
+        mask = self._masks.get(radius_px)
+        if mask is None:
+            mask = self._masks[radius_px] = bytes(1 if d < radius_px else 0 for d in self.dist)
+        return mask
 
 def seg_dist2(px, py, ax, ay, bx, by):
     """Квадрат расстояния от точки до отрезка ab."""
@@ -46,7 +72,7 @@ class TerrainNavCache:
         terrain.rocks.add_move_listener(self.invalidate_circle)
 
     def chunk(self, ci, cj):
-        """(dist, slow): два списка по CHUNK_CELLS² значений, строки подряд."""
+        """NavChunk блока. Строится при первом обращении, сбрасывается вместе с масками."""
         return self._chunks.get_or_build((ci, cj), lambda: self._build(ci, cj))
 
     def invalidate_circle(self, x, y, r):
@@ -112,4 +138,4 @@ class TerrainNavCache:
                     d = _polygon_dist(p, x, y, NAV_CAP_PX)
                     if d < dist[k]:
                         dist[k] = d
-        return dist, slow
+        return NavChunk(dist, slow)

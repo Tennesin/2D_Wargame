@@ -13,6 +13,9 @@ FORBID_WALL_S = 15.0         # сколько секунд «непробива�
 STUCK_SPOT_S = 12.0          # сколько секунд помним место, где застряли
 BREACH_TRIGGER_M = 25.0      # стена на пути ближе этого: пора решать, ломать ли её
 REVERSE_CHECK_M = 5.0        # на сколько метров назад смотрим, прежде чем сдавать задом
+STRANDED_S = 2.0             # столько секунд поиск подряд не находит пути: бот «застрял» без пути
+ASK_FRESH_S = 0.5            # и столько секунд назад навигатор ещё спрашивали (бот действительно хочет ехать)
+PENDING_GO = 0.6             # тяга, пока путь ждёт своей очереди (едем напрямик)
 STUCK_MARK_AHEAD_M = 4.0     # на сколько метров впереди ставим пометку «здесь застряли»
 HAZARD_WAIT_PX = 2.5 * PX_PER_M   # у кромки зоны обстрела ближе этого: стоим и ждём падения
 ALLY_PAD_M = 1.5             # запас вокруг корпуса союзника в штрафной зоне
@@ -23,13 +26,18 @@ class Navigator:
         self.rng = rng
         self._path = None
         self._replan_in = 0.0
-        self._plan_age = 0.0                  # сколько секунд текущему пути
-        self._forbidden = {}                  # id стены -> секунд до снятия запрета
-        self._bad_spots = []                  # [[x, y, ttl], ...] места застревания
-        self._hazard_sig = ()                 # какие зоны обстрела учтены в текущем пути
+        self._plan_age = 0.0                    # сколько секунд текущему пути
+        self._forbidden = {}                    # id стены -> секунд до снятия запрета
+        self._bad_spots = []                    # [[x, y, ttl], ...] места застревания
+        self._hazard_sig = ()                   # какие зоны обстрела учтены в текущем пути
+        self._clock = 0.0
+        self._no_path_since = None              # с какого момента поиск возвращает None
+        self._last_ask = -99.0                  # когда в последний раз вызывали drive_to
+        self._pending = False                   # путь ждёт очереди построения
 
     def tick(self, dt):
         """Таймеры пути и забывание запретов и плохих мест."""
+        self._clock += dt
         self._replan_in -= dt
         self._plan_age += dt
         if self._forbidden:
@@ -38,6 +46,13 @@ class Navigator:
             for s in self._bad_spots:
                 s[2] -= dt
             self._bad_spots[:] = [s for s in self._bad_spots if s[2] > 0.0]
+
+    @property
+    def stranded(self):
+        """Бот давно хочет ехать, а пути нет: пора выбираться задним ходом (читает StuckGuard)."""
+        return (self._no_path_since is not None
+                and self._clock - self._last_ask <= ASK_FRESH_S
+                and self._clock - self._no_path_since >= STRANDED_S)
 
     def invalidate(self):
         """Путь устарел: перестроить при ближайшей возможности."""
@@ -63,21 +78,28 @@ class Navigator:
 
     def _plan(self, me, ctx, goal, no_breach=False, hazards=()):
         """Текущий путь; перестраивается по таймеру, при смене цели, при уходе с пути и по прибытии.
-        Если лимит построений на этот кадр выбран, возвращается прежний путь (или None)."""
+        Лимит кадра выбран: запрос встаёт в очередь, возвращается прежний путь (или None)."""
         p = self._path
         need = self._replan_in <= 0.0
         if p is not None and not need and self._plan_age >= MIN_REPLAN_S:
             need = (math.hypot(goal[0] - p.goal[0], goal[1] - p.goal[1]) > REPLAN_GOAL_M * PX_PER_M
                     or p.deviation_px(me.x, me.y) > REPLAN_OFFPATH_M * PX_PER_M
                     or p.done(me.x, me.y))
+        self._pending = False
         if need:
-            if not ctx.budget.try_take():
-                return p                                          # повторим при следующем «размышлении»
+            if not ctx.budget.try_take(self):
+                self._pending = True
+                return p
             self._path = find_path(me, goal, ctx.walls, ctx.nav,
                                    self._forbidden, self._bad_spots, no_breach, hazards,
                                    self._ally_discs(me, ctx))
             self._replan_in = REPLAN_S * self.rng.uniform(0.8, 1.2)
             self._plan_age = 0.0
+            if self._path is None:
+                if self._no_path_since is None:
+                    self._no_path_since = self._clock
+            else:
+                self._no_path_since = None
         return self._path
 
     @staticmethod
@@ -102,6 +124,7 @@ class Navigator:
 
     def drive_to(self, me, ctx, goal, want, no_breach=False, on_wall=None):
         """Курс и газ при езде к goal: (курс, газ)."""
+        self._last_ask = self._clock
         zones = self._zones(me, ctx)
         hard = tuple(z for z in zones if not z.soft)
         sig = tuple(z.key for z in hard)
@@ -126,4 +149,6 @@ class Navigator:
                 return None
             self._forbidden[id(wall)] = FORBID_WALL_S             # с этого угла не выходит: считаем стену глухой
             self.invalidate()
+        if path is None and self._pending:
+            return want, PENDING_GO
         return want, 0.0

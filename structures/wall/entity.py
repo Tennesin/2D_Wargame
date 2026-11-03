@@ -1,4 +1,5 @@
 """structures/wall/entity.py — стена: данные, геометрия, урон, трещины; менеджер стен."""
+import itertools
 import math
 import random
 
@@ -13,6 +14,10 @@ from .params import (
 
 CRACK_COUNT_MIN, CRACK_COUNT_MAX = 8, 40
 
+WALL_CELL_PX = 2000.0          # ячейка индекса стен, 20 м
+MAX_WALL_R_PX = (math.hypot(WALL_PARAMS["wall_width_m"].max, WALL_PARAMS["wall_length_m"].max)
+                 / 2.0 * PX_PER_M)     # радиус самой большой стены, которую позволяют ползунки
+
 class Wall(Damageable):
     """Прямоугольник на земле, повёрнутый на angle. x, y — центр (мировые px).
     При angle = 0 ширина идёт по X, длина по Y."""
@@ -22,6 +27,7 @@ class Wall(Damageable):
     def __init__(self, x, y, hp, width_m, length_m, angle=0.0):
         self.x = float(x)
         self.y = float(y)
+        self.z = 0
         self.max_hp = float(hp)
         self.hp = float(hp)
         self.width_m = float(width_m)
@@ -155,31 +161,94 @@ class Wall(Damageable):
         return result
 
 class WallManager:
-    """Все стены на карте и выбранная."""
+    """Все стены на карте и выбранная. Поиск идёт через сетку ячеек по ЦЕНТРУ стены:
+    центр после add() менять нельзя (размер и угол можно). Если всё же сдвинули, вызовите reindex()."""
 
     def __init__(self):
         self.items = []
         self.selected = None
+        self._cells = {}                    # (ix, iy) -> [стены, чей центр лежит в ячейке]
+        self._max_r = MAX_WALL_R_PX         # верхняя граница радиуса стены (растёт, если встретится больше)
+        self._seq = itertools.count()
 
-    def add(self, wall):
-        self.items.append(wall)
+    # ---------- индекс ----------
+    @staticmethod
+    def _key(wall):
+        return math.floor(wall.x / WALL_CELL_PX), math.floor(wall.y / WALL_CELL_PX)
+
+    def _index(self, wall):
+        self._cells.setdefault(self._key(wall), []).append(wall)
+        self._max_r = max(self._max_r, wall.radius_px)
+
+    def _unindex(self, wall):
+        key = self._key(wall)
+        lst = self._cells.get(key)
+        if lst is None:
+            return
+        try:
+            lst.remove(wall)
+        except ValueError:
+            pass
+        if not lst:
+            del self._cells[key]
+
+    def reindex(self):
+        self._cells = {}
+        for w in self.items:
+            self._index(w)
+
+    def _range(self, x0, y0, x1, y1):
+        """Диапазон ячеек, где могут лежать центры стен, задевающих прямоугольник (x0..x1, y0..y1)."""
+        m = self._max_r
+        c = WALL_CELL_PX
+        return (math.floor((x0 - m) / c), math.floor((x1 + m) / c),
+                math.floor((y0 - m) / c), math.floor((y1 + m) / c))
+
+    def _lists(self, ix0, ix1, iy0, iy1):
+        """Списки стен из ячеек диапазона. Если диапазон больше, чем занятых ячеек, идём по занятым."""
+        cells = self._cells
+        if not cells:
+            return
+        if (ix1 - ix0 + 1) * (iy1 - iy0 + 1) > len(cells):
+            for (ix, iy), lst in cells.items():
+                if ix0 <= ix <= ix1 and iy0 <= iy <= iy1:
+                    yield lst
+            return
+        for iy in range(iy0, iy1 + 1):
+            for ix in range(ix0, ix1 + 1):
+                lst = cells.get((ix, iy))
+                if lst:
+                    yield lst
+
+    # ---------- запросы ----------
+    def near_walls(self, x, y, radius):
+        """Стены, чья описанная окружность пересекает круг (x, y, radius)."""
+        out = []
+        for lst in self._lists(*self._range(x - radius, y - radius, x + radius, y + radius)):
+            for w in lst:
+                reach = radius + w.radius_px
+                dx, dy = w.x - x, w.y - y
+                if dx * dx + dy * dy <= reach * reach:
+                    out.append(w)
+        return out
+
+    def in_rect(self, x0, y0, x1, y1):
+        """Стены, которые МОГУТ задевать прямоугольник мира (для рисования), в порядке добавления."""
+        found = [w for lst in self._lists(*self._range(x0, y0, x1, y1)) for w in lst]
+        found.sort(key=lambda w: w.z)
+        return found
 
     def pick(self, x, y):
         """Верхняя стена под точкой мира или None."""
-        for wall in reversed(self.items):
-            if wall.contains_point(x, y):
-                return wall
-        return None
+        best = None
+        for w in self.near_walls(x, y, 0.0):
+            if w.contains_point(x, y) and (best is None or w.z > best.z):
+                best = w
+        return best
 
     def obbs_near(self, x, y, radius):
         """Прямоугольники только тех стен, что лежат в радиусе radius от точки (x, y)."""
-        result = []
-        for w in self.items:
-            reach = radius + w.radius_px
-            dx, dy = w.x - x, w.y - y
-            if dx * dx + dy * dy <= reach * reach:
-                result.append(w.obb())
-        return result
+        return [w.obb() for w in self.near_walls(x, y, radius)]
 
     def blocks_obb(self, obb):
         """Задевает ли повёрнутый прямоугольник (x, y, half_w, half_l, angle) хоть одну стену."""
@@ -192,40 +261,48 @@ class WallManager:
         mx, my = (x0 + x1) / 2.0, (y0 + y1) / 2.0
         seg_r = math.hypot(x1 - x0, y1 - y0) / 2.0
         best = None
-        for wall in self.items:
-            reach = seg_r + wall.radius_px
-            dx, dy = wall.x - mx, wall.y - my
-            if dx * dx + dy * dy > reach * reach:
-                continue  # стена заведомо далеко от отрезка
-            res = wall.segment_hit(x0, y0, x1, y1)
-            if res is not None and (best is None or res[0] < best[1]):
-                best = (wall, res[0], res[1])
+        for lst in self._lists(*self._range(min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1))):
+            for wall in lst:
+                reach = seg_r + wall.radius_px
+                dx, dy = wall.x - mx, wall.y - my
+                if dx * dx + dy * dy > reach * reach:
+                    continue                      # стена заведомо далеко от отрезка
+                res = wall.segment_hit(x0, y0, x1, y1)
+                if res is not None and (best is None or res[0] < best[1]):
+                    best = (wall, res[0], res[1])
         return best
 
     def in_circle(self, x, y, r, ignore=None):
         """Живые стены, чей прямоугольник задевает круг (x, y, r): [(стена, расстояние), ...].
         ignore не используется: взрыв ломает стены любому стрелку."""
         result = []
-        for wall in self.items:
+        for wall in self.near_walls(x, y, r):
             if not wall.alive:
                 continue
-            reach = r + wall.radius_px
-            dx, dy = wall.x - x, wall.y - y
-            if dx * dx + dy * dy > reach * reach:
-                continue                                  # заведомо далеко
             d = obb_distance_to_point(wall.obb(), x, y)
             if d < r:
                 result.append((wall, d))
         return result
 
+    # ---------- изменения ----------
+    def add(self, wall):
+        wall.z = next(self._seq)
+        self.items.append(wall)
+        self._index(wall)
+
     def remove(self, wall):
         """Убрать конкретную стену (и снять выбор, если выбрана именно она)."""
         if wall in self.items:
             self.items.remove(wall)
+            self._unindex(wall)
         if self.selected is wall:
             self.selected = None
 
     def remove_dead(self):
-        self.items = [w for w in self.items if w.alive]
+        dead = [w for w in self.items if not w.alive]
+        if dead:
+            for w in dead:
+                self._unindex(w)
+            self.items = [w for w in self.items if w.alive]
         if self.selected is not None and self.selected not in self.items:
             self.selected = None

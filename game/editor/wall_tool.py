@@ -34,14 +34,11 @@ class WallTool:
     def _pick(self, wx, wy):
         """Верхняя стена под точкой с допуском в экранных px или None."""
         tol = PICK_TOL_PX / self.camera.zoom
-        for wall in reversed(self.walls.items):
-            dx, dy = wall.x - wx, wall.y - wy
-            lim = wall.radius_px + tol
-            if dx * dx + dy * dy > lim * lim:
-                continue
-            if obb_distance_to_point(wall.obb(), wx, wy) <= tol:
-                return wall
-        return None
+        best = None
+        for wall in self.walls.near_walls(wx, wy, tol):
+            if obb_distance_to_point(wall.obb(), wx, wy) <= tol and (best is None or wall.z > best.z):
+                best = wall
+        return best
 
     def is_blocked(self, wall):
         """Нельзя ли поставить стену здесь: стартовая зона, камень, глубокая вода, край карты."""
