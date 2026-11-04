@@ -1,13 +1,25 @@
-"""game/state/session.py — данные, которые переживают смену сцен: выбранный тип техники и настройки каждого типа."""
+"""game/state/session.py — данные, которые переживают смену сцен и запуски."""
+import math
 import random
 
-from engine import VehicleKind, WORLD_DEFAULT_M
-from vehicles import VEHICLE_TYPES, default_tuning, FRONT_SCREEN, NOSE_FLAT, SPECIAL_HEAT
+from engine import (VehicleKind, WORLD_DEFAULT_M, WORLD_MIN_M, WORLD_MAX_M, clamp, round_to)
+from vehicles import (VEHICLE_TYPES, default_tuning, FRONT_SCREEN, NOSE_FLAT, NOSE_PIKE, NOSE_WEDGE,
+                      SPECIAL_HEAT, SPECIAL_HESH)
 from .preferences import Preferences
 from .settings import GameSettings
 from .stats import Career
 from world import build_natural
+from . import storage
 from .maps import MapStore
+
+SESSION_FILE = "session.json"
+FORMAT_VERSION = 1
+MAP_STEP_M = 50.0                                   # шаг ползунков размера карты (как в «Новой игре»)
+_NOSES = (NOSE_FLAT, NOSE_PIKE, NOSE_WEDGE)
+_AMMO = (SPECIAL_HEAT, SPECIAL_HESH)
+
+def _is_num(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
 
 class Session:
     def __init__(self):
@@ -23,6 +35,7 @@ class Session:
         self.map_file = None             # None: случайная карта по сиду; иначе имя файла в maps/
         self.map_seed = self._roll_seed()
         self._seed_spent = False         # True: партия на этом сиде уже сыграна, нужен новый
+        self._load()                     # сохранённая сборка и настройки (если файл есть и читается)
 
     @staticmethod
     def _defaults(vtype):
@@ -39,6 +52,70 @@ class Session:
         """Спецификация выбранной техники по текущим значениям."""
         t = VEHICLE_TYPES[self.kind]
         return t.spec_cls.from_values(self.values[self.kind])
+
+    # ---------- сохранение между запусками ----------
+    def to_dict(self):
+        return {
+            "version": FORMAT_VERSION,
+            "kind": self.kind.name,
+            "map_w_m": self.map_w_m,
+            "map_h_m": self.map_h_m,
+            "enemies": sorted(self.prefs.enabled_keys()),
+            "values": {kind.name: dict(vals) for kind, vals in self.values.items()},
+        }
+
+    def save(self):
+        """Записать сборку и настройки в session.json. True при успехе."""
+        return storage.write_json(SESSION_FILE, self.to_dict())
+
+    def _load(self):
+        """Читает файл. Каждое поле проверяется отдельно: испорченное остаётся по умолчанию.
+        Слишком большие или малые числа подрезаются под границы ползунков."""
+        data = storage.read_json(SESSION_FILE)
+        if not isinstance(data, dict):
+            return
+        name = data.get("kind")
+        kind = VehicleKind.__members__.get(name) if isinstance(name, str) else None
+        if kind in self.values:
+            self.kind = kind
+
+        for attr, key in (("map_w_m", "map_w_m"), ("map_h_m", "map_h_m")):
+            v = data.get(key)
+            if _is_num(v):
+                setattr(self, attr, round_to(clamp(float(v), WORLD_MIN_M, WORLD_MAX_M), MAP_STEP_M))
+
+        enemies = data.get("enemies")
+        if isinstance(enemies, list):
+            self.prefs.set_enabled([k for k in enemies if isinstance(k, str)])
+
+        saved_all = data.get("values")
+        if not isinstance(saved_all, dict):
+            return
+        for k, current in self.values.items():
+            saved = saved_all.get(k.name)
+            if isinstance(saved, dict):
+                self._load_values(k, current, saved)
+
+    @staticmethod
+    def _load_values(kind, current, saved):
+        """Переносит в current корректные значения из saved. Ключи берутся только из current (то есть из текущих ползунков)."""
+        params = VEHICLE_TYPES[kind].params
+        for key in current:
+            v = saved.get(key)
+            if key == "special_ammo":
+                if v in _AMMO:
+                    current[key] = v
+            elif key == "front_nose":
+                if v in _NOSES:
+                    current[key] = v
+            elif not _is_num(v):
+                continue
+            elif key in params:
+                current[key] = params[key].fit(v)
+            elif key == "front_screen_mm":
+                current[key] = FRONT_SCREEN.fit(v)
+            else:
+                current[key] = float(v)         # урон и пробитие: коридор подрежет сама спецификация и конструктор
 
     @staticmethod
     def _roll_seed():

@@ -5,7 +5,8 @@ from dataclasses import dataclass
 
 from combat import resolve_hit
 from engine import (
-    PX_PER_M, clamp, obb_hits_convex, obb_hits_obb, TAU, obb_outside_rect, TargetType, fmt_num
+    PX_PER_M, WORLD, clamp, obb_hits_convex, obb_hits_obb,
+    TAU, obb_outside_rect, TargetType, fmt_num
 )
 from .landscape import CELL_PX, L_DEEP
 from .mapdata import MAX_ROCK_R_PX
@@ -249,6 +250,10 @@ class TerrainMap:
     Вода и грязь берутся из сетки (map_data.landscape), камни хранятся пятнами по ячейкам поиска."""
 
     def __init__(self, map_data):
+        if not WORLD.matches(map_data.width_m, map_data.length_m):
+            raise RuntimeError(
+                f"WORLD ({WORLD.width_m:.0f}x{WORLD.height_m:.0f}) не совпадает с картой "
+                f"({map_data.width_m}x{map_data.length_m}): перед созданием TerrainMap вызовите WORLD.set_size(...)")
         self.map = map_data
         self.grid = map_data.landscape
         self.half_w = map_data.half_w_px             # границы мира берём из самой карты

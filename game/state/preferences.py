@@ -26,3 +26,9 @@ class Preferences:
     def enabled_keys(self):
         """Множество включённых ключей (всегда не пустое)."""
         return set(self._enabled)
+
+    def set_enabled(self, keys):
+        """Установить набор включённых архетипов."""
+        valid = {k for k in keys if k in ARCHETYPES}
+        if valid:
+            self._enabled = valid

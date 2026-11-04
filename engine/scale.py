@@ -21,4 +21,8 @@ class WorldBounds:
         self.cam_w_px = self.half_w_px + CAMERA_MARGIN_M * PX_PER_M   # предел центра камеры
         self.cam_h_px = self.half_h_px + CAMERA_MARGIN_M * PX_PER_M
 
+    def matches(self, width_m, height_m):
+        """Совпадают ли границы с размером карты (для проверки на рассинхронизацию)."""
+        return abs(self.width_m - width_m) < 1e-6 and abs(self.height_m - height_m) < 1e-6
+
 WORLD = WorldBounds()

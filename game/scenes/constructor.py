@@ -247,6 +247,5 @@ class ConstructorScene(Scene):
         mouse = self.input.mouse_pos
         self.ui.draw(screen, mouse)
         self.back_button.draw(screen, mouse)
-        is_mbt = self.session.kind is VehicleKind.MBT
         for kind, btn in self.kind_buttons:
             btn.draw(screen, mouse, colors=ACTIVE_BUTTON_COLORS if kind is self.session.kind else None)

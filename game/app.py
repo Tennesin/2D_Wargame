@@ -70,6 +70,7 @@ class App:
         self._next = self._make_menu
 
     def show_newgame(self):
+        self.session.save()
         self._next = lambda: NewGameScene(self.session, on_play=self.start_game,
                                           on_constructor=self.show_constructor,
                                           on_back=self.show_menu, on_quit=self.quit)
@@ -108,6 +109,7 @@ class App:
         self._load(task())
 
     def start_game(self):
+        self.session.save()
         scene = PlayScene(self.seed, self.clock, self.session,
                           on_result=self.show_result, on_quit=self.quit)
         self._load(scene.load())
@@ -117,6 +119,7 @@ class App:
                                          on_menu=self.show_menu, on_quit=self.quit)
 
     def quit(self):
+        self.session.save()
         self.running = False
 
     def _load(self, task):
