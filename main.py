@@ -10,4 +10,4 @@ if __name__ == "__main__":
     sys.exit()
 
 # build_env/scripts/activate
-# pyinstaller --onedir --noconsole --name "game" main.py
+# pyinstaller --onedir --noconsole --noupx --clean --name "wargame2d" --icon assets/tank.ico --version-file version_info.txt main.py
