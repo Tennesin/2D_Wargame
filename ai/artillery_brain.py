@@ -204,7 +204,7 @@ class ArtilleryBrain:
         """Просим огонь, только если точка в допустимом кольце и взрыв не заденет своих.
         Остальное (перезарядка, оглушение, довод орудия) проверяет ArtilleryVehicle._try_fire."""
         self.hold_reason = ""
-        if me.stunned:
+        if me.stunned or me.fire_locked:
             return False
         spec = me.spec
         d = math.hypot(aim[0] - me.x, aim[1] - me.y)

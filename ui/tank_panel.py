@@ -18,6 +18,8 @@ ICON_COL_W = 46              # колонка иконок справа внут
 PAD = 8                      # отступ силуэта от краёв своей области
 SIL_PAD_V = 14               # вертикальный запас под силуэт: ствол целиком и контур не касаются плашки
 DIVIDER_INSET = 12           # полоска не доходит до верха и низа квадрата
+LOCK_COLOR = (255, 150, 40)            # подброс: стрелять нельзя
+LOCK_RING_PAD = 5
 
 # размер области, в которую вписывается силуэт (его строит vehicles.build_silhouette)
 SILHOUETTE_BOX = (PANEL_SIDE - ICON_COL_W - 2 * PAD, PANEL_SIDE - 2 * SIL_PAD_V)
@@ -130,6 +132,8 @@ class TankPanel:
         self.ammo = None                # текущий снаряд (AmmoKind) или None
         self.firing = False             # включён ли боевой режим
         self.stun_left = 0.0            # сколько секунд осталось оглушения
+        self.lift_left = 0.0            # сколько секунд осталось подброса (стрельба заблокирована)
+        self.lift_total = 0.0
         self.terrain = TERRAIN_PLAIN    # TERRAIN_PLAIN / TERRAIN_WATER / TERRAIN_MUD
         self.speed_pct = 100            # влияние местности на скорость, %
 
@@ -157,6 +161,23 @@ class TankPanel:
     def set_weapon(self, ammo, firing):
         self.ammo = ammo
         self.firing = firing
+
+    def set_lift(self, left, total):
+        self.lift_left = left
+        self.lift_total = total
+
+    def _draw_lock(self, screen):
+        """Перечёркнутое кольцо вокруг иконки снаряда с дугой оставшегося времени."""
+        if self.lift_left <= 0.0 or self.lift_total <= 0.0:
+            return
+        cx, cy = self.bullet_slot.center
+        r = ICON_SLOT // 2 + LOCK_RING_PAD
+        frac = clamp(self.lift_left / self.lift_total, 0.0, 1.0)
+        rect = pygame.Rect(cx - r, cy - r, 2 * r, 2 * r)
+        pygame.draw.circle(screen, (90, 55, 20), (cx, cy), r, 2)
+        pygame.draw.arc(screen, LOCK_COLOR, rect, math.pi / 2, math.pi / 2 + 2.0 * math.pi * frac, 3)
+        d = round(r * 0.7)
+        pygame.draw.line(screen, LOCK_COLOR, (cx - d, cy + d), (cx + d, cy - d), 3)
 
     def set_stun(self, seconds_left):
         """Сколько секунд осталось оглушения (0: нет). Начало оглушения запоминаем для плавного появления."""
@@ -229,6 +250,7 @@ class TankPanel:
             screen.blit(self.silhouette.surface, self.silhouette_pos)
             self._draw_modules(screen)
         self._draw_bullet(screen)
+        self._draw_lock(screen)
         self._draw_speed(screen)
 
     def _draw_stun(self, screen):

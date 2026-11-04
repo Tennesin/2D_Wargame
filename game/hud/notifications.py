@@ -237,6 +237,15 @@ class Notifier:
         if wall.hp <= 0.0:
             self.say("Стена разрушена", C_DIM)
 
+    def on_lift(self, vehicle):
+        """Машину игрока подбросило тараном: стрелять нельзя, пока она не приземлится."""
+        me = self.player
+        if vehicle is me:
+            self.say("Машину подбросило: орудие заблокировано", C_WARN)
+            self.float_at(me.x, me.y, "подброс", C_WARN)
+        else:
+            self.float_at(vehicle.x, vehicle.y, "подброс", C_GOOD)
+
     # ---------- кадр ----------
     def update(self, dt):
         for group in (self._feed, self._floaters):

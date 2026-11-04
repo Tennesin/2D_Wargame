@@ -107,7 +107,9 @@ class Lab:
 
     # ---------- кадр ----------
     def step(self, dt):
-        for v in self.fleet.vehicles:                        # как в Match: сначала боты, потом игрок
+        if self.ram.last is None and not self.hold:
+            self.a.speed_kmh = self.speed_a
+        for v in self.fleet.vehicles:
             throttle = 1.0 if (self.hold and v is self.a) else 0.0
             self.ctx.step_vehicle(v, VehicleCommand(throttle=throttle), dt)
         self.ram.update(dt)

@@ -8,7 +8,9 @@ from vehicles.chassis.params import (
     KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, TERRAIN_MIN_K, TERRAIN_BRAKE,
     TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY, CONTACT_TURN_STEPS, CONTACT_PUSH_STEPS,
     SLIDE_ANGLES_DEG, SLIDE_MIN_PX, CONTACT_SCRUB, CONTACT_STOP_PROGRESS,
-    PUSH_FRICTION_MS2, PUSH_STOP_PX, TERRAIN_SAMPLE_REACH, RAM_MAX_SPIN_DEG_S,
+    PUSH_STOP_PX, TERRAIN_SAMPLE_REACH, RAM_MAX_SPIN_DEG_S,
+    PUSH_LATERAL_FRICTION_MS2, PUSH_MAX_MS, PUSH_OVERSPEED_K, TERRAIN_PUSH_DRAG,
+    PUSH_RAMP_S, SPIN_FRICTION_DEG_S2,
 )
 
 # Направления отодвигания корпуса: (вдоль корпуса, поперёк). Назад, вперёд, в стороны и диагонали.
@@ -26,9 +28,7 @@ class MotionMixin:
         return [(hx + fx * d, hy + fy * d) for d in (-reach, 0.0, reach)]
 
     def _sample_terrain(self):
-        """Множитель скорости: среднее по трём точкам под корпусом,
-        поэтому при въезде в воду техника тормозится постепенно.
-        Заодно запоминаем, какая вязкая местность тормозит сильнее всего (для панели танка)."""
+        """Множитель скорости."""
         terrain = self._terrain
         if terrain is None:
             self.terrain_k = 1.0
@@ -67,6 +67,13 @@ class MotionMixin:
         target = steer * s.hull_turn * k * speed_k * (0.5 + 0.5 * self.terrain_k)
         self.hull_rate = self._approach(self.hull_rate, target,
                                         s.hull_alpha * k, s.hull_alpha * k * HULL_BRAKE_K, dt)
+        # свободное вращение после удара (сверх рабочей скорости поворота) гасится сцеплением гусениц;
+        # обычная езда не затрагивается: рабочая скорость поворота остаётся прежней
+        excess = abs(self.hull_rate) - s.hull_turn * k
+        if excess > 0.0:
+            grip = 1.0 + (1.0 - self.terrain_k) * TERRAIN_PUSH_DRAG
+            cut = min(excess, SPIN_FRICTION_DEG_S2 * grip * dt)
+            self.hull_rate -= math.copysign(cut, self.hull_rate)
         delta = self.hull_rate * dt
 
         old = self.hull_angle
@@ -92,8 +99,7 @@ class MotionMixin:
         return delta
 
     def _turn_with_resistance(self, old, delta, obstacles):
-        """Поворот на delta упёрся в препятствие. Пробуем повернуть на часть угла и чуть сдвинуть корпус
-        от препятствия. Возвращает (новый угол, смещение x, смещение y, применённый угол) или None."""
+        """Поворот на delta упёрся в препятствие."""
         s = self.spec
         radius = math.hypot(s.COLLISION_HALF_W_PX, s.COLLISION_HALF_L_PX)
         fx, fy = heading_vector(old)
@@ -136,9 +142,7 @@ class MotionMixin:
         return along
 
     def _move_along_obstacle(self, dx, dy, obstacles):
-        """Прямой путь (dx, dy) упёрся в препятствие. Подъезжаем вплотную, а остаток пути
-        отклоняем на небольшой угол в обе стороны: первый свободный вариант и есть скольжение вдоль стены.
-        Возвращает новую позицию (x, y); угол корпуса не меняется."""
+        """Прямой путь (dx, dy) упёрся в препятствие."""
         x0, y0, ang = self.x, self.y, self.hull_angle
         frac = find_free_fraction(
             lambda f: self._overlaps(x0 + dx * f, y0 + dy * f, ang, obstacles))
@@ -160,8 +164,9 @@ class MotionMixin:
         return x1, y1  # удар почти в лоб: скользить некуда
 
     def _scrub_speed(self, progress, dt):
-        """Трение о препятствие. progress = какая доля пути вперёд всё-таки пройдена (0..1).
-        Касание вскользь почти не тормозит, а удар в лоб останавливает технику."""
+        """Трение о препятствие."""
+        if self._soft_contact_s > 0.0:
+            return
         if progress < CONTACT_STOP_PROGRESS:
             self.speed_kmh = 0.0
             return
@@ -215,45 +220,100 @@ class MotionMixin:
         return v
 
     # ---------- скорость и таран ----------
-    def velocity_px(self, speed_kmh=None):
-        """Скорость корпуса в мировых px/с (нужна ботам для упреждения и тарану).
-        speed_kmh: подставить другую скорость вдоль корпуса (по умолчанию текущую). Толчок от тарана включён."""
+    def velocity_px(self, speed_kmh=None, include_pending=False):
+        """Скорость корпуса в мировых px/с."""
         fx, fy = heading_vector(self.hull_angle)
         v = (self.speed_kmh if speed_kmh is None else speed_kmh) * KMH_TO_PX
-        return fx * v + self.push_vx, fy * v + self.push_vy
+        vx, vy = fx * v + self.push_vx, fy * v + self.push_vy
+        if include_pending:
+            for item in self._pending:
+                vx += item[0]
+                vy += item[1]
+        return vx, vy
 
     def apply_impulse(self, nx, ny, dv_ms, dw_rad_s=0.0):
         """Таран камня: изменить скорость вдоль нормали (nx, ny) на dv_ms м/с (со знаком)."""
         self.apply_velocity_change(nx * dv_ms, ny * dv_ms, dw_rad_s)
 
-    def apply_velocity_change(self, dvx_ms, dvy_ms, dw_rad_s=0.0):
+    @property
+    def has_push(self):
+        """Есть ли что обрабатывать в update_push (скольжение или невыданный толчок)."""
+        return bool(self.push_vx or self.push_vy or self._pending)
+
+    def push_ramp_s(self):
+        """За сколько секунд эта машина "выдаёт" полученное изменение скорости: лёгкая быстрее, тяжёлая плавнее."""
+        lo, hi = PUSH_RAMP_S
+        return lo + (hi - lo) * self.mass_k
+
+    def start_soft_contact(self, seconds):
+        """Пока идёт мягкий контакт, упор в препятствие не обнуляет скорость (партнёр по удару разгоняется)."""
+        self._soft_contact_s = max(self._soft_contact_s, seconds)
+
+    def _queue_dv(self, dvx, dvy, ramp_s):
+        """Изменение скорости (px/с): сразу или растянутое на ramp_s секунд."""
+        if ramp_s <= 0.0:
+            self.push_vx += dvx
+            self.push_vy += dvy
+        else:
+            self._pending.append([dvx, dvy, ramp_s])
+
+    def _release_pending(self, dt):
+        """Равномерно выдаёт очередь в push: за каждый кадр доля dt / оставшееся время."""
+        if not self._pending:
+            return
+        keep = []
+        for item in self._pending:
+            dvx, dvy, left = item
+            k = 1.0 if left <= dt else dt / left
+            self.push_vx += dvx * k
+            self.push_vy += dvy * k
+            item[0] = dvx - dvx * k
+            item[1] = dvy - dvy * k
+            item[2] = left - dt
+            if item[2] > 0.0:
+                keep.append(item)
+        self._pending = keep
+
+    def apply_velocity_change(self, dvx_ms, dvy_ms, dw_rad_s=0.0, ramp_s=0.0):
         """Изменение скорости центра на (dvx, dvy) м/с и угловой скорости на dw рад/с."""
         dvx, dvy = dvx_ms * PX_PER_M, dvy_ms * PX_PER_M
         if self.impact_kmh is not None:
             fx, fy = heading_vector(self.hull_angle)
             along = dvx * fx + dvy * fy
-            self.impact_kmh += along / KMH_TO_PX     # база для следующего удара в этом же кадре
-            self.speed_kmh = self.impact_kmh         # «отменяем» гашение скорости от стены/камня
+            self.impact_kmh += along / KMH_TO_PX  # база для следующего удара в этом же кадре
+            self.speed_kmh = self.impact_kmh  # «отменяем» гашение скорости от стены/камня
             dvx -= along * fx
             dvy -= along * fy
-        self.push_vx += dvx
-        self.push_vy += dvy
+        self._queue_dv(dvx, dvy, ramp_s)
         if dw_rad_s:
             spin = self.hull_rate + math.degrees(dw_rad_s)
             self.hull_rate = clamp(spin, -RAM_MAX_SPIN_DEG_S, RAM_MAX_SPIN_DEG_S)
 
     def update_push(self, dt, obstacles, terrain):
-        """Сдвиг по инерции от толчка. Гасится сцеплением гусениц, упирается в препятствия."""
+        """Толчок после удара."""
+        self._release_pending(dt)
         if self.push_vx == 0.0 and self.push_vy == 0.0:
             return
-        speed = math.hypot(self.push_vx, self.push_vy)
-        drop = PUSH_FRICTION_MS2 * PX_PER_M * dt
-        if speed <= drop + PUSH_STOP_PX:
-            self.push_vx = self.push_vy = 0.0
+        s = self.spec
+        fx, fy = heading_vector(self.hull_angle)
+        rx, ry = -fy, fx
+        along = self.push_vx * fx + self.push_vy * fy
+        lat = self.push_vx * rx + self.push_vy * ry
+
+        if along:  # дальше едем (или пятимся) обычным ходом
+            v = self.speed_kmh + along / KMH_TO_PX
+            self.speed_kmh = clamp(v, -s.v_back * PUSH_OVERSPEED_K, s.v_max * PUSH_OVERSPEED_K)
+
+        grip = 1.0 + (1.0 - self.terrain_k) * TERRAIN_PUSH_DRAG
+        drop = PUSH_LATERAL_FRICTION_MS2 * grip * PX_PER_M * dt
+        mag = abs(lat)
+        if mag <= drop + PUSH_STOP_PX:
+            lat = 0.0
+        else:
+            lat = math.copysign(min(mag - drop, PUSH_MAX_MS * PX_PER_M), lat)
+        self.push_vx, self.push_vy = rx * lat, ry * lat
+        if lat == 0.0:
             return
-        k = (speed - drop) / speed
-        self.push_vx *= k
-        self.push_vy *= k
 
         self._terrain = terrain
         self._patches = terrain.patches_near(self.x, self.y, self.reach_px()) if terrain is not None else ()
@@ -265,6 +325,6 @@ class MotionMixin:
                     lambda f: self._overlaps(self.x + dx * f, self.y + dy * f, self.hull_angle, obstacles))
             dx *= frac
             dy *= frac
-            self.push_vx = self.push_vy = 0.0        # упёрся: толчок закончился
+            self.push_vx = self.push_vy = 0.0  # упёрся: толчок закончился
         self.x += dx
         self.y += dy

@@ -4,13 +4,18 @@ import math
 import pygame
 
 from engine import LRUCache, SHADOW_ALPHA, heading_vector, clamp, Team, PX_PER_M
-from vehicles.chassis.params import TRACK_LINK_M
-from vehicles.gun.params import (BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M,
-                                 BARREL_MIN_STEPS)
+from vehicles.chassis.params import (
+    TRACK_LINK_M, LIFT_HEIGHT_M, LIFT_K_GEAR, LIFT_K_HULL, LIFT_K_TURRET
+)
+from vehicles.gun.params import (
+    BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M, BARREL_MIN_STEPS
+)
 from vehicles.render.hull_parts import HullPartsMixin
 from vehicles.chassis.running_gear import LEFT, RIGHT
-from vehicles.render.pen import (Pen, SS, apply_grain, TRACK_BODY, TRACK_LINK, TRACK_BROKEN,
-                                 TRACK_BROKEN_MARK, GUN, GUN_LIGHT, GUN_DARK)
+from vehicles.render.pen import (
+    Pen, SS, apply_grain, TRACK_BODY, TRACK_LINK, TRACK_BROKEN,
+    TRACK_BROKEN_MARK, GUN, GUN_LIGHT, GUN_DARK
+)
 
 # ==========================================
 # КОНСТАНТЫ РИСОВКИ
@@ -127,12 +132,16 @@ class GunVehicleRenderer(HullPartsMixin):
         gear_rect = gear_rot.get_rect(center=(cx, cy))
         barrel_rect = barrel_rot.get_rect(center=(round(cx + fx * f), round(cy + fy * f)))
 
+        lift_px = tank.lift_height() * LIFT_HEIGHT_M * ppm * hs
+        lg, lh, lt = (round(lift_px * k) for k in (LIFT_K_GEAR, LIFT_K_HULL, LIFT_K_TURRET))
+        ex, ey = round(lift_px * 0.45), round(lift_px * 0.55)  # тень остаётся на земле и уходит дальше
+
         hox, hoy = (round(v * ppm * hs) for v in SHADOW_HULL_M)
         tox, toy = (round(v * ppm * ts) for v in SHADOW_TURRET_M)
         parts = [
-            (self._shadow("gear", var, hull_k, hs, gear_rot), gear_rect.move(hox, hoy)),
-            (self._shadow("hull", (look.hull_key, var), hull_k, hs, hull_rot), hull_rect.move(hox, hoy)),
-            (self._shadow("barrel", barrel_key, turret_k, ts, barrel_rot), barrel_rect.move(tox, toy)),
+            (self._shadow("gear", var, hull_k, hs, gear_rot), gear_rect.move(hox + ex, hoy + ey)),
+            (self._shadow("hull", (look.hull_key, var), hull_k, hs, hull_rot), hull_rect.move(hox + ex, hoy + ey)),
+            (self._shadow("barrel", barrel_key, turret_k, ts, barrel_rot), barrel_rect.move(tox + ex, toy + ey)),
         ]
 
         turret_rot = turret_rect = None
@@ -142,7 +151,7 @@ class GunVehicleRenderer(HullPartsMixin):
                                        lambda: self._get_turret(team, paint, look, emblem, spec), turret_k, ts)
             turret_rect = turret_rot.get_rect(center=(cx, cy))
             parts.append((self._shadow("turret", (look.turret_key, var), turret_k, ts, turret_rot),
-                          turret_rect.move(tox, toy)))
+                          turret_rect.move(tox + ex, toy + ey)))
 
         union = parts[0][1].unionall([r for _, r in parts[1:]])
         buf = self._ensure_shadow_buf(union.w, union.h)
@@ -151,13 +160,13 @@ class GunVehicleRenderer(HullPartsMixin):
             buf.blit(surf, (rect.x - union.x, rect.y - union.y))
         screen.blit(buf, union.topleft, area=(0, 0, union.w, union.h))
 
-        screen.blit(gear_rot, gear_rect)                      # тело гусениц под корпусом
-        self._draw_track_links(screen, tank, cx, cy, hull_k, hs, spec, broken)   # бегущие звенья
-        screen.blit(hull_rot, hull_rect)                      # корпус перекрывает внутренние края гусениц
-        screen.blit(barrel_rot, barrel_rect)
+        screen.blit(gear_rot, gear_rect.move(0, -lg))  # тело гусениц под корпусом
+        self._draw_track_links(screen, tank, cx, cy - lg, hull_k, hs, spec, broken)  # бегущие звенья
+        screen.blit(hull_rot, hull_rect.move(0, -lh))  # корпус перекрывает внутренние края гусениц
+        screen.blit(barrel_rot, barrel_rect.move(0, -lt))
         if turret_rot is not None:
-            screen.blit(turret_rot, turret_rect)
-        self._draw_front_layer(screen, tank, cx, cy, hull_k, hs, team, paint, look)
+            screen.blit(turret_rot, turret_rect.move(0, -lt))
+        self._draw_front_layer(screen, tank, cx, cy - lh, hull_k, hs, team, paint, look)
 
     # ---------- тень и кэши ----------
     @staticmethod

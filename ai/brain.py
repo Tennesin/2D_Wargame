@@ -441,6 +441,9 @@ class BotBrain:
             me.select_ammo(kind)
 
     def _gunnery(self, dt, me, enemy, ctx, aim_point):
+        if me.fire_locked:
+            self._react_left = None                 # подброшен: реакция начнётся заново после приземления
+            return False
         err = shortest_angle_diff(bearing_deg(me.x, me.y, *aim_point), me.turret_angle)
         breaching = self.intent is Intent.BREACH
         target = self.breach.wall if breaching else enemy

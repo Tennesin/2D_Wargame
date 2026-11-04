@@ -35,10 +35,10 @@ class ArtilleryVehicle(GunVehicle):
         return self._try_fire(command)
 
     def _try_fire(self, command):
-        """Выстрел разрешён, если: цель между мёртвой зоной и максимальной дальностью, орудие довёрнуто,
-        перезарядка прошла и машина не оглушена. Возвращает Shot (с полем target) или None."""
+        """Условия разрешения выстрела."""
         target = command.aim_point
-        if not command.fire or target is None or self.stunned or self.reload_left > 0.0:
+        if (not command.fire or target is None or self.stunned or self.fire_locked
+                or self.reload_left > 0.0):
             return None
 
         s = self.spec

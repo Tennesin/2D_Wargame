@@ -3,7 +3,9 @@ import math
 
 from combat import (resolve_ram, resolve_ram_2d, can_push, ram_damage,
                     RESTITUTION_ROCK, RESTITUTION_TANK, MIN_CLOSING_MS)
-from engine import PX_PER_M, obb_contact
+from engine import PX_PER_M, obb_contact, clamp
+from vehicles.chassis.params import LIFT_FULL_DV_MS
+from combat.ram import SAFE_DV_MS
 
 CONTACT_PAD_PX = 8.0         # на сколько px раздуваем корпус, чтобы поймать касание (физика останавливает танк вплотную)
 DAMAGE_COOLDOWN_S = 0.5      # пока не прошло, та же пара танков повторно урон не получает
@@ -21,6 +23,7 @@ class RamController:
         self._normals = {}               # пара -> [nx, ny, секунд до забывания]
         self.match_stats = ctx.match_stats
         self.last = None                 # последний удар танков (его показывает отладка и ram_lab)
+        self.on_shake = None             # колбэк(сила 0..1): тряска камеры игрока (ставит Match)
 
     # ---------- каждый кадр (после обновления всех танков) ----------
     def update(self, dt):
@@ -37,7 +40,7 @@ class RamController:
 
         self.terrain.rocks.update(dt, self._obbs_near)
         for tank in self.fleet.vehicles:
-            if tank.alive and (tank.push_vx or tank.push_vy):
+            if tank.alive and tank.has_push:
                 tank.update_push(dt, self.ctx.obstacles_for(tank), self.terrain)
 
         self.fleet.remove_dead()                             # кто погиб от тарана
@@ -85,8 +88,8 @@ class RamController:
         ca, cb = a.hull_obb()[:2], b.hull_obb()[:2]          # центры хитбоксов: это центры масс
         r1 = ((c.px - ca[0]) / PX_PER_M, (c.py - ca[1]) / PX_PER_M)
         r2 = ((c.px - cb[0]) / PX_PER_M, (c.py - cb[1]) / PX_PER_M)
-        va = a.velocity_px(a.impact_kmh)                     # скорость ДО гашения, если был удар
-        vb = b.velocity_px(b.impact_kmh)
+        va = a.velocity_px(a.impact_kmh, include_pending=True)    # с невыданной частью: повторный удар её не удвоит
+        vb = b.velocity_px(b.impact_kmh, include_pending=True)
         v1 = (va[0] / PX_PER_M, va[1] / PX_PER_M)
         v2 = (vb[0] / PX_PER_M, vb[1] / PX_PER_M)
 
@@ -96,8 +99,12 @@ class RamController:
         if res is None:
             return                                           # скользящее касание или расходятся
 
-        a.apply_velocity_change(res.dv1[0], res.dv1[1], res.dw1)
-        b.apply_velocity_change(res.dv2[0], res.dv2[1], res.dw2)
+        ramp_a, ramp_b = a.push_ramp_s(), b.push_ramp_s()
+        a.apply_velocity_change(res.dv1[0], res.dv1[1], res.dw1, ramp_a)
+        b.apply_velocity_change(res.dv2[0], res.dv2[1], res.dw2, ramp_b)
+        soft = max(ramp_a, ramp_b)
+        a.start_soft_contact(soft)                           # пока партнёр разгоняется, упор не гасит ход
+        b.start_soft_contact(soft)
 
         zone_a = a.zone_at_point(c.px, c.py)                 # грань определяем по точке, а не по нормали
         zone_b = b.zone_at_point(c.px, c.py)
@@ -112,6 +119,7 @@ class RamController:
             "dmg_a": dmg_a, "dmg_b": dmg_b, "zone_a": zone_a, "zone_b": zone_b,
         }
         self._damage(key, a, b, dmg_a, dmg_b, zone_a, zone_b)
+        self._shock(a, b, dv_a, dv_b, c)
 
     def _damage(self, key, a, b, dmg_a, dmg_b, zone_a, zone_b):
         if a.team is b.team and not self.settings.friendly_fire:
@@ -125,6 +133,23 @@ class RamController:
         self.match_stats.on_damage(b, a, real_a, "ram")
         self.match_stats.on_damage(a, b, real_b, "ram")
         self.notifier.on_ram(a, b, dmg_a, dmg_b, zone_a, zone_b)
+
+    def _shock(self, a, b, dv_a, dv_b, c):
+        """Сильный удар: подброс (блокирует стрельбу), пыль и тряска камеры у игрока."""
+        if a.team is b.team and not self.settings.friendly_fire:
+            return
+        player = self.fleet.player
+        shake = 0.0
+        for tank, dv in ((a, dv_a), (b, dv_b)):
+            if tank.apply_lift(dv) and player in (a, b):
+                self.notifier.on_lift(tank)
+            if tank is player and dv > SAFE_DV_MS:
+                shake = min(1.0, dv / LIFT_FULL_DV_MS)
+        dust = min(1.0, max(dv_a, dv_b) / LIFT_FULL_DV_MS)
+        if dust > 0.25:
+            self.ctx.effects.spawn_dust(c.px, c.py, dust)
+        if shake > 0.0 and self.on_shake is not None:
+            self.on_shake(shake)
 
     # ---------- помощник для камней ----------
     def _obbs_near(self, x, y, radius):

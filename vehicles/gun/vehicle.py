@@ -88,7 +88,7 @@ class GunVehicle(Vehicle):
         if not self.stunned:  # оглушение замораживает перезарядку
             self.reload_left = max(0.0, self.reload_left - dt)
         self.since_shot += dt
-        if not fire or self.reload_left > 0.0 or self.stunned:
+        if not fire or self.reload_left > 0.0 or self.stunned or self.fire_locked:
             return None
 
         stats = self.round_stats()

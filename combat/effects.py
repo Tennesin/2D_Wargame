@@ -7,7 +7,7 @@ import pygame
 
 from engine import heading_vector, AlphaLayer
 from .artillery_shell import ArtilleryShell, BLAST_FIRE_K
-from .effect_parts import MuzzleFlash, SmokeStreak, Explosion, Scorch, Spark
+from .effect_parts import MuzzleFlash, SmokeStreak, Explosion, Scorch, Spark, DustPuff
 from .projectile import Shell
 
 @dataclass
@@ -42,6 +42,7 @@ class EffectsSystem:
         self.explosions = []
         self.scorches = []
         self.sparks = []
+        self.dust = []
         self._alpha = AlphaLayer()
         self._rng = random.Random()
 
@@ -60,6 +61,10 @@ class EffectsSystem:
         origin = (shot.x - dx * spec.MUZZLE_DIST_PX,        # центр танка: оттуда считаем первый отрезок пролёта
                   shot.y - dy * spec.MUZZLE_DIST_PX)
         self.shells.append(Shell(shot.x, shot.y, shot.angle, spec, shot.ammo, origin, owner=tank))
+
+    def spawn_dust(self, x, y, strength):
+        """Пыль от удара техники о технику."""
+        self.dust.append(DustPuff(x, y, strength, self._rng))
 
     def _spawn_impact(self, shell):
         stats = shell.stats
@@ -84,7 +89,7 @@ class EffectsSystem:
             shell.update(dt, targets)
         for shell in self.artillery_shells:
             shell.update(dt)
-        for group in (self.flashes, self.smoke, self.explosions, self.scorches, self.sparks):
+        for group in (self.flashes, self.smoke, self.explosions, self.scorches, self.sparks, self.dust):
             for obj in group:
                 obj.update(dt)
 
@@ -116,6 +121,7 @@ class EffectsSystem:
         self.explosions = [o for o in self.explosions if o.alive]
         self.scorches = [o for o in self.scorches if o.alive]
         self.sparks = [o for o in self.sparks if o.alive]
+        self.dust = [o for o in self.dust if o.alive]
         return hits, ricochets, misses, blasts
 
     def draw_ground(self, screen, camera):
@@ -161,6 +167,8 @@ class EffectsSystem:
             shell.draw(screen, camera)
         for boom in self.explosions:
             boom.draw(screen, camera)
+        for puff in self.dust:
+            puff.draw(screen, camera)
         for flash in self.flashes:
             flash.draw(screen, camera)
         for spark in self.sparks:

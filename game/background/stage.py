@@ -280,7 +280,7 @@ class Stage:
             a.removed = True
         self.actors.clear()
         e = self.effects
-        for name in ("shells", "artillery_shells", "flashes", "smoke", "explosions", "scorches", "sparks"):
+        for name in ("shells", "artillery_shells", "flashes", "smoke", "explosions", "scorches", "sparks", "dust"):
             getattr(e, name).clear()
 
     def draw(self, screen):

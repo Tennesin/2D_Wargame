@@ -6,7 +6,7 @@
 Оружия и башни тут нет: подкласс переопределяет _update_weapons() и возвращает Shot или None."""
 from engine import (
     obb_hits_obb, VehicleCommand, heading_vector, Team, AmmoKind,
-    TargetType, fmt_num, to_local_frame, PX_PER_M,
+    TargetType, fmt_num, to_local_frame, PX_PER_M, clamp
 )
 from vehicles.mods import NO_MODS
 from combat import Damageable
@@ -15,8 +15,10 @@ from vehicles.chassis.hit_model import HitModelMixin
 from vehicles.chassis.motion import MotionMixin
 from vehicles.chassis.running_gear import TrackState
 from vehicles.chassis.tracks import TracksMixin
+from vehicles.chassis.params import RAM_MASS_RANGE_T
+from vehicles.chassis.shock import ShockMixin
 
-class Vehicle(MotionMixin, TracksMixin, HitModelMixin, Damageable):
+class Vehicle(MotionMixin, TracksMixin, HitModelMixin, ShockMixin, Damageable):
     # Порядок баз важен: HitModelMixin раньше Damageable, иначе hit_result станет заглушкой.
     target_type = TargetType.VEHICLE
     kind = None
@@ -45,8 +47,13 @@ class Vehicle(MotionMixin, TracksMixin, HitModelMixin, Damageable):
         self.impact_kmh = None          # скорость в момент удара в ЭТОМ кадре (None: удара не было)
         self.push_vx = 0.0              # скорость, полученная от тарана, px/с мира
         self.push_vy = 0.0
+        self._pending = []              # невыданные изменения скорости: [[dvx, dvy, секунд осталось], ...] px/с
+        self._soft_contact_s = 0.0      # пока > 0, удар о препятствие не гасит скорость (партнёр ещё разгоняется)
         self.tracks = TrackState()      # сбитые гусеницы и ремонт
         self.stun_left = 0.0            # сколько секунд осталось оглушения
+        self.lift_left = 0.0            # сколько секунд осталось подброса
+        self.lift_total = 0.0           # длительность текущего подброса (для индикатора и кривой)
+        self.lift_amp = 0.0             # высота подъёма 0..1
         self.stun_total = 0.0           # длительность текущего оглушения (для индикатора)
         self.repaired_track = None      # сторона гусеницы, которую починили в ЭТОМ кадре (для сообщений)
         self.mods = NO_MODS             # улучшения (у ботов всегда пустые)
@@ -60,6 +67,12 @@ class Vehicle(MotionMixin, TracksMixin, HitModelMixin, Damageable):
     def mass_t(self):
         """Масса, т (для тарана: тот же интерфейс, что у Wall.mass_t и Patch.mass_t)."""
         return self.spec.mass
+
+    @property
+    def mass_k(self):
+        """Где масса машины между "лёгкой" и "тяжёлой": 0..1 (для реакции на удар)."""
+        lo, hi = RAM_MASS_RANGE_T
+        return clamp((self.mass_t - lo) / (hi - lo), 0.0, 1.0)
 
     @property
     def inertia_t_m2(self):
@@ -197,7 +210,9 @@ class Vehicle(MotionMixin, TracksMixin, HitModelMixin, Damageable):
         distance = self._drive(throttle, steer, dt, obstacles, braking)
         self._animate_tracks(distance, delta_hull)
         shot = self._update_weapons(command, dt)
-        self.stun_left = max(0.0, self.stun_left - dt)  # таймер в конце кадра: весь кадр оглушение действует
+        self.stun_left = max(0.0, self.stun_left - dt)
+        self._soft_contact_s = max(0.0, self._soft_contact_s - dt)
+        self.lift_left = max(0.0, self.lift_left - dt)
         return shot
 
     def _update_weapons(self, command, dt):

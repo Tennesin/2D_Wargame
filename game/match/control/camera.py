@@ -1,10 +1,12 @@
 """game/match/control/camera.py — зум, размер окна, свободная камера и следование за танком."""
 import math
-
+import random
 from inputs import Action, MouseOwner
 from .look_ahead import LookAhead
 
 PAN_DRAG_THRESHOLD_PX = 5     # на сколько px надо сдвинуть мышь с зажатой ПКМ, чтобы это считалось перетаскиванием
+SHAKE_DECAY_S = 0.35          # за сколько секунд тряска стихает от максимума
+SHAKE_MAX_PX = 14.0           # размах при максимальной силе, экранные px
 
 class CameraController:
     def __init__(self, camera, input_handler):
@@ -13,6 +15,8 @@ class CameraController:
         self.free_camera = False         # свободная камера (L): не следует за танком
         self._pan = None                 # при нажатой ПКМ: {"start", "last", "dragged"}
         self._look = LookAhead()         # плавное смещение обзора к курсору
+        self._shake = 0.0                # текущая сила тряски 0..1
+        self._shake_xy = (0.0, 0.0)      # смещение этого кадра (follow зовут дважды: берём одно и то же)
 
     # ---------- клавиши ----------
     def handle_hotkeys(self):
@@ -42,7 +46,20 @@ class CameraController:
             return
         hx, hy = tank.hull_obb()[:2]
         ox, oy = self._look.offset(dt, self.camera, self.input)
-        self.camera.center_on(hx + ox, hy + oy)
+        sx, sy = self._shake_offset(dt)
+        z = self.camera.zoom
+        self.camera.center_on(hx + ox + sx / z, hy + oy + sy / z)
+
+    def add_shake(self, amount):
+        """Толчок камеры: amount 0..1. Не складывается, берётся сильнейший."""
+        self._shake = min(1.0, max(self._shake, amount))
+
+    def _shake_offset(self, dt):
+        if dt > 0.0:
+            self._shake = max(0.0, self._shake - dt / SHAKE_DECAY_S)
+            amp = SHAKE_MAX_PX * self._shake * self._shake
+            self._shake_xy = (random.uniform(-amp, amp), random.uniform(-amp, amp))
+        return self._shake_xy
 
     # ---------- перетаскивание ПКМ ----------
     def begin_pan(self, pos):

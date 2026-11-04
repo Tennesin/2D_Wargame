@@ -57,6 +57,7 @@ class Match:
         self.spawner = BotSpawner(self.fleet, finder, camera, self.seed, prefs, settings)
         self.bot_ctrl = BotController(self.ctx)
         self.ram = RamController(self.ctx)
+        self.ram.on_shake = self.camera_ctrl.add_shake
         self.loot = LootController(self.ctx, input_handler)
         self.spawner.on_round_finished = self.stats.on_round_finished
         self.fleet.on_destroyed = self.stats.on_enemy_destroyed

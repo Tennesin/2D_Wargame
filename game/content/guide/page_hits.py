@@ -11,7 +11,7 @@ from vehicles import nose_front_factor, wedge_front_factor
 from vehicles.gun.params import AP_NORMALIZATION_DEG, HEAT_MODULE_LOSS_K
 from vehicles.chassis.params import (
     TRACK_REPAIR_S, ONE_TRACK_SPEED_K, TRACK_EDGE_ZONE_M, TRACK_HP_K,
-    TRACK_REGEN_K, TRACK_REGEN_DELAY_S, TRACK_MM_RANGE
+    TRACK_REGEN_K, TRACK_REGEN_DELAY_S, TRACK_MM_RANGE, LIFT_MIN_DV_MS, LIFT_MAX_S
 )
 from .. import texts
 from .common import k as _k
@@ -96,5 +96,8 @@ def build():
                          f"корма ×{ZONE_K['rear']:g}.",
                          "Урон от удара о камень выключен по умолчанию: включается в «Настройках».",
                          "Боты друг друга тараном не ранят, пока не включён «Урон по союзникам».",
+                         f"Очень сильный удар (машина теряет или получает больше {LIFT_MIN_DV_MS:g} м/с скорости) "
+                         f"подбрасывает её: до {LIFT_MAX_S:g} с стрелять нельзя, перезарядка идёт. "
+                         "Пока машина подброшена, повторно подбросить её нельзя.",
                      ]),
     ]

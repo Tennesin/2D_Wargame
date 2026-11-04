@@ -33,4 +33,5 @@ class TankPanelLink:
         self.panel.set_modules(views)
         self.panel.set_weapon(tank.ammo, self.modes.combat)
         self.panel.set_stun(tank.stun_left)
+        self.panel.set_lift(tank.lift_left, tank.lift_total)
         self.panel.set_terrain(_TERRAIN_OF.get(tank.terrain_kind, TERRAIN_PLAIN), tank.terrain_k)

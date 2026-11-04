@@ -19,6 +19,7 @@ BLAST_LAYERS = (                     # огненный шар взрыва: о�
     (0.22, (255, 245, 210)),
 )
 DIRT_COLORS = ((92, 70, 48), (72, 54, 38), (110, 88, 60))
+DUST_COLORS = ((150, 134, 108), (128, 112, 88), (168, 152, 126))
 
 SCORCH_COLOR = (18, 14, 10)
 SCORCH_MAX_ALPHA = 150
@@ -262,3 +263,36 @@ class Spark:
             pygame.draw.line(screen, (255, 225, 140),
                              (cx + ux * tail * z, cy + uy * tail * z),
                              (cx + ux * head * z, cy + uy * head * z), 2)
+
+class DustPuff:
+    """Облако пыли от удара корпусов: комья расходятся и тают. strength 0..1."""
+
+    def __init__(self, x, y, strength, rng):
+        self.x, self.y = x, y
+        self.life = 0.7 + 0.5 * strength
+        self.age = 0.0
+        size = 90.0 + 160.0 * strength                   # мировые px
+        self.puffs = []                                  # (dx, dy, на сколько разойдётся, радиус, цвет)
+        for _ in range(8 + int(10 * strength)):
+            ang = rng.uniform(0.0, 2.0 * math.pi)
+            self.puffs.append((math.cos(ang), math.sin(ang),
+                               size * rng.uniform(0.6, 1.6), size * rng.uniform(0.22, 0.42),
+                               rng.choice(DUST_COLORS)))
+
+    @property
+    def alive(self):
+        return self.age < self.life
+
+    def update(self, dt):
+        self.age += dt
+
+    def draw(self, screen, camera):
+        z = camera.zoom
+        u = self.age / self.life
+        spread = 1.0 - (1.0 - u) ** 2
+        cx, cy = camera.world_to_screen(self.x, self.y)
+        for dxn, dyn, dist, r, color in self.puffs:
+            rad = round(r * (1.0 - 0.7 * u) * z)
+            if rad >= 1:
+                pygame.draw.circle(screen, color,
+                                   (round(cx + dxn * dist * spread * z), round(cy + dyn * dist * spread * z)), rad)
