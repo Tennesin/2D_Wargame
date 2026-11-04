@@ -6,6 +6,7 @@ from engine import get_text, COLOR_GOOD
 from .theme import BUTTON_COLORS, PANEL_BORDER, TEXT_COLOR, TEXT_DIM
 from .hud import MARGIN, WIDTH, HEIGHT
 from .ammo_icons import make_ammo_icon
+from .damage_feed import FEED_RIGHT
 
 OFFSET_Y = 8                       # зазор между рядом кнопок и сводкой
 ICON_SIZE = (28, 16)
@@ -19,7 +20,7 @@ BTN_H = 44
 def occupied_corner(screen_h):
     """(правая граница, верхняя граница) области левого нижнего угла, занятой сводкой и рядом снарядов.
     Нужна указателям у края экрана, чтобы не залезать под интерфейс."""
-    return MARGIN + WIDTH, screen_h - MARGIN - HEIGHT - OFFSET_Y - BTN_H
+    return max(MARGIN + WIDTH, FEED_RIGHT), screen_h - MARGIN - HEIGHT - OFFSET_Y - BTN_H
 
 class AmmoBar:
     def __init__(self, items, on_select):

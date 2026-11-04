@@ -25,7 +25,7 @@ except ImportError:
 
 # Папки верхнего уровня, которые попадают в снимок (вложенные берутся автоматически)
 ALLOWED_SUBDIRS = {"engine", "combat", "world", "vehicles", "structures",
-                   "inputs", "ui", "game", "assets", "ai"}
+                   "inputs", "ui", "game", "assets", "ai", "assets"}
 
 # Папки, которые пропускаем на любой глубине
 IGNORED_DIRS = {"__pycache__", ".git", ".idea", ".vscode", "venv", ".venv"}

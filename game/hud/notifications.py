@@ -1,6 +1,7 @@
 """game/hud/notifications.py — сообщения о попаданиях: лента сверху и всплывающие числа над целью."""
 from engine import get_text, FONT_SIZE_HEADER, TargetType
-from ..content.texts import TRACK_RU, MODULE_ON, ZONE_RU
+from ..content.texts import TRACK_RU, MODULE_ON
+from ui import DamageFeed, FeedIcon, FeedTone
 
 FEED_MAX = 5                 # сколько строк в ленте одновременно
 FEED_LIFE = 3.5              # сколько секунд живёт строка
@@ -48,6 +49,8 @@ class Notifier:
         self.player = player
         self._feed = []
         self._floaters = []
+        self.feed = DamageFeed()
+        self._pending = []
 
     # ---------- вывод ----------
     def say(self, text, color=C_DIM):
@@ -60,10 +63,17 @@ class Notifier:
         self._floaters.append(_Floater(x, y, text, color))
         del self._floaters[:-FLOAT_MAX]
 
+    def _push(self, icon, tone, value):
+        """Событие для иконочной ленты. Одинаковые «иконка + тон» за один кадр складываются в одно число."""
+        for item in self._pending:
+            if item[0] is icon and item[1] is tone:
+                item[2] += value
+                return
+        self._pending.append([icon, tone, value])
+
     # ---------- события боя ----------
     def on_hit(self, owner, target, normal, res, dealt):
-        """Снаряд owner попал в target. res — HitResult, dealt — нанесённый урон.
-        Вызывать ПОСЛЕ take_hit, чтобы hp уже был обновлён."""
+        """Снаряд owner попал в target."""
         if res.ricochet:
             self.on_ricochet(owner, target)
             return
@@ -75,54 +85,54 @@ class Notifier:
             self._hit_on_enemy(target, normal, res, dealt, frag)
         elif owner is me and target.target_type is TargetType.WALL:
             self._hit_on_wall(target, dealt)
-        elif owner is me and target.target_type is TargetType.TERRAIN:
-            self.say("Преграда: снаряд не пробил", C_DIM)
 
     def on_ricochet(self, owner, target):
-        """Снаряд отскочил от target и летит дальше."""
+        """Рикошеты в иконочную ленту не попадают."""
         me = self.player
         if target is me:
-            self.say("Рикошет! Снаряд отскочил от брони", C_GOOD)
             self.float_at(me.x, me.y, "рикошет", C_GOOD)
         elif owner is me and target.target_type is TargetType.VEHICLE:
-            self.say("Рикошет! Цель цела", C_WARN)
             self.float_at(target.x, target.y, "рикошет", C_WARN)
         elif owner is me and target.target_type is TargetType.WALL:
             self.say("Рикошет от стены", C_DIM)
 
     def on_miss(self, owner):
-        """Снаряд долетел до предела дальности, ничего не задев."""
-        if owner is self.player:
-            self.say("Промах", C_DIM)
+        """Промахи игнорируются."""
 
     def on_ram(self, a, b, dmg_a, dmg_b, zone_a, zone_b):
-        """Танки a и b столкнулись. dmg_* — урон каждому, zone_* — грань, принявшая удар.
-        Показываем только столкновения с участием игрока."""
+        """Танки a и b столкнулись."""
         me = self.player
         if me is a:
-            foe, mine, theirs, my_zone, their_zone = b, dmg_a, dmg_b, zone_a, zone_b
+            foe, mine, theirs = b, dmg_a, dmg_b
         elif me is b:
-            foe, mine, theirs, my_zone, their_zone = a, dmg_b, dmg_a, zone_b, zone_a
+            foe, mine, theirs = a, dmg_b, dmg_a
         else:
             return
         if mine <= 0.0 and theirs <= 0.0:
             return
-        self.say(f"Таран! Врагу -{theirs:.0f} HP ({ZONE_RU[their_zone]}), "
-                 f"вам -{mine:.0f} HP ({ZONE_RU[my_zone]})", C_WARN)
         if theirs > 0.0:
+            self._push(FeedIcon.RAM, FeedTone.GOOD, theirs)
             self.float_at(foe.x, foe.y, f"-{theirs:.0f}", C_GOOD)
         if mine > 0.0:
+            self._push(FeedIcon.RAM, FeedTone.BAD, mine)
             self.float_at(me.x, me.y, f"-{mine:.0f}", C_BAD)
         if foe.hp <= 0.0:
             self.say("ЦЕЛЬ УНИЧТОЖЕНА!", C_GOOD)
 
+    def on_rock_ram(self, dmg):
+        """Игрок получил урон от тарана камня."""
+        if dmg > 0.0:
+            self._push(FeedIcon.RAM, FeedTone.BAD, dmg)
+            self.float_at(self.player.x, self.player.y, f"-{dmg:.0f}", C_BAD)
+
     def on_splash(self, owner, target, dealt):
-        """Осколки фугаса задели target (не прямая цель). Показываем только связанное с игроком."""
+        """Осколки фугаса задели target (не прямая цель)."""
         me = self.player
         if target is me:
-            self.say(f"Осколки: -{dealt:.0f} HP", C_WARN)
+            self._push(FeedIcon.SHIELD, FeedTone.WARN, dealt)
             self.float_at(me.x, me.y, f"-{dealt:.0f}", C_WARN)
         elif owner is me and target.target_type is TargetType.VEHICLE:
+            self._push(FeedIcon.SHELL, FeedTone.WARN, dealt)
             self.float_at(target.x, target.y, f"-{dealt:.0f}", C_WARN)
             if target.hp <= 0.0:
                 self.say("ЦЕЛЬ УНИЧТОЖЕНА!", C_GOOD)
@@ -131,24 +141,21 @@ class Notifier:
                 self.say("Стена разрушена", C_DIM)
 
     def on_artillery(self, owner, target, dealt, stunned):
-        """Взрыв САУ задел target. Показываем только то, что касается игрока."""
+        """Взрыв САУ задел target."""
         me = self.player
         if target is not me:
             return
-        self.say(f"Накрыло артиллерией: -{dealt:.0f} HP", C_BAD)
+        self._push(FeedIcon.SHIELD, FeedTone.BAD, dealt)
         self.float_at(me.x, me.y, f"-{dealt:.0f}", C_BAD)
         if stunned:
-            self.on_stun(owner, target)            # «Вы оглушены!»
+            self.on_stun(owner, target)
 
     def on_track_broken(self, owner, target, side):
-        """Сбита гусеница. Показываем только связанное с игроком."""
+        """Сбитые гусеницы игнорируются."""
         me = self.player
-        name = TRACK_RU[side]
         if target is me:
-            self.say(f"Сбита {name} гусеница!", C_BAD)
             self.float_at(me.x, me.y, "гусеница", C_BAD)
         elif owner is me:
-            self.say(f"Сбита {name} гусеница врага", C_GOOD)
             self.float_at(target.x, target.y, "гусеница", C_GOOD)
 
     def on_track_repaired(self, vehicle, side):
@@ -159,7 +166,7 @@ class Notifier:
         """Игрок подобрал обломки и восстановил здоровье."""
         if healed <= 0.0:
             return
-        self.say(f"Обломки: восстановлено {healed:.0f} HP", C_GOOD)
+        self._push(FeedIcon.PLUS, FeedTone.GOOD, healed)
         self.float_at(player.x, player.y, f"+{healed:.0f}", C_GOOD)
 
     def on_upgrade_drop(self, title):
@@ -193,33 +200,31 @@ class Notifier:
     # ---------- разбор попаданий ----------
     def _hit_on_player(self, normal, res, dealt, frag=False):
         me = self.player
-        zone = ZONE_RU[me.zone_at(normal)]
         if frag:
-            self.say(f"Фугас {zone}: осколки -{dealt:.0f} HP", C_WARN)
+            self._push(FeedIcon.SHIELD, FeedTone.WARN, dealt)
             self.float_at(me.x, me.y, f"-{dealt:.0f}", C_WARN)
         elif res.damage_frac <= 0.0:
-            self.say(f"Броня не пробита! ({zone}, приведённая {res.eff_armor:.0f} мм)", C_GOOD)
+            self._push(FeedIcon.SHIELD, FeedTone.GOOD, 0.0)
             self.float_at(me.x, me.y, "0", C_GOOD)
         elif res.damage_frac >= 1.0:
-            self.say(f"ВАС ПРОБИЛИ {zone}! -{dealt:.0f} HP", C_BAD)
+            self._push(FeedIcon.SHIELD, FeedTone.BAD, dealt)
             self.float_at(me.x, me.y, f"-{dealt:.0f}", C_BAD)
         else:
-            self.say(f"Частичное пробитие {zone}: -{dealt:.0f} HP", C_WARN)
+            self._push(FeedIcon.SHIELD, FeedTone.WARN, dealt)
             self.float_at(me.x, me.y, f"-{dealt:.0f}", C_WARN)
 
     def _hit_on_enemy(self, target, normal, res, dealt, frag=False):
-        zone = ZONE_RU[target.zone_at(normal)]
         if frag:
-            self.say(f"Фугас {zone}: осколки -{dealt:.0f} HP (осталось {max(0.0, target.hp):.0f})", C_WARN)
+            self._push(FeedIcon.SHELL, FeedTone.WARN, dealt)
             self.float_at(target.x, target.y, f"-{dealt:.0f}", C_WARN)
         elif res.damage_frac <= 0.0:
-            self.say(f"Не пробито ({zone}): приведённая броня {res.eff_armor:.0f} мм", C_BAD)
+            self._push(FeedIcon.SHELL, FeedTone.BAD, 0.0)
             self.float_at(target.x, target.y, "0", C_DIM)
         elif res.damage_frac >= 1.0:
-            self.say(f"Пробитие {zone}! -{dealt:.0f} HP (осталось {max(0.0, target.hp):.0f})", C_GOOD)
+            self._push(FeedIcon.SHELL, FeedTone.GOOD, dealt)
             self.float_at(target.x, target.y, f"-{dealt:.0f}", C_GOOD)
         else:
-            self.say(f"Урон ослаблен ({zone}): -{dealt:.0f} HP", C_WARN)
+            self._push(FeedIcon.SHELL, FeedTone.WARN, dealt)
             self.float_at(target.x, target.y, f"-{dealt:.0f}", C_WARN)
         if target.hp <= 0.0:
             self.say("ЦЕЛЬ УНИЧТОЖЕНА!", C_GOOD)
@@ -240,9 +245,15 @@ class Notifier:
         self._feed = [l for l in self._feed if l.age < FEED_LIFE]
         self._floaters = [f for f in self._floaters if f.age < FLOAT_LIFE]
 
+        for icon, tone, value in self._pending:
+            self.feed.push(icon, tone, value)
+        self._pending.clear()
+        self.feed.update(dt)
+
     def draw(self, screen, camera):
         self._draw_floaters(screen, camera)
         self._draw_feed(screen)
+        self.feed.draw(screen)
 
     def _draw_floaters(self, screen, camera):
         for f in self._floaters:

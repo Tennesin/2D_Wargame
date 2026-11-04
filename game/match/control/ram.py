@@ -53,7 +53,7 @@ class RamController:
                 dmg = ram_damage(abs(res.u1 - u1), tank.zone_at((nx, ny)))
                 tank.take_damage(dmg)
                 if tank is self.fleet.player and dmg > 0.0:
-                    self.notifier.say(f"Удар о камень: -{dmg:.0f} HP", (240, 200, 70))
+                    self.notifier.on_rock_ram(dmg)
 
     # ---------- танки ----------
     def _ram_tanks(self, a, done):
