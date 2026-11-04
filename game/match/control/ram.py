@@ -1,11 +1,13 @@
-"""game/match/control/ram.py — таран: удар танка о камень или другой танк, толчок и урон.
-Танк только отмечает «я врезался» (impact_kmh); что именно он задел и что из этого вышло, решаем здесь."""
-from combat import (resolve_ram, can_push, ram_damage,
+"""game/match/control/ram.py — таран: удар танка о камень или другой танк, толчок и урон."""
+import math
+
+from combat import (resolve_ram, resolve_ram_2d, can_push, ram_damage,
                     RESTITUTION_ROCK, RESTITUTION_TANK, MIN_CLOSING_MS)
 from engine import PX_PER_M, obb_contact
 
 CONTACT_PAD_PX = 8.0         # на сколько px раздуваем корпус, чтобы поймать касание (физика останавливает танк вплотную)
 DAMAGE_COOLDOWN_S = 0.5      # пока не прошло, та же пара танков повторно урон не получает
+NORMAL_MEMORY_S = 0.3        # сколько помним нормаль пары (против прыжков нормали при ударе углом)
 
 class RamController:
     def __init__(self, ctx):
@@ -16,11 +18,16 @@ class RamController:
         self.notifier = ctx.notifier
         self.settings = ctx.settings
         self._cooldown = {}
+        self._normals = {}               # пара -> [nx, ny, секунд до забывания]
         self.match_stats = ctx.match_stats
+        self.last = None                 # последний удар танков (его показывает отладка и ram_lab)
 
     # ---------- каждый кадр (после обновления всех танков) ----------
     def update(self, dt):
         self._cooldown = {k: t - dt for k, t in self._cooldown.items() if t - dt > 0.0}
+        self._normals = {k: [m[0], m[1], m[2] - dt] for k, m in self._normals.items() if m[2] - dt > 0.0}
+        if self.last is not None:
+            self.last["age"] += dt
 
         done = set()                     # пары, уже разобранные в этом кадре
         for tank in self.fleet.vehicles:
@@ -35,7 +42,7 @@ class RamController:
 
         self.fleet.remove_dead()                             # кто погиб от тарана
 
-    # ---------- камни ----------
+    # ---------- камни (пока по старой одномерной модели) ----------
     def _ram_rocks(self, tank):
         for rock, nx, ny in self.terrain.rocks.pushables_touching(tank.hull_obb(), CONTACT_PAD_PX):
             if not can_push(tank.mass_t, rock.mass_t):
@@ -65,35 +72,53 @@ class RamController:
             key = frozenset((id(a), id(b)))
             if key in done:
                 continue
-            contact = obb_contact(padded, b.hull_obb())
+            mem = self._normals.get(key)
+            contact = obb_contact(padded, b.hull_obb(), None if mem is None else (mem[0], mem[1]))
             if contact is None:
                 continue
             done.add(key)
-            _, nx, ny = contact                              # нормаль от a к b: по ней определяется грань
+            self._normals[key] = [contact.nx, contact.ny, NORMAL_MEMORY_S]
+            self._collide(key, a, b, contact)
 
-            vax, vay = a.velocity_px(a.impact_kmh)           # скорость ДО гашения, если был удар
-            vbx, vby = b.velocity_px(b.impact_kmh)
-            u1 = (vax * nx + vay * ny) / PX_PER_M
-            u2 = (vbx * nx + vby * ny) / PX_PER_M
-            if u1 - u2 < MIN_CLOSING_MS:
-                continue                                     # скользящее касание или расходятся
+    def _collide(self, key, a, b, c):
+        """Один удар двух корпусов: импульс в точке контакта меняет скорость и вращение обоих."""
+        ca, cb = a.hull_obb()[:2], b.hull_obb()[:2]          # центры хитбоксов: это центры масс
+        r1 = ((c.px - ca[0]) / PX_PER_M, (c.py - ca[1]) / PX_PER_M)
+        r2 = ((c.px - cb[0]) / PX_PER_M, (c.py - cb[1]) / PX_PER_M)
+        va = a.velocity_px(a.impact_kmh)                     # скорость ДО гашения, если был удар
+        vb = b.velocity_px(b.impact_kmh)
+        v1 = (va[0] / PX_PER_M, va[1] / PX_PER_M)
+        v2 = (vb[0] / PX_PER_M, vb[1] / PX_PER_M)
 
-            res = resolve_ram(a.mass_t, u1, b.mass_t, u2, RESTITUTION_TANK)
-            dv_a, dv_b = abs(res.u1 - u1), abs(res.u2 - u2)
-            a.apply_impulse(nx, ny, res.u1 - u1)
-            b.apply_impulse(nx, ny, res.u2 - u2)
-            self._damage(key, a, b, nx, ny, dv_a, dv_b)
+        res = resolve_ram_2d(a.mass_t, a.inertia_t_m2, v1, math.radians(a.hull_rate), r1,
+                             b.mass_t, b.inertia_t_m2, v2, math.radians(b.hull_rate), r2,
+                             (c.nx, c.ny), RESTITUTION_TANK)
+        if res is None:
+            return                                           # скользящее касание или расходятся
 
-    def _damage(self, key, a, b, nx, ny, dv_a, dv_b):
+        a.apply_velocity_change(res.dv1[0], res.dv1[1], res.dw1)
+        b.apply_velocity_change(res.dv2[0], res.dv2[1], res.dw2)
+
+        zone_a = a.zone_at_point(c.px, c.py)                 # грань определяем по точке, а не по нормали
+        zone_b = b.zone_at_point(c.px, c.py)
+        dv_a, dv_b = res.jn / a.mass_t, res.jn / b.mass_t    # на сколько м/с изменилась скорость центра
+        dmg_a = ram_damage(dv_a, zone_a)
+        dmg_b = ram_damage(dv_b, zone_b)
+        self.last = {
+            "x": c.px, "y": c.py, "nx": c.nx, "ny": c.ny, "age": 0.0,
+            "a": a.label, "b": b.label, "closing": res.closing, "e": res.restitution,
+            "jn": res.jn, "jt": res.jt, "dv_a": dv_a, "dv_b": dv_b,
+            "dw_a": math.degrees(res.dw1), "dw_b": math.degrees(res.dw2),
+            "dmg_a": dmg_a, "dmg_b": dmg_b, "zone_a": zone_a, "zone_b": zone_b,
+        }
+        self._damage(key, a, b, dmg_a, dmg_b, zone_a, zone_b)
+
+    def _damage(self, key, a, b, dmg_a, dmg_b, zone_a, zone_b):
         if a.team is b.team and not self.settings.friendly_fire:
             return                                           # свои своих тараном не ранят: только толчок
         if self._cooldown.get(key, 0.0) > 0.0:
             return
         self._cooldown[key] = DAMAGE_COOLDOWN_S
-        zone_a = a.zone_at((nx, ny))                         # внешняя нормаль грани a смотрит на b
-        zone_b = b.zone_at((-nx, -ny))                       # а у b — на a
-        dmg_a = ram_damage(dv_a, zone_a)
-        dmg_b = ram_damage(dv_b, zone_b)
         real_a, real_b = min(dmg_a, a.hp), min(dmg_b, b.hp)
         a.take_damage(dmg_a)
         b.take_damage(dmg_b)

@@ -1,6 +1,7 @@
 """game/hud/debug.py — строки отладки (Tab)."""
 import pygame
 from collections import Counter
+import math
 
 from engine import PX_PER_M, VehicleKind
 from inputs import Action, key_label
@@ -13,7 +14,7 @@ class DebugOverlay:
     REFRESH_MS = 200
 
     def __init__(self, *, clock, ctx, camera_ctrl, tank, world, seed, input_handler, modes, spawner,
-                 loot=None, show_fps=False):
+                 loot=None, ram=None, show_fps=False):
         self.clock = clock
         self.camera = ctx.camera
         self.camera_ctrl = camera_ctrl
@@ -26,6 +27,7 @@ class DebugOverlay:
         self.fleet = ctx.fleet
         self.effects = ctx.effects
         self.loot = loot
+        self.ram = ram
         self.spawner = spawner
         self.visible = False
         self.show_fps = show_fps
@@ -66,6 +68,8 @@ class DebugOverlay:
             f"Mouse owner: {owner}",
             f"Combat ({k[Action.COMBAT]}): {'ON' if self.modes.combat else 'OFF'}",
             f"Speed: {t.speed_kmh:.1f} km/h",
+            f"Push: {math.hypot(t.push_vx, t.push_vy) / PX_PER_M:.1f} m/s  hull_rate: {t.hull_rate:.0f} deg/s  "
+            f"inertia: {s.inertia:.0f} t*m2",
             f"Mods: dmg x{t.mods.dmg_k:.2f} pen x{t.mods.pen_k:.2f} spd x{t.mods.shell_speed_k:.2f} "
             f"rng x{t.mods.shell_range_k:.2f} arm x{t.mods.armor_k:.2f} pwr x{t.mods.power_k:.2f} "
             f"turn x{t.mods.turn_k:.2f} blast x{t.mods.blast_taken_k:.2f}",
@@ -78,11 +82,12 @@ class DebugOverlay:
             f"bots {len(self.fleet.bots)}  spawned {self.spawner.spawned}",
             f"Fit: {self.spawner.fit_info}",
             f"Threat: " + "  ".join(f"{name} {v:.2f}" for name, v in self.spawner.profile.items()),
-        ] + self._mult_lines()
+        ] + self._ram_lines() + self._mult_lines()
 
     def draw(self, screen):
         if self.visible:
             mode = "full"
+            self._draw_contact(screen)
         elif self.show_fps:
             mode = "fps"
         else:
@@ -114,6 +119,29 @@ class DebugOverlay:
         if items[half:]:
             lines.append("                  " + "  ".join(items[half:]))
         return lines
+
+    def _ram_lines(self):
+        """Последний удар танков: сближение, импульсы, изменения скорости и вращения, урон."""
+        last = None if self.ram is None else self.ram.last
+        if last is None:
+            return ["Ram: -"]
+        return [
+            f"Ram {last['age']:.1f}s ago: {last['a']} x {last['b']}  closing {last['closing']:.1f} m/s  "
+            f"e {last['e']:.2f}",
+            f"   jn {last['jn']:.0f}  jt {last['jt']:.0f}  dv {last['dv_a']:.1f}/{last['dv_b']:.1f} m/s  "
+            f"dw {last['dw_a']:.0f}/{last['dw_b']:.0f} deg/s",
+            f"   dmg {last['dmg_a']:.0f}/{last['dmg_b']:.0f}  zones {last['zone_a']}/{last['zone_b']}",
+        ]
+
+    def _draw_contact(self, screen):
+        """Точка и нормаль последнего удара на карте (показывается 1.5 с)."""
+        last = None if self.ram is None else self.ram.last
+        if last is None or last["age"] > 1.5:
+            return
+        sx, sy = self.camera.world_to_screen(last["x"], last["y"])
+        pygame.draw.circle(screen, (255, 70, 60), (round(sx), round(sy)), 6, 2)
+        pygame.draw.line(screen, (255, 220, 60), (sx, sy),
+                         (sx + last["nx"] * 40, sy + last["ny"] * 40), 2)
 
     def _arty_status(self):
         """Сколько САУ, сколько из них не стреляют из-за своих и сколько готовы к выстрелу."""

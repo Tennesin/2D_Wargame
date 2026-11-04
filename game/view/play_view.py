@@ -33,7 +33,7 @@ class PlayView:
         self.debug = DebugOverlay(clock=clock, ctx=ctx, camera_ctrl=match.camera_ctrl, tank=match.player,
                                   world=world, seed=match.seed, input_handler=match.input,
                                   modes=match.modes, spawner=match.spawner, loot=match.loot,
-                                  show_fps=settings.show_fps)
+                                  ram=match.ram, show_fps=settings.show_fps)
         self.hud = HudOverlay(TankHud(), match.player)
         self.round_overlay = RoundOverlay(match.spawner, match.player)
         self.inspector = HoverInspector(ctx, match.input, match.modes)

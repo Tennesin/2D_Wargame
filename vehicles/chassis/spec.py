@@ -13,7 +13,7 @@ from vehicles.chassis.params import (
     ACCEL_K, ACCEL_MIN, ACCEL_MAX, ACCEL_TAIL_FLOOR, REVERSE_ACCEL_K, COAST_DECEL, BRAKE_DECEL,
     HULL_TURN_CAP, HULL_TURN_MIN, HULL_ALPHA_REF, HULL_ALPHA_MIN, HULL_ALPHA_MAX,
     HP_EXP, HP_STEP, FRONT_SCREEN, SCREEN_MASS_K, SCREEN_TURN_LOSS,
-    TRACK_HP_K, TRACK_MM_RANGE, TRACK_MM_STEP, TRACK_SIZE_K_RANGE
+    TRACK_HP_K, TRACK_MM_RANGE, TRACK_MM_STEP, TRACK_SIZE_K_RANGE, INERTIA_K
 )
 from vehicles.chassis.running_gear import RunningGear, TRACKS
 
@@ -173,3 +173,7 @@ class ChassisSpec:
         self.COLLISION_SHIFT_PX = b.coll_shift_m * k
         self.HULL_REACH_PX = (math.hypot(self.COLLISION_HALF_W_PX, self.COLLISION_HALF_L_PX)
                               + abs(self.COLLISION_SHIFT_PX))
+        # момент инерции корпуса относительно центра хитбокса
+        w_m = 2.0 * b.coll_half_w_m * self.HULL_SCALE
+        l_m = 2.0 * b.coll_half_l_m * self.HULL_SCALE
+        self.inertia = INERTIA_K * self.mass * (w_m * w_m + l_m * l_m) / 12.0

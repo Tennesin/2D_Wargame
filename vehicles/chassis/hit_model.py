@@ -1,6 +1,7 @@
-"""vehicles/chassis/hit_model.py — модель попаданий по технике: луч снаряда, грань и плита брони,
-приведённая броня. Миксин для Vehicle: состояния не хранит, читает spec и положение корпуса
-из итогового класса (hull_obb, _to_hull_local, hull_angle)."""
+"""vehicles/chassis/hit_model.py — модель попаданий по технике:
+луч снаряда, грань и плита брони, приведённая броня."""
+import math
+
 from engine import (
     heading_vector, convex_segment_hit, to_local_frame, vec_to_local, vec_from_local, PX_PER_M,
 )
@@ -54,6 +55,26 @@ class HitModelMixin:
         ang = self.hull_angle if hull_angle is None else hull_angle
         nu, nv = vec_to_local(normal[0], normal[1], ang)
         return layout.plate_by_normal(nu, nv)
+
+    def plate_at_point(self, x, y):
+        """Плита брони, ближайшая к мировой точке (x, y). Нужна тарану: у него есть точка контакта,
+        а нормаль может принадлежать оси другого корпуса."""
+        u, v = self._to_hull_local(x, y)
+        best, best_d = None, None
+        for p in self.spec.layout.plates:
+            ax, ay = p.a
+            bx, by = p.b
+            ex, ey = bx - ax, by - ay
+            ln2 = ex * ex + ey * ey
+            t = 0.0 if ln2 < 1e-9 else max(0.0, min(1.0, ((u - ax) * ex + (v - ay) * ey) / ln2))
+            d = math.hypot(ax + ex * t - u, ay + ey * t - v)
+            if best_d is None or d < best_d:
+                best, best_d = p, d
+        return best
+
+    def zone_at_point(self, x, y):
+        """Грань ("front" / "side" / "rear"), принявшая удар в мировой точке (x, y)."""
+        return self.plate_at_point(x, y).zone
 
     def armor_at(self, normal, hull_angle=None):
         """Броня грани, в которую попали."""

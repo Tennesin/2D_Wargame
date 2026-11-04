@@ -1,5 +1,6 @@
 """engine/geometry.py — пересечения повёрнутых прямоугольников и отрезков."""
 import math
+from typing import NamedTuple
 
 from .mathx import heading_vector
 
@@ -92,16 +93,34 @@ def obb_outside_rect(cx, cy, half_w, half_l, angle_deg, left, top, right, bottom
     ey = half_w * s + half_l * c          # и по Y
     return cx - ex < left or cx + ex > right or cy - ey < top or cy + ey > bottom
 
-def obb_contact(a, b):
-    """Контакт двух повёрнутых прямоугольников a, b = (x, y, half_w, half_l, angle).
-    Возвращает (глубина, nx, ny) по оси наименьшего проникновения; (nx, ny) — единичная нормаль ОТ a К b.
-    None, если прямоугольники не пересекаются. Чтобы поймать «почти касание», раздуйте a на пару px."""
+class Contact(NamedTuple):
+    """Контакт двух повёрнутых прямоугольников."""
+    depth: float     # глубина проникновения по оси наименьшего проникновения, px
+    nx: float        # единичная нормаль ОТ a К b
+    ny: float
+    px: float        # точка контакта (центр области пересечения), мировые px
+    py: float
+
+AXIS_HINT_COS = 0.98       # ось из прошлого кадра узнаём с точностью около 11°
+AXIS_HINT_SLACK = 1.25     # и сохраняем её, пока она не хуже лучшей больше чем в 1.25 раза...
+AXIS_HINT_PX = 3.0         # ...плюс столько px (иначе при почти равных глубинах нормаль скачет)
+
+def obb_corners(obb):
+    """Четыре угла прямоугольника (x, y, half_w, half_l, angle) по кругу."""
+    cx, cy, hw, hl, ang = obb
+    r, f = _obb_axes(ang)
+    return [(cx + r[0] * sx * hw + f[0] * sy * hl, cy + r[1] * sx * hw + f[1] * sy * hl)
+            for sx, sy in ((-1, -1), (1, -1), (1, 1), (-1, 1))]
+
+def obb_contact(a, b, hint=None):
+    """Контакт двух повёрнутых прямоугольников a, b = (x, y, half_w, half_l, angle)."""
     cx1, cy1, hw1, hl1, ang1 = a
     cx2, cy2, hw2, hl2, ang2 = b
     r1, f1 = _obb_axes(ang1)
     r2, f2 = _obb_axes(ang2)
     dx, dy = cx2 - cx1, cy2 - cy1
-    best = None
+
+    cands = []
     for ax, ay in (r1, f1, r2, f2):
         proj = dx * ax + dy * ay
         reach1 = hw1 * abs(r1[0] * ax + r1[1] * ay) + hl1 * abs(f1[0] * ax + f1[1] * ay)
@@ -109,10 +128,25 @@ def obb_contact(a, b):
         depth = reach1 + reach2 - abs(proj)
         if depth <= 0.0:
             return None
-        if best is None or depth < best[0]:
-            sign = 1.0 if proj >= 0.0 else -1.0
-            best = (depth, ax * sign, ay * sign)
-    return best
+        sign = 1.0 if proj >= 0.0 else -1.0
+        cands.append((depth, ax * sign, ay * sign, reach1))
+
+    best = min(cands, key=lambda c: c[0])
+    if hint is not None:
+        for c in cands:
+            if (abs(c[1] * hint[0] + c[2] * hint[1]) >= AXIS_HINT_COS
+                    and c[0] <= best[0] * AXIS_HINT_SLACK + AXIS_HINT_PX):
+                best = c
+                break
+    depth, nx, ny, reach1 = best
+
+    inter = clip_convex(obb_corners(a), obb_corners(b))
+    if len(inter) >= 3:
+        px, py = polygon_centroid(inter)
+    else:                                   # пересечение выродилось в линию: берём середину проникновения
+        k = reach1 - depth / 2.0
+        px, py = cx1 + nx * k, cy1 + ny * k
+    return Contact(depth, nx, ny, px, py)
 
 def obb_convex_contact(cx, cy, half_w, half_l, angle_deg, poly):
     """Как obb_hits_convex, но возвращает (глубина, nx, ny): ось наименьшего проникновения
@@ -174,6 +208,55 @@ def _signed_area2(poly):
         x1, y1 = poly[(i + 1) % n]
         s += x0 * y1 - x1 * y0
     return s
+
+def polygon_centroid(poly):
+    """Центр тяжести простого многоугольника (по площади)."""
+    n = len(poly)
+    a2 = _signed_area2(poly)
+    if abs(a2) < 1e-6:
+        return sum(x for x, _ in poly) / n, sum(y for _, y in poly) / n
+    cx = cy = 0.0
+    for i in range(n):
+        x0, y0 = poly[i]
+        x1, y1 = poly[(i + 1) % n]
+        k = x0 * y1 - x1 * y0
+        cx += (x0 + x1) * k
+        cy += (y0 + y1) * k
+    return cx / (3.0 * a2), cy / (3.0 * a2)
+
+def clip_convex(subject, clip):
+    """Часть выпуклого многоугольника subject, лежащая внутри выпуклого clip (Сазерленд — Ходжман).
+    Возвращает список вершин; пустой, если пересечения нет."""
+    sign = 1.0 if _signed_area2(clip) >= 0.0 else -1.0
+    out = list(subject)
+    n = len(clip)
+    for i in range(n):
+        if not out:
+            break
+        ax, ay = clip[i]
+        bx, by = clip[(i + 1) % n]
+        ex, ey = bx - ax, by - ay
+
+        def side(p):
+            return (ex * (p[1] - ay) - ey * (p[0] - ax)) * sign
+
+        def crossing(p, q, sp, sq):
+            t = sp / (sp - sq)
+            return p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t
+
+        src, out = out, []
+        prev = src[-1]
+        prev_s = side(prev)
+        for cur in src:
+            cur_s = side(cur)
+            if cur_s >= 0.0:
+                if prev_s < 0.0:
+                    out.append(crossing(prev, cur, prev_s, cur_s))
+                out.append(cur)
+            elif prev_s >= 0.0:
+                out.append(crossing(prev, cur, prev_s, cur_s))
+            prev, prev_s = cur, cur_s
+    return out
 
 def is_convex(poly):
     """Простой выпуклый многоугольник (любой порядок обхода). Звёздчатые и самопересекающиеся: False."""

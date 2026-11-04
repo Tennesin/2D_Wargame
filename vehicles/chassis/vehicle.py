@@ -62,6 +62,11 @@ class Vehicle(MotionMixin, TracksMixin, HitModelMixin, Damageable):
         return self.spec.mass
 
     @property
+    def inertia_t_m2(self):
+        """Момент инерции корпуса, т·м² (для тарана: тот же интерфейс, что у mass_t)."""
+        return self.spec.inertia
+
+    @property
     def alive(self):
         return self.hp > 0.0
 

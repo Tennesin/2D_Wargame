@@ -3,12 +3,12 @@
 читает поля и методы итогового класса (spec, _overlaps, _has_solids, _hull_obb, hull_angle...)."""
 import math
 
-from engine import normalize_angle, heading_vector, find_free_fraction, PX_PER_M
+from engine import normalize_angle, heading_vector, find_free_fraction, clamp, PX_PER_M
 from vehicles.chassis.params import (
     KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, TERRAIN_MIN_K, TERRAIN_BRAKE,
     TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY, CONTACT_TURN_STEPS, CONTACT_PUSH_STEPS,
     SLIDE_ANGLES_DEG, SLIDE_MIN_PX, CONTACT_SCRUB, CONTACT_STOP_PROGRESS,
-    PUSH_FRICTION_MS2, PUSH_STOP_PX, TERRAIN_SAMPLE_REACH,
+    PUSH_FRICTION_MS2, PUSH_STOP_PX, TERRAIN_SAMPLE_REACH, RAM_MAX_SPIN_DEG_S,
 )
 
 # Направления отодвигания корпуса: (вдоль корпуса, поперёк). Назад, вперёд, в стороны и диагонали.
@@ -222,12 +222,13 @@ class MotionMixin:
         v = (self.speed_kmh if speed_kmh is None else speed_kmh) * KMH_TO_PX
         return fx * v + self.push_vx, fy * v + self.push_vy
 
-    def apply_impulse(self, nx, ny, dv_ms):
-        """Таран: изменить скорость вдоль нормали (nx, ny) на dv_ms м/с (со знаком).
-        Если машина сама врезалась (impact_kmh задан), составляющая вдоль корпуса меняет её ход
-        (потеря скорости), а остальное уходит в толчок. Если её ударили, всё уходит в толчок."""
-        k = dv_ms * PX_PER_M
-        dvx, dvy = nx * k, ny * k
+    def apply_impulse(self, nx, ny, dv_ms, dw_rad_s=0.0):
+        """Таран камня: изменить скорость вдоль нормали (nx, ny) на dv_ms м/с (со знаком)."""
+        self.apply_velocity_change(nx * dv_ms, ny * dv_ms, dw_rad_s)
+
+    def apply_velocity_change(self, dvx_ms, dvy_ms, dw_rad_s=0.0):
+        """Изменение скорости центра на (dvx, dvy) м/с и угловой скорости на dw рад/с."""
+        dvx, dvy = dvx_ms * PX_PER_M, dvy_ms * PX_PER_M
         if self.impact_kmh is not None:
             fx, fy = heading_vector(self.hull_angle)
             along = dvx * fx + dvy * fy
@@ -237,6 +238,9 @@ class MotionMixin:
             dvy -= along * fy
         self.push_vx += dvx
         self.push_vy += dvy
+        if dw_rad_s:
+            spin = self.hull_rate + math.degrees(dw_rad_s)
+            self.hull_rate = clamp(spin, -RAM_MAX_SPIN_DEG_S, RAM_MAX_SPIN_DEG_S)
 
     def update_push(self, dt, obstacles, terrain):
         """Сдвиг по инерции от толчка. Гасится сцеплением гусениц, упирается в препятствия."""
