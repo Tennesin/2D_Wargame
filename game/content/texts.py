@@ -53,12 +53,9 @@ DEATH_HINT = "{key} — итоги боя"
 TRACK_RU = {"left": "левая", "right": "правая"}
 
 # Раунды
-ROUND_TITLE = "Раунд {n}"
-ROUND_STARTS_IN = "Начало через {t} с"
-ROUND_WAITING = "Группа выходит…"
-ROUND_WAIT_ROOM = "Ожидание: на карте нет места для новой группы"
-ROUND_TIME_LEFT = "До конца раунда: {t} с"
-ROUND_ENEMIES = "Врагов в группе: {alive} / {total}"
+ROUND_LABEL = "Round: {n}"
+ROUND_TIME_FMT = "{t} s"
+ROUND_NO_TIME = "—"
 
 # Прочее
 DISTANCE_FMT = "{:.0f} м"

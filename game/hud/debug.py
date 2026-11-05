@@ -6,12 +6,17 @@ import math
 from engine import PX_PER_M, VehicleKind
 from inputs import Action, key_label
 from world import CHUNK_SIZE
+from ui.ammo_bar import occupied_corner
+from .round_overlay import block_top
 
 class DebugOverlay:
     """Строки отладки (Tab)."""
     TOP = 12
     LINE_H = 20
     REFRESH_MS = 200
+    MARGIN = 10
+    COL_GAP = 16
+    BOTTOM_GAP = 8
 
     def __init__(self, *, clock, ctx, camera_ctrl, tank, world, seed, input_handler, modes, spawner,
                  loot=None, ram=None, show_fps=False):
@@ -33,7 +38,8 @@ class DebugOverlay:
         self.show_fps = show_fps
         self._font = pygame.font.Font(None, 22)
         self._k = {a: key_label(a) for a in Action}
-        self._rendered = []         # [(тень, текст), ...] готовые поверхности
+        self._left = []             # технические строки (левый край)
+        self._right = []            # игровые строки (правый край)
         self._next_refresh = 0      # момент (мс), когда пора пересобрать строки
         self._mode = None           # "full" / "fps" / None: что показывалось в прошлый раз
 
@@ -41,48 +47,55 @@ class DebugOverlay:
         if self.input.was_pressed(Action.TOGGLE_DEBUG):
             self.visible = not self.visible
 
-    def _lines(self):
+    def _left_lines(self):
+        """Технические строки: окно, камера, мир, ввод. Рисуются у левого края."""
         k = self._k
         t = self.tank
-        s = t.spec
         owner = self.input.mouse_owner.name if self.input.mouse_owner else "-"
         return [
             f"FPS: {self.clock.get_fps():.0f}",
             f"Zoom: {self.camera.zoom:.2f} (1 m = {PX_PER_M * self.camera.zoom:.0f} px)",
             f"Free camera ({k[Action.TOGGLE_FREE_CAM]}): {'ON' if self.camera_ctrl.free_camera else 'OFF'}",
             f"X: {t.x:.0f}  Y: {t.y:.0f}",
+            f"Pos (m): {t.x / PX_PER_M:.1f}, {t.y / PX_PER_M:.1f}",
             f"Chunk: {int(t.x // CHUNK_SIZE)}, {int(t.y // CHUNK_SIZE)}",
             f"Grass: {self.world.grass_at(t.x, t.y):.2f}",
-            f"Hull: {t.hull_angle:.0f}  Turret: {t.turret_angle:.0f}",
             f"Seed: {self.seed}",
-            f"Turret follow ({k[Action.LOCK_TURRET]}): {'ON' if self.modes.turret_follow else 'OFF'}",
-            f"Reload: {t.reload_left:.1f}s",
-            f"Pos (m): {t.x / PX_PER_M:.1f}, {t.y / PX_PER_M:.1f}",
             f"Walls: {len(self.walls.items)}",
+            f"Mouse owner: {owner}",
+            f"Turret follow ({k[Action.LOCK_TURRET]}): {'ON' if self.modes.turret_follow else 'OFF'}",
+            f"Combat ({k[Action.COMBAT]}): {'ON' if self.modes.combat else 'OFF'}",
+        ]
+
+    def _right_lines(self):
+        """Игровые строки: своя техника, боты, раунды, таран. Рисуются у правого края."""
+        t = self.tank
+        s = t.spec
+        return [
+            f"Hull: {t.hull_angle:.0f}  Turret: {t.turret_angle:.0f}",
+            f"Speed: {t.speed_kmh:.1f} km/h",
+            f"Reload: {t.reload_left:.1f}s",
             f"Hull class: {s.HULL_CLASS.name if hasattr(s, 'HULL_CLASS') else '-'}  "
             f"layout: {s.layout.key}  nose: {getattr(s, 'nose', '-')}  "
             f"index: {getattr(s, 'hull_index', 0.0):+.2f}",
-            f"Bot hulls: {self._bot_hulls()}",
             f"Hull scale: {s.HULL_SCALE:.2f}  size_k: {s.size_k:.3f}",
             f"Hitbox: {2 * s.COLLISION_HALF_W_PX / PX_PER_M:.2f} x {2 * s.COLLISION_HALF_L_PX / PX_PER_M:.2f} m",
-            f"Mouse owner: {owner}",
-            f"Combat ({k[Action.COMBAT]}): {'ON' if self.modes.combat else 'OFF'}",
-            f"Speed: {t.speed_kmh:.1f} km/h",
             f"Push: {math.hypot(t.push_vx, t.push_vy) / PX_PER_M:.1f} m/s  hull_rate: {t.hull_rate:.0f} deg/s  "
             f"inertia: {s.inertia:.0f} t*m2",
+            f"Terrain speed k: {t.terrain_k:.2f}  kind: {t.terrain_kind.name if t.terrain_kind else '-'}",
+            f"Tracks HP: L {t.tracks.health['left'] * 100:.0f}%  R {t.tracks.health['right'] * 100:.0f}%  "
+            f"({s.track_mm:.0f} мм, шкала {s.track_max_hp:.0f})",
             f"Mods: dmg x{t.mods.dmg_k:.2f} pen x{t.mods.pen_k:.2f} spd x{t.mods.shell_speed_k:.2f} "
             f"rng x{t.mods.shell_range_k:.2f} arm x{t.mods.armor_k:.2f} pwr x{t.mods.power_k:.2f} "
             f"turn x{t.mods.turn_k:.2f} blast x{t.mods.blast_taken_k:.2f}",
             f"Upgrades: {self._upgrades()}",
-            f"Terrain speed k: {t.terrain_k:.2f}  kind: {t.terrain_kind.name if t.terrain_kind else '-'}",
-            f"Tracks HP: L {t.tracks.health['left'] * 100:.0f}%  R {t.tracks.health['right'] * 100:.0f}%  "
-            f"({s.track_mm:.0f} мм, шкала {s.track_max_hp:.0f})",
+            f"Bot hulls: {self._bot_hulls()}",
             f"Arty: {self._arty_status()}  shells in flight {len(self.effects.artillery_shells)}",
             f"Round {self.spawner.round} {self.spawner.phase.name}  left {self.spawner.time_left:.0f}s  "
             f"bots {len(self.fleet.bots)}  spawned {self.spawner.spawned}",
             f"Fit: {self.spawner.fit_info}",
             f"Threat: " + "  ".join(f"{name} {v:.2f}" for name, v in self.spawner.profile.items()),
-        ] + self._ram_lines() + self._mult_lines()
+        ] + self._mult_lines() + self._ram_lines()
 
     def draw(self, screen):
         if self.visible:
@@ -96,18 +109,46 @@ class DebugOverlay:
 
         now = pygame.time.get_ticks()
         if mode != self._mode or now >= self._next_refresh:
-            lines = self._lines() if mode == "full" else [f"FPS: {self.clock.get_fps():.0f}"]
-            self._rendered = [(self._font.render(text, True, (0, 0, 0)),
-                               self._font.render(text, True, (255, 255, 255)))
-                              for text in lines]
+            if mode == "full":
+                left, right = self._left_lines(), self._right_lines()
+            else:
+                left, right = [f"FPS: {self.clock.get_fps():.0f}"], []
+            self._left = self._render(left)
+            self._right = self._render(right)
             self._mode = mode
             self._next_refresh = now + self.REFRESH_MS
 
-        y = self.TOP
-        for shadow, label in self._rendered:
-            screen.blit(shadow, (11, y + 1))
-            screen.blit(label, (10, y))
-            y += self.LINE_H
+        w, h = screen.get_size()
+        left_limit = occupied_corner(h)[1] - self.BOTTOM_GAP       # выше ряда кнопок снарядов
+        right_limit = block_top(screen.get_size()) - self.BOTTOM_GAP   # выше плашки раунда
+        self._draw_columns(screen, self._left, self.MARGIN, False, left_limit)
+        self._draw_columns(screen, self._right, w - self.MARGIN, True, right_limit)
+
+    def _render(self, lines):
+        """Строки -> готовые поверхности (тень, текст)."""
+        return [(self._font.render(text, True, (0, 0, 0)),
+                 self._font.render(text, True, (255, 255, 255)))
+                for text in lines]
+
+    def _draw_columns(self, screen, rendered, edge, from_right, limit):
+        """Рисует строки столбцами от края edge. Столбец не опускается ниже limit:
+        лишние строки переходят в новый столбец (от правого края влево, от левого вправо)."""
+        if not rendered:
+            return
+        per_col = max(1, (limit - self.TOP) // self.LINE_H)
+        for start in range(0, len(rendered), per_col):
+            chunk = rendered[start:start + per_col]
+            width = max(label.get_width() for _, label in chunk)
+            y = self.TOP
+            for shadow, label in chunk:
+                if from_right:
+                    rect = label.get_rect(topright=(edge, y))
+                else:
+                    rect = label.get_rect(topleft=(edge, y))
+                screen.blit(shadow, rect.move(1, 1))
+                screen.blit(label, rect)
+                y += self.LINE_H
+            edge += -(width + self.COL_GAP) if from_right else (width + self.COL_GAP)
 
     def _mult_lines(self):
         """Множители шансов архетипов, разбитые на две строки (вторая со сдвигом под первой)."""
@@ -117,7 +158,7 @@ class DebugOverlay:
         half = (len(items) + 1) // 2
         lines = ["Spawn mult: " + "  ".join(items[:half])]
         if items[half:]:
-            lines.append("                  " + "  ".join(items[half:]))
+            lines.append(" ".join(items[half:]))
         return lines
 
     def _ram_lines(self):
