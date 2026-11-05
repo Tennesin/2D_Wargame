@@ -128,6 +128,12 @@ class HitModelMixin:
         """Броня грани, ближайшей к точке (x, y) (мм). Нужна взрывам по площади: у них нет «луча»."""
         return self.armor_at(self.facing_normal(x, y))
 
+    def armor_at_point(self, x, y):
+        """Броня плиты, ближайшей к мировой точке (x, y): учитывает ползунки, накладки, гусеницы и улучшения."""
+        plate = self.plate_at_point(x, y)
+        nx, ny = vec_from_local(plate.normal[0], plate.normal[1], self.hull_angle)
+        return self.armor_at((nx, ny))
+
     def frag_nominal_armor(self, normal=None):
         """Номинальная броня грани для осколков: без угла, экраны считаются втрое."""
         return self.armor_at(normal) + self.frag_armor_bonus(normal)

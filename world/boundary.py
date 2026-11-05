@@ -10,7 +10,7 @@ class WorldBoundary:
     target_type = TargetType.TERRAIN
 
     @staticmethod
-    def _bands():
+    def bands():
         """Четыре прямоугольника стен снаружи мира: (x, y, half_w, half_l, angle).
         Верхняя и нижняя шире на толщину стены, поэтому углы закрыты без щелей."""
         hw, hh = WORLD.half_w_px, WORLD.half_h_px
@@ -29,7 +29,7 @@ class WorldBoundary:
         if (abs(x0) <= hw and abs(y0) <= hh and abs(x1) <= hw and abs(y1) <= hh):
             return None                            # оба конца внутри мира: быстрый выход
         best = None
-        for obb in self._bands():
+        for obb in self.bands():
             res = obb_segment_hit(obb, x0, y0, x1, y1)
             if res is not None and (best is None or res[0] < best[1]):
                 best = (self, res[0], res[1])

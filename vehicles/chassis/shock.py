@@ -1,8 +1,7 @@
-"""vehicles/chassis/shock.py — подброс техники от сильного тарана: таймер, высота для рисунка и запрет стрельбы.
-Миксин для Vehicle: поля lift_left / lift_total / lift_amp создаёт Vehicle.__init__, таймер убывает в Vehicle.update."""
+"""vehicles/chassis/shock.py — подброс техники от сильного тарана."""
 import math
 
-from engine import clamp, lerp
+from engine import clamp, lerp, vec_to_local
 from vehicles.chassis.params import LIFT_MIN_DV_MS, LIFT_FULL_DV_MS, LIFT_TIME_S, LIFT_MAX_S
 
 LIFT_RISE = 0.12         # доля времени на быстрый подъём
@@ -19,9 +18,10 @@ class ShockMixin:
         """Стрелять нельзя, пока машина подброшена. Перезарядка при этом идёт."""
         return self.lift_left > 0.0
 
-    def apply_lift(self, dv_ms):
+    def apply_lift(self, dv_ms, direction=None):
         """dv_ms: на сколько м/с удар изменил скорость ЭТОЙ машины. Возвращает True, если её подбросило.
-        Уже подброшенную машину повторно не поднимаем и время не продлеваем (ни с какой стороны)."""
+        direction: мировой единичный вектор от центра машины к точке удара (None: поднимется всё тело ровно).
+        Уже подброшенную машину повторно не поднимаем и время не продлеваем."""
         if self.lift_left > 0.0 or dv_ms < LIFT_MIN_DV_MS:
             return False
         amp = clamp((dv_ms - LIFT_MIN_DV_MS) / (LIFT_FULL_DV_MS - LIFT_MIN_DV_MS), 0.0, 1.0)
@@ -29,6 +29,8 @@ class ShockMixin:
         duration = lerp(LIFT_TIME_S[0], LIFT_TIME_S[1], amp) * (0.85 + 0.30 * mass_k)   # тяжёлая качается дольше...
         self.lift_total = self.lift_left = min(LIFT_MAX_S, duration)
         self.lift_amp = (0.3 + 0.7 * amp) * (1.0 - 0.4 * mass_k)                         # ...но поднимается ниже
+        self.lift_dir = (None if direction is None
+                         else vec_to_local(direction[0], direction[1], self.hull_angle))
         return True
 
     def lift_height(self):

@@ -13,7 +13,7 @@ from .geometry import (
     obb_contact, obb_convex_contact, obb_distance_to_point, shrink_polygon,
     convex_segment_hit, point_in_convex, is_convex, edge_normal_away,
     to_local_frame, vec_to_local, vec_from_local, Contact, obb_corners,
-    clip_convex, polygon_centroid
+    clip_convex, polygon_centroid, obb_poly_contact
 )
 from .cache import LRUCache
 from .noise import hash_int, hash_float, value_noise, SEED_SALT
@@ -36,5 +36,5 @@ __all__ = [
     "FONT_SIZE_TITLE", "FONT_SIZE_HEADER", "FONT_SIZE_LABEL",
     "get_font", "get_text", "wrap_text", "AlphaLayer", "blur_surface",
     "VehicleCommand", "Shot", "AmmoStats", "ArtilleryStats",
-    "Contact", "obb_corners", "clip_convex", "polygon_centroid"
+    "Contact", "obb_corners", "clip_convex", "polygon_centroid", "obb_poly_contact"
 ]

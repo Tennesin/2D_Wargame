@@ -125,6 +125,16 @@ class Notifier:
             self._push(FeedIcon.RAM, FeedTone.BAD, dmg)
             self.float_at(self.player.x, self.player.y, f"-{dmg:.0f}", C_BAD)
 
+    def on_ram_static(self, tank, dmg_tank, dmg_other, name):
+        """Танк врезался в стену: показываем только то, что касается игрока."""
+        if tank is not self.player:
+            return
+        if dmg_tank > 0.0:
+            self._push(FeedIcon.RAM, FeedTone.BAD, dmg_tank)
+            self.float_at(tank.x, tank.y, f"-{dmg_tank:.0f}", C_BAD)
+        if dmg_other > 0.0:
+            self.say(f"{name}: -{dmg_other:.0f} HP", C_DIM)
+
     def on_splash(self, owner, target, dealt):
         """Осколки фугаса задели target (не прямая цель)."""
         me = self.player

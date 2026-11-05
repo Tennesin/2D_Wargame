@@ -178,6 +178,22 @@ def obb_convex_contact(cx, cy, half_w, half_l, angle_deg, poly):
             best = (depth, ax * sign, ay * sign)
     return best
 
+def obb_poly_contact(obb, poly):
+    """Контакт прямоугольника obb = (x, y, half_w, half_l, angle) с выпуклым многоугольником.
+    Contact: нормаль ОТ прямоугольника К многоугольнику, точка контакта = центроид пересечения."""
+    cx, cy, hw, hl, ang = obb
+    c = obb_convex_contact(cx, cy, hw, hl, ang, poly)
+    if c is None:
+        return None
+    depth, nx, ny = c
+    inter = clip_convex(obb_corners(obb), poly)
+    if len(inter) >= 3:
+        px, py = polygon_centroid(inter)
+    else:
+        px = sum(x for x, _ in poly) / len(poly)
+        py = sum(y for _, y in poly) / len(poly)
+    return Contact(depth, nx, ny, px, py)
+
 def obb_distance_to_point(obb, x, y):
     """Расстояние от точки до ближайшей точки повёрнутого прямоугольника obb = (x, y, half_w, half_l, angle).
     0, если точка внутри. Система координат та же, что в obb_segment_hit."""

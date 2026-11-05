@@ -4,6 +4,8 @@
   tracks.py     — гусеницы и внешние модули (сбитие, ремонт, анимация);
   hit_model.py  — луч снаряда, грани, плиты и приведённая броня.
 Оружия и башни тут нет: подкласс переопределяет _update_weapons() и возвращает Shot или None."""
+import math
+
 from engine import (
     obb_hits_obb, VehicleCommand, heading_vector, Team, AmmoKind,
     TargetType, fmt_num, to_local_frame, PX_PER_M, clamp
@@ -15,7 +17,7 @@ from vehicles.chassis.hit_model import HitModelMixin
 from vehicles.chassis.motion import MotionMixin
 from vehicles.chassis.running_gear import TrackState
 from vehicles.chassis.tracks import TracksMixin
-from vehicles.chassis.params import RAM_MASS_RANGE_T
+from vehicles.chassis.params import RAM_MASS_RANGE_T, KMH_TO_PX
 from vehicles.chassis.shock import ShockMixin
 
 class Vehicle(MotionMixin, TracksMixin, HitModelMixin, ShockMixin, Damageable):
@@ -40,6 +42,11 @@ class Vehicle(MotionMixin, TracksMixin, HitModelMixin, ShockMixin, Damageable):
         self.left_track_offset = 0.0
         self.right_track_offset = 0.0
         self.speed_kmh = 0.0            # текущая скорость вдоль корпуса, км/ч (минус = назад)
+        self.lift_dir = None            # направление на точку удара в системе корпуса (для наклона при подбросе)
+        self.contact_push = None        # боковой толчок, с которым упёрлись в этом кадре (видит солвер тарана)
+        self.contact_spin = None        # вращение корпуса (°/с), с которым упёрлись в этом кадре
+        self.press_s = 0.0              # пока > 0, солвер «ведёт» скорость (давление)
+        self.last_throttle = 0.0        # газ после учёта оглушения (нужен давлению)
         self.terrain_k = 1.0            # множитель скорости от местности под корпусом
         self.terrain_kind = None        # вид вязкой местности под корпусом (TerrainKind) или None: трава
         self._terrain = None            # карта препятствий; её передаёт GameContext в update()
@@ -78,6 +85,12 @@ class Vehicle(MotionMixin, TracksMixin, HitModelMixin, ShockMixin, Damageable):
     def inertia_t_m2(self):
         """Момент инерции корпуса, т·м² (для тарана: тот же интерфейс, что у mass_t)."""
         return self.spec.inertia
+
+    @property
+    def has_impact(self):
+        """Тело в этом кадре упёрлось во что-то: ездой, толчком или поворотом."""
+        return (self.impact_kmh is not None or self.contact_push is not None
+                or self.contact_spin is not None)
 
     @property
     def alive(self):
@@ -193,10 +206,10 @@ class Vehicle(MotionMixin, TracksMixin, HitModelMixin, ShockMixin, Damageable):
 
     # ---------- кадр ----------
     def update(self, command: VehicleCommand, dt, obstacles=(), terrain=None):
-        """obstacles — повёрнутые прямоугольники стен и чужой техники (x, y, half_w, half_l, angle).
-        terrain — карта естественных препятствий (TerrainMap) или None.
-        Возвращает Shot или None (даёт подкласс через _update_weapons)."""
-        self.impact_kmh = None          # флаг удара живёт ровно один кадр
+        """obstacles — повёрнутые прямоугольники стен и чужой техники."""
+        self.impact_kmh = None          # флаги удара живут ровно один кадр
+        self.contact_push = None
+        self.contact_spin = None
         self._terrain = terrain
         self._patches = terrain.patches_near(self.x, self.y, self.reach_px()) if terrain is not None else ()
         self._sample_terrain()
@@ -206,12 +219,18 @@ class Vehicle(MotionMixin, TracksMixin, HitModelMixin, ShockMixin, Damageable):
         if self.stun_left > 0.0:
             throttle = steer = 0.0
             braking = True
+        self.last_throttle = throttle
         delta_hull = self._rotate_hull(steer, dt, obstacles)
         distance = self._drive(throttle, steer, dt, obstacles, braking)
+        if self.press_s > 0.0 and abs(throttle) > 0.0:      # упёрлись и давим: гусеницы пробуксовывают
+            slip = abs(throttle) * 0.5 * self.spec.v_avg * KMH_TO_PX * dt
+            if abs(distance) < slip:
+                distance = math.copysign(slip, throttle)
         self._animate_tracks(distance, delta_hull)
         shot = self._update_weapons(command, dt)
         self.stun_left = max(0.0, self.stun_left - dt)
         self._soft_contact_s = max(0.0, self._soft_contact_s - dt)
+        self.press_s = max(0.0, self.press_s - dt)
         self.lift_left = max(0.0, self.lift_left - dt)
         return shot
 

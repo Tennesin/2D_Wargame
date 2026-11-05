@@ -3,9 +3,9 @@
 import math
 import pygame
 
-from engine import LRUCache, SHADOW_ALPHA, heading_vector, clamp, Team, PX_PER_M
+from engine import LRUCache, SHADOW_ALPHA, heading_vector, clamp, Team, PX_PER_M, vec_from_local
 from vehicles.chassis.params import (
-    TRACK_LINK_M, LIFT_HEIGHT_M, LIFT_K_GEAR, LIFT_K_HULL, LIFT_K_TURRET
+    TRACK_LINK_M, LIFT_HEIGHT_M, LIFT_K_GEAR, LIFT_K_HULL, LIFT_K_TURRET, LIFT_BASE_K
 )
 from vehicles.gun.params import (
     BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M, BARREL_MIN_STEPS
@@ -32,6 +32,27 @@ ROT_CACHE_BYTES = 48 * 1024 * 1024       # бюджет памяти под кэ
 
 REBUILD_TOL = 0.05                       # после остановки зума спрайты пересобираются, если масштаб ушёл дальше этого
 PANEL_MUZZLE_OVER_M = 1.2                # в панели танка дульный срез выходит за лоб корпуса не дальше этого, м
+
+TILT_STRIP_PX = 4                        # примерная ширина полоски при рисовании наклона
+TILT_STRIPS_MIN, TILT_STRIPS_MAX = 6, 48
+
+def _weight(p):
+    """Вес подъёма по положению вдоль направления на контакт: p = -1 дальний край, +1 край контакта."""
+    t = clamp(0.5 + 0.5 * p, 0.0, 1.0)
+    t = t * t * (3.0 - 2.0 * t)
+    return LIFT_BASE_K + (1.0 - LIFT_BASE_K) * t
+
+class _Tilt:
+    """Наклон на один кадр: ось полосок (0: X, 1: Y), знак направления на контакт, размах и центр машины."""
+    __slots__ = ("axis", "sign", "reach", "cx", "cy")
+
+    def __init__(self, axis, sign, reach, cx, cy):
+        self.axis, self.sign, self.reach, self.cx, self.cy = axis, sign, reach, cx, cy
+
+    def at(self, sx, sy, lift_px):
+        """Высота подъёма (px) точки экрана (sx, sy) при максимальной высоте lift_px."""
+        pos = (sx - self.cx) if self.axis == 0 else (sy - self.cy)
+        return lift_px * _weight(self.sign * pos / self.reach)
 
 # ==========================================
 # ОБЩИЙ ОТРИСОВЩИК
@@ -117,7 +138,7 @@ class GunVehicleRenderer(HullPartsMixin):
         turret_k = self._bucket(tank.turret_angle)
         barrel_key = (bl, bt, look.barrel_key)
 
-        # корпус и ходовая больше не зависят от фазы гусениц: оба слоя берутся из кэша по углу
+        # корпус и ходовая не зависят от фазы гусениц: оба слоя берутся из кэша по углу
         gear_rot = self._rotated("gear", (var, broken),
                                  lambda: self._get_gear(spec, *broken), hull_k, hs)
         hull_rot = self._rotated("hull", (paint, look.hull_key, var),
@@ -132,9 +153,13 @@ class GunVehicleRenderer(HullPartsMixin):
         gear_rect = gear_rot.get_rect(center=(cx, cy))
         barrel_rect = barrel_rot.get_rect(center=(round(cx + fx * f), round(cy + fy * f)))
 
+        # подъём: край контакта выше, дальний край почти на земле (если направление известно)
         lift_px = tank.lift_height() * LIFT_HEIGHT_M * ppm * hs
-        lg, lh, lt = (round(lift_px * k) for k in (LIFT_K_GEAR, LIFT_K_HULL, LIFT_K_TURRET))
-        ex, ey = round(lift_px * 0.45), round(lift_px * 0.55)  # тень остаётся на земле и уходит дальше
+        lg, lh, lt = (lift_px * k for k in (LIFT_K_GEAR, LIFT_K_HULL, LIFT_K_TURRET))
+        lb = lt if self.HAS_TURRET_SPRITE else lh          # у безбашенной техники ствол сидит в лафете корпуса
+        tilt = self._make_tilt(tank, camera, cx, cy) if lift_px >= 1.0 else None
+        sk = 0.5 if tilt is not None else 1.0              # при наклоне тень уходит в среднем вдвое меньше
+        ex, ey = round(lift_px * 0.45 * sk), round(lift_px * 0.55 * sk)   # тень остаётся на земле
 
         hox, hoy = (round(v * ppm * hs) for v in SHADOW_HULL_M)
         tox, toy = (round(v * ppm * ts) for v in SHADOW_TURRET_M)
@@ -160,13 +185,14 @@ class GunVehicleRenderer(HullPartsMixin):
             buf.blit(surf, (rect.x - union.x, rect.y - union.y))
         screen.blit(buf, union.topleft, area=(0, 0, union.w, union.h))
 
-        screen.blit(gear_rot, gear_rect.move(0, -lg))  # тело гусениц под корпусом
-        self._draw_track_links(screen, tank, cx, cy - lg, hull_k, hs, spec, broken)  # бегущие звенья
-        screen.blit(hull_rot, hull_rect.move(0, -lh))  # корпус перекрывает внутренние края гусениц
-        screen.blit(barrel_rot, barrel_rect.move(0, -lt))
+        self._blit_lifted(screen, gear_rot, gear_rect, lg, tilt)             # тело гусениц под корпусом
+        self._draw_track_links(screen, tank, cx, cy, hull_k, hs, spec, broken, lift=(tilt, lg))
+        self._blit_lifted(screen, hull_rot, hull_rect, lh, tilt)             # корпус перекрывает края гусениц
+        self._blit_lifted(screen, barrel_rot, barrel_rect, lb, tilt)
         if turret_rot is not None:
-            screen.blit(turret_rot, turret_rect.move(0, -lt))
-        self._draw_front_layer(screen, tank, cx, cy - lh, hull_k, hs, team, paint, look)
+            screen.blit(turret_rot, turret_rect.move(0, -self._lift_center(tilt, lt, cx, cy)))
+        self._draw_front_layer(screen, tank, cx, cy - self._lift_center(tilt, lh, cx, cy),
+                               hull_k, hs, team, paint, look)
 
     # ---------- тень и кэши ----------
     @staticmethod
@@ -175,6 +201,53 @@ class GunVehicleRenderer(HullPartsMixin):
         out = surf.copy()
         out.fill((0, 0, 0, 255), special_flags=pygame.BLEND_RGBA_MULT)
         return out
+
+    @staticmethod
+    def _make_tilt(tank, camera, cx, cy):
+        """Наклон этого кадра или None (направление неизвестно или машина слишком мелкая)."""
+        d = tank.lift_dir
+        if d is None:
+            return None
+        spec = tank.spec
+        ux, uy = vec_from_local(d[0], d[1], tank.hull_angle)       # направление на контакт в мировых осях
+        reach = (spec.COLLISION_HALF_W_PX * abs(d[0]) + spec.COLLISION_HALF_L_PX * abs(d[1])) * camera.zoom
+        if reach < 4.0:
+            return None
+        axis = 0 if abs(ux) >= abs(uy) else 1
+        sign = 1.0 if (ux if axis == 0 else uy) >= 0.0 else -1.0
+        return _Tilt(axis, sign, reach, cx, cy)
+
+    @staticmethod
+    def _lift_center(tilt, lift_px, cx, cy):
+        """Подъём слоя, который сдвигается целиком (башня, маска): вес в центре машины."""
+        return round(lift_px if tilt is None else tilt.at(cx, cy, lift_px))
+
+    @staticmethod
+    def _blit_lifted(screen, surf, rect, lift_px, tilt):
+        """Слой с наклоном: полоски поперёк направления на контакт, у контакта выше.
+        Горизонтальные полоски ещё растягиваются по высоте, иначе между ними были бы щели."""
+        if tilt is None or lift_px < 1.0:
+            screen.blit(surf, rect.move(0, -round(lift_px)))
+            return
+        w, h = surf.get_size()
+        size = w if tilt.axis == 0 else h
+        n = int(clamp(size // TILT_STRIP_PX, TILT_STRIPS_MIN, TILT_STRIPS_MAX))
+        edges = [round(size * i / n) for i in range(n + 1)]
+        for i in range(n):
+            a, b = edges[i], edges[i + 1]
+            if b <= a:
+                continue
+            if tilt.axis == 0:                                     # вертикальные полоски: просто сдвиг вверх
+                lift = tilt.at(rect.x + (a + b) / 2.0, tilt.cy, lift_px)
+                screen.blit(surf, (rect.x + a, rect.y - round(lift)), area=(a, 0, b - a, h))
+            else:                                                  # горизонтальные: сдвиг и растяжение
+                top = rect.y + a - round(tilt.at(tilt.cx, rect.y + a, lift_px))
+                bottom = rect.y + b - round(tilt.at(tilt.cx, rect.y + b, lift_px))
+                strip = surf.subsurface((0, a, w, b - a))
+                height = max(1, bottom - top)
+                if height != b - a:
+                    strip = pygame.transform.scale(strip, (w, height))
+                screen.blit(strip, (rect.x, top))
 
     def _shadow(self, kind, base_key, bucket, scale, rotated):
         """Тень слоя из уже повёрнутого спрайта."""
@@ -298,11 +371,13 @@ class GunVehicleRenderer(HullPartsMixin):
             canvas.blit(surf, surf.get_rect(center=(half, half - round(shift))))
         return canvas
 
-    def _draw_track_links(self, screen, tank, cx, cy, hull_k, scale, spec, broken):
-        """Бегущие звенья целых гусениц: линии прямо на экране. Сбитая гусеница стоит без звеньев."""
+    def _draw_track_links(self, screen, tank, cx, cy, hull_k, scale, spec, broken, lift=(None, 0.0)):
+        """Бегущие звенья целых гусениц: линии прямо на экране. Сбитая гусеница стоит без звеньев.
+        lift = (наклон или None, высота подъёма слоя ходовой в px): звенья поднимаются вместе со слоем."""
         k = self._ppm * scale                        # экранных px на метр спрайта
         if TRACK_LINK_M * k < 3.0:                   # на дальнем зуме звенья сливаются
             return
+        tilt, lift_px = lift
         layout = spec.layout
         fx, fy = heading_vector(hull_k * ANGLE_STEP)
         rx, ry = -fy, fx                             # вправо от корпуса
@@ -311,9 +386,12 @@ class GunVehicleRenderer(HullPartsMixin):
         y_min = layout.track_top + 0.05
         y_max = layout.track_top + layout.track_len - 0.05
 
-        def pt(x, y):                                # координаты корпуса (м) -> экран
+        def pt(x, y):                                # координаты корпуса (м) -> экран с учётом подъёма
             y += shift
-            return (cx + (rx * x - fx * y) * k, cy + (ry * x - fy * y) * k)
+            px = cx + (rx * x - fx * y) * k
+            py = cy + (ry * x - fy * y) * k
+            py -= lift_px if tilt is None else tilt.at(px, py, lift_px)
+            return px, py
 
         for side, offset, bad in ((-1, tank.left_track_offset, broken[0]),
                                   (1, tank.right_track_offset, broken[1])):
