@@ -3,6 +3,7 @@
 from engine import PX_PER_M, clamp
 from vehicles.gun.ammo import ammo_kinds
 from vehicles.gun.tuning import resolve_tuning, reload_factor, MBT_GUN
+from vehicles.gun.barrel import resolve_length, resolve_thickness, visual_length_m
 from vehicles.gun.params import (
     CALIBER, REF_POWER_HP, REF_L_CAL, GUN_MASS_T, GUN_MASS_AT_MM, TURRET_MASS_REF_T,
     BARREL_VISIBLE_K, BARREL_THICK_REF_M, BARREL_LEN_STEP_M,
@@ -48,10 +49,12 @@ class GunSpec:
     меньше (например 40) = казематная установка (ПТ-САУ), которой надо доворачивать корпус."""
 
     TURRET_SCALE_RANGE = (0.8, 1.15)   # границы поправки масштаба башни на калибр
+    PHYSICAL_BARREL = True             # False: старые формулы длины и толщины ствола (САУ)
 
     def __init__(self, cal, size_k, power, m_gun, m_turret, front_m, arc_deg=360.0,
-                 damage=None, penetration=None, profile=MBT_GUN,
-                 barrel_ref_m=BARREL_VIS_REF_M, turret_scale_range=None, visual_k=None, hesh=False):
+                 damage=None, penetration=None, profile=MBT_GUN, barrel_ref_m=BARREL_VIS_REF_M,
+                 turret_scale_range=None, visual_k=None, hesh=False,
+                 length_cal=None, thickness=None):
         """profile — профиль орудия (бонус урона и пробития); front_m — на сколько метров вперёд
         от оси выступает маска орудия; barrel_ref_m — визуальная длина ствола эталона."""
         self.cal = cal
@@ -64,6 +67,8 @@ class GunSpec:
         if turret_scale_range is not None:
             self.TURRET_SCALE_RANGE = turret_scale_range
         self._visual_k = visual_k
+        self._length_req = length_cal
+        self._thick_req = thickness
         self._calc_basics(size_k)
         self._calc_turret(size_k, power, m_gun, m_turret)
         self._calc_gun(damage, penetration)
@@ -71,8 +76,14 @@ class GunSpec:
         self._calc_shot()
 
     def _calc_basics(self, size_k):
-        self.q_gun = (self.cal / REF_CAL) / size_k                      # калибр относительно платформы
-        self.l_cal = clamp(REF_L_CAL * size_k ** L_CAL_SIZE_EXP, *L_CAL_LIMITS)   # длина ствола, калибров
+        self.q_gun = (self.cal / REF_CAL) / size_k
+        auto = clamp(REF_L_CAL * size_k ** L_CAL_SIZE_EXP, *L_CAL_LIMITS)
+        if self.PHYSICAL_BARREL and self._length_req is not None:
+            self.length_cal = resolve_length(self.cal, self._length_req)
+            self.l_cal = self.length_cal
+        else:
+            self.length_cal = None
+            self.l_cal = auto
 
     def _calc_turret(self, size_k, power, m_gun, m_turret):
         barrel_len = self.cal * self.l_cal / 1000.0 * BARREL_VISIBLE_K
@@ -87,7 +98,7 @@ class GunSpec:
         cr = self.cal / REF_CAL
         # урон и пробитие: номинал калибра + выбор игрока (длина ствола на них больше не влияет)
         self.damage, self.penetration, self.damage_k, self.pen_k = resolve_tuning(
-            self.cal, damage, penetration, self.profile)
+            self.cal, damage, penetration, self.profile, self.length_cal)
 
         # базовая перезарядка: ровно как раньше (пол GUN_RELOAD_MIN действует ДО тюнинга)
         reload = max(GUN_RELOAD_MIN, GUN_RELOAD_REF * cr ** GUN_RELOAD_CAL_EXP * self.q_gun ** GUN_RELOAD_PLATFORM_EXP)
@@ -105,13 +116,18 @@ class GunSpec:
         base = size_k if self._visual_k is None else self._visual_k
         self.TURRET_SCALE = base * clamp(cr ** TURRET_SCALE_CAL_EXP, *self.TURRET_SCALE_RANGE)
 
-        world_len = self.BARREL_REF_M * base * clamp(cr ** BARREL_VIS_EXP, *BARREL_VIS_K_RANGE)
+        if self.PHYSICAL_BARREL:
+            # длина = калибр × длина в калибрах, толщина зависит от длины: калибр длину не диктует
+            world_len = visual_length_m(cal, self.l_cal, self.BARREL_REF_M)
+            thick = resolve_thickness(cal, self.l_cal, self._thick_req)
+        else:
+            world_len = self.BARREL_REF_M * base * clamp(cr ** BARREL_VIS_EXP, *BARREL_VIS_K_RANGE)
+            thick = max(BARREL_THICK_MIN_M, BARREL_THICK_REF_M * cr ** BARREL_THICK_EXP)
+
         raw = world_len / self.TURRET_SCALE
         self.BARREL_LEN_M = max(BARREL_MIN_STEPS * BARREL_LEN_STEP_M,
                                 round(raw / BARREL_LEN_STEP_M) * BARREL_LEN_STEP_M)
-
-        # тонкий ствол плохо читается: пол толщины выше, рост с калибром мягче
-        self.BARREL_THICK_M = max(BARREL_THICK_MIN_M, BARREL_THICK_REF_M * cr ** BARREL_THICK_EXP)
+        self.BARREL_THICK_M = thick
 
     def _calc_shot(self):
         """Всё, что зависит от калибра (размеры в мировых px, 100 px = 1 м)."""

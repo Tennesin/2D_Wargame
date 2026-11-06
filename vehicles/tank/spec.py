@@ -93,7 +93,8 @@ class TankSpec(GunVehicleSpec):
     LOOK_SPEED_RATIO = LOOK_SPEED_RATIO
 
     def __init__(self, cal, front, side, rear, power, damage=None, penetration=None,
-                 screen=0.0, nose=NOSE_FLAT, special_ammo=SPECIAL_HEAT, unbounded=False):
+                 screen=0.0, nose=NOSE_FLAT, special_ammo=SPECIAL_HEAT, unbounded=False,
+                 gun_length=None, gun_thickness=None):
         # входные параметры (у ботов unbounded=True: верхних границ нет, ограничивает только бюджет)
         cal, front, side, rear, power, screen = self._fit_inputs(
             cal, front, side, rear, power, screen, unbounded)
@@ -124,7 +125,8 @@ class TankSpec(GunVehicleSpec):
                 cal, size_k, power, self.m_gun, self.m_turret, arc_deg=360.0,
                 damage=damage, penetration=penetration, front_m=layout.turret_front_m,
                 turret_scale_range=layout.turret_scale_range,
-                visual_k=self.HULL_SCALE * layout.turret_k, hesh=(special_ammo == SPECIAL_HESH))
+                visual_k=self.HULL_SCALE * layout.turret_k, hesh=(special_ammo == SPECIAL_HESH),
+                length_cal=gun_length, thickness=gun_thickness)
 
         super().__init__(body, front, side, rear, power, self.m_gun + self.m_turret, screen, make_gun)
         self.HULL_VARIANT = (self.layout.key,)

@@ -74,7 +74,8 @@ class ArtyGunSpec(GunSpec):
     """Орудие САУ: наводка в узком секторе, стрельба фугасом по точке на земле.
     Вспышка, дым, откат и размеры спрайта считает родитель (GunSpec) по калибру."""
 
-    TURRET_SCALE_RANGE = (1.0, 1.0)    # масштаб орудия = масштаб корпуса (visual_k)
+    PHYSICAL_BARREL = False            # у САУ свои калибры
+    TURRET_SCALE_RANGE = (1.0, 1.0)
 
     def __init__(self, cal, size_k, power, m_gun, m_mount, arc_deg, visual_k):
         self._size_k = size_k          # нужен _calc_gun и _calc_shot, а родитель его не хранит

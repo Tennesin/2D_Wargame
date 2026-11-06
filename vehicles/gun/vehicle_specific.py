@@ -47,7 +47,8 @@ class GunVehicleSpec(ChassisSpec):
             v["gun_caliber_mm"], v["front_armor_mm"], v["side_armor_mm"], v["rear_armor_mm"],
             v["engine_power_hp"], damage=v.get("gun_damage"), penetration=v.get("gun_penetration"),
             screen=v.get("front_screen_mm", 0.0), nose=v.get("front_nose", NOSE_FLAT),
-            special_ammo=v.get("special_ammo", SPECIAL_HEAT), unbounded=unbounded)
+            special_ammo=v.get("special_ammo", SPECIAL_HEAT), unbounded=unbounded,
+            gun_length=v.get("gun_length_cal"), gun_thickness=v.get("gun_thickness"))
 
     @classmethod
     def from_config(cls):

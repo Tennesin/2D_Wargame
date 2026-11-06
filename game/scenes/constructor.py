@@ -9,7 +9,8 @@ from ui import SidePanel, Button, ACTIVE_BUTTON_COLORS
 from ui.theme import PANEL_WIDTH
 from vehicles import (
     GUN_TUNE_PARAMS, damage_range, pen_range, remap, VEHICLE_TYPES, RENDERERS,
-    make_vehicle, NOSE_FLAT, NOSE_MIN_FRONT_MM, NOSE_RU, SPECIAL_HEAT, HESH_MIN_CAL_MM
+    make_vehicle, NOSE_FLAT, NOSE_MIN_FRONT_MM, NOSE_RU, SPECIAL_HEAT, HESH_MIN_CAL_MM,
+    length_range, thickness_range
 )
 from world import Camera
 from ..content import texts
@@ -24,6 +25,8 @@ BG = (36, 40, 46)
 PREVIEW_ZOOM_STEPS = 8          # на сколько ступеней приблизить камеру относительно стандартной
 DMG_STEP = GUN_TUNE_PARAMS["gun_damage"].step
 PEN_STEP = GUN_TUNE_PARAMS["gun_penetration"].step
+LEN_STEP = GUN_TUNE_PARAMS["gun_length_cal"].step
+THICK_STEP = GUN_TUNE_PARAMS["gun_thickness"].step
 
 KIND_BTN_W, KIND_BTN_H = 100, 36    # кнопки выбора типа техники (левый нижний угол)
 KIND_GAP = 8
@@ -90,35 +93,23 @@ class ConstructorScene(Scene):
         self._cal = self._want_cal = values["gun_caliber_mm"]
         values = self._apply_class_rules(values)
         self._cal = values["gun_caliber_mm"]
-        self._ranges = (damage_range(self._cal, self._profile), pen_range(self._cal, self._profile))
-        self.ui.set_range(self._mode, "gun_damage", *self._ranges[0])
-        self.ui.set_range(self._mode, "gun_penetration", *self._ranges[1])
+        self._len = clamp(values["gun_length_cal"], *length_range(self._cal))
+        values = self._apply_gun_rules(values)         # коридоры и положения ползунков под загруженные значения
         self.ui.show(self._mode, values)
 
         values = self.session.values[kind] = self._apply_ammo_rules(self._apply_nose_rules(values))
-        self._sync_tune_t(values)
         self.vehicle = make_vehicle(kind, self.session.spec())
         self.renderer = self._make_renderer(kind)
         self._show_stats()
 
     # ---------- конструктор ----------
     def _on_change(self, values):
-        values = self._apply_class_rules(values)       # сначала подрезаем калибр по классу
-        cal = values["gun_caliber_mm"]
-        if cal != self._cal:
-            values = self._change_caliber(cal, values)
-        else:
-            self._sync_tune_t(values)
+        values = self._apply_class_rules(values)
+        values = self._apply_gun_rules(values)
         values = self._apply_ammo_rules(self._apply_nose_rules(values))
         self.session.values[self.session.kind] = dict(values)
         self.vehicle.set_spec(self.session.spec())
         self._show_stats()
-
-    def _sync_tune_t(self, values):
-        """Запомнить относительное положение (0..1) ползунков урона и пробития внутри текущих коридоров."""
-        d_rng, p_rng = self._ranges
-        self._tune_t = (remap(values["gun_damage"], d_rng, (0.0, 1.0)),
-                        remap(values["gun_penetration"], p_rng, (0.0, 1.0)))
 
     def _apply_nose_rules(self, values):
         """Скошенный нос доступен при лобовой броне больше порога."""
@@ -163,20 +154,44 @@ class ConstructorScene(Scene):
         self.ui.set_values(self._mode, {"gun_caliber_mm": values["gun_caliber_mm"]})
         return values
 
-    def _change_caliber(self, cal, values):
-        """Калибр изменился: новые границы урона и пробития (с учётом профиля), значения по сохранённому уровню."""
-        self._cal = cal
-        d_rng, p_rng = damage_range(cal, self._profile), pen_range(cal, self._profile)
-        self._ranges = (d_rng, p_rng)
-        t_d, t_p = self._tune_t
-
+    def _apply_gun_rules(self, values):
+        """Коридоры орудия: калибр -> длина -> толщина, урон, пробитие."""
         values = dict(values)
-        values["gun_damage"] = remap(t_d, (0.0, 1.0), d_rng, DMG_STEP)
-        values["gun_penetration"] = remap(t_p, (0.0, 1.0), p_rng, PEN_STEP)
+        cal = values["gun_caliber_mm"]
+        cal_changed = cal != self._cal
 
-        self.ui.set_range(self._mode, "gun_damage", *d_rng)
-        self.ui.set_range(self._mode, "gun_penetration", *p_rng)
-        self.ui.set_values(self._mode, values)
+        len_rng = length_range(cal)
+        if cal_changed:
+            length = remap(self._len_t, (0.0, 1.0), len_rng, LEN_STEP)
+        else:
+            length = clamp(values["gun_length_cal"], *len_rng)
+        derived = cal_changed or length != self._len       # коридоры сдвинулись сами, не игроком
+
+        thick_rng = thickness_range(cal, length)
+        d_rng = damage_range(cal, self._profile)
+        p_rng = pen_range(cal, self._profile, length)
+        if derived:
+            thick = remap(self._thick_t, (0.0, 1.0), thick_rng, THICK_STEP)
+            dmg = remap(self._tune_t[0], (0.0, 1.0), d_rng, DMG_STEP)
+            pen = remap(self._tune_t[1], (0.0, 1.0), p_rng, PEN_STEP)
+        else:
+            thick = clamp(values["gun_thickness"], *thick_rng)
+            dmg = clamp(values["gun_damage"], *d_rng)
+            pen = clamp(values["gun_penetration"], *p_rng)
+            self._thick_t = remap(thick, thick_rng, (0.0, 1.0))
+            self._tune_t = (remap(dmg, d_rng, (0.0, 1.0)), remap(pen, p_rng, (0.0, 1.0)))
+        if not cal_changed:
+            self._len_t = remap(length, len_rng, (0.0, 1.0))
+
+        self._cal, self._len = cal, length
+        values.update(gun_length_cal=length, gun_thickness=thick, gun_damage=dmg, gun_penetration=pen)
+
+        m = self._mode
+        self.ui.set_range(m, "gun_length_cal", *len_rng)
+        self.ui.set_range(m, "gun_thickness", *thick_rng)
+        self.ui.set_range(m, "gun_damage", *d_rng)
+        self.ui.set_range(m, "gun_penetration", *p_rng)
+        self.ui.set_values(m, values)
         return values
 
     def _show_stats(self):

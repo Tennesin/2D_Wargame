@@ -58,7 +58,7 @@ SHELL_LEN_K = 1.8            # длина снаряда: мм калибра ->
 
 # --- скорость снаряда ---
 SHELL_SPEED_REF_PX = 6000.0        # у эталона, px/с (60 м/с)
-SHELL_SPEED_L_EXP = 0.30           # длиннее ствол (в калибрах): быстрее
+SHELL_SPEED_L_EXP = 0.55           # длиннее ствол (в калибрах): быстрее
 SHELL_SPEED_CAL_EXP = -0.10        # крупный калибр: снаряд тяжелее, скорость чуть ниже
 SHELL_SPEED_PEN_EXP = 0.25         # выбранное игроком пробитие (pen_k): сильнее заряд, быстрее снаряд
 SHELL_SPEED_LIMITS = (3000.0, 12000.0)
@@ -91,12 +91,12 @@ GUN_TUNE_COST_P = 0.4
 GUN_PROFILE_COST_D = 0.6          # цена бонуса профиля орудия (ПТ-САУ): урон
 GUN_PROFILE_COST_P = 0.6          # и пробитие
 
-# Описания ползунков. min/max здесь ЗАГЛУШКИ: реальные границы зависят от калибра,
-# их выдают damage_range / pen_range из tuning.py.
-# В PARAMS эти ключи класть нельзя: оттуда читают ai/loadout.py, ai/archetypes.py и ai/counter.py.
+# Описания ползунков.
 GUN_TUNE_PARAMS = {
     "gun_damage":      Param("Урон",     "",   250, 550, GUN_DAMAGE_REF, GUN_DAMAGE_STEP),
     "gun_penetration": Param("Пробитие", "мм", 250, 450, GUN_PEN_REF,    GUN_PEN_STEP),
+    "gun_length_cal":  Param("Длина ствола",   "кал.", 30, 60, REF_L_CAL, 1),
+    "gun_thickness":   Param("Толщина ствола", "м", 0.2, 0.6, BARREL_THICK_REF_M, BARREL_THICK_STEP_M, 2),
 }
 
 # ==========================================
@@ -162,3 +162,13 @@ BLAST_TIME_BASE_S, BLAST_TIME_GAIN_S = 0.35, 0.2
 BLAST_DIRT_BASE, BLAST_DIRT_CAL_DIV = 6, 15
 SCORCH_RADIUS_PER_MM = 0.9
 SCORCH_TIME_BASE_S, SCORCH_TIME_GAIN_S = 4.0, 2.0
+
+# ==========================================
+# 9. ДИЗАЙН СТВОЛА
+# ==========================================
+BARREL_LEN_AT_MIN_CAL = (40, 70)   # пределы длины в калибрах при минимальном калибре
+BARREL_LEN_AT_MAX_CAL = (24, 52)   # и при максимальном (между ними линейно)
+BARREL_THICK_LEN_EXP = 0.5         # номинал толщины ~ (REF_L_CAL / длина) ** это: длиннее, значит тоньше
+BARREL_THICK_CORRIDOR = (0.85, 1.20)   # коридор толщины в долях номинала
+BARREL_VIS_MAX_M = 9.0             # потолок видимой длины ствола, м
+GUN_LENGTH_PEN_EXP = 0.5           # пробитие ~ (REF_L_CAL / длина) ** это: длиннее, значит слабее

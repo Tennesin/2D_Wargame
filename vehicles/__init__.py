@@ -8,6 +8,9 @@ from vehicles.gun.tuning import (
     damage_range, pen_range, remap, nominal_damage, nominal_pen,
     GunProfile, MBT_GUN, TD_GUN, default_tuning
 )
+from vehicles.gun.barrel import (
+    length_range, thickness_range, default_length, default_thickness, length_pen_k
+)
 from .tank import (
     Tank, TankSpec, TankRenderer, PARAMS as TANK_PARAMS, COST_REF,
     caliber_range_for, LOOK_FRONT_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO, estimate_mass
@@ -41,4 +44,5 @@ __all__ = ["Vehicle", "GunVehicle", "Tank", "TankSpec", "TankRenderer", "TANK_PA
            "SUPERHEAVY_MASS_T", "WEDGE_ACCEL_K", "WEDGE_TURN_K", "wedge_front_factor",
            "sloped_nose_for_mass", "resolve_nose", "HESH_MIN_CAL_MM", "ammo_kinds",
            "SPECIAL_HEAT", "SPECIAL_HESH", "GunVehicleSpec", "SPGSpec", "ArtilleryVehicle", "SPGRenderer",
-           "SPG_PARAMS", "StatMods", "NO_MODS", "apply_to_ammo", "build_silhouette", "Silhouette"]
+           "SPG_PARAMS", "StatMods", "NO_MODS", "apply_to_ammo", "build_silhouette", "Silhouette",
+           "length_range", "thickness_range", "default_length", "default_thickness", "length_pen_k"]

@@ -8,6 +8,7 @@ from vehicles.gun.params import (
     GUN_DAMAGE_RANGE, GUN_PEN_RANGE, GUN_DAMAGE_STEP, GUN_PEN_STEP,
     GUN_TUNE_RELOAD_A, GUN_TUNE_RELOAD_B,
 )
+from vehicles.gun.barrel import length_pen_k
 
 _CAL = CALIBER
 _REF_CAL = _CAL.default
@@ -47,9 +48,9 @@ def nominal_damage(cal, profile=MBT_GUN):
     """Урон «по умолчанию» для калибра cal (центр коридора)."""
     return GUN_DAMAGE_REF * (cal / _REF_CAL) ** 2 * profile.dmg_mult(cal)
 
-def nominal_pen(cal, profile=MBT_GUN):
-    """Пробитие «по умолчанию» для калибра cal, мм (центр коридора)."""
-    return GUN_PEN_REF * (cal / _REF_CAL) ** 0.8 * profile.pen_mult(cal)
+def nominal_pen(cal, profile=MBT_GUN, length_cal=None):
+    """Пробитие «по умолчанию» для калибра cal, мм (центр коридора). Длинный ствол пробивает слабее."""
+    return GUN_PEN_REF * (cal / _REF_CAL) ** 0.8 * profile.pen_mult(cal) * length_pen_k(length_cal)
 
 # ---------- коридоры выбора ----------
 def _corridor(nominal, ratios, step):
@@ -61,13 +62,14 @@ def damage_range(cal, profile=MBT_GUN):
     """Границы ползунка урона для калибра cal: (min, max)."""
     return _corridor(nominal_damage(cal, profile), GUN_DAMAGE_RANGE, GUN_DAMAGE_STEP)
 
-def pen_range(cal, profile=MBT_GUN):
+def pen_range(cal, profile=MBT_GUN, length_cal=None):
     """Границы ползунка пробития для калибра cal: (min, max)."""
-    return _corridor(nominal_pen(cal, profile), GUN_PEN_RANGE, GUN_PEN_STEP)
+    return _corridor(nominal_pen(cal, profile, length_cal), GUN_PEN_RANGE, GUN_PEN_STEP)
 
-def default_tuning(cal, profile=MBT_GUN):
+def default_tuning(cal, profile=MBT_GUN, length_cal=None):
     d = clamp(round_to(nominal_damage(cal, profile), GUN_DAMAGE_STEP), *damage_range(cal, profile))
-    p = clamp(round_to(nominal_pen(cal, profile), GUN_PEN_STEP), *pen_range(cal, profile))
+    p = clamp(round_to(nominal_pen(cal, profile, length_cal), GUN_PEN_STEP),
+              *pen_range(cal, profile, length_cal))
     return d, p
 
 def remap(value, old_range, new_range, step=None):
@@ -86,11 +88,8 @@ def reload_factor(dmg_k, pen_k):
     return dmg_k ** GUN_TUNE_RELOAD_A * pen_k ** GUN_TUNE_RELOAD_B
 
 # ---------- итог для GunSpec ----------
-def resolve_tuning(cal, damage=None, penetration=None, profile=MBT_GUN):
-    """Приводит выбор игрока к рабочим значениям.
-    dmg_k и pen_k считаются от номинала СВОЕГО профиля, поэтому бонус ПТ-САУ
-    на перезарядку не влияет (reload_factor его «не видит»)."""
-    nom_d, nom_p = nominal_damage(cal, profile), nominal_pen(cal, profile)
+def resolve_tuning(cal, damage=None, penetration=None, profile=MBT_GUN, length_cal=None):
+    nom_d, nom_p = nominal_damage(cal, profile), nominal_pen(cal, profile, length_cal)
     if damage is None:
         damage = nom_d
     else:
@@ -99,7 +98,7 @@ def resolve_tuning(cal, damage=None, penetration=None, profile=MBT_GUN):
     if penetration is None:
         penetration = nom_p
     else:
-        lo, hi = pen_range(cal, profile)
+        lo, hi = pen_range(cal, profile, length_cal)
         penetration = clamp(float(penetration), lo, hi)
     return damage, penetration, damage / nom_d, penetration / nom_p
 
