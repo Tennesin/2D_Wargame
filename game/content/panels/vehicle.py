@@ -1,10 +1,12 @@
-"""game/content/panels/vehicle.py — панели конструктора техники: по одной на каждый играбельный тип из реестра."""
+"""game/content/panels/vehicle.py — панели конструктора техники: «Сборка» для каждого играбельного типа
+и «Дизайн» для типов, у которых есть дизайн (сейчас ОБТ). Ключ панели: (VehicleKind, "build" | "design")."""
 from functools import partial
 
 from engine import VehicleKind
 from vehicles import (
     GUN_TUNE_PARAMS, VEHICLE_TYPES, FRONT_SCREEN, NOSE_FLAT, NOSE_PIKE, NOSE_MIN_FRONT_MM,
-    SPECIAL_HEAT, SPECIAL_HESH, HESH_MIN_CAL_MM
+    SPECIAL_HEAT, SPECIAL_HESH, HESH_MIN_CAL_MM,
+    TURRET_STYLES, TURRET_STYLE_RU, TURRET_DESIGN_PARAMS
 )
 from ui import Panel, SectionHeader, StatsBlock, InfoText, ChoiceRow, make_param_row
 
@@ -18,13 +20,23 @@ VEHICLE_NOTES = {
                      f"Скошенный нос доступен при лобовой броне больше {NOSE_MIN_FRONT_MM:.0f} мм."),
 }
 
+# Какие расчётные строки показывать на вкладке «Дизайн» (имена как в main_stats / internal_stats)
+DESIGN_STATS = ("Стоимость", "Масса", "Масса башни", "Инерция башни", "Поворот башни", "Перезарядка")
+
+def _tab_row(tab):
+    """Переключатель вкладок; его значение читает ConstructorScene._on_change."""
+    return ChoiceRow("tab", "Раздел", [("build", "Сборка"), ("design", "Дизайн")], tab)
+
 def build_vehicle_panel(kind):
-    """Панель конструктора для типа техники kind: ползунки из vt.params плюс блоки характеристик."""
+    """Вкладка «Сборка» для типа техники kind: ползунки из vt.params плюс блоки характеристик."""
     vt = VEHICLE_TYPES[kind]
     spec0 = vt.spec_cls.from_config()
     row = partial(make_param_row, vt.params)
     tune_row = partial(make_param_row, GUN_TUNE_PARAMS)
-    items = [
+    items = []
+    if vt.design_defaults:
+        items.append(_tab_row("build"))
+    items += [
         SectionHeader("Вооружение"),
         row("gun_caliber_mm"),
         tune_row("gun_damage"),
@@ -62,6 +74,35 @@ def build_vehicle_panel(kind):
     ]
     return Panel(f"Конструктор: {vt.label}", items)
 
+def build_design_panel(kind):
+    """Вкладка «Дизайн»: параметры башни и то, на что они влияют."""
+    vt = VEHICLE_TYPES[kind]
+    items = [
+        _tab_row("design"),
+        InfoText("Кольцо в превью: ось башни. Крестик: центр корпуса. Сдвиг оси двигает башню вдоль корпуса, "
+                 "вместе с ней смещаются дульный срез и точка вращения."),
+
+        SectionHeader("Башня"),
+        ChoiceRow("turret_style", "Форма башни",
+                  [(s, TURRET_STYLE_RU[s]) for s in TURRET_STYLES], "auto"),
+        make_param_row(TURRET_DESIGN_PARAMS, "turret_size"),
+        make_param_row(TURRET_DESIGN_PARAMS, "turret_axis_shift_m"),
+        InfoText("«Авто»: форма по классу корпуса (лёгкий: овал, средний: гекс, тяжёлый: плита). "
+                 "Больше башня: тяжелее, медленнее наводка и дороже, зато быстрее заряжание. "
+                 "Меньше: легче и быстрее наводится, но экипажу тесно и перезарядка дольше."),
+
+        SectionHeader("Влияние на характеристики"),
+        StatsBlock(list(DESIGN_STATS)),
+    ]
+    return Panel(f"Конструктор: {vt.label}: дизайн", items)
+
 def build_vehicle_panels():
-    """{VehicleKind: Panel} для всех играбельных типов реестра."""
-    return {kind: build_vehicle_panel(kind) for kind, vt in VEHICLE_TYPES.items() if vt.playable}
+    """{(VehicleKind, вкладка): Panel} для всех играбельных типов реестра."""
+    panels = {}
+    for kind, vt in VEHICLE_TYPES.items():
+        if not vt.playable:
+            continue
+        panels[(kind, "build")] = build_vehicle_panel(kind)
+        if vt.design_defaults:
+            panels[(kind, "design")] = build_design_panel(kind)
+    return panels

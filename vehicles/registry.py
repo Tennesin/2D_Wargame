@@ -10,6 +10,7 @@ from .tank import Tank, TankSpec, TankRenderer, PARAMS as TANK_PARAMS, caliber_r
 from .td import TankDestroyer, TDSpec, TDRenderer, TD_PARAMS
 from .spg import (ArtilleryVehicle, SPGSpec, SPGRenderer, SPG_PARAMS,
                   spg_loadout_cost, spg_extra_values)
+from .tank.design import TURRET_DESIGN_DEFAULTS
 
 @dataclass(frozen=True)
 class VehicleType:
@@ -27,6 +28,8 @@ class VehicleType:
     # Хуки конструктора. None = у этого типа такого правила нет.
     caliber_limits: Optional[Callable] = None  # (values) -> (мин, макс) калибра при текущих броне и мощности
     sloped_nose: Optional[Callable] = None     # (values) -> NOSE_PIKE | NOSE_WEDGE: какой скос положен машине
+    # Дизайн техники (вкладка «Дизайн» в конструкторе): значения по умолчанию. None = вкладки нет.
+    design_defaults: Optional[dict] = None
 
 # ---------- правила конструктора ----------
 def _mbt_caliber_limits(v):
@@ -37,7 +40,8 @@ def _mbt_sloped_nose(v):
     """ОБТ: тяжелее порога массы клин, легче щучий нос."""
     mass = estimate_mass(v["gun_caliber_mm"], v["front_armor_mm"], v["side_armor_mm"],
                          v["rear_armor_mm"], v["engine_power_hp"], v.get("front_screen_mm", 0.0),
-                         gun_length=v.get("gun_length_cal"))
+                         gun_length=v.get("gun_length_cal"),
+                         turret_size=v.get("turret_size", 1.0))
     return sloped_nose_for_mass(mass)
 
 def _td_sloped_nose(v):
@@ -46,7 +50,8 @@ def _td_sloped_nose(v):
 
 VEHICLE_TYPES = {
     VehicleKind.MBT: VehicleType(VehicleKind.MBT, "ОБТ", TANK_PARAMS, TankSpec, Tank, TankRenderer, MBT_GUN,
-                                 caliber_limits=_mbt_caliber_limits, sloped_nose=_mbt_sloped_nose),
+                                 caliber_limits=_mbt_caliber_limits, sloped_nose=_mbt_sloped_nose,
+                                 design_defaults=TURRET_DESIGN_DEFAULTS),
     VehicleKind.TD: VehicleType(VehicleKind.TD, "ПТ-САУ", TD_PARAMS, TDSpec, TankDestroyer, TDRenderer, TD_GUN,
                                 sloped_nose=_td_sloped_nose),
     VehicleKind.SPG: VehicleType(VehicleKind.SPG, "САУ", SPG_PARAMS, SPGSpec, ArtilleryVehicle, SPGRenderer,

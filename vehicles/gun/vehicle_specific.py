@@ -21,6 +21,8 @@ class GunVehicleSpec(ChassisSpec):
     LOOK_SIDE_RATIO = None
     LOOK_GUN_RATIO = None
     LOOK_SPEED_RATIO = None
+    DESIGN_KWARGS = {}          # {ключ в values: имя аргумента конструктора}: дизайн техники (у ОБТ: башня)
+    TURRET_MASS_K = 1.0         # во сколько раз масса башни отличается от эталонной (идёт в цену)
 
     def __init__(self, body, front, side, rear, power, payload_t, screen_mm, make_gun):
         """make_gun(size_k) -> GunSpec: создаёт орудие, когда шасси уже посчитано."""
@@ -45,12 +47,13 @@ class GunVehicleSpec(ChassisSpec):
     @classmethod
     def from_values(cls, v, unbounded=False):
         """v — словарь значений ползунков."""
+        design = {kw: v[key] for key, kw in cls.DESIGN_KWARGS.items() if key in v}
         return cls(
             v["gun_caliber_mm"], v["front_armor_mm"], v["side_armor_mm"], v["rear_armor_mm"],
             v["engine_power_hp"], damage=v.get("gun_damage"), penetration=v.get("gun_penetration"),
             screen=v.get("front_screen_mm", 0.0), nose=v.get("front_nose", NOSE_FLAT),
             special_ammo=v.get("special_ammo", SPECIAL_HEAT), unbounded=unbounded,
-            gun_length=v.get("gun_length_cal"))
+            gun_length=v.get("gun_length_cal"), **design)
 
     @classmethod
     def from_config(cls):
@@ -75,7 +78,8 @@ class GunVehicleSpec(ChassisSpec):
         length = self.gun.length_cal if self.gun.length_cal is not None else REF_L_CAL
         raw = raw_cost(self.cal, self.front + self.screen_mm, self.side, self.rear, self.power,
                        self.damage_k, self.pen_k * length_pen_k(length),
-                       prof.dmg_mult(self.cal), prof.pen_mult(self.cal), length_cost_k(length))
+                       prof.dmg_mult(self.cal), prof.pen_mult(self.cal), length_cost_k(length),
+                       self.TURRET_MASS_K)
         self.cost = round_cost(raw)
 
     def _calc_look(self):

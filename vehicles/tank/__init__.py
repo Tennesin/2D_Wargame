@@ -4,11 +4,12 @@
 # а tank.spec (через gun/vehicle_specific.py) импортирует cost. Цикла нет, только пока
 # params подгружается первым.
 from .params import PARAMS, COST_REF, LOOK_FRONT_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO
-from .spec import TankSpec, caliber_range_for, estimate_mass
+from .spec import TankSpec, caliber_range_for, estimate_mass, turret_shift_range
 from .entity import Tank
 from .sprites import TankRenderer
 
 __all__ = [
     "PARAMS", "COST_REF", "LOOK_FRONT_RATIO", "LOOK_GUN_RATIO", "LOOK_SPEED_RATIO",
-    "TankSpec", "Tank", "TankRenderer", "caliber_range_for", "estimate_mass"
+    "TankSpec", "Tank", "TankRenderer", "caliber_range_for", "estimate_mass",
+    "turret_shift_range",
 ]

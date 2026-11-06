@@ -3,14 +3,14 @@ import os
 import traceback
 import pygame
 
-from engine import PX_PER_M, VehicleCommand, clamp
+from engine import PX_PER_M, VehicleCommand, AlphaLayer, clamp
 from inputs import InputHandler, Action
 from ui import SidePanel, Button, ACTIVE_BUTTON_COLORS
 from ui.theme import PANEL_WIDTH
 from vehicles import (
     GUN_TUNE_PARAMS, damage_range, pen_range, remap, VEHICLE_TYPES, RENDERERS,
     make_vehicle, NOSE_FLAT, NOSE_MIN_FRONT_MM, NOSE_RU, SPECIAL_HEAT, HESH_MIN_CAL_MM,
-    length_range
+    length_range, turret_shift_range
 )
 from world import Camera
 from ..content import texts
@@ -30,6 +30,7 @@ LEN_STEP = GUN_TUNE_PARAMS["gun_length_cal"].step
 KIND_BTN_W, KIND_BTN_H = 100, 36    # кнопки выбора типа техники (левый нижний угол)
 KIND_GAP = 8
 KIND_MARGIN = 10
+HIGHLIGHT = (255, 220, 80)       # подсветка выбранного модуля в превью
 
 class ConstructorScene(Scene):
     BACKGROUND = False
@@ -45,19 +46,22 @@ class ConstructorScene(Scene):
         self.camera.zoom_by(PREVIEW_ZOOM_STEPS)
         self.camera.center_on(PANEL_WIDTH / 2 / self.camera.zoom, 0.0)
 
-        # --- интерфейс: по панели на каждый играбельный тип техники ---
+        # --- интерфейс: панели «Сборка» (и «Дизайн» у ОБТ) на каждый играбельный тип ---
         kind = session.kind
         panels = build_vehicle_panels()
-        self.ui = SidePanel(size, panels, kind, start_open=True)
-        for k in panels:
-            self.ui.set_on_change(k, self._on_change)
+        self.ui = SidePanel(size, panels, (kind, "build"), start_open=True)
+        for mode in panels:
+            self.ui.set_on_change(mode, self._on_change)
         self.input = InputHandler([self.ui])
 
         # --- кнопки ---
         self.back_button = Button((10, 10, 150, 36), texts.BACK)
+        kinds = [k for k, vt in VEHICLE_TYPES.items() if vt.playable]
         self.kind_buttons = [(k, Button((0, 0, KIND_BTN_W, KIND_BTN_H), VEHICLE_TYPES[k].label))
-                             for k in panels]
+                             for k in kinds]
         self._toast = None  # всплывающее сообщение: [текст, цвет, секунд осталось]
+        self._alpha = AlphaLayer()
+        self.tab = "build"
 
         # --- выбранная техника: границы ползунков, значения, превью, характеристики ---
         self._load_kind(kind)
@@ -85,7 +89,10 @@ class ConstructorScene(Scene):
         """Единая загрузка типа техники."""
         self.session.kind = kind
         self._vtype = VEHICLE_TYPES[kind]
-        self._mode = kind                      # режим панели = вид техники
+        self._mode = (kind, "build")
+        self._design_mode = (kind, "design")
+        self._has_design = self._design_mode in self.ui.panels
+        self.tab = "build"
         self._profile = self._vtype.gun_profile
 
         values = self.session.values[kind]
@@ -93,20 +100,30 @@ class ConstructorScene(Scene):
         values = self._apply_class_rules(values)
         self._cal = values["gun_caliber_mm"]
         self._len = clamp(values["gun_length_cal"], *length_range(self._cal))
-        values = self._apply_gun_rules(values)         # коридоры и положения ползунков под загруженные значения
-        self.ui.show(self._mode, values)
+        values = self._apply_gun_rules(values)
+        values = self._apply_ammo_rules(self._apply_nose_rules(values))
+        values = self._apply_design_rules(values)
 
-        values = self.session.values[kind] = self._apply_ammo_rules(self._apply_nose_rules(values))
+        self.session.values[kind] = values
+        self.ui.show(self._mode, {**values, "tab": "build"})
         self.vehicle = make_vehicle(kind, self.session.spec())
         self.renderer = self._make_renderer(kind)
         self._show_stats()
 
     # ---------- конструктор ----------
     def _on_change(self, values):
-        values = self._apply_class_rules(values)
-        values = self._apply_gun_rules(values)
-        values = self._apply_ammo_rules(self._apply_nose_rules(values))
-        self.session.values[self.session.kind] = dict(values)
+        tab = values.get("tab")
+        if tab is not None and tab != self.tab:
+            self._set_tab(tab)
+            return
+        kind = self.session.kind
+        merged = {**self.session.values[kind], **{k: v for k, v in values.items() if k != "tab"}}
+        if self.tab == "build":
+            merged = self._apply_class_rules(merged)
+            merged = self._apply_gun_rules(merged)
+        merged = self._apply_ammo_rules(self._apply_nose_rules(merged))
+        merged = self._apply_design_rules(merged)
+        self.session.values[kind] = dict(merged)
         self.vehicle.set_spec(self.session.spec())
         self._show_stats()
 
@@ -153,6 +170,27 @@ class ConstructorScene(Scene):
         self.ui.set_values(self._mode, {"gun_caliber_mm": values["gun_caliber_mm"]})
         return values
 
+    def _apply_design_rules(self, values):
+        """Дизайн башни: границы сдвига оси зависят от класса корпуса (броня и мощность)."""
+        if not self._has_design:
+            return values
+        values = dict(values)
+        lo, hi = turret_shift_range(values["front_armor_mm"], values["side_armor_mm"],
+                                    values["rear_armor_mm"], values["engine_power_hp"])
+        values["turret_axis_shift_m"] = clamp(values["turret_axis_shift_m"], lo, hi)
+        self.ui.set_range(self._design_mode, "turret_axis_shift_m", lo, hi)
+        self.ui.set_values(self._design_mode, {k: values[k] for k in
+                           ("turret_style", "turret_size", "turret_axis_shift_m")})
+        return values
+
+    def _set_tab(self, tab):
+        """Переключение «Сборка» / «Дизайн»."""
+        if tab == self.tab or (tab == "design" and not self._has_design):
+            return
+        self.tab = tab
+        mode = self._mode if tab == "build" else self._design_mode
+        self.ui.show(mode, {**self.session.values[self.session.kind], "tab": tab})
+
     def _apply_gun_rules(self, values):
         """Коридоры орудия: калибр -> длина -> урон, пробитие."""
         values = dict(values)
@@ -190,8 +228,11 @@ class ConstructorScene(Scene):
 
     def _show_stats(self):
         spec = self.vehicle.spec
-        for name, text in {**spec.main_stats(), **spec.internal_stats()}.items():
-            self.ui.set_stat(self._mode, name, text)
+        stats = {**spec.main_stats(), **spec.internal_stats()}
+        modes = [self._mode] + ([self._design_mode] if self._has_design else [])
+        for mode in modes:
+            for name, text in stats.items():
+                self.ui.set_stat(mode, name, text)
 
     # ---------- снимок для разбора внешнего вида ----------
     def _save_snapshot(self):
@@ -253,8 +294,28 @@ class ConstructorScene(Scene):
     def draw(self, screen):
         screen.fill(BG)
         self.renderer.draw(screen, self.camera, self.vehicle)
+        if self.tab == "design":
+            self._draw_turret_highlight(screen)
         mouse = self.input.mouse_pos
         self.ui.draw(screen, mouse)
         self.back_button.draw(screen, mouse)
         for kind, btn in self.kind_buttons:
             btn.draw(screen, mouse, colors=ACTIVE_BUTTON_COLORS if kind is self.session.kind else None)
+
+    def _draw_turret_highlight(self, screen):
+        """Кольцо вокруг оси башни и крестик в центре корпуса (виден эффект сдвига оси)."""
+        v = self.vehicle
+        z = self.camera.zoom
+        cx, cy = self.camera.world_to_screen(v.x, v.y)
+        r = max(8, round(1.7 * v.spec.TURRET_SCALE * PX_PER_M * z))
+        area = pygame.Rect(round(cx) - r - 3, round(cy) - r - 3, 2 * r + 6, 2 * r + 6).clip(screen.get_rect())
+        if area.w > 0 and area.h > 0:
+            layer = self._alpha.begin(area.size)
+            center = (round(cx) - area.x, round(cy) - area.y)
+            pygame.draw.circle(layer, (*HIGHLIGHT, 40), center, r)
+            pygame.draw.circle(layer, (*HIGHLIGHT, 220), center, r, 2)
+            screen.blit(layer, area.topleft)
+        hx, hy = self.camera.world_to_screen(*v.hull_obb()[:2])
+        hx, hy = round(hx), round(hy)
+        pygame.draw.line(screen, HIGHLIGHT, (hx - 7, hy), (hx + 7, hy), 2)
+        pygame.draw.line(screen, HIGHLIGHT, (hx, hy - 7), (hx, hy + 7), 2)

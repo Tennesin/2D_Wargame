@@ -22,21 +22,22 @@ from vehicles.gun.params import (
     SMOKE_REACH_BASE_PX, SMOKE_REACH_PER_MM, SMOKE_WIDTH_MIN_PX, SMOKE_WIDTH_CAL_DIV,
     BLAST_SIZE_PER_MM, BLAST_TIME_BASE_S, BLAST_TIME_GAIN_S, BLAST_DIRT_BASE, BLAST_DIRT_CAL_DIV,
     SCORCH_RADIUS_PER_MM, SCORCH_TIME_BASE_S, SCORCH_TIME_GAIN_S,
-    GUN_RELOAD_CAL_EXP, GUN_RELOAD_PLATFORM_EXP
+    GUN_RELOAD_CAL_EXP, GUN_RELOAD_PLATFORM_EXP,
+    TURRET_SIZE_MASS_EXP, TURRET_SIZE_RELOAD_EXP
 )
 
 _CAL = CALIBER
 REF_CAL = CALIBER.default
 REF_POWER = REF_POWER_HP
 
-def turret_masses(cal, length_cal=None):
+def turret_masses(cal, length_cal=None, turret_size=1.0):
     """Массы орудия и башни калибра."""
     return (GUN_MASS_T * (cal / GUN_MASS_AT_MM) ** 2 * gun_mass_k(length_cal),
-            TURRET_MASS_REF_T * (cal / REF_CAL) ** 1.5)
+            TURRET_MASS_REF_T * (cal / REF_CAL) ** 1.5 * turret_size ** TURRET_SIZE_MASS_EXP)
 
-def _turret_inertia(m_turret, m_gun, size_k, barrel_len_m):
-    """Момент инерции вращающейся части (башня + орудие), т·м²."""
-    r_turret = TURRET_RADIUS_M * size_k
+def _turret_inertia(m_turret, m_gun, size_k, barrel_len_m, turret_size=1.0):
+    """Момент инерции вращающейся части."""
+    r_turret = TURRET_RADIUS_M * size_k * turret_size
     r_gun = GUN_ARM_BASE_M * size_k + GUN_ARM_BARREL_K * barrel_len_m
     return m_turret * r_turret ** 2 + m_gun * r_gun ** 2
 
@@ -54,7 +55,7 @@ class GunSpec:
     def __init__(self, cal, size_k, power, m_gun, m_turret, front_m, arc_deg=360.0,
                  damage=None, penetration=None, profile=MBT_GUN, barrel_ref_m=BARREL_VIS_REF_M,
                  turret_scale_range=None, visual_k=None, hesh=False,
-                 length_cal=None):
+                 length_cal=None, turret_size=1.0):
         """profile — профиль орудия (бонус урона и пробития); front_m — на сколько метров вперёд
         от оси выступает маска орудия; barrel_ref_m — визуальная длина ствола эталона."""
         self.cal = cal
@@ -68,6 +69,7 @@ class GunSpec:
             self.TURRET_SCALE_RANGE = turret_scale_range
         self._visual_k = visual_k
         self._length_req = length_cal
+        self.turret_size = float(turret_size)
         self._calc_basics(size_k)
         self._calc_turret(size_k, power, m_gun, m_turret)
         self._calc_gun(damage, penetration)
@@ -85,7 +87,7 @@ class GunSpec:
 
     def _calc_turret(self, size_k, power, m_gun, m_turret):
         barrel_len = self.cal * self.l_cal / 1000.0 * BARREL_VISIBLE_K
-        self.i_turret = _turret_inertia(m_turret, m_gun, size_k, barrel_len)
+        self.i_turret = _turret_inertia(m_turret, m_gun, size_k, barrel_len, self.turret_size)
         i_rel = self.i_turret / REF_TURRET_INERTIA
         self.turret_turn = clamp(
             TURRET_TURN_REF * (power / REF_POWER) ** TURRET_POWER_EXP * i_rel ** -TURRET_INERTIA_EXP,
@@ -101,6 +103,7 @@ class GunSpec:
         reload = max(GUN_RELOAD_MIN, GUN_RELOAD_REF * cr ** GUN_RELOAD_CAL_EXP * self.q_gun ** GUN_RELOAD_PLATFORM_EXP)
         overload = max(0.0, self.q_gun - GUN_OVERLOAD_Q)
         reload *= 1.0 + GUN_OVERLOAD_K * overload
+        reload *= self.turret_size ** -TURRET_SIZE_RELOAD_EXP
 
         # тюнинг: больше пробитие = дольше перезарядка
         reload *= reload_factor(self.damage_k, self.pen_k)

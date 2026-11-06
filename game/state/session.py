@@ -4,7 +4,7 @@ import random
 
 from engine import (VehicleKind, WORLD_DEFAULT_M, WORLD_MIN_M, WORLD_MAX_M, clamp, round_to)
 from vehicles import (VEHICLE_TYPES, default_tuning, FRONT_SCREEN, NOSE_FLAT, NOSE_PIKE, NOSE_WEDGE,
-                      SPECIAL_HEAT, SPECIAL_HESH, default_length)
+                      SPECIAL_HEAT, SPECIAL_HESH, default_length, TURRET_STYLES, TURRET_DESIGN_PARAMS)
 from .preferences import Preferences
 from .settings import GameSettings
 from .stats import Career
@@ -48,6 +48,7 @@ class Session:
         values["special_ammo"] = SPECIAL_HEAT
         values["front_screen_mm"] = FRONT_SCREEN.default
         values["front_nose"] = NOSE_FLAT
+        values.update(vtype.design_defaults or {})
         return values
 
     def spec(self):
@@ -110,14 +111,19 @@ class Session:
             elif key == "front_nose":
                 if v in _NOSES:
                     current[key] = v
+            elif key == "turret_style":
+                if v in TURRET_STYLES:
+                    current[key] = v
             elif not _is_num(v):
                 continue
             elif key in params:
                 current[key] = params[key].fit(v)
+            elif key in TURRET_DESIGN_PARAMS:
+                current[key] = TURRET_DESIGN_PARAMS[key].fit(v)
             elif key == "front_screen_mm":
                 current[key] = FRONT_SCREEN.fit(v)
             else:
-                current[key] = float(v)         # урон и пробитие: коридор подрежет сама спецификация и конструктор
+                current[key] = float(v)
 
     @staticmethod
     def _roll_seed():

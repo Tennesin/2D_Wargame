@@ -1,14 +1,17 @@
 """vehicles/tank/spec.py — характеристики танка: шасси + орудие (GunVehicleSpec) + правила корпуса ОБТ."""
 import dataclasses
+import math
 
-from engine import clamp, fmt_num, PX_PER_M
-from ..chassis.hulls import layout_for, HULL_CLASS_RU, NOSE_FLAT, NOSE_RU, layout_with_axis
+from engine import clamp, fmt_num, PX_PER_M, round_to
+from ..chassis.hulls import (layout_for, HULL_CLASS_RU, NOSE_FLAT, NOSE_RU, layout_with_axis,
+                             layout_with_turret, axis_limits)
 from ..chassis.hull_noses import layout_with_nose, resolve_nose
 from ..chassis.params import ENGINE_T_PER_HP, FRONT_SCREEN
 from ..chassis.spec import ChassisBody, armor_masses, chassis_masses
 from ..gun.ammo import SPECIAL_HEAT, SPECIAL_HESH
 from ..gun.spec import GunSpec, turret_masses, REF_CAL, REF_POWER
 from ..gun.vehicle_specific import GunVehicleSpec
+from ..gun.params import TURRET_SIZE_MASS_EXP
 from ..gun.barrel import effective_length
 from .hull_rules import class_index, class_for_index, near_class_border, turret_axis_for, caliber_limits
 from .params import (
@@ -16,6 +19,7 @@ from .params import (
     HP_REF, HULL_COLL_HALF_W_M, HULL_COLL_HALF_L_M, HULL_COLL_SHIFT_M,
     LOOK_FRONT_RATIO, LOOK_SIDE_RATIO, LOOK_GUN_RATIO, LOOK_SPEED_RATIO,
 )
+from .design import TURRET_DESIGN_PARAMS, fit_turret_size, fit_turret_style
 
 # ==========================================
 # ГРАНИЦЫ ВХОДОВ И ЭТАЛОН
@@ -57,13 +61,26 @@ def hull_inputs(front, side, rear, power):
     power_t = clamp((power - _POWER.min) / (_POWER.max - _POWER.min), 0.0, 1.0)
     return armor_t, power_t
 
+def turret_shift_range(front, side, rear, power):
+    """(мин, макс) сдвига оси башни относительно «авто»-положения, м, при таких броне и мощности.
+    Границы зависят от класса корпуса: нужен запас по холсту спрайта."""
+    index = class_index(*hull_inputs(front, side, rear, power))
+    cls = class_for_index(index)
+    base = turret_axis_for(cls, index)
+    lo, hi = axis_limits(layout_for(cls))
+    p = TURRET_DESIGN_PARAMS["turret_axis_shift_m"]
+    lo_s = math.ceil((lo - base) / p.step - 1e-9) * p.step
+    hi_s = math.floor((hi - base) / p.step + 1e-9) * p.step
+    return round(max(p.min, lo_s), 3) + 0.0, round(min(p.max, hi_s), 3) + 0.0
+
 def caliber_range_for(front, side, rear, power):
     """(мин, макс) калибра, допустимые для корпуса, который получится при таких броне и мощности.
     Нужна конструктору (границы ползунка) и подбору сборок ботов."""
     return caliber_limits(class_index(*hull_inputs(front, side, rear, power)))
 
-def estimate_mass(cal, front, side, rear, power, screen=0.0, unbounded=False, gun_length=None):
-    """Полная масса ОБТ, т, по входным параметрам, без создания TankSpec."""
+def estimate_mass(cal, front, side, rear, power, screen=0.0, unbounded=False, gun_length=None,
+                  turret_size=1.0):
+    """Полная масса ОБТ."""
     front = _FRONT.fit(front, unbounded)
     side = _SIDE.fit(side, unbounded)
     rear = _REAR.fit(rear, unbounded)
@@ -75,7 +92,8 @@ def estimate_mass(cal, front, side, rear, power, screen=0.0, unbounded=False, gu
         lo, hi = caliber_limits(index)
         cal = clamp(cal, lo, hi)
     layout = layout_for(class_for_index(index))
-    m_gun, m_turret = turret_masses(cal, effective_length(cal, gun_length))
+    m_gun, m_turret = turret_masses(cal, effective_length(cal, gun_length),
+                                    fit_turret_size(turret_size))
     _, filling, _, armor = chassis_masses(TANK_BODY, layout.area_k, front, side, rear,
                                           power, m_gun + m_turret, screen)
     return filling + sum(armor)
@@ -92,15 +110,17 @@ class TankSpec(GunVehicleSpec):
     LOOK_SIDE_RATIO = LOOK_SIDE_RATIO
     LOOK_GUN_RATIO = LOOK_GUN_RATIO
     LOOK_SPEED_RATIO = LOOK_SPEED_RATIO
+    DESIGN_KWARGS = {"turret_style": "turret_style", "turret_size": "turret_size",
+                     "turret_axis_shift_m": "turret_axis_shift"}
 
     def __init__(self, cal, front, side, rear, power, damage=None, penetration=None,
                  screen=0.0, nose=NOSE_FLAT, special_ammo=SPECIAL_HEAT, unbounded=False,
-                 gun_length=None):
-        # входные параметры (у ботов unbounded=True: верхних границ нет, ограничивает только бюджет)
+                 gun_length=None, turret_style="auto", turret_size=1.0, turret_axis_shift=0.0):
+        # входные параметры
         cal, front, side, rear, power, screen = self._fit_inputs(
             cal, front, side, rear, power, screen, unbounded)
 
-        # класс корпуса зависит ТОЛЬКО от брони и мощности (не от массы и не от калибра)
+        # класс корпуса зависит только от брони и мощности
         self.hull_index = class_index(*hull_inputs(front, side, rear, power))
         self.HULL_CLASS = class_for_index(self.hull_index)
 
@@ -108,14 +128,29 @@ class TankSpec(GunVehicleSpec):
             lo, hi = caliber_limits(self.hull_index)
             cal = clamp(cal, lo, hi)
         self.cal = cal
-        self.m_gun, self.m_turret = turret_masses(cal, effective_length(cal, gun_length))
+
+        # дизайн башни
+        self.turret_style = fit_turret_style(turret_style)
+        self.turret_size = fit_turret_size(turret_size)
+        self.TURRET_MASS_K = self.turret_size ** TURRET_SIZE_MASS_EXP
+        self.m_gun, self.m_turret = turret_masses(cal, effective_length(cal, gun_length),
+                                                  self.turret_size)
 
         nose = resolve_nose(nose, front, estimate_mass(cal, front, side, rear, power, screen,
-                                                       unbounded, gun_length))
+                                                       unbounded, gun_length, self.turret_size))
         self.nose = nose
 
+        # ось башни: «авто» по индексу + сдвиг игрока в допустимых границах
+        base_axis = turret_axis_for(self.HULL_CLASS, self.hull_index)
+        lo_s, hi_s = turret_shift_range(front, side, rear, power)
+        step = TURRET_DESIGN_PARAMS["turret_axis_shift_m"].step
+        shift = clamp(round_to(float(turret_axis_shift), step), lo_s, hi_s)
+        axis = round(base_axis + shift, 1) + 0.0
+        self.turret_axis_shift = round(axis - base_axis, 3)
+
         layout = layout_for(self.HULL_CLASS)
-        layout = layout_with_axis(layout, turret_axis_for(self.HULL_CLASS, self.hull_index))
+        layout = layout_with_axis(layout, axis)
+        layout = layout_with_turret(layout, self.turret_style, self.turret_size)
         layout = layout_with_nose(layout, nose)
         body = dataclasses.replace(TANK_BODY, layout=layout,
                                    coll_half_w_m=layout.coll_half_w_m,
@@ -128,7 +163,7 @@ class TankSpec(GunVehicleSpec):
                 damage=damage, penetration=penetration, front_m=layout.turret_front_m,
                 turret_scale_range=layout.turret_scale_range,
                 visual_k=self.HULL_SCALE * layout.turret_k, hesh=(special_ammo == SPECIAL_HESH),
-                length_cal=gun_length)
+                length_cal=gun_length, turret_size=self.turret_size)
 
         super().__init__(body, front, side, rear, power, self.m_gun + self.m_turret, screen, make_gun)
         self.HULL_VARIANT = (self.layout.key,)
@@ -171,6 +206,9 @@ class TankSpec(GunVehicleSpec):
             "Гусеница: толщина / HP": f"{self.track_mm:.0f} мм / {self.track_max_hp:.0f}",
             "Длина ствола": f"{self.l_cal:.1f} кал.",
             "Масса орудия": f"{self.m_gun:.1f} т",
+            "Размер башни": f"×{self.turret_size:.2f}",
+            "Масса башни": f"{self.m_turret:.1f} т",
+            "Ось башни от центра": f"{self.layout.axis_fwd_m:+.1f} м",
             "Инерция башни": f"{self.i_turret:.1f} т·м²",
             "Угл. разгон корпуса": f"{self.hull_alpha:.0f} °/с²",
             "Угл. разгон башни": f"{self.turret_alpha:.0f} °/с²",

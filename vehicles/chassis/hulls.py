@@ -356,19 +356,49 @@ def max_canvas_half_m():
     return max(layout.canvas_half_m for layout in LAYOUTS.values())
 
 # ==========================================
-# ПОЛОЖЕНИЕ ОСИ БАШНИ
+# ПОЛОЖЕНИЕ ОСИ БАШНИ И ДИЗАЙН БАШНИ
 # ==========================================
 
+AXIS_CANVAS_MARGIN_M = 0.05
+
+# где ствол выходит из башни каждой формы (м вперёд от оси, до масштаба башни)
+TURRET_STYLE_FRONT_M = {"oval": 1.35, "hex": 1.85, "slab": 1.85}
+
 _AXIS_CACHE = {}
+_TURRET_CACHE = {}
+
+def axis_limits(layout):
+    """Положения оси башни, при которых форма корпуса и гусеницы влезают в холст спрайта."""
+    ys = [y for _, y in layout.outline]
+    for _, y0, _, y1 in layout.track_rects:
+        ys += (y0, y1)
+    c = max_canvas_half_m() - AXIS_CANVAS_MARGIN_M
+    return -c - min(ys), c - max(ys)
 
 def layout_with_axis(base, axis_fwd_m):
-    """Раскладка с другим положением оси башни. Форма корпуса, гусеницы и плиты те же.
-    Применять ДО layout_with_nose: ключ нового варианта включает ось."""
+    """Раскладка с другим положением оси башни."""
     if abs(base.axis_fwd_m - axis_fwd_m) < 1e-9:
         return base
     key = (base.key, axis_fwd_m)
     layout = _AXIS_CACHE.get(key)
     if layout is None:
-        layout = _AXIS_CACHE[key] = replace(base, key=f"{base.key}@{axis_fwd_m:+.1f}",
-                                            axis_fwd_m=axis_fwd_m)
+        layout = _AXIS_CACHE[key] = replace(
+            base, key=f"{base.key}@{axis_fwd_m:+.1f}", axis_fwd_m=axis_fwd_m,
+            canvas_half_m=max(base.canvas_half_m, max_canvas_half_m()))   # реальный холст рендерера
+    return layout
+
+def layout_with_turret(base, style="auto", size=1.0):
+    """Раскладка с выбранной формой и размером башни."""
+    if style == "auto" and abs(size - 1.0) < 1e-9:
+        return base
+    key = (base.key, style, size)
+    layout = _TURRET_CACHE.get(key)
+    if layout is None:
+        changes = {"key": f"{base.key}#{style}{size:.2f}",
+                   "turret_k": base.turret_k * size,
+                   "ring_r_m": base.ring_r_m * size}
+        if style != "auto":
+            changes["turret_style"] = style
+            changes["turret_front_m"] = TURRET_STYLE_FRONT_M[style]
+        layout = _TURRET_CACHE[key] = replace(base, **changes)
     return layout
