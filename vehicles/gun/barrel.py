@@ -6,6 +6,7 @@ from vehicles.gun.params import (
     BARREL_THICK_MIN_M, BARREL_THICK_MAX_M, BARREL_THICK_STEP_M,
     BARREL_LEN_AT_MIN_CAL, BARREL_LEN_AT_MAX_CAL,
     BARREL_THICK_LEN_EXP, BARREL_VIS_MAX_M, GUN_LENGTH_PEN_EXP,
+    GUN_BARREL_MASS_SHARE, GUN_LENGTH_COST_EXP,
 )
 
 _REF_CAL = CALIBER.default
@@ -27,6 +28,28 @@ def default_length(cal):
 def resolve_length(cal, requested):
     """Выбор игрока, приведённый к коридору."""
     return clamp(float(requested), *length_range(cal))
+
+def effective_length(cal, requested=None):
+    """Итоговая длина ствола, кал.: выбор игрока (или авто = эталон), приведённый к коридору калибра.
+    Единая точка входа: массы, спецификация и подбор ботов считают длину только через неё."""
+    return resolve_length(cal, default_length(cal) if requested is None else requested)
+
+def length_bounds():
+    """Самая короткая и самая длинная длина ствола среди всех калибров (для калибровки цены)."""
+    return (min(BARREL_LEN_AT_MIN_CAL[0], BARREL_LEN_AT_MAX_CAL[0]),
+            max(BARREL_LEN_AT_MIN_CAL[1], BARREL_LEN_AT_MAX_CAL[1]))
+
+def gun_mass_k(length_cal):
+    """Множитель массы орудия от длины ствола. None и эталонная длина: 1.0."""
+    if length_cal is None:
+        return 1.0
+    return 1.0 + GUN_BARREL_MASS_SHARE * (length_cal / REF_L_CAL - 1.0)
+
+def length_cost_k(length_cal):
+    """Множитель цены орудия от длины ствола (скорость и дальность стоят денег). None: 1.0."""
+    if length_cal is None:
+        return 1.0
+    return (length_cal / REF_L_CAL) ** GUN_LENGTH_COST_EXP
 
 # ---------- толщина ----------
 def nominal_thickness(cal, length_cal):

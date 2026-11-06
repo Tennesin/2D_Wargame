@@ -32,6 +32,7 @@ class Archetype:
     screen_mm: tuple = (0.0, 0.0)       # (мин, макс) толщины лобовых экранов, мм; кратно шагу ползунка
     caps: dict = field(default_factory=dict)   # {ключ ползунка: верхний предел значения}; нет ключа = без предела
     standoff: bool = False              # дальнобойный: держит дистанцию и ищет позицию с линией огня
+    length_shift: tuple = (0.0, 0.0)
 
 @dataclass(frozen=True)
 class Skill:
@@ -64,7 +65,8 @@ BUNKER = Archetype(
     aspect_deg=0.0, aspect_tol_deg=35.0, aspect_drive=3.0,
     damage_band=(0.80, 1.00), pen_band=(0.80, 1.00), emblem="chevron",
     caps={"gun_caliber_mm": 130, "front_armor_mm": 700, "side_armor_mm": 375,
-          "rear_armor_mm": 200, "engine_power_hp": 1800}
+          "rear_armor_mm": 200, "engine_power_hp": 1800},
+    length_shift=(-6.0, -2.0),
 )
 
 DESTROYER = Archetype(
@@ -79,7 +81,7 @@ DESTROYER = Archetype(
     damage_band=(0.80, 1.00), pen_band=(0.80, 1.00), emblem="chevron",
     caps={"gun_caliber_mm": 205, "front_armor_mm": 350, "side_armor_mm": 80,
           "rear_armor_mm": 60, "engine_power_hp": 1500},
-    standoff=True
+    standoff=True, length_shift=(4.0, 10.0),
 )
 
 SCOUT = Archetype(
@@ -93,7 +95,8 @@ SCOUT = Archetype(
     aspect_deg=165.0, aspect_tol_deg=25.0, aspect_drive=2.5,
     damage_band=(0.00, 0.25), pen_band=(0.40, 0.60),
     caps={"gun_caliber_mm": 105, "front_armor_mm": 150, "side_armor_mm": 100,
-          "rear_armor_mm": 60, "engine_power_hp": 3000}
+          "rear_armor_mm": 60, "engine_power_hp": 3000},
+    length_shift=(-4.0, 2.0),
 )
 
 ASSAULT = Archetype(
@@ -108,7 +111,8 @@ ASSAULT = Archetype(
     damage_band=(0.55, 0.75), pen_band=(0.55, 0.75),
     kind=VehicleKind.TD, nose=NOSE_PIKE, screen_mm=(15.0, 45.0),
     caps = {"gun_caliber_mm": 155, "front_armor_mm": 550, "side_armor_mm": 120,
-        "rear_armor_mm": 75, "engine_power_hp": 2500}
+        "rear_armor_mm": 75, "engine_power_hp": 2500},
+    length_shift=(-10.0, -4.0),
 )
 
 SNIPER = Archetype(
@@ -124,7 +128,7 @@ SNIPER = Archetype(
     kind=VehicleKind.TD,
     caps={"gun_caliber_mm": 215, "front_armor_mm": 100, "side_armor_mm": 80,
           "rear_armor_mm": 60, "engine_power_hp": 1800},
-    standoff=True
+    standoff=True, length_shift=(8.0, 16.0),
 )
 
 ARTILLERY = Archetype(

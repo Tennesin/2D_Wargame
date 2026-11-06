@@ -9,6 +9,7 @@ from ..chassis.hull_noses import NOSE_MIN_FRONT_MM
 from ..gun.ammo import SPECIAL_HEAT, SPECIAL_HESH
 from ..gun.spec import GunSpec, turret_masses
 from ..gun.tuning import TD_GUN
+from ..gun.barrel import effective_length
 from ..gun.params import (
     REF_L_CAL, BARREL_VISIBLE_K, GUN_ARM_BASE_M, GUN_ARM_BARREL_K,
     TURRET_INERTIA_EXP, TURRET_POWER_EXP,
@@ -55,9 +56,9 @@ def support_level(cal):
 # 2. ЭТАЛОН ПТ-САУ
 # ==========================================
 
-def td_masses(cal):
+def td_masses(cal, length_cal=None):
     """Массы орудия и рубки калибра cal, т: (орудие, рубка)."""
-    gun, turret = turret_masses(cal)
+    gun, turret = turret_masses(cal, length_cal)
     return gun, turret * TD_CASEMATE_K
 
 _REF_CAL = _CAL.default
@@ -122,7 +123,7 @@ class TDSpec(GunVehicleSpec):
         self.nose = nose                        # его читает Vehicle.describe
 
         self.cal = cal
-        self.m_gun, self.m_casemate = td_masses(cal)
+        self.m_gun, self.m_casemate = td_masses(cal, effective_length(cal, gun_length))
         self.MOUNT_FWD_M = mount_fwd_m(cal)
         self.SUPPORT = support_level(cal)
         self.CASE_K = round(clamp((cal / _REF_CAL) ** TD_CASE_CAL_EXP, *TD_CASE_K_LIMITS), 1)
@@ -181,6 +182,7 @@ class TDSpec(GunVehicleSpec):
             "Лоб с экранами": f"{self.front + self.screen_mm:.0f} мм",
             "Гусеница: толщина / HP": f"{self.track_mm:.0f} мм / {self.track_max_hp:.0f}",
             "Длина ствола": f"{self.l_cal:.1f} кал.",
+            "Масса орудия": f"{self.m_gun:.1f} т",
             "Инерция орудия": f"{self.i_turret:.1f} т·м²",
             "Угл. разгон корпуса": f"{self.hull_alpha:.0f} °/с²",
             "Угл. разгон орудия": f"{self.turret_alpha:.0f} °/с²",

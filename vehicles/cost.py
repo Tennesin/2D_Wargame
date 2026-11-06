@@ -9,6 +9,7 @@ from vehicles.gun.params import (
 )
 from vehicles.gun.spec import turret_masses, REF_CAL, REF_POWER
 from vehicles.gun.tuning import tuning_k_bounds
+from vehicles.gun.barrel import length_pen_k, length_cost_k, length_bounds
 from .tank.params import (
     PARAMS, FIXED_MASS_T, COST_REF, COST_MIN, COST_MAX, COST_CAP,
     COST_STEP, COST_ARMOR_ZONES, COST_PARTS,
@@ -22,7 +23,7 @@ _POWER = PARAMS["engine_power_hp"]
 
 _REF_HULL_MASS = FIXED_MASS_T + turret_masses(REF_CAL)[1]
 
-def _cost_index(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0, prof_d=1.0, prof_p=1.0):
+def _cost_index(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0, prof_d=1.0, prof_p=1.0, len_k=1.0):
     """Ценность машины относительно эталона."""
     turret = turret_masses(cal)[1]
     zf, zs, zr = COST_ARMOR_ZONES
@@ -31,15 +32,20 @@ def _cost_index(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0, prof_d=1.0,
                    + zr * rear / _REAR.default) / (zf + zs + zr),
         "hull":   (FIXED_MASS_T + turret) / _REF_HULL_MASS,
         "engine": power / REF_POWER,
-        "gun":    (cal / REF_CAL * dmg_k ** GUN_TUNE_COST_D * pen_k ** GUN_TUNE_COST_P
-                   * prof_d ** GUN_PROFILE_COST_D * prof_p ** GUN_PROFILE_COST_P),
+        "gun": (cal / REF_CAL * dmg_k ** GUN_TUNE_COST_D * pen_k ** GUN_TUNE_COST_P
+                * prof_d ** GUN_PROFILE_COST_D * prof_p ** GUN_PROFILE_COST_P * len_k),
     }
     return sum(weight * levels[name] ** power_k for name, (weight, power_k) in COST_PARTS.items())
 
 # Самая дешёвая и самая дорогая возможные машины (все ползунки в минимуме или в максимуме)
 _DK, _PK = tuning_k_bounds()
-_indexes = [_cost_index(*corner) for corner in itertools.product(
-    *((p.min, p.max) for p in (_CAL, _FRONT, _SIDE, _REAR, _POWER)), _DK, _PK)]
+_L_MIN, _L_MAX = length_bounds()
+_indexes = [
+    _cost_index(*corner[:5], corner[5], corner[6] * length_pen_k(length), 1.0, 1.0, length_cost_k(length))
+    for corner in itertools.product(
+        *((p.min, p.max) for p in (_CAL, _FRONT, _SIDE, _REAR, _POWER)), _DK, _PK)
+    for length in (_L_MIN, _L_MAX)
+]
 INDEX_MIN, INDEX_MAX = min(_indexes), max(_indexes)
 # Степени подобраны так, чтобы эталон стоил COST_REF, самая дешёвая машина COST_MIN, самая дорогая COST_MAX.
 COST_EXP_LOW = math.log(COST_MIN / COST_REF) / math.log(INDEX_MIN)
@@ -48,14 +54,14 @@ COST_EXP_HIGH = math.log(COST_MAX / COST_REF) / math.log(INDEX_MAX)
 def _price(index):
     return COST_REF * index ** (COST_EXP_LOW if index < 1.0 else COST_EXP_HIGH)
 
-def raw_cost(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0, prof_d=1.0, prof_p=1.0):
-    """Цена до округления."""
-    return _price(_cost_index(cal, front, side, rear, power, dmg_k, pen_k, prof_d, prof_p))
-
 def round_cost(raw):
     """Округление цены до шага и в допустимых границах."""
     return clamp(round_to(raw, COST_STEP), COST_MIN, COST_CAP)
 
-def cost_for(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0, prof_d=1.0, prof_p=1.0):
+def raw_cost(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0, prof_d=1.0, prof_p=1.0, len_k=1.0):
+    """Цена до округления."""
+    return _price(_cost_index(cal, front, side, rear, power, dmg_k, pen_k, prof_d, prof_p, len_k))
+
+def cost_for(cal, front, side, rear, power, dmg_k=1.0, pen_k=1.0, prof_d=1.0, prof_p=1.0, len_k=1.0):
     """Цена машины по входным параметрам без полного расчёта спецификации."""
-    return round_cost(raw_cost(cal, front, side, rear, power, dmg_k, pen_k, prof_d, prof_p))
+    return round_cost(raw_cost(cal, front, side, rear, power, dmg_k, pen_k, prof_d, prof_p, len_k))

@@ -8,6 +8,8 @@ from ..chassis.params import COLLISION_MARGIN_PX, FRONT_SCREEN, SCREEN_LOOK_STEP
 from ..chassis.spec import ChassisSpec
 from ..cost import raw_cost, round_cost
 from ..look import Look, level
+from .barrel import length_pen_k, length_cost_k
+from .params import REF_L_CAL
 from .ammo import SPECIAL_HEAT, ammo_stats
 
 class GunVehicleSpec(ChassisSpec):
@@ -70,8 +72,10 @@ class GunVehicleSpec(ChassisSpec):
     def _calc_economy(self):
         """Цена по формуле танка."""
         prof = self.profile
+        length = self.gun.length_cal if self.gun.length_cal is not None else REF_L_CAL
         raw = raw_cost(self.cal, self.front + self.screen_mm, self.side, self.rear, self.power,
-                       self.damage_k, self.pen_k, prof.dmg_mult(self.cal), prof.pen_mult(self.cal))
+                       self.damage_k, self.pen_k * length_pen_k(length),
+                       prof.dmg_mult(self.cal), prof.pen_mult(self.cal), length_cost_k(length))
         self.cost = round_cost(raw)
 
     def _calc_look(self):

@@ -36,7 +36,8 @@ def _mbt_caliber_limits(v):
 def _mbt_sloped_nose(v):
     """ОБТ: тяжелее порога массы клин, легче щучий нос."""
     mass = estimate_mass(v["gun_caliber_mm"], v["front_armor_mm"], v["side_armor_mm"],
-                         v["rear_armor_mm"], v["engine_power_hp"], v.get("front_screen_mm", 0.0))
+                         v["rear_armor_mm"], v["engine_power_hp"], v.get("front_screen_mm", 0.0),
+                         gun_length=v.get("gun_length_cal"))
     return sloped_nose_for_mass(mass)
 
 def _td_sloped_nose(v):

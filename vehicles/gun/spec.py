@@ -3,7 +3,7 @@
 from engine import PX_PER_M, clamp, lerp
 from vehicles.gun.ammo import ammo_kinds
 from vehicles.gun.tuning import resolve_tuning, reload_factor, MBT_GUN
-from vehicles.gun.barrel import resolve_length, default_length, default_thickness, visual_length_m
+from vehicles.gun.barrel import (effective_length, default_thickness, visual_length_m, gun_mass_k)
 from vehicles.gun.params import (
     CALIBER, REF_POWER_HP, REF_L_CAL, GUN_MASS_T, GUN_MASS_AT_MM, TURRET_MASS_REF_T,
     BARREL_VISIBLE_K, BARREL_THICK_REF_M, BARREL_LEN_STEP_M,
@@ -29,9 +29,9 @@ _CAL = CALIBER
 REF_CAL = CALIBER.default
 REF_POWER = REF_POWER_HP
 
-def turret_masses(cal):
-    """Массы орудия и башни калибра cal, т: (орудие, башня)."""
-    return (GUN_MASS_T * (cal / GUN_MASS_AT_MM) ** 2,
+def turret_masses(cal, length_cal=None):
+    """Массы орудия и башни калибра."""
+    return (GUN_MASS_T * (cal / GUN_MASS_AT_MM) ** 2 * gun_mass_k(length_cal),
             TURRET_MASS_REF_T * (cal / REF_CAL) ** 1.5)
 
 def _turret_inertia(m_turret, m_gun, size_k, barrel_len_m):
@@ -77,8 +77,7 @@ class GunSpec:
     def _calc_basics(self, size_k):
         self.q_gun = (self.cal / REF_CAL) / size_k
         if self.PHYSICAL_BARREL:
-            requested = default_length(self.cal) if self._length_req is None else self._length_req
-            self.length_cal = resolve_length(self.cal, requested)
+            self.length_cal = effective_length(self.cal, self._length_req)
             self.l_cal = self.length_cal
         else:
             self.length_cal = None

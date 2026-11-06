@@ -174,3 +174,5 @@ BARREL_THICK_LEN_EXP = 0.5         # номинал толщины ~ (REF_L_CAL 
 BARREL_THICK_MAX_M = 0.50          # потолок толщины ствола
 BARREL_VIS_MAX_M = 9.0             # потолок видимой длины ствола, м
 GUN_LENGTH_PEN_EXP = 0.5           # пробитие ~ (REF_L_CAL / длина) ** это: длиннее, значит слабее
+GUN_BARREL_MASS_SHARE = 0.5        # доля массы орудия
+GUN_LENGTH_COST_EXP = 0.8          # цена орудия

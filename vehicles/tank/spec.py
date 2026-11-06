@@ -9,6 +9,7 @@ from ..chassis.spec import ChassisBody, armor_masses, chassis_masses
 from ..gun.ammo import SPECIAL_HEAT, SPECIAL_HESH
 from ..gun.spec import GunSpec, turret_masses, REF_CAL, REF_POWER
 from ..gun.vehicle_specific import GunVehicleSpec
+from ..gun.barrel import effective_length
 from .hull_rules import class_index, class_for_index, near_class_border, turret_axis_for, caliber_limits
 from .params import (
     PARAMS, FIXED_MASS_T, FRONT_AREA_M2, SIDE_AREA_M2, REAR_AREA_M2,
@@ -61,7 +62,7 @@ def caliber_range_for(front, side, rear, power):
     Нужна конструктору (границы ползунка) и подбору сборок ботов."""
     return caliber_limits(class_index(*hull_inputs(front, side, rear, power)))
 
-def estimate_mass(cal, front, side, rear, power, screen=0.0, unbounded=False):
+def estimate_mass(cal, front, side, rear, power, screen=0.0, unbounded=False, gun_length=None):
     """Полная масса ОБТ, т, по входным параметрам, без создания TankSpec."""
     front = _FRONT.fit(front, unbounded)
     side = _SIDE.fit(side, unbounded)
@@ -74,7 +75,7 @@ def estimate_mass(cal, front, side, rear, power, screen=0.0, unbounded=False):
         lo, hi = caliber_limits(index)
         cal = clamp(cal, lo, hi)
     layout = layout_for(class_for_index(index))
-    m_gun, m_turret = turret_masses(cal)
+    m_gun, m_turret = turret_masses(cal, effective_length(cal, gun_length))
     _, filling, _, armor = chassis_masses(TANK_BODY, layout.area_k, front, side, rear,
                                           power, m_gun + m_turret, screen)
     return filling + sum(armor)
@@ -107,9 +108,10 @@ class TankSpec(GunVehicleSpec):
             lo, hi = caliber_limits(self.hull_index)
             cal = clamp(cal, lo, hi)
         self.cal = cal
-        self.m_gun, self.m_turret = turret_masses(cal)
+        self.m_gun, self.m_turret = turret_masses(cal, effective_length(cal, gun_length))
 
-        nose = resolve_nose(nose, front, estimate_mass(cal, front, side, rear, power, screen, unbounded))
+        nose = resolve_nose(nose, front, estimate_mass(cal, front, side, rear, power, screen,
+                                                       unbounded, gun_length))
         self.nose = nose
 
         layout = layout_for(self.HULL_CLASS)
@@ -168,6 +170,7 @@ class TankSpec(GunVehicleSpec):
             "Лоб с экранами": f"{self.front + self.screen_mm:.0f} мм",
             "Гусеница: толщина / HP": f"{self.track_mm:.0f} мм / {self.track_max_hp:.0f}",
             "Длина ствола": f"{self.l_cal:.1f} кал.",
+            "Масса орудия": f"{self.m_gun:.1f} т",
             "Инерция башни": f"{self.i_turret:.1f} т·м²",
             "Угл. разгон корпуса": f"{self.hull_alpha:.0f} °/с²",
             "Угл. разгон башни": f"{self.turret_alpha:.0f} °/с²",

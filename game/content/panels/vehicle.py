@@ -30,8 +30,8 @@ def build_vehicle_panel(kind):
         tune_row("gun_damage"),
         tune_row("gun_penetration"),
         tune_row("gun_length_cal"),
-        InfoText("Длиннее ствол: быстрее снаряд и дальше полёт, но слабее пробитие и медленнее наводка. "
-                 "Чем длиннее ствол, тем он тоньше."),
+        InfoText("Длиннее ствол: быстрее снаряд и дальше полёт, но слабее пробитие, тяжелее орудие, "
+                 "медленнее наводка и выше цена. Чем длиннее ствол, тем он тоньше."),
         ChoiceRow("special_ammo", "Спецснаряд (слот 2)",
                   [(SPECIAL_HEAT, "КС"), (SPECIAL_HESH, "HESH")], SPECIAL_HEAT,
                   note=f"калибр от {HESH_MIN_CAL_MM} мм"),
