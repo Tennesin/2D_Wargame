@@ -1,9 +1,9 @@
 """vehicles/gun/spec.py — расчёт башни и орудия: масса, наводка, урон, пробитие, перезарядка,
 размеры спрайтов, снаряд и эффекты. Шасси не знает: получает от него size_k и мощность."""
-from engine import PX_PER_M, clamp
+from engine import PX_PER_M, clamp, lerp
 from vehicles.gun.ammo import ammo_kinds
 from vehicles.gun.tuning import resolve_tuning, reload_factor, MBT_GUN
-from vehicles.gun.barrel import resolve_length, resolve_thickness, visual_length_m
+from vehicles.gun.barrel import resolve_length, default_length, default_thickness, visual_length_m
 from vehicles.gun.params import (
     CALIBER, REF_POWER_HP, REF_L_CAL, GUN_MASS_T, GUN_MASS_AT_MM, TURRET_MASS_REF_T,
     BARREL_VISIBLE_K, BARREL_THICK_REF_M, BARREL_LEN_STEP_M,
@@ -16,7 +16,7 @@ from vehicles.gun.params import (
     SHELL_RANGE_LIMITS, SHELL_RANGE_SMALL_CAL_EXP, SHELL_SIZE_EXP, SHELL_STRETCH_EXP, HESH_MIN_CAL_MM,
     L_CAL_SIZE_EXP, L_CAL_LIMITS, TURRET_SCALE_CAL_EXP,
     BARREL_MIN_STEPS, BARREL_THICK_MIN_M, BARREL_THICK_EXP, SHELL_THICK_K,
-    RECOIL_BASE_M, RECOIL_PER_MM, RECOIL_TIME_BASE_S, RECOIL_TIME_CAL_DIV,
+    RECOIL_BASE_M, RECOIL_PER_MM, RECOIL_RISE_S, RECOIL_FALL_S,
     FLASH_SIZE_PER_MM, FLASH_TIME_BASE_S, FLASH_TIME_GAIN_S,
     SMOKE_TIME_BASE_S, SMOKE_TIME_GAIN_S, SMOKE_STREAKS_BASE, SMOKE_STREAKS_CAL_DIV,
     SMOKE_REACH_BASE_PX, SMOKE_REACH_PER_MM, SMOKE_WIDTH_MIN_PX, SMOKE_WIDTH_CAL_DIV,
@@ -54,7 +54,7 @@ class GunSpec:
     def __init__(self, cal, size_k, power, m_gun, m_turret, front_m, arc_deg=360.0,
                  damage=None, penetration=None, profile=MBT_GUN, barrel_ref_m=BARREL_VIS_REF_M,
                  turret_scale_range=None, visual_k=None, hesh=False,
-                 length_cal=None, thickness=None):
+                 length_cal=None):
         """profile — профиль орудия (бонус урона и пробития); front_m — на сколько метров вперёд
         от оси выступает маска орудия; barrel_ref_m — визуальная длина ствола эталона."""
         self.cal = cal
@@ -68,7 +68,6 @@ class GunSpec:
             self.TURRET_SCALE_RANGE = turret_scale_range
         self._visual_k = visual_k
         self._length_req = length_cal
-        self._thick_req = thickness
         self._calc_basics(size_k)
         self._calc_turret(size_k, power, m_gun, m_turret)
         self._calc_gun(damage, penetration)
@@ -77,13 +76,13 @@ class GunSpec:
 
     def _calc_basics(self, size_k):
         self.q_gun = (self.cal / REF_CAL) / size_k
-        auto = clamp(REF_L_CAL * size_k ** L_CAL_SIZE_EXP, *L_CAL_LIMITS)
-        if self.PHYSICAL_BARREL and self._length_req is not None:
-            self.length_cal = resolve_length(self.cal, self._length_req)
+        if self.PHYSICAL_BARREL:
+            requested = default_length(self.cal) if self._length_req is None else self._length_req
+            self.length_cal = resolve_length(self.cal, requested)
             self.l_cal = self.length_cal
         else:
             self.length_cal = None
-            self.l_cal = auto
+            self.l_cal = clamp(REF_L_CAL * size_k ** L_CAL_SIZE_EXP, *L_CAL_LIMITS)
 
     def _calc_turret(self, size_k, power, m_gun, m_turret):
         barrel_len = self.cal * self.l_cal / 1000.0 * BARREL_VISIBLE_K
@@ -96,7 +95,6 @@ class GunSpec:
 
     def _calc_gun(self, damage, penetration):
         cr = self.cal / REF_CAL
-        # урон и пробитие: номинал калибра + выбор игрока (длина ствола на них больше не влияет)
         self.damage, self.penetration, self.damage_k, self.pen_k = resolve_tuning(
             self.cal, damage, penetration, self.profile, self.length_cal)
 
@@ -117,9 +115,8 @@ class GunSpec:
         self.TURRET_SCALE = base * clamp(cr ** TURRET_SCALE_CAL_EXP, *self.TURRET_SCALE_RANGE)
 
         if self.PHYSICAL_BARREL:
-            # длина = калибр × длина в калибрах, толщина зависит от длины: калибр длину не диктует
             world_len = visual_length_m(cal, self.l_cal, self.BARREL_REF_M)
-            thick = resolve_thickness(cal, self.l_cal, self._thick_req)
+            thick = default_thickness(cal, self.l_cal)
         else:
             world_len = self.BARREL_REF_M * base * clamp(cr ** BARREL_VIS_EXP, *BARREL_VIS_K_RANGE)
             thick = max(BARREL_THICK_MIN_M, BARREL_THICK_REF_M * cr ** BARREL_THICK_EXP)
@@ -158,9 +155,11 @@ class GunSpec:
         self.SHELL_LEN_PX = size * stretch
         self.SHELL_THICK_PX = SHELL_THICK_K * REF_CAL * cr ** SHELL_SIZE_EXP
 
-        # откат ствола (метры эталонного спрайта)
+        # откат ствола
         self.RECOIL_DEPTH_M = RECOIL_BASE_M + RECOIL_PER_MM * cal
-        self.RECOIL_TIME = RECOIL_TIME_BASE_S + cal / RECOIL_TIME_CAL_DIV  # полный цикл «назад и обратно», с
+        self.RECOIL_RISE_S = lerp(RECOIL_RISE_S[0], RECOIL_RISE_S[1], cal_k)
+        self.RECOIL_FALL_S = lerp(RECOIL_FALL_S[0], RECOIL_FALL_S[1], cal_k)
+        self.RECOIL_TIME = self.RECOIL_RISE_S + self.RECOIL_FALL_S  # полный цикл, с
 
         # вспышка
         self.FLASH_SIZE_PX = FLASH_SIZE_PER_MM * cal

@@ -3,8 +3,9 @@
 from engine import clamp, lerp, round_to
 from vehicles.gun.params import (
     CALIBER, REF_L_CAL, BARREL_VISIBLE_K, BARREL_THICK_REF_M, BARREL_THICK_EXP,
-    BARREL_THICK_MIN_M, BARREL_THICK_STEP_M, BARREL_LEN_AT_MIN_CAL, BARREL_LEN_AT_MAX_CAL,
-    BARREL_THICK_LEN_EXP, BARREL_THICK_CORRIDOR, BARREL_VIS_MAX_M, GUN_LENGTH_PEN_EXP,
+    BARREL_THICK_MIN_M, BARREL_THICK_MAX_M, BARREL_THICK_STEP_M,
+    BARREL_LEN_AT_MIN_CAL, BARREL_LEN_AT_MAX_CAL,
+    BARREL_THICK_LEN_EXP, BARREL_VIS_MAX_M, GUN_LENGTH_PEN_EXP,
 )
 
 _REF_CAL = CALIBER.default
@@ -33,22 +34,10 @@ def nominal_thickness(cal, length_cal):
     k = (REF_L_CAL / length_cal) ** BARREL_THICK_LEN_EXP
     return max(BARREL_THICK_MIN_M, BARREL_THICK_REF_M * (cal / _REF_CAL) ** BARREL_THICK_EXP * k)
 
-def thickness_range(cal, length_cal):
-    nom = nominal_thickness(cal, length_cal)
-    lo = max(BARREL_THICK_MIN_M, round(round_to(nom * BARREL_THICK_CORRIDOR[0], BARREL_THICK_STEP_M), 3))
-    hi = max(lo + BARREL_THICK_STEP_M, round(round_to(nom * BARREL_THICK_CORRIDOR[1], BARREL_THICK_STEP_M), 3))
-    return lo, round(hi, 3)
-
 def default_thickness(cal, length_cal):
-    lo, hi = thickness_range(cal, length_cal)
-    return clamp(round(round_to(nominal_thickness(cal, length_cal), BARREL_THICK_STEP_M), 3), lo, hi)
-
-def resolve_thickness(cal, length_cal, requested=None):
-    """Толщина для спрайта: выбор игрока в коридоре, а без выбора (боты) номинал."""
-    if requested is None:
-        return default_thickness(cal, length_cal)
-    lo, hi = thickness_range(cal, length_cal)
-    return clamp(round(round_to(float(requested), BARREL_THICK_STEP_M), 3), lo, hi)
+    """Толщина ствола, м спрайта."""
+    nom = clamp(nominal_thickness(cal, length_cal), BARREL_THICK_MIN_M, BARREL_THICK_MAX_M)
+    return round(round_to(nom, BARREL_THICK_STEP_M), 3)
 
 # ---------- видимая длина и пробитие ----------
 def visual_length_m(cal, length_cal, ref_m):

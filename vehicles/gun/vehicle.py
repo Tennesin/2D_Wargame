@@ -7,6 +7,7 @@ from engine import shortest_angle_diff, Shot, heading_vector, bearing_deg, clamp
 from vehicles.chassis.vehicle import Vehicle
 from vehicles.gun.ammo import ammo_stats
 from vehicles.mods import apply_to_ammo
+from vehicles.gun.params import RECOIL_RISE_POW
 
 class GunVehicle(Vehicle):
     AIM_DEAD_ZONE = 100.0   # если курсор ближе к оси орудия (1 м), орудие не дёргается
@@ -139,12 +140,14 @@ class GunVehicle(Vehicle):
 
     @property
     def recoil_m(self):
-        """Насколько ствол сейчас утоплен (метры эталонного спрайта)."""
-        T = self.spec.RECOIL_TIME
-        if self.since_shot >= T:
+        """Насколько ствол сейчас утоплен."""
+        s = self.spec
+        t = self.since_shot
+        rise, fall = s.RECOIL_RISE_S, s.RECOIL_FALL_S
+        if t >= rise + fall:
             return 0.0
-        k = self.since_shot / T
-        depth = self.spec.RECOIL_DEPTH_M
-        if k < 0.2:
-            return depth * (k / 0.2)
-        return depth * (1.0 - (k - 0.2) / 0.8) ** 2
+        if t < rise:
+            u = t / rise
+            return s.RECOIL_DEPTH_M * (1.0 - (1.0 - u) ** RECOIL_RISE_POW)
+        u = (t - rise) / fall
+        return s.RECOIL_DEPTH_M * (1.0 - u * u * (3.0 - 2.0 * u))

@@ -57,11 +57,12 @@ BARREL_VIS_K_RANGE = (0.70, 1.25)  # границы относительно э�
 SHELL_LEN_K = 1.8            # длина снаряда: мм калибра -> px
 
 # --- скорость снаряда ---
-SHELL_SPEED_REF_PX = 6000.0        # у эталона, px/с (60 м/с)
-SHELL_SPEED_L_EXP = 0.55           # длиннее ствол (в калибрах): быстрее
-SHELL_SPEED_CAL_EXP = -0.10        # крупный калибр: снаряд тяжелее, скорость чуть ниже
-SHELL_SPEED_PEN_EXP = 0.25         # выбранное игроком пробитие (pen_k): сильнее заряд, быстрее снаряд
-SHELL_SPEED_LIMITS = (3000.0, 12000.0)
+SHELL_SPEED_SCALE = 2.0            # общий множитель скорости
+SHELL_SPEED_REF_PX = 6000.0 * SHELL_SPEED_SCALE
+SHELL_SPEED_L_EXP = 0.55
+SHELL_SPEED_CAL_EXP = -0.10
+SHELL_SPEED_PEN_EXP = 0.25
+SHELL_SPEED_LIMITS = (3000.0 * SHELL_SPEED_SCALE, 12000.0 * SHELL_SPEED_SCALE)
 
 # --- дальность ---
 SHELL_RANGE_REF_PX = 3500.0        # у эталона, px (35 м)
@@ -96,7 +97,6 @@ GUN_TUNE_PARAMS = {
     "gun_damage":      Param("Урон",     "",   250, 550, GUN_DAMAGE_REF, GUN_DAMAGE_STEP),
     "gun_penetration": Param("Пробитие", "мм", 250, 450, GUN_PEN_REF,    GUN_PEN_STEP),
     "gun_length_cal":  Param("Длина ствола",   "кал.", 30, 60, REF_L_CAL, 1),
-    "gun_thickness":   Param("Толщина ствола", "м", 0.2, 0.6, BARREL_THICK_REF_M, BARREL_THICK_STEP_M, 2),
 }
 
 # ==========================================
@@ -146,8 +146,10 @@ BARREL_THICK_MIN_M = 0.22          # пол толщины ствола
 BARREL_THICK_EXP = 0.5
 SHELL_THICK_K = 0.15               # толщина снаряда: доля эталонного калибра
 
-RECOIL_BASE_M, RECOIL_PER_MM = 0.12, 0.0028
-RECOIL_TIME_BASE_S, RECOIL_TIME_CAL_DIV = 0.25, 400.0
+RECOIL_BASE_M, RECOIL_PER_MM = 0.12, 0.0028     # глубина отката
+RECOIL_RISE_S = (0.090, 0.045)                  # время отката при минимальном и максимальном калибре
+RECOIL_FALL_S = (0.28, 0.90)                    # время возврата
+RECOIL_RISE_POW = 3.0                           # крутизна отката
 
 FLASH_SIZE_PER_MM = 2.2
 FLASH_TIME_BASE_S, FLASH_TIME_GAIN_S = 0.07, 0.05
@@ -169,6 +171,6 @@ SCORCH_TIME_BASE_S, SCORCH_TIME_GAIN_S = 4.0, 2.0
 BARREL_LEN_AT_MIN_CAL = (40, 70)   # пределы длины в калибрах при минимальном калибре
 BARREL_LEN_AT_MAX_CAL = (24, 52)   # и при максимальном (между ними линейно)
 BARREL_THICK_LEN_EXP = 0.5         # номинал толщины ~ (REF_L_CAL / длина) ** это: длиннее, значит тоньше
-BARREL_THICK_CORRIDOR = (0.85, 1.20)   # коридор толщины в долях номинала
+BARREL_THICK_MAX_M = 0.50          # потолок толщины ствола
 BARREL_VIS_MAX_M = 9.0             # потолок видимой длины ствола, м
 GUN_LENGTH_PEN_EXP = 0.5           # пробитие ~ (REF_L_CAL / длина) ** это: длиннее, значит слабее

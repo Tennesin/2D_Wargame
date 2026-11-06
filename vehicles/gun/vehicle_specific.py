@@ -48,7 +48,7 @@ class GunVehicleSpec(ChassisSpec):
             v["engine_power_hp"], damage=v.get("gun_damage"), penetration=v.get("gun_penetration"),
             screen=v.get("front_screen_mm", 0.0), nose=v.get("front_nose", NOSE_FLAT),
             special_ammo=v.get("special_ammo", SPECIAL_HEAT), unbounded=unbounded,
-            gun_length=v.get("gun_length_cal"), gun_thickness=v.get("gun_thickness"))
+            gun_length=v.get("gun_length_cal"))
 
     @classmethod
     def from_config(cls):
@@ -85,8 +85,7 @@ class GunVehicleSpec(ChassisSpec):
         )
 
     # ==========================================
-    # СВОЙСТВА ОРУДИЯ (делегируют в self.gun)
-    # Свойства только для чтения: присваивать их нельзя. Атрибут cal свойством не является.
+    # СВОЙСТВА ОРУДИЯ
     # ==========================================
     @property
     def hesh(self): return self.gun.hesh
@@ -150,6 +149,10 @@ class GunVehicleSpec(ChassisSpec):
     def RECOIL_DEPTH_M(self): return self.gun.RECOIL_DEPTH_M
     @property
     def RECOIL_TIME(self): return self.gun.RECOIL_TIME
+    @property
+    def RECOIL_RISE_S(self): return self.gun.RECOIL_RISE_S
+    @property
+    def RECOIL_FALL_S(self): return self.gun.RECOIL_FALL_S
     @property
     def FLASH_SIZE_PX(self): return self.gun.FLASH_SIZE_PX
     @property

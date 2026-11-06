@@ -4,7 +4,7 @@ import random
 
 from engine import (VehicleKind, WORLD_DEFAULT_M, WORLD_MIN_M, WORLD_MAX_M, clamp, round_to)
 from vehicles import (VEHICLE_TYPES, default_tuning, FRONT_SCREEN, NOSE_FLAT, NOSE_PIKE, NOSE_WEDGE,
-                      SPECIAL_HEAT, SPECIAL_HESH, default_length, default_thickness)
+                      SPECIAL_HEAT, SPECIAL_HESH, default_length)
 from .preferences import Preferences
 from .settings import GameSettings
 from .stats import Career
@@ -45,7 +45,6 @@ class Session:
         values["gun_penetration"] = pen
         length = default_length(values["gun_caliber_mm"])
         values["gun_length_cal"] = length
-        values["gun_thickness"] = default_thickness(values["gun_caliber_mm"], length)
         values["special_ammo"] = SPECIAL_HEAT
         values["front_screen_mm"] = FRONT_SCREEN.default
         values["front_nose"] = NOSE_FLAT

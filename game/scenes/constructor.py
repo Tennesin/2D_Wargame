@@ -10,7 +10,7 @@ from ui.theme import PANEL_WIDTH
 from vehicles import (
     GUN_TUNE_PARAMS, damage_range, pen_range, remap, VEHICLE_TYPES, RENDERERS,
     make_vehicle, NOSE_FLAT, NOSE_MIN_FRONT_MM, NOSE_RU, SPECIAL_HEAT, HESH_MIN_CAL_MM,
-    length_range, thickness_range
+    length_range
 )
 from world import Camera
 from ..content import texts
@@ -26,7 +26,6 @@ PREVIEW_ZOOM_STEPS = 8          # на сколько ступеней приб�
 DMG_STEP = GUN_TUNE_PARAMS["gun_damage"].step
 PEN_STEP = GUN_TUNE_PARAMS["gun_penetration"].step
 LEN_STEP = GUN_TUNE_PARAMS["gun_length_cal"].step
-THICK_STEP = GUN_TUNE_PARAMS["gun_thickness"].step
 
 KIND_BTN_W, KIND_BTN_H = 100, 36    # кнопки выбора типа техники (левый нижний угол)
 KIND_GAP = 8
@@ -155,7 +154,7 @@ class ConstructorScene(Scene):
         return values
 
     def _apply_gun_rules(self, values):
-        """Коридоры орудия: калибр -> длина -> толщина, урон, пробитие."""
+        """Коридоры орудия: калибр -> длина -> урон, пробитие."""
         values = dict(values)
         cal = values["gun_caliber_mm"]
         cal_changed = cal != self._cal
@@ -165,30 +164,25 @@ class ConstructorScene(Scene):
             length = remap(self._len_t, (0.0, 1.0), len_rng, LEN_STEP)
         else:
             length = clamp(values["gun_length_cal"], *len_rng)
-        derived = cal_changed or length != self._len       # коридоры сдвинулись сами, не игроком
+        derived = cal_changed or length != self._len
 
-        thick_rng = thickness_range(cal, length)
         d_rng = damage_range(cal, self._profile)
         p_rng = pen_range(cal, self._profile, length)
         if derived:
-            thick = remap(self._thick_t, (0.0, 1.0), thick_rng, THICK_STEP)
             dmg = remap(self._tune_t[0], (0.0, 1.0), d_rng, DMG_STEP)
             pen = remap(self._tune_t[1], (0.0, 1.0), p_rng, PEN_STEP)
         else:
-            thick = clamp(values["gun_thickness"], *thick_rng)
             dmg = clamp(values["gun_damage"], *d_rng)
             pen = clamp(values["gun_penetration"], *p_rng)
-            self._thick_t = remap(thick, thick_rng, (0.0, 1.0))
             self._tune_t = (remap(dmg, d_rng, (0.0, 1.0)), remap(pen, p_rng, (0.0, 1.0)))
         if not cal_changed:
             self._len_t = remap(length, len_rng, (0.0, 1.0))
 
         self._cal, self._len = cal, length
-        values.update(gun_length_cal=length, gun_thickness=thick, gun_damage=dmg, gun_penetration=pen)
+        values.update(gun_length_cal=length, gun_damage=dmg, gun_penetration=pen)
 
         m = self._mode
         self.ui.set_range(m, "gun_length_cal", *len_rng)
-        self.ui.set_range(m, "gun_thickness", *thick_rng)
         self.ui.set_range(m, "gun_damage", *d_rng)
         self.ui.set_range(m, "gun_penetration", *p_rng)
         self.ui.set_values(m, values)

@@ -114,7 +114,7 @@ class TDSpec(GunVehicleSpec):
 
     def __init__(self, cal, front, side, rear, power, damage=None, penetration=None,
                  screen=0.0, nose=NOSE_FLAT, special_ammo=SPECIAL_HEAT, unbounded=False,
-                 gun_length=None, gun_thickness=None):
+                 gun_length=None):
         cal, front, side, rear, power, screen = self._fit_inputs(
             cal, front, side, rear, power, screen, unbounded)
         if nose != NOSE_PIKE or front <= NOSE_MIN_FRONT_MM:
@@ -138,7 +138,7 @@ class TDSpec(GunVehicleSpec):
                 arc_deg=gun_arc_deg(cal), damage=damage, penetration=penetration,
                 profile=TD_GUN, front_m=TD_GUN_FRONT_M, barrel_ref_m=TD_BARREL_VIS_REF_M,
                 hesh=(special_ammo == SPECIAL_HESH),
-                length_cal=gun_length, thickness=gun_thickness)
+                length_cal=gun_length)
 
         super().__init__(body, front, side, rear, power, self.m_gun + self.m_casemate, screen, make_gun)
         self.HULL_VARIANT = (round(self.MOUNT_FWD_M / MOUNT_STEP_M), self.SUPPORT, self.CASE_K,

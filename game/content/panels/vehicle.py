@@ -30,7 +30,6 @@ def build_vehicle_panel(kind):
         tune_row("gun_damage"),
         tune_row("gun_penetration"),
         tune_row("gun_length_cal"),
-        tune_row("gun_thickness"),
         InfoText("Длиннее ствол: быстрее снаряд и дальше полёт, но слабее пробитие и медленнее наводка. "
                  "Чем длиннее ствол, тем он тоньше."),
         ChoiceRow("special_ammo", "Спецснаряд (слот 2)",
