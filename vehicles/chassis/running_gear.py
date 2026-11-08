@@ -2,7 +2,7 @@
 Про спрайты и физику не знает: Vehicle спрашивает отсюда, какая гусеница цела."""
 from dataclasses import dataclass
 
-from vehicles.chassis.params import TRACK_REPAIR_S, TRACK_REGEN_DELAY_S, TRACK_REGEN_PER_S
+from vehicles.chassis.params import TRACK_REGEN_DELAY_S, TRACK_REGEN_PER_S
 
 LEFT = "left"
 RIGHT = "right"
@@ -12,7 +12,7 @@ TRACK_SIDES = (LEFT, RIGHT)      # порядок = порядок ремонт�
 class RunningGear:
     """Тип ходовой части. Колёса потом добавятся сюда же отдельным экземпляром."""
     key: str
-    repair_s: float = TRACK_REPAIR_S    # сколько секунд чинится одна гусеница
+    repair_k: float = 1.0
 
 TRACKS = RunningGear("tracks")
 
@@ -32,12 +32,29 @@ class TrackState:
         """Множество сбитых сторон (0% здоровья). Интерфейс прежний: if tracks.broken, перебор."""
         return {s for s in TRACK_SIDES if self.health[s] <= 0.0}
 
+    @property
+    def damaged(self):
+        """Хоть одна гусеница повреждена (частично или сбита)."""
+        return any(self.health[s] < 1.0 for s in TRACK_SIDES)
+
+    def restore(self, frac):
+        """Прибавить frac шкалы (0..1) каждой повреждённой гусенице."""
+        count = 0
+        for side in TRACK_SIDES:
+            h = self.health[side]
+            if h < 1.0:
+                self.health[side] = min(1.0, h + frac)
+                count += 1
+        if self.repair_side is not None and not self.is_broken(self.repair_side):
+            self.repair_side = None
+            self.repair_left = self.repair_total = 0.0
+        return count
+
     def is_broken(self, side):
         return self.health[side] <= 0.0
 
     def damage(self, side, frac):
-        """Урон гусенице в долях её шкалы. Возвращает True, если она ТОЛЬКО ЧТО упала в ноль.
-        Сбитая гусеница урона не принимает."""
+        """Урон гусенице в долях её шкалы."""
         if frac <= 0.0 or self.is_broken(side):
             return False
         self._idle[side] = 0.0

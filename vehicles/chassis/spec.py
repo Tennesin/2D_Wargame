@@ -13,7 +13,8 @@ from vehicles.chassis.params import (
     ACCEL_K, ACCEL_MIN, ACCEL_MAX, ACCEL_TAIL_FLOOR, REVERSE_ACCEL_K, COAST_DECEL, BRAKE_DECEL,
     HULL_TURN_CAP, HULL_TURN_MIN, HULL_ALPHA_REF, HULL_ALPHA_MIN, HULL_ALPHA_MAX,
     HP_EXP, HP_STEP, FRONT_SCREEN, SCREEN_MASS_K, SCREEN_TURN_LOSS,
-    TRACK_HP_K, TRACK_MM_RANGE, TRACK_MM_STEP, TRACK_SIZE_K_RANGE, INERTIA_K
+    TRACK_HP_K, TRACK_MM_RANGE, TRACK_MM_STEP, TRACK_SIZE_K_RANGE, INERTIA_K,
+    TRACK_REPAIR_S_RANGE, RAM_MASS_RANGE_T
 )
 from vehicles.chassis.running_gear import RunningGear, TRACKS
 
@@ -165,6 +166,10 @@ class ChassisSpec:
         t = clamp((self.size_k - lo) / (hi - lo), 0.0, 1.0)
         mm_lo, mm_hi = TRACK_MM_RANGE
         self.track_mm = clamp(round_to(lerp(mm_lo, mm_hi, t), TRACK_MM_STEP), mm_lo, mm_hi)
+        lo_m, hi_m = RAM_MASS_RANGE_T
+        t = clamp((self.mass - lo_m) / (hi_m - lo_m), 0.0, 1.0)
+        lo_s, hi_s = TRACK_REPAIR_S_RANGE
+        self.track_repair_s = round(lerp(lo_s, hi_s, t) * self.gear.repair_k, 1)
 
     def _calc_collision(self):
         """Хитбокс корпуса. Всё, что торчит из корпуса (ствол), в столкновениях не участвует."""

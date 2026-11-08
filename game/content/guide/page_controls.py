@@ -1,7 +1,7 @@
 """game/content/guide/page_controls.py — страница инструкции «Управление»."""
 from inputs import Action, AMMO_HOTKEYS
 from ui import SectionHeader, KeyRow, make_mouse_icon
-from vehicles.chassis.params import TRACK_REPAIR_S
+from vehicles.chassis.params import TRACK_REPAIR_S_RANGE
 from ...config import COMBAT_HOLD
 from .common import k as _k
 
@@ -27,7 +27,8 @@ def build():
                "Выбор снаряда: бронебойный, спецснаряд, фугасный. "
                "То же делают кнопки над сводкой танка."),
         KeyRow([_k(Action.REPAIR)],
-               f"Ремонт сбитой гусеницы: {TRACK_REPAIR_S:.0f} с на гусеницу, по одной за раз."),
+               f"Ремонт сбитой гусеницы, по одной за раз: от {TRACK_REPAIR_S_RANGE[0]:g} с у лёгкой машины "
+               f"до {TRACK_REPAIR_S_RANGE[1]:g} с у тяжёлой."),
 
         SectionHeader("Камера"),
         KeyRow([make_mouse_icon("wheel")],

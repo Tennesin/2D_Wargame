@@ -179,6 +179,13 @@ class Notifier:
         self._push(FeedIcon.PLUS, FeedTone.GOOD, healed)
         self.float_at(player.x, player.y, f"+{healed:.0f}", C_GOOD)
 
+    def on_wreck_tracks(self, player, count):
+        """Игрок при полном здоровье потратил обломки на гусеницы."""
+        if count <= 0:
+            return
+        self.say("Обломки: гусеницы восстановлены", C_GOOD)
+        self.float_at(player.x, player.y, "гусеницы", C_GOOD)
+
     def on_upgrade_drop(self, title):
         """С последнего бота раунда выпали останки улучшения."""
         self.say(f"Останки улучшения: «{title}»", C_WARN)

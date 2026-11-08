@@ -12,7 +12,7 @@ from ui import SectionHeader, InfoText, AccordionRow, make_swatch_icon
 from vehicles import nose_front_factor, wedge_front_factor
 from vehicles.gun.params import AP_NORMALIZATION_DEG, HEAT_MODULE_LOSS_K
 from vehicles.chassis.params import (
-    TRACK_REPAIR_S, ONE_TRACK_SPEED_K, TRACK_EDGE_ZONE_M, TRACK_HP_K,
+    TRACK_REPAIR_S_RANGE, ONE_TRACK_SPEED_K, TRACK_EDGE_ZONE_M, TRACK_HP_K,
     TRACK_REGEN_K, TRACK_REGEN_DELAY_S, TRACK_MM_RANGE, LIFT_MIN_DV_MS, LIFT_MAX_S
 )
 from .. import texts
@@ -86,8 +86,8 @@ def build():
                          "Осколки ФГ и HESH бьют только ближайшую к взрыву гусеницу, даже если задевают обе.",
                          f"С одной сбитой гусеницей машина ползёт по дуге вокруг неё (тяга ×{ONE_TRACK_SPEED_K:g}), "
                          "с двумя стоит на месте.",
-                         f"Ремонт ({_k(Action.REPAIR)}): {TRACK_REPAIR_S:.0f} с на гусеницу, по одной за раз, "
-                         "после него гусеница снова на 100%. Боты чинятся сами.",
+                         f"Ремонт ({_k(Action.REPAIR)}): {TRACK_REPAIR_S_RANGE[0]:g}–{TRACK_REPAIR_S_RANGE[1]:g} с на гусеницу (чем тяжелее машина, тем дольше),"
+                         "после чего гусеница снова на 100%. Боты чинятся сами.",
                      ]),
         AccordionRow(None, "Таран",
                      "Удар о камень, стену или технику толкает, закручивает и ранит.", [

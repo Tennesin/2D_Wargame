@@ -53,9 +53,7 @@ class TracksMixin:
         return screen_hit(s.layout, u, v, SCREEN_FACE_EPS_PX / k)
 
     def module_at(self, x, y):
-        """Внешний модуль, который первым задевает точка попадания (x, y).
-        Возвращает "left" / "right" (целая гусеница), "screen" (лобовой экран) или None.
-        Гусеница проверяется первой: на углу лба она закрывает экран."""
+        """Внешний модуль, который первым задевает точка попадания (x, y)."""
         side = self.track_at(x, y)
         if side is not None and not self.tracks.is_broken(side):
             return side
@@ -69,8 +67,7 @@ class TracksMixin:
         return self.spec.track_mm * self.mods.armor_k
 
     def nearest_track(self, x, y):
-        """Ближайшая к точке (x, y) гусеница: (сторона, расстояние в мировых px до её прямоугольника).
-        Состояние не учитывается. При равном расстоянии (взрыв ровно по оси) берётся левая."""
+        """Ближайшая к точке (x, y) гусеница."""
         u, v = self._to_hull_local(x, y)
         best_side, best_d = None, None
         for side, (x0, y0, x1, y1) in zip((LEFT, RIGHT), self.spec.layout.track_rects):
@@ -87,9 +84,8 @@ class TracksMixin:
 
     # ---------- ремонт и состояние ----------
     def start_repair(self, side=None):
-        """Начать ремонт сбитой гусеницы. Одновременно идёт только один ремонт.
-        Возвращает сторону, которую начали чинить, или None."""
-        return self.tracks.start_repair(self.spec.gear.repair_s, side)
+        """Начать ремонт сбитой гусеницы."""
+        return self.tracks.start_repair(self.spec.track_repair_s, side)
 
     def _track_status(self):
         names = {LEFT: "левая", RIGHT: "правая"}

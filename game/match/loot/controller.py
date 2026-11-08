@@ -9,6 +9,7 @@ from ...state.stats import archetype_key
 from .params import (
     WRECK_HOLD_S, WRECK_HEAL_PCT, WRECK_HEAL_DEFAULT, UPGRADE_SPOT_TRIES,
     UPGRADE_MIN_ROUND, UPGRADE_PICKUP_PX, UPGRADE_OFFSET_PX, UPGRADE_CLEAR_PX,
+    WRECK_TRACK_RESTORE
 )
 from .pickups import Wreck, UpgradeRemains
 from .upgrades import UpgradeSlots, UPGRADES, Plan
@@ -122,7 +123,7 @@ class LootController:
 
     def _active_wreck(self, player, hull):
         """Обломки, которые собираются сейчас."""
-        if hull is None or player.hp >= player.max_hp:
+        if hull is None or not self._needs_help(player):
             self._active = None
             return None
         cur = self._active
@@ -138,6 +139,11 @@ class LootController:
                 best, best_d = w, d
         self._active = best
         return best
+
+    @staticmethod
+    def _needs_help(player):
+        """Обломки нужны, если не полное здоровье или повреждена хоть одна гусеница."""
+        return player.hp < player.max_hp or player.tracks.damaged
 
     def _update_remains(self, dt, hull):
         """Таймеры останков и выбор того, что предлагается игроку (ближайшее из тех, над которыми он стоит)."""
@@ -158,6 +164,12 @@ class LootController:
         self.offer = best
 
     def _collect(self, wreck, player):
+        if player.hp >= player.max_hp:
+            fixed = player.tracks.restore(WRECK_TRACK_RESTORE)
+            wreck.taken = True
+            self.match_stats.on_wreck_collected(0.0, fixed)
+            self.notifier.on_wreck_tracks(player, fixed)
+            return
         pct = WRECK_HEAL_PCT.get(wreck.key, WRECK_HEAL_DEFAULT)
         healed = player.heal(player.max_hp * pct)
         wreck.taken = True

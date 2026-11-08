@@ -161,10 +161,11 @@ class MatchStats(StatsData):
         if self.active and vehicle is self.player:
             self.tracks_repaired += 1
 
-    def on_wreck_collected(self, healed):
-        if self.active and healed > 0.0:
+    def on_wreck_collected(self, healed, tracks=0):
+        if self.active and (healed > 0.0 or tracks > 0):
             self.wrecks_taken += 1
             self.healed += healed
+            self.tracks_repaired += tracks
 
     def on_upgrade_taken(self, key):
         if self.active:
