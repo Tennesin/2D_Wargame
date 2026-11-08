@@ -2,9 +2,11 @@
 import math
 import random
 
-from engine import (VehicleKind, WORLD_DEFAULT_M, WORLD_MIN_M, WORLD_MAX_M, clamp, round_to)
-from vehicles import (VEHICLE_TYPES, default_tuning, FRONT_SCREEN, NOSE_FLAT, NOSE_PIKE, NOSE_WEDGE,
-                      SPECIAL_HEAT, SPECIAL_HESH, default_length, TURRET_STYLES, TURRET_DESIGN_PARAMS)
+from engine import VehicleKind, WORLD_DEFAULT_M, WORLD_MIN_M, WORLD_MAX_M, clamp, round_to
+from vehicles import (
+    VEHICLE_TYPES, default_tuning, FRONT_SCREEN, NOSE_FLAT, NOSE_PIKE, NOSE_WEDGE,
+    SPECIAL_HEAT, SPECIAL_HESH, default_length, TURRET_STYLES, DESIGN_PARAMS
+)
 from .preferences import Preferences
 from .settings import GameSettings
 from .stats import Career
@@ -72,8 +74,7 @@ class Session:
         return storage.write_json(SESSION_FILE, self.to_dict())
 
     def _load(self):
-        """Читает файл. Каждое поле проверяется отдельно: испорченное остаётся по умолчанию.
-        Слишком большие или малые числа подрезаются под границы ползунков."""
+        """Читает файл."""
         data = storage.read_json(SESSION_FILE)
         if not isinstance(data, dict):
             return
@@ -101,7 +102,7 @@ class Session:
 
     @staticmethod
     def _load_values(kind, current, saved):
-        """Переносит в current корректные значения из saved. Ключи берутся только из current (то есть из текущих ползунков)."""
+        """Переносит в current корректные значения из saved."""
         params = VEHICLE_TYPES[kind].params
         for key in current:
             v = saved.get(key)
@@ -118,8 +119,8 @@ class Session:
                 continue
             elif key in params:
                 current[key] = params[key].fit(v)
-            elif key in TURRET_DESIGN_PARAMS:
-                current[key] = TURRET_DESIGN_PARAMS[key].fit(v)
+            elif key in DESIGN_PARAMS:
+                current[key] = DESIGN_PARAMS[key].fit(v)
             elif key == "front_screen_mm":
                 current[key] = FRONT_SCREEN.fit(v)
             else:

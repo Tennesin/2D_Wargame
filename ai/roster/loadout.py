@@ -22,17 +22,20 @@ def _values_at(arch, vtype, jitter, tune, screen, t, shift=0.0):
         v = max(p.min, round(v / p.step) * p.step)
         cap = arch.caps.get(key)
         if cap is not None:
-            v = max(p.min, min(v, cap))                        # потолок архетипа (после округления)
+            v = max(p.min, min(v, cap))
         out[key] = v
+    if vtype.bot_caliber_limits is not None:
+        lo, hi = vtype.bot_caliber_limits(out)
+        out["gun_caliber_mm"] = max(lo, min(out["gun_caliber_mm"], hi))
     if vtype.extra_values is not None:
         return vtype.extra_values(out, arch, tune, screen)
 
-    # длина ствола: эталон + смещение архетипа, приведённая к коридору ТЕКУЩЕГО калибра
+    # длина ствола
     cal = out["gun_caliber_mm"]
     length = effective_length(cal, round(default_length(cal) + shift))
     out["gun_length_cal"] = length
 
-    # урон и пробитие: то же относительное положение, но в коридоре ТЕКУЩЕГО калибра, длины и профиля орудия
+    # урон и пробитие
     t_dmg, t_pen = tune
     out["gun_damage"] = remap(t_dmg, (0.0, 1.0), damage_range(cal, vtype.gun_profile), DMG_STEP)
     out["gun_penetration"] = remap(t_pen, (0.0, 1.0), pen_range(cal, vtype.gun_profile, length), PEN_STEP)

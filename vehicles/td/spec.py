@@ -1,5 +1,6 @@
 """vehicles/td/spec.py — характеристики ПТ-САУ: шасси + орудие без башни (TDGunSpec) + положение орудия."""
 import dataclasses
+import math
 
 from engine import clamp, lerp, fmt_num, PX_PER_M, round_to
 from ..chassis.params import ENGINE_T_PER_HP
@@ -16,13 +17,15 @@ from ..gun.params import (
 )
 from ..gun.vehicle_specific import GunVehicleSpec
 from .layout import td_layout
+from .rules import td_caliber_limits
 from .params import (
     TD_PARAMS, TD_FIXED_MASS_T, TD_FRONT_AREA_M2, TD_SIDE_AREA_M2, TD_REAR_AREA_M2, TD_HP_REF,
     TD_CASEMATE_K, gun_arc_deg, TD_TRAVERSE_REF, TD_TRAVERSE_MIN, TD_TRAVERSE_MAX, TD_SPINUP_REF,
     TD_GUN_FRONT_M, TD_BARREL_VIS_REF_M, TD_RECOIL_K, MOUNT_FRONT_FWD_M, MOUNT_REAR_FWD_M,
     MOUNT_CAL, MOUNT_STEP_M, SUPPORT_T, TD_HULL_COLL_HALF_W_M, TD_HULL_COLL_HALF_L_M,
     TD_LOOK_FRONT_RATIO, TD_LOOK_SIDE_RATIO, TD_LOOK_GUN_RATIO, TD_LOOK_SPEED_RATIO,
-    TD_CASE_CAL_EXP, TD_CASE_K_LIMITS
+    TD_CASE_CAL_EXP, TD_CASE_K_LIMITS, TD_SIZE_ARMOR_K, TD_DESIGN_PARAMS,
+    MOUNT_REAR_LIMIT_SMALL_M, MOUNT_FRONT_LIMIT_BIG_M
 )
 
 _CAL = TD_PARAMS["gun_caliber_mm"]
@@ -47,10 +50,21 @@ def mount_fwd_m(cal):
     raw = lerp(MOUNT_FRONT_FWD_M, MOUNT_REAR_FWD_M, mount_t(cal))
     return round(round_to(raw, MOUNT_STEP_M), 3)
 
-def support_level(cal):
-    """Уровень задней опоры: 0 нет, 1 малая, 2 большая."""
-    t = mount_t(cal)
+def support_level_for_mount(mount):
+    """Уровень задней опоры по ФАКТИЧЕСКОМУ положению орудия: 0 нет, 1 малая, 2 большая."""
+    t = clamp((MOUNT_FRONT_FWD_M - mount) / (MOUNT_FRONT_FWD_M - MOUNT_REAR_FWD_M), 0.0, 1.0)
     return 0 if t < SUPPORT_T[0] else (1 if t < SUPPORT_T[1] else 2)
+
+def mount_shift_range(cal):
+    """(мин, макс) сдвига орудия от «авто»-положения, м, для калибра cal."""
+    auto = mount_fwd_m(cal)
+    t = clamp((cal - _CAL.min) / (_CAL.max - _CAL.min), 0.0, 1.0)
+    rear_abs = min(auto, lerp(MOUNT_REAR_LIMIT_SMALL_M, MOUNT_REAR_FWD_M, t))
+    front_abs = max(auto, lerp(MOUNT_FRONT_FWD_M, MOUNT_FRONT_LIMIT_BIG_M, t))
+    p = TD_DESIGN_PARAMS["mount_shift_m"]
+    lo = math.ceil((rear_abs - auto) / p.step - 1e-9) * p.step
+    hi = math.floor((front_abs - auto) / p.step + 1e-9) * p.step
+    return round(max(p.min, lo), 3) + 0.0, round(min(p.max, hi), 3) + 0.0
 
 # ==========================================
 # 2. ЭТАЛОН ПТ-САУ
@@ -73,7 +87,9 @@ TD_BODY = ChassisBody(
     ref_filling_t=_REF_FILLING, ref_mass_t=_REF_MASS, ref_power_hp=_POWER.default,
     ref_armor_share=_REF_ARMOR_MASS / _REF_MASS, hp_ref=TD_HP_REF,
     coll_half_w_m=TD_HULL_COLL_HALF_W_M, coll_half_l_m=TD_HULL_COLL_HALF_L_M,
-    coll_shift_m=0.0)       # реальный сдвиг подставляется в TDSpec (зависит от калибра)
+    coll_shift_m=0.0,
+    size_armor_k=TD_SIZE_ARMOR_K,
+    ref_size_mass_t=_REF_FILLING + TD_SIZE_ARMOR_K * _REF_ARMOR_MASS)
 
 _REF_BARREL_M = _REF_CAL * REF_L_CAL / 1000.0 * BARREL_VISIBLE_K
 TD_REF_GUN_INERTIA = _REF_GUN_MASS * (GUN_ARM_BASE_M + GUN_ARM_BARREL_K * _REF_BARREL_M) ** 2
@@ -112,20 +128,31 @@ class TDSpec(GunVehicleSpec):
     LOOK_SIDE_RATIO = TD_LOOK_SIDE_RATIO
     LOOK_GUN_RATIO = TD_LOOK_GUN_RATIO
     LOOK_SPEED_RATIO = TD_LOOK_SPEED_RATIO
+    DESIGN_KWARGS = {"mount_shift_m": "mount_shift"}
 
     def __init__(self, cal, front, side, rear, power, damage=None, penetration=None,
                  screen=0.0, nose=NOSE_FLAT, special_ammo=SPECIAL_HEAT, unbounded=False,
-                 gun_length=None):
+                 gun_length=None, mount_shift=0.0):
         cal, front, side, rear, power, screen = self._fit_inputs(
             cal, front, side, rear, power, screen, unbounded)
+        if not unbounded:                       # боты ограничиваются в подборе сборки
+            lo, hi = td_caliber_limits(front, side, rear)
+            cal = clamp(cal, lo, hi)
         if nose != NOSE_PIKE or front <= NOSE_MIN_FRONT_MM:
             nose = NOSE_FLAT                    # щучий нос только при лобовой броне больше порога
         self.nose = nose                        # его читает Vehicle.describe
 
         self.cal = cal
         self.m_gun, self.m_casemate = td_masses(cal, effective_length(cal, gun_length))
-        self.MOUNT_FWD_M = mount_fwd_m(cal)
-        self.SUPPORT = support_level(cal)
+
+        # положение орудия: «авто» по калибру + сдвиг игрока в границах, зависящих от калибра
+        auto = mount_fwd_m(cal)
+        lo_s, hi_s = mount_shift_range(cal)
+        step = TD_DESIGN_PARAMS["mount_shift_m"].step
+        shift = clamp(round_to(float(mount_shift), step), lo_s, hi_s)
+        self.mount_shift = round(shift, 3)
+        self.MOUNT_FWD_M = round(auto + shift, 1) + 0.0
+        self.SUPPORT = support_level_for_mount(self.MOUNT_FWD_M)
         self.CASE_K = round(clamp((cal / _REF_CAL) ** TD_CASE_CAL_EXP, *TD_CASE_K_LIMITS), 1)
         layout = td_layout(self.MOUNT_FWD_M, nose)
         body = dataclasses.replace(TD_BODY, layout=layout,
@@ -139,7 +166,8 @@ class TDSpec(GunVehicleSpec):
                 arc_deg=gun_arc_deg(cal), damage=damage, penetration=penetration,
                 profile=TD_GUN, front_m=TD_GUN_FRONT_M, barrel_ref_m=TD_BARREL_VIS_REF_M,
                 hesh=(special_ammo == SPECIAL_HESH),
-                length_cal=gun_length)
+                length_cal=gun_length,
+                visual_k=self.HULL_SCALE)
 
         super().__init__(body, front, side, rear, power, self.m_gun + self.m_casemate, screen, make_gun)
         self.HULL_VARIANT = (round(self.MOUNT_FWD_M / MOUNT_STEP_M), self.SUPPORT, self.CASE_K,
@@ -187,6 +215,8 @@ class TDSpec(GunVehicleSpec):
             "Угл. разгон корпуса": f"{self.hull_alpha:.0f} °/с²",
             "Угл. разгон орудия": f"{self.turret_alpha:.0f} °/с²",
             "Ось орудия от центра": f"{self.MOUNT_FWD_M:+.1f} м",
+            "Сдвиг орудия": f"{self.mount_shift:+.1f} м",
+            "Масштаб корпуса": f"{self.HULL_SCALE:.2f}",
             "Множитель урона": f"{self.damage_k:.2f}",
             "Множитель пробития": f"{self.pen_k:.2f}",
             "Бонус орудия (урон)": f"×{self.profile.dmg_mult(self.cal):.2f}",

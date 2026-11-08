@@ -16,7 +16,7 @@ TD_LAYOUT = with_box_hitbox(
     deck_rect=(-1.25, -2.25, 2.50, 4.60),
     hatch=(0.78, -2.52, 0.20),                  # люк механика на лбу
     canvas_half_m=TD_HULL_HALF_M,               # холст рассчитан на любой сдвиг оси орудия
-    scale_range=(0.5, 2.0), scale_step=0.0,     # HULL_SCALE == size_k: TURRET_SCALE у ПТ-САУ равен size_k
+    scale_range=(0.7, 1.4), scale_step=0.03,    # масштаб корпуса от массы, квантован под кэши
 )
 
 @lru_cache(maxsize=None)

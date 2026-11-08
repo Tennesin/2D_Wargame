@@ -23,7 +23,7 @@ from .cost import cost_for, raw_cost, round_cost
 from .gun.vehicle_specific import GunVehicleSpec
 from .td import TDSpec, TankDestroyer, TDRenderer, TD_PARAMS, gun_arc_deg
 from .spg import SPGSpec, ArtilleryVehicle, SPGRenderer, SPG_PARAMS
-from .registry import VehicleType, VEHICLE_TYPES, RENDERERS, make_vehicle
+from .registry import VehicleType, VEHICLE_TYPES, RENDERERS, make_vehicle, DESIGN_PARAMS
 from .mods import StatMods, NO_MODS, apply_to_ammo
 from vehicles.chassis.running_gear import RunningGear, TRACKS, TRACK_SIDES
 from vehicles.chassis.hulls import (
@@ -50,6 +50,6 @@ __all__ = ["Vehicle", "GunVehicle", "Tank", "TankSpec", "TankRenderer", "TANK_PA
            "SPECIAL_HEAT", "SPECIAL_HESH", "GunVehicleSpec", "SPGSpec", "ArtilleryVehicle", "SPGRenderer",
            "SPG_PARAMS", "StatMods", "NO_MODS", "apply_to_ammo", "build_silhouette", "Silhouette",
            "length_range", "default_length", "default_thickness", "length_pen_k",
-           "effective_length", "length_cost_k", "length_bounds", "turret_shift_range"
+           "effective_length", "length_cost_k", "length_bounds", "turret_shift_range",
            "TURRET_STYLES", "TURRET_STYLE_RU", "TURRET_DESIGN_PARAMS",
-           "TURRET_DESIGN_DEFAULTS", "fit_turret_size", "fit_turret_style"]
+           "TURRET_DESIGN_DEFAULTS", "fit_turret_size", "fit_turret_style", "DESIGN_PARAMS"]

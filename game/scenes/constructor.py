@@ -9,8 +9,8 @@ from ui import SidePanel, Button, ACTIVE_BUTTON_COLORS
 from ui.theme import PANEL_WIDTH
 from vehicles import (
     GUN_TUNE_PARAMS, damage_range, pen_range, remap, VEHICLE_TYPES, RENDERERS,
-    make_vehicle, NOSE_FLAT, NOSE_MIN_FRONT_MM, NOSE_RU, SPECIAL_HEAT, HESH_MIN_CAL_MM,
-    length_range, turret_shift_range
+    make_vehicle, NOSE_FLAT, NOSE_MIN_FRONT_MM, NOSE_RU, SPECIAL_HEAT,
+    HESH_MIN_CAL_MM, length_range
 )
 from world import Camera
 from ..content import texts
@@ -171,16 +171,14 @@ class ConstructorScene(Scene):
         return values
 
     def _apply_design_rules(self, values):
-        """Дизайн башни: границы сдвига оси зависят от класса корпуса (броня и мощность)."""
+        """Границы ползунков дизайна задаёт хук типа техники (design_rules)."""
         if not self._has_design:
             return values
         values = dict(values)
-        lo, hi = turret_shift_range(values["front_armor_mm"], values["side_armor_mm"],
-                                    values["rear_armor_mm"], values["engine_power_hp"])
-        values["turret_axis_shift_m"] = clamp(values["turret_axis_shift_m"], lo, hi)
-        self.ui.set_range(self._design_mode, "turret_axis_shift_m", lo, hi)
-        self.ui.set_values(self._design_mode, {k: values[k] for k in
-                           ("turret_style", "turret_size", "turret_axis_shift_m")})
+        for key, (lo, hi) in self._vtype.design_rules(values).items():
+            values[key] = clamp(values[key], lo, hi)
+            self.ui.set_range(self._design_mode, key, lo, hi)
+        self.ui.set_values(self._design_mode, {k: values[k] for k in self._vtype.design_defaults})
         return values
 
     def _set_tab(self, tab):

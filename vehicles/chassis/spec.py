@@ -32,7 +32,8 @@ def chassis_masses(body, area_k, front, side, rear, power, payload_t, screen_mm=
     size_mass = filling
     if body.size_armor_k > 0.0:
         size_mass += body.size_armor_k * sum(armor_masses(areas, front_eff, side, rear, 1.0))
-    size_k = (size_mass / body.ref_filling_t) ** (1.0 / 3.0)
+    ref = body.ref_size_mass_t or body.ref_filling_t
+    size_k = (size_mass / ref) ** (1.0 / 3.0)
     armor = armor_masses(areas, front_eff, side, rear, size_k)
     return m_engine, filling, size_k, armor
 
@@ -53,6 +54,7 @@ class ChassisBody:
     gear: RunningGear = TRACKS  # тип ходовой части (поле с умолчанием должно быть последним)
     layout: Optional[HullLayout] = None   # обязателен: эталон строится без него, раскладку подставляет
     size_armor_k: float = 0.0     # доля массы брони
+    ref_size_mass_t: float = 0.0  # эталонная «масса для габарита»
 
     @property
     def ref_pw(self):

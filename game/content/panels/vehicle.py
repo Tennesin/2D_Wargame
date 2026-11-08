@@ -6,7 +6,7 @@ from engine import VehicleKind
 from vehicles import (
     GUN_TUNE_PARAMS, VEHICLE_TYPES, FRONT_SCREEN, NOSE_FLAT, NOSE_PIKE, NOSE_MIN_FRONT_MM,
     SPECIAL_HEAT, SPECIAL_HESH, HESH_MIN_CAL_MM,
-    TURRET_STYLES, TURRET_STYLE_RU, TURRET_DESIGN_PARAMS
+    TURRET_STYLES, TURRET_STYLE_RU, DESIGN_PARAMS
 )
 from ui import Panel, SectionHeader, StatsBlock, InfoText, ChoiceRow, make_param_row
 
@@ -17,11 +17,18 @@ VEHICLE_NOTES = {
                       "Лобовые экраны защищают от кумулятивных снарядов."),
     VehicleKind.TD: ("Орудие без башни наводится только в узком секторе (УГН), дальше нужно доворачивать корпус. "
                      "Чем крупнее калибр, тем уже сектор и тем дальше назад уезжает орудие. "
+                     "Допустимый калибр зависит от брони: на тяжёлой машине мелкое орудие недоступно, "
+                     "на очень тонкой недоступны самые крупные калибры. "
+                     "Чем толще броня, тем крупнее корпус. "
                      f"Скошенный нос доступен при лобовой броне больше {NOSE_MIN_FRONT_MM:.0f} мм."),
 }
 
-# Какие расчётные строки показывать на вкладке «Дизайн» (имена как в main_stats / internal_stats)
-DESIGN_STATS = ("Стоимость", "Масса", "Масса башни", "Инерция башни", "Поворот башни", "Перезарядка")
+# Какие расчётные строки показывать на вкладке «Дизайн»
+DESIGN_STATS = {
+    VehicleKind.MBT: ("Стоимость", "Масса", "Масса башни", "Инерция башни", "Поворот башни", "Перезарядка"),
+    VehicleKind.TD: ("Стоимость", "Масса", "Масштаб корпуса", "Крепление орудия", "Ось орудия от центра",
+                     "Поворот корпуса", "Перезарядка"),
+}
 
 def _tab_row(tab):
     """Переключатель вкладок; его значение читает ConstructorScene._on_change."""
@@ -75,24 +82,34 @@ def build_vehicle_panel(kind):
     return Panel(f"Конструктор: {vt.label}", items)
 
 def build_design_panel(kind):
-    """Вкладка «Дизайн»: параметры башни и то, на что они влияют."""
+    """Вкладка «Дизайн»: параметры типа техники и то, на что они влияют."""
     vt = VEHICLE_TYPES[kind]
-    items = [
-        _tab_row("design"),
-        InfoText("Кольцо в превью: ось башни. Крестик: центр корпуса. Сдвиг оси двигает башню вдоль корпуса, "
-                 "вместе с ней смещаются дульный срез и точка вращения."),
-
-        SectionHeader("Башня"),
-        ChoiceRow("turret_style", "Форма башни",
-                  [(s, TURRET_STYLE_RU[s]) for s in TURRET_STYLES], "auto"),
-        make_param_row(TURRET_DESIGN_PARAMS, "turret_size"),
-        make_param_row(TURRET_DESIGN_PARAMS, "turret_axis_shift_m"),
-        InfoText("«Авто»: форма по классу корпуса (лёгкий: овал, средний: гекс, тяжёлый: плита). "
-                 "Больше башня: тяжелее, медленнее наводка и дороже, зато быстрее заряжание. "
-                 "Меньше: легче и быстрее наводится, но экипажу тесно и перезарядка дольше."),
-
+    items = [_tab_row("design")]
+    if kind is VehicleKind.MBT:
+        items += [
+            InfoText("Кольцо в превью: ось башни. Крестик: центр корпуса. Сдвиг оси двигает башню вдоль корпуса, "
+                     "вместе с ней смещаются дульный срез и точка вращения."),
+            SectionHeader("Башня"),
+            ChoiceRow("turret_style", "Форма башни",
+                      [(s, TURRET_STYLE_RU[s]) for s in TURRET_STYLES], "auto"),
+            make_param_row(DESIGN_PARAMS, "turret_size"),
+            make_param_row(DESIGN_PARAMS, "turret_axis_shift_m"),
+            InfoText("«Авто»: форма по классу корпуса (лёгкий: овал, средний: гекс, тяжёлый: плита). "
+                     "Больше башня: тяжелее, медленнее наводка и дороже, зато быстрее заряжание. "
+                     "Меньше: легче и быстрее наводится, но экипажу тесно и перезарядка дольше."),
+        ]
+    else:
+        items += [
+            InfoText("Кольцо в превью: ось орудия. Крестик: центр корпуса. Корпус поворачивается вокруг оси орудия: "
+                     "у носового орудия при развороте уходит в сторону корма, у кормового нос."),
+            SectionHeader("Орудие"),
+            make_param_row(DESIGN_PARAMS, "mount_shift_m"),
+            InfoText("Сдвиг считается от положения по умолчанию, которое зависит от калибра. "
+                     "Мелкое орудие нельзя увести далеко к корме, крупное нельзя вынести далеко в нос."),
+        ]
+    items += [
         SectionHeader("Влияние на характеристики"),
-        StatsBlock(list(DESIGN_STATS)),
+        StatsBlock(list(DESIGN_STATS[kind])),
     ]
     return Panel(f"Конструктор: {vt.label}: дизайн", items)
 
