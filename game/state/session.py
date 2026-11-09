@@ -7,6 +7,7 @@ from vehicles import (
     VEHICLE_TYPES, default_tuning, FRONT_SCREEN, NOSE_FLAT, NOSE_PIKE, NOSE_WEDGE,
     SPECIAL_HEAT, SPECIAL_HESH, default_length, TURRET_STYLES, DESIGN_PARAMS
 )
+from vehicles.parts import clean_design_data
 from .preferences import Preferences
 from .settings import GameSettings
 from .stats import Career
@@ -51,6 +52,7 @@ class Session:
         values["front_screen_mm"] = FRONT_SCREEN.default
         values["front_nose"] = NOSE_FLAT
         values.update(vtype.design_defaults or {})
+        values["parts_design"] = None
         return values
 
     def spec(self):
@@ -115,6 +117,8 @@ class Session:
             elif key == "turret_style":
                 if v in TURRET_STYLES:
                     current[key] = v
+            elif key == "parts_design":
+                current[key] = clean_design_data(v)
             elif not _is_num(v):
                 continue
             elif key in params:

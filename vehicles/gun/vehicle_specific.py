@@ -1,11 +1,11 @@
-"""vehicles/gun/vehicle_specific.py — базовая спецификация техники с орудием: шасси (ChassisSpec) + орудие (GunSpec).
-Общее для ОБТ и ПТ-САУ: создание орудия, радиус отсечения, цена, уровни оформления, фабрики."""
+"""vehicles/gun/vehicle_specific.py — базовая спецификация техники с орудием."""
 import math
 
 from engine import PX_PER_M, clamp, AmmoKind
 from ..chassis.hulls import NOSE_FLAT
 from ..chassis.params import COLLISION_MARGIN_PX, FRONT_SCREEN, SCREEN_LOOK_STEPS
 from ..chassis.spec import ChassisSpec
+from ..parts.design import PartsDesign
 from ..cost import raw_cost, round_cost
 from ..look import Look, level
 from .barrel import length_pen_k, length_cost_k
@@ -14,7 +14,7 @@ from .ammo import SPECIAL_HEAT, ammo_stats
 
 class GunVehicleSpec(ChassisSpec):
     """Подкласс обязан задать атрибуты класса PARAMS и LOOK_*_RATIO, а до вызова __init__
-    выставить self.cal (его читает расчёт оформления)."""
+    выставить self.cal."""
 
     PARAMS = None               # словарь Param: ключи gun_caliber_mm, front_armor_mm, ...
     LOOK_FRONT_RATIO = None     # пороги уровней оформления (доли от эталонного ползунка)
@@ -24,9 +24,11 @@ class GunVehicleSpec(ChassisSpec):
     DESIGN_KWARGS = {}          # {ключ в values: имя аргумента конструктора}: дизайн техники (у ОБТ: башня)
     TURRET_MASS_K = 1.0         # во сколько раз масса башни отличается от эталонной (идёт в цену)
 
-    def __init__(self, body, front, side, rear, power, payload_t, screen_mm, make_gun):
+    def __init__(self, body, front, side, rear, power, payload_t, screen_mm, make_gun, parts_design=None):
         """make_gun(size_k) -> GunSpec: создаёт орудие, когда шасси уже посчитано."""
         super().__init__(body, front, side, rear, power, payload_t=payload_t, screen_mm=screen_mm)
+        self.parts_design = PartsDesign.from_data(parts_design)
+        self.PARTS_KEY = self.parts_design.key
         self.gun = make_gun(self.size_k)
         self._calc_reach()
         self._calc_economy()

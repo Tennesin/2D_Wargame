@@ -3,7 +3,8 @@ import math
 
 from vehicles.chassis.hull_noses import PIKE_BAND_M
 from vehicles.chassis.hulls import NOSE_PIKE, NOSE_WEDGE, HULL_STYLE_FRONT_ENGINE
-from vehicles.gun.params import BARREL_HIDDEN_M
+from vehicles.gun.params import BARREL_HIDDEN_M, BARREL_LEN_STEP_M, BARREL_THICK_STEP_M
+from .design import PartsDesign, resolve
 from vehicles.render.pen import outline_x_at
 from .library import SEAM_FRACS
 from .model import SURFACE_HULL, SURFACE_TURRET, SURFACE_BARREL, Part
@@ -17,20 +18,32 @@ def default_builder(kind, surface):
     return register
 
 def default_parts(kind, spec, surface, look=None, emblem=""):
-    """Авто-набор деталей поверхности. kind: ключ вида техники ("mbt", "td", "spg").
-    emblem нужен деталям башни (шеврон)."""
+    """Авто-набор деталей поверхности."""
     fn = _BUILDERS.get((kind, surface))
     if fn is None:
         return ()
     return tuple(fn(spec, spec.LOOK if look is None else look, emblem))
 
 def parts_for(kind, spec, surface, look=None, emblem=""):
-    """Какие детали рисовать. Пока всегда авто-набор. В этапе 2 здесь появится выбор «Авто / Вручную»."""
+    """Какие детали рисовать."""
+    design = getattr(spec, "parts_design", None)
+    manual = None if design is None else design.get(surface)
+    if manual is not None:
+        return resolve(manual, spec, surface)
     return default_parts(kind, spec, surface, look, emblem)
 
+def freeze_auto(kind, spec, emblem=""):
+    """«Заморозить авто-набор»."""
+    look = spec.LOOK
+    length = round(spec.BARREL_LEN_M / BARREL_LEN_STEP_M) * BARREL_LEN_STEP_M     # как в рендерере
+    thick = round(spec.BARREL_THICK_M / BARREL_THICK_STEP_M) * BARREL_THICK_STEP_M
+    return PartsDesign(
+        hull=default_parts(kind, spec, SURFACE_HULL, look),
+        turret=default_parts(kind, spec, SURFACE_TURRET, look, emblem) if kind == "mbt" else None,
+        barrel=barrel_parts(length, thick, look))
+
 def barrel_parts(length_m, thick_m, look):
-    """Детали ствола. Ствол кэшируется по (длина, толщина, look.gun), поэтому берёт числа, а не spec.
-    Координаты от середины спрайта: дульный срез сверху (y = -half)."""
+    """Детали ствола."""
     half = (length_m + BARREL_HIDDEN_M) / 2.0
     s = SURFACE_BARREL
     parts = [

@@ -1,6 +1,6 @@
 """vehicles/parts/library.py — типы деталей и функции их рисования."""
 from vehicles.render.pen import (
-    apply_paint, OUTLINE, HULL_DARK, GRILL, GRILL_LINE,
+    apply_paint, OUTLINE, HULL_DARK, GRILL, GRILL_LINE, RIVET_R_M,
     TURRET_MAIN, TURRET_DARK, GUN_LIGHT, GUN_DARK, EMBLEM_COLOR,
 )
 from .model import SURFACE_HULL, SURFACE_TURRET, SURFACE_BARREL
@@ -12,7 +12,6 @@ CABLE = (66, 60, 52)                # буксирный трос
 
 SEAM_FRACS = (0.30, 0.62)           # где на палубе идут поперечные швы (доли длины палубы)
 SEAM_W_M = 0.05                     # толщина шва, м
-RIVET_R_M = 0.04                    # радиус заклёпки, м
 RIVET_STEP_M = 0.5                  # примерный шаг заклёпок вдоль шва, м
 
 # двойной шеврон острием вперёд (Уничтожитель), метры эталонной башни

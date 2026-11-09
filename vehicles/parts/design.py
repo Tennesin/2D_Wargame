@@ -1,0 +1,202 @@
+"""vehicles/parts/design.py — дизайн деталей техники."""
+import math
+from dataclasses import dataclass, replace
+from typing import Optional
+
+from engine import point_in_convex
+from vehicles.gun.params import BARREL_HIDDEN_M
+from .model import Part, SURFACES, SURFACE_HULL, SURFACE_TURRET, SURFACE_BARREL, ANCHOR_HULL
+from .registry import PART_TYPES
+
+FORMAT_VERSION = 1
+LIMITS = {SURFACE_HULL: 60, SURFACE_TURRET: 40, SURFACE_BARREL: 8}   # деталей на поверхность
+COORD_LIMIT_M = 8.0          # координаты подрезаются по модулю до этого значения
+VARIANT_MAX = 9
+Z_MAX = 99
+TURRET_BOX_M = 2.4           # как TURRET_HALF_M в vehicles/tank/sprites.py
+BARREL_BOX_X_M = 0.8
+EDGE_EPS_M = 1e-6
+TURRET_REAR_M = {"hex": 1.65, "oval": 1.55, "slab": 1.45}    # задняя грань башни по форме
+
+# Допустимые якоря. «hull» везде означает «начало координат поверхности» (абсолютные метры).
+ANCHOR_NAMES = {
+    SURFACE_HULL: (ANCHOR_HULL, "deck_front", "deck_rear", "nose_tip", "rear_plate",
+                   "fender_left", "fender_right"),
+    SURFACE_TURRET: (ANCHOR_HULL, "turret", "turret_front", "turret_rear"),
+    SURFACE_BARREL: (ANCHOR_HULL, "mid", "breech", "muzzle"),
+}
+
+def _num(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+def _int(v):
+    return isinstance(v, int) and not isinstance(v, bool)
+
+def _limit(v, lo, hi):
+    return min(hi, max(lo, v))
+
+# ==========================================
+# ЯКОРЯ И «ПОМЕЩАЕТСЯ»
+# ==========================================
+
+def anchors(spec, surface):
+    """{имя: (x, y)}: где якоря поверхности у этой техники (метры поверхности).
+    Нет якоря у этой раскладки (например, подкрылков у тяжёлого): имени нет в словаре."""
+    out = {ANCHOR_HULL: (0.0, 0.0)}
+    if surface == SURFACE_HULL:
+        lay = spec.layout
+        dx, dy, dw, dh = lay.deck_rect
+        px, py, pw, _ = lay.rear_plate
+        out["deck_front"] = (dx + dw / 2.0, dy)
+        out["deck_rear"] = (dx + dw / 2.0, dy + dh)
+        out["nose_tip"] = (0.0, min(y for _, y in lay.outline))
+        out["rear_plate"] = (px + pw / 2.0, py)
+        if len(lay.fender_rects) >= 2:                  # порядок в раскладке: правый, левый
+            (rx, ry, rw, _), (lx, ly, lw, _) = lay.fender_rects
+            out["fender_right"] = (rx + rw / 2.0, ry)
+            out["fender_left"] = (lx + lw / 2.0, ly)
+    elif surface == SURFACE_TURRET:
+        out["turret"] = (0.0, 0.0)
+        out["turret_front"] = (0.0, -spec.GUN_FRONT_M)
+        out["turret_rear"] = (0.0, TURRET_REAR_M.get(spec.layout.turret_style, 1.5))
+    else:
+        half = (spec.BARREL_LEN_M + BARREL_HIDDEN_M) / 2.0
+        out["mid"] = (0.0, 0.0)
+        out["breech"] = (0.0, half)
+        out["muzzle"] = (0.0, -half)
+    return out
+
+def _in_rect(x0, y0, x1, y1, x, y):
+    e = EDGE_EPS_M
+    return x0 - e <= x <= x1 + e and y0 - e <= y <= y1 + e
+
+def fits(p, spec, surface):
+    """Помещается ли деталь (её опорная точка x, y в абсолютных метрах поверхности)."""
+    x, y = p.x, p.y
+    if surface == SURFACE_HULL:
+        lay = spec.layout
+        if point_in_convex(lay.outline, x, y):
+            return True
+        if any(_in_rect(fx, fy, fx + fw, fy + fh, x, y) for fx, fy, fw, fh in lay.fender_rects):
+            return True
+        return any(_in_rect(*r, x, y) for r in lay.track_rects)    # ящики и трос на экранах
+    if surface == SURFACE_TURRET:
+        return abs(x) <= TURRET_BOX_M and abs(y) <= TURRET_BOX_M
+    half = (spec.BARREL_LEN_M + BARREL_HIDDEN_M) / 2.0
+    return abs(x) <= BARREL_BOX_X_M and abs(y) <= half + 0.05
+
+def resolve(parts, spec, surface):
+    """Ручные детали -> то, что рисует рендерер: абсолютные координаты, только помещающиеся.
+    Не поместившиеся пропускаются, сами данные не трогаются."""
+    table = anchors(spec, surface)
+    out = []
+    for p in parts:
+        base = table.get(p.anchor)
+        if base is None:
+            continue
+        if p.anchor != ANCHOR_HULL:
+            p = replace(p, x=p.x + base[0], y=p.y + base[1], anchor=ANCHOR_HULL)
+        if fits(p, spec, surface):
+            out.append(p)
+    return tuple(out)
+
+# ==========================================
+# СЕРИАЛИЗАЦИЯ ОДНОЙ ДЕТАЛИ
+# ==========================================
+
+def part_to_dict(p):
+    return {"k": p.kind, "s": p.surface, "a": p.anchor,
+            "x": round(p.x, 3), "y": round(p.y, 3), "w": round(p.w, 3), "h": round(p.h, 3),
+            "r": round(p.angle, 2), "m": p.mirror, "var": p.variant, "z": p.z}
+
+def part_from_dict(d, surface):
+    """Деталь из словаря или None. Неизвестный тип, чужая поверхность, неизвестный якорь, мусор
+    в числах: пропуск. Числа подрезаются под границы типа."""
+    if not isinstance(d, dict):
+        return None
+    kind = d.get("k")
+    ptype = PART_TYPES.get(kind) if isinstance(kind, str) else None
+    if ptype is None or surface not in ptype.surfaces or d.get("s", surface) != surface:
+        return None
+    anchor = d.get("a", ANCHOR_HULL)
+    if anchor not in ANCHOR_NAMES[surface]:
+        return None
+    vals = [d.get(key, 0.0) for key in ("x", "y", "w", "h", "r")]
+    if not all(_num(v) for v in vals):
+        return None
+    x, y, w, h, r = (float(v) for v in vals)
+    var, z, mirror = d.get("var", 0), d.get("z"), d.get("m", False)
+    return Part(
+        kind=kind,
+        x=round(_limit(x, -COORD_LIMIT_M, COORD_LIMIT_M), 3),
+        y=round(_limit(y, -COORD_LIMIT_M, COORD_LIMIT_M), 3),
+        w=0.0 if ptype.w_range is None else round(_limit(w, *ptype.w_range), 3),
+        h=0.0 if ptype.h_range is None else round(_limit(h, *ptype.h_range), 3),
+        angle=round(r % 360.0, 2),
+        mirror=mirror if isinstance(mirror, bool) else False,
+        variant=_limit(var, 0, VARIANT_MAX) if _int(var) else 0,
+        z=_limit(z, 0, Z_MAX) if _int(z) else None,
+        surface=surface, anchor=anchor)
+
+# ==========================================
+# ДИЗАЙН ЦЕЛИКОМ
+# ==========================================
+
+@dataclass(frozen=True)
+class PartsDesign:
+    """Ручные списки деталей по поверхностям. Имена полей совпадают со значениями SURFACE_*."""
+    hull: Optional[tuple] = None
+    turret: Optional[tuple] = None
+    barrel: Optional[tuple] = None
+
+    def get(self, surface):
+        return getattr(self, surface)
+
+    @property
+    def is_auto(self):
+        return self.hull is None and self.turret is None and self.barrel is None
+
+    @property
+    def key(self):
+        """Число для ключей кэша спрайтов: None у авто-дизайна. Считать один раз (спецификацией),
+        а не на каждом кадре: хэш кортежа деталей каждый раз пересчитывается."""
+        return None if self.is_auto else hash((self.hull, self.turret, self.barrel))
+
+    def with_parts(self, surface, parts):
+        """Копия дизайна, где поверхность переведена в «Вручную» с этими деталями (None: обратно в «Авто»)."""
+        return replace(self, **{surface: None if parts is None else tuple(parts)})
+
+    def to_data(self):
+        data = {"version": FORMAT_VERSION}
+        for s in SURFACES:
+            lst = self.get(s)
+            data[s] = None if lst is None else [part_to_dict(p) for p in lst]
+        return data
+
+    @classmethod
+    def from_data(cls, data):
+        """Принимает None, словарь из файла или готовый PartsDesign. Мусор и версия новее
+        нашей: «Авто». Битые детали пропускаются, остальные загружаются."""
+        if isinstance(data, cls):
+            return data
+        if not isinstance(data, dict):
+            return AUTO_DESIGN
+        version = data.get("version", 1)
+        if not _int(version) or version > FORMAT_VERSION:
+            return AUTO_DESIGN
+        lists = {}
+        for s in SURFACES:
+            raw = data.get(s)
+            if not isinstance(raw, list):
+                lists[s] = None
+                continue
+            parsed = (part_from_dict(d, s) for d in raw[:LIMITS[s]])
+            lists[s] = tuple(p for p in parsed if p is not None)
+        return cls(**lists)
+
+AUTO_DESIGN = PartsDesign()
+
+def clean_design_data(data):
+    """Словарь из файла -> проверенный словарь для session.values (или None, если всё «Авто»)."""
+    design = PartsDesign.from_data(data)
+    return None if design.is_auto else design.to_data()

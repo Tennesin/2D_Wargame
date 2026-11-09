@@ -128,11 +128,11 @@ class TDSpec(GunVehicleSpec):
     LOOK_SIDE_RATIO = TD_LOOK_SIDE_RATIO
     LOOK_GUN_RATIO = TD_LOOK_GUN_RATIO
     LOOK_SPEED_RATIO = TD_LOOK_SPEED_RATIO
-    DESIGN_KWARGS = {"mount_shift_m": "mount_shift"}
+    DESIGN_KWARGS = {"mount_shift_m": "mount_shift", "parts_design": "parts_design"}
 
     def __init__(self, cal, front, side, rear, power, damage=None, penetration=None,
                  screen=0.0, nose=NOSE_FLAT, special_ammo=SPECIAL_HEAT, unbounded=False,
-                 gun_length=None, mount_shift=0.0):
+                 gun_length=None, mount_shift=0.0, parts_design=None):
         cal, front, side, rear, power, screen = self._fit_inputs(
             cal, front, side, rear, power, screen, unbounded)
         if not unbounded:                       # боты ограничиваются в подборе сборки
@@ -169,9 +169,10 @@ class TDSpec(GunVehicleSpec):
                 length_cal=gun_length,
                 visual_k=self.HULL_SCALE)
 
-        super().__init__(body, front, side, rear, power, self.m_gun + self.m_casemate, screen, make_gun)
+        super().__init__(body, front, side, rear, power, self.m_gun + self.m_casemate, screen, make_gun,
+                         parts_design=parts_design)
         self.HULL_VARIANT = (round(self.MOUNT_FWD_M / MOUNT_STEP_M), self.SUPPORT, self.CASE_K,
-                             round(self.TURRET_ARC_DEG), nose)
+                             round(self.TURRET_ARC_DEG), nose, self.PARTS_KEY)
 
     # ---------- вывод в интерфейс ----------
 

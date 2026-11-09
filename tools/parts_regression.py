@@ -4,6 +4,7 @@
   python -m tools.parts_regression          (ПОСЛЕ правок: сравнить с эталоном)"""
 import os
 import sys
+import json
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")          # окно не нужно
 
@@ -13,6 +14,7 @@ from engine import PX_PER_M, VehicleKind
 from tools.tank_snapshot import SNAPSHOT_DIR
 from vehicles import VEHICLE_TYPES, RENDERERS, NOSE_PIKE
 from vehicles.gun.params import BARREL_LEN_STEP_M, BARREL_THICK_STEP_M
+from vehicles.parts import PartsDesign, freeze_auto, resolve
 
 ZOOM = 0.25                       # ppm = 25: зерно включено, спрайты небольшие
 BASE_DIR = os.path.join(SNAPSHOT_DIR, "parts_baseline")
@@ -88,10 +90,59 @@ def compare(a, b):
         worst = max(worst, d)
     return bad, worst
 
+def check_design():
+    """Авто-набор -> «заморозка» -> JSON -> загрузка -> рисунок должен совпасть с авто-рисунком.
+    Заодно: все замороженные детали помещаются, а мусор в данных не роняет загрузку."""
+    failed = 0
+    for name, kind, values in cases():
+        if kind is VehicleKind.SPG:                       # у САУ дизайн пока не подключён
+            continue
+        spec = VEHICLE_TYPES[kind].spec_cls.from_values(values)
+        frozen = freeze_auto(RENDERERS[kind].DESIGN_KIND, spec)
+        data = json.loads(json.dumps(frozen.to_data()))   # как после записи в файл
+        loaded = PartsDesign.from_data(data)
+        for surface in ("hull", "turret"):
+            parts = loaded.get(surface)
+            if parts is None:
+                continue
+            lost = len(parts) - len(resolve(parts, spec, surface))
+            if lost:
+                print(f"НЕ ПОМЕЩАЕТСЯ {name}/{surface}: {lost} из {len(parts)}")
+                failed += 1
+        auto = render(kind, values)
+        manual = render(kind, {**values, "parts_design": data})
+        for layer, surf in auto.items():
+            if layer == "barrel" or layer.endswith("chevron"):    # ствол подключается на этапе 4; шеврон зависит от эмблемы бота
+                continue
+            res = compare(surf, manual[layer])
+            if res is None:
+                print(f"РАЗМЕР ИЗМЕНИЛСЯ: {name}/{layer}")
+                failed += 1
+                continue
+            bad, worst = res
+            total = surf.get_width() * surf.get_height()
+            ok = bad <= total * MAX_BAD_FRAC and worst <= MAX_DIFF
+            if bad:
+                print(f"{'ок ' if ok else 'ОШИБКА'} {name}/{layer}: пикселей {bad} из {total}, макс. отличие {worst}")
+            failed += 0 if ok else 1
+
+    junk = [None, 5, "x", [], {"version": 99},
+            {"version": 1, "hull": [None, 5, {"k": ["a"]}, {"k": "hatch", "x": "q"},
+                                    {"k": "hatch", "x": 1e9, "y": 0.0, "w": 9}]}]
+    for item in junk:
+        d = PartsDesign.from_data(item)
+        print("мусор ->", "Авто" if d.is_auto else f"hull={d.hull}")
+    return failed
+
 def main():
     save = "--save" in sys.argv
     pygame.init()
     pygame.display.set_mode((1, 1))
+    if "--design" in sys.argv:
+        failed = check_design()
+        print("Дизайн: всё совпадает." if not failed else f"Дизайн: проблем {failed}")
+        pygame.quit()
+        return
     os.makedirs(BASE_DIR, exist_ok=True)
     failed = 0
     for name, kind, values in cases():

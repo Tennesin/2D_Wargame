@@ -111,11 +111,12 @@ class TankSpec(GunVehicleSpec):
     LOOK_GUN_RATIO = LOOK_GUN_RATIO
     LOOK_SPEED_RATIO = LOOK_SPEED_RATIO
     DESIGN_KWARGS = {"turret_style": "turret_style", "turret_size": "turret_size",
-                     "turret_axis_shift_m": "turret_axis_shift"}
+                     "turret_axis_shift_m": "turret_axis_shift", "parts_design": "parts_design"}
 
     def __init__(self, cal, front, side, rear, power, damage=None, penetration=None,
                  screen=0.0, nose=NOSE_FLAT, special_ammo=SPECIAL_HEAT, unbounded=False,
-                 gun_length=None, turret_style="auto", turret_size=1.0, turret_axis_shift=0.0):
+                 gun_length=None, turret_style="auto", turret_size=1.0, turret_axis_shift=0.0,
+                 parts_design=None):
         # входные параметры
         cal, front, side, rear, power, screen = self._fit_inputs(
             cal, front, side, rear, power, screen, unbounded)
@@ -165,8 +166,9 @@ class TankSpec(GunVehicleSpec):
                 visual_k=self.HULL_SCALE * layout.turret_k, hesh=(special_ammo == SPECIAL_HESH),
                 length_cal=gun_length, turret_size=self.turret_size)
 
-        super().__init__(body, front, side, rear, power, self.m_gun + self.m_turret, screen, make_gun)
-        self.HULL_VARIANT = (self.layout.key,)
+        super().__init__(body, front, side, rear, power, self.m_gun + self.m_turret, screen, make_gun,
+                         parts_design=parts_design)
+        self.HULL_VARIANT = (self.layout.key, self.PARTS_KEY)
 
     # ---------- вывод в интерфейс ----------
     def main_stats(self):
