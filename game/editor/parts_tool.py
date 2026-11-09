@@ -306,8 +306,8 @@ class PartsTool:
             if self.input.shift:
                 angle = round_to(angle, ROTATE_SNAP_DEG)
             new = reshaped(p, angle=angle % 360.0)
-            if new == p:
-                return
+            if new == p or (self.is_fit(p) and not fits(new, self.spec, self.surface)):
+                return                                   # в неподходящее положение не вращаем
         self._replace_selected(new, d["fresh"])
         d["fresh"] = False
 
@@ -369,9 +369,13 @@ class PartsTool:
         if abs(nw - p.w) < 1e-6 and abs(nh - p.h) < 1e-6:
             self._state()                                  # вернуть ползунок на место
             return
+        new = reshaped(p, w=round(nw, 4), h=round(nh, 4))
+        if self.is_fit(p) and not fits(new, self.spec, self.surface):
+            self._state()                                  # не лезет: ползунок возвращаем
+            return
         fresh = not self._size_gesture
         self._size_gesture = True
-        self._replace_selected(reshaped(p, w=round(nw, 4), h=round(nh, 4)), fresh)
+        self._replace_selected(new, fresh)
 
     def set_manual(self, on):
         """Авто <-> Вручную (замораживает авто-набор или возвращает авто). Отменяется."""

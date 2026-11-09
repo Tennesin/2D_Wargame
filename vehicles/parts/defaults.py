@@ -45,7 +45,7 @@ def freeze_auto(kind, spec, emblem=""):
     if kind == "mbt":
         turret = anchored(default_parts(kind, spec, SURFACE_TURRET, look, emblem), SURFACE_TURRET)
     return PartsDesign(
-        hull=default_parts(kind, spec, SURFACE_HULL, look),
+        hull=anchored(default_parts(kind, spec, SURFACE_HULL, look), SURFACE_HULL),
         turret=turret,
         barrel=anchored(barrel_parts(length, thick, look), SURFACE_BARREL))
 

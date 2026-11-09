@@ -14,19 +14,10 @@ from vehicles.parts import (
     parts_for, draw_parts, PartCtx, SURFACE_HULL, SURFACE_TURRET,
     BAND_FENDER, BAND_DECK, BAND_COVER, BAND_TOP
 )
+from vehicles.parts.shapes import HEX_POINTS, HEX_INNER, OVAL_RECT, slab_points
 
 HULL_HALF_M = max_canvas_half_m()   # один холст на все раскладки
 TURRET_HALF_M = 2.4                 # заготовка башни (без ствола): по самому крупному стилю
-
-# Шестиугольная башня (средний корпус)
-HEX_POINTS = [(-0.70, -1.55), (0.70, -1.55), (1.30, 0.00), (0.70, 1.65), (-0.70, 1.65), (-1.30, 0.00)]
-HEX_INNER = [(-0.48, -1.05), (0.48, -1.05), (0.88, 0.00), (0.48, 1.12), (-0.48, 1.12), (-0.88, 0.00)]
-# Плитчатая башня тяжёлого корпуса (ось башни = (0, 0), перёд = -y), метры эталонного спрайта
-SLAB_HALF_W = 1.30                  # полуширина
-SLAB_FRONT = 1.55                   # передняя грань впереди оси (маска торчит ещё на 0.30)
-SLAB_REAR = 1.45                    # задняя грань позади оси
-SLAB_FRONT_CHAMFER = (0.55, 0.60)   # передняя фаска: (по x, по y)
-SLAB_REAR_CHAMFER = (0.30, 0.30)    # задняя фаска
 SLAB_RIM = 0.20                     # ширина боковых граней (рамка вокруг верхней плиты)
 SLAB_LIGHT_DIR = (-0.55, -0.83)     # откуда падает свет: слева-сверху
 
@@ -122,28 +113,16 @@ class TankRenderer(GunVehicleRenderer):
         if look.front > 0:
             k = 1.0 + 0.08 * look.front
             pen.rect(dark, -1.00 * k, 0.20 - 1.35 * k, 2.00 * k, 2.70 * k, r=0.45)
-        pen.rect(main, -1.00, -1.15, 2.00, 2.70, r=0.45)
+        pen.rect(main, *OVAL_RECT, r=0.45)
         pen.rect(light, -0.70, -0.85, 1.40, 2.10, outline=dark, r=0.30)
         draw_parts(pen, parts, BAND_DECK, ctx)                          # шеврон
         pen.rect(team, -0.50, -spec.GUN_FRONT_M, 1.00, 0.50, r=0.08)    # маска орудия
         draw_parts(pen, parts, BAND_TOP, ctx)                           # люк командира, антенна
 
-    @staticmethod
-    def _slab_points(inset=0.0, front_extra=0.0):
-        """Контур плитчатой башни: плоский лоб, срезанные передние углы, параллельные борта,
-        плоская корма. inset сжимает контур внутрь (для верхней плиты), front_extra утолщает лоб."""
-        w = SLAB_HALF_W - inset
-        f = SLAB_FRONT - inset - front_extra
-        r = SLAB_REAR - inset
-        fcx, fcy = SLAB_FRONT_CHAMFER
-        rcx, rcy = SLAB_REAR_CHAMFER
-        return [(-(w - fcx), -f), (w - fcx, -f), (w, -f + fcy), (w, r - rcy),
-                (w - rcx, r), (-(w - rcx), r), (-w, r - rcy), (-w, -f + fcy)]
-
     def _turret_slab(self, pen, team, look, spec, parts, ctx, main, light, dark):
         """Тяжёлый корпус: башня-«плита»."""
-        outer = self._slab_points()
-        inner = self._slab_points(SLAB_RIM, 0.07 * look.front)   # броня: толще лобовая грань
+        outer = slab_points()
+        inner = slab_points(SLAB_RIM, 0.07 * look.front)   # броня: толще лобовая грань
         pen.poly(main, outer)
 
         lx, ly = SLAB_LIGHT_DIR

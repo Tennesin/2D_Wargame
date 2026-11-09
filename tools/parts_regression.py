@@ -55,6 +55,11 @@ def cases():
     yield "spg_default", spg, dict(s)
     yield "spg_small", spg, {**s, "gun_caliber_mm": 125}
     yield "spg_big", spg, {**s, "gun_caliber_mm": 255}
+    light = {**b, "front_armor_mm": 40, "side_armor_mm": 30, "rear_armor_mm": 20, "engine_power_hp": 2000}
+    for style in ("hex", "oval", "slab"):
+        yield f"mbt_antenna_{style}", mbt, {**light, "turret_style": style}
+    yield "td_antenna", td, {**t, "front_armor_mm": 40, "side_armor_mm": 30,
+                             "rear_armor_mm": 20, "engine_power_hp": 2000}
 
 def render(kind, values):
     """{имя слоя: Surface} для одной сборки."""
@@ -126,7 +131,7 @@ def check_design():
                 continue
             bad, worst = res
             total = surf.get_width() * surf.get_height()
-            ok = bad <= total * MAX_BAD_FRAC and worst <= MAX_DIFF
+            ok = bad <= total * DESIGN_MAX_BAD_FRAC and worst <= DESIGN_MAX_DIFF
             if bad:
                 print(f"{'ок ' if ok else 'ОШИБКА'} {name}/{layer}: пикселей {bad} из {total}, макс. отличие {worst}")
             failed += 0 if ok else 1

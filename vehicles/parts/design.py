@@ -4,20 +4,20 @@ from dataclasses import dataclass, replace
 from typing import Optional
 
 from engine import point_in_convex
-from vehicles.gun.params import BARREL_HIDDEN_M
+from vehicles.gun.params import BARREL_HIDDEN_M, BARREL_THICK_STEP_M
 from .model import Part, SURFACES, SURFACE_HULL, SURFACE_TURRET, SURFACE_BARREL, ANCHOR_HULL
 from .registry import PART_TYPES
-from .geometry import center
+from .geometry import center, corners
+from .shapes import turret_outline, turret_fit_outline
+
+BARREL_OVERHANG_M = 0.15     # насколько деталь может выступать за боковую кромку ствола
 
 FORMAT_VERSION = 1
 LIMITS = {SURFACE_HULL: 60, SURFACE_TURRET: 40, SURFACE_BARREL: 8}   # деталей на поверхность
 COORD_LIMIT_M = 8.0          # координаты подрезаются по модулю до этого значения
 VARIANT_MAX = 9
 Z_MAX = 99
-TURRET_BOX_M = 2.4           # как TURRET_HALF_M в vehicles/tank/sprites.py
-BARREL_BOX_X_M = 0.8
 EDGE_EPS_M = 1e-6
-TURRET_REAR_M = {"hex": 1.65, "oval": 1.55, "slab": 1.45}    # задняя грань башни по форме
 
 # Допустимые якоря. «hull» везде означает «начало координат поверхности» (абсолютные метры).
 ANCHOR_NAMES = {
@@ -28,6 +28,7 @@ ANCHOR_NAMES = {
 }
 # К каким якорям привязываются детали при редактировании и «заморозке» (корпус остаётся в абсолютных метрах)
 ANCHOR_CANDIDATES = {
+    SURFACE_HULL: ("deck_front", "deck_rear", "nose_tip", "rear_plate"),
     SURFACE_TURRET: ("turret", "turret_front", "turret_rear"),
     SURFACE_BARREL: ("muzzle", "mid", "breech"),
 }
@@ -64,7 +65,7 @@ def anchors(spec, surface):
     elif surface == SURFACE_TURRET:
         out["turret"] = (0.0, 0.0)
         out["turret_front"] = (0.0, -spec.GUN_FRONT_M)
-        out["turret_rear"] = (0.0, TURRET_REAR_M.get(spec.layout.turret_style, 1.5))
+        out["turret_rear"] = (0.0, max(y for _, y in turret_outline(spec.layout.turret_style)))
     else:
         half = (spec.BARREL_LEN_M + BARREL_HIDDEN_M) / 2.0
         out["mid"] = (0.0, 0.0)
@@ -75,6 +76,17 @@ def anchors(spec, surface):
 def _in_rect(x0, y0, x1, y1, x, y):
     e = EDGE_EPS_M
     return x0 - e <= x <= x1 + e and y0 - e <= y <= y1 + e
+
+def barrel_thick_m(spec):
+    """Толщина ствола, как её рисует рендерер (с квантованием)."""
+    return round(spec.BARREL_THICK_M / BARREL_THICK_STEP_M) * BARREL_THICK_STEP_M
+
+def barrel_box(spec):
+    """(x0, y0, x1, y1): область центров деталей ствола. По x это сам ствол,
+    по y видимая часть: от дульного среза до начала участка под башней или маской."""
+    half = (spec.BARREL_LEN_M + BARREL_HIDDEN_M) / 2.0
+    hw = barrel_thick_m(spec) / 2.0
+    return -hw, -half, hw, half - BARREL_HIDDEN_M
 
 def fits(p, spec, surface):
     """Помещается ли деталь: центр её габарита лежит в допустимой области."""
@@ -87,9 +99,12 @@ def fits(p, spec, surface):
             return True
         return any(_in_rect(*r, x, y) for r in lay.track_rects)    # ящики и трос на экранах
     if surface == SURFACE_TURRET:
-        return abs(x) <= TURRET_BOX_M and abs(y) <= TURRET_BOX_M
-    half = (spec.BARREL_LEN_M + BARREL_HIDDEN_M) / 2.0
-    return abs(x) <= BARREL_BOX_X_M and abs(y) <= half + 0.05
+        return point_in_convex(turret_fit_outline(spec.layout.turret_style), x, y)
+    x0, y0, x1, y1 = barrel_box(spec)
+    if not _in_rect(x0, y0, x1, y1, x, y):
+        return False
+    lim = x1 + BARREL_OVERHANG_M + EDGE_EPS_M        # и сама деталь не может быть шире ствола + вылет
+    return all(abs(cx) <= lim for cx, _ in corners(p))
 
 def fit_polygons(spec, surface):
     """Многоугольники допустимой области поверхности."""
@@ -102,9 +117,9 @@ def fit_polygons(spec, surface):
         polys += [box(*r) for r in lay.track_rects]
         return polys
     if surface == SURFACE_TURRET:
-        return [box(-TURRET_BOX_M, -TURRET_BOX_M, TURRET_BOX_M, TURRET_BOX_M)]
-    half = (spec.BARREL_LEN_M + BARREL_HIDDEN_M) / 2.0 + 0.05
-    return [box(-BARREL_BOX_X_M, -half, BARREL_BOX_X_M, half)]
+        return [turret_fit_outline(spec.layout.turret_style)]
+    x0, y0, x1, y1 = barrel_box(spec)
+    return [box(x0, y0, x1, y1)]
 
 def resolve(parts, spec, surface):
     """Ручные детали -> то, что рисует рендерер: абсолютные координаты, только помещающиеся.
@@ -122,13 +137,13 @@ def resolve(parts, spec, surface):
     return tuple(out)
 
 def anchor_part(p, spec, surface):
-    """Деталь в абсолютных метрах -> та же деталь, привязанная к ближайшему (по y) якорю поверхности."""
+    """Деталь в абсолютных метрах -> та же деталь, привязанная к ближайшему якорю поверхности."""
     names = ANCHOR_CANDIDATES.get(surface)
     if not names or p.anchor != ANCHOR_HULL:
         return p
     table = anchors(spec, surface)
-    cy = center(p)[1]
-    name = min(names, key=lambda n: abs(cy - table[n][1]))
+    cx, cy = center(p)
+    name = min(names, key=lambda n: math.hypot(cx - table[n][0], cy - table[n][1]))
     bx, by = table[name]
     return replace(p, x=p.x - bx, y=p.y - by, anchor=name)
 
