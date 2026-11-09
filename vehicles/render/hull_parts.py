@@ -1,5 +1,4 @@
-"""vehicles/render/hull_parts.py — детали корпуса: бортовые экраны, швы, накладная броня, носы, лобовые экраны,
-выхлоп, моторная крышка. Миксин для GunVehicleRenderer, состояния не хранит."""
+"""vehicles/render/hull_parts.py — детали корпуса."""
 import math
 
 from engine import lerp_color, shrink_polygon
@@ -7,13 +6,9 @@ from vehicles.chassis.hulls import NOSE_PIKE
 from vehicles.chassis.hull_noses import screen_pieces, SCREEN_OFFSET_M, SCREEN_THICK_M, PIKE_BAND_M
 from vehicles.render.pen import (
     OUTLINE, OUTLINE_W, SKIRT_MAIN, SCREEN_MAIN, SCREEN_MESH,
-    HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, GRILL, GRILL_LINE,
-    apply_paint, outline_x_at,
+    HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, apply_paint,
 )
 
-SEAM_FRACS = (0.30, 0.62)    # где на палубе идут поперечные швы (доли длины палубы)
-SEAM_W_M = 0.05              # толщина шва, м
-RIVET_R_M = 0.04             # радиус заклёпки, м
 RIVET_STEP_M = 0.5           # примерный шаг заклёпок вдоль шва, м
 
 class HullPartsMixin:
@@ -36,27 +31,8 @@ class HullPartsMixin:
                 pen.rect(color, x, y0 + i * step + 0.03, width, step - 0.06)
 
     @staticmethod
-    def _draw_seams(pen, layout, color):
-        """Поперечные швы листов палубы от борта до борта, с рядом заклёпок.
-        Шов доходит до самого контура корпуса, поэтому пересекает палубу и стыкуется с бортами:
-        это «сшивает» части корпуса. Рисовать ПОСЛЕ палубы и ДО решёток, люков и башни."""
-        dx, dy, dw, dh = layout.deck_rect
-        for t in SEAM_FRACS:
-            y = dy + dh * t
-            lo, hi = outline_x_at(layout.outline, y)
-            if lo is None:
-                continue
-            x0, x1 = lo + 0.06, hi - 0.06
-            pen.line(color, x0, y, x1, y, SEAM_W_M)
-            n = max(2, round((x1 - x0) / RIVET_STEP_M))
-            for i in range(1, n):
-                pen.ellipse(color, x0 + (x1 - x0) * i / n, y + 0.11,
-                            RIVET_R_M, RIVET_R_M, outline=None)
-
-    @staticmethod
     def _draw_front_kit(pen, level, paint, layout):
-        """Накладная броня на лбу. Плоский лоб: один многоугольник (+ планка и клинья на уровне 2).
-        Щучий нос: отдельные пластины на скатах (см. _draw_pike_kit)."""
+        """Накладная броня на лбу."""
         if level <= 0:
             return
         if layout.nose == NOSE_PIKE:
@@ -84,9 +60,7 @@ class HullPartsMixin:
 
     @staticmethod
     def _draw_pike_kit(pen, paint, layout):
-        """Накладка щучьего носа: по одной пластине на каждый скат. Пластина лежит внутри своей
-        полосы (те же четыре угла, что в _draw_pike_plate), поэтому гребень по оси и V-шов остаются
-        видны. Цвет = цвет полосы, чуть светлее: сохраняется свет слева."""
+        """Накладка щучьего носа."""
         left, tip, right = layout.front_plate
         b = PIKE_BAND_M
         apex = (0.0, tip[1] + b)
@@ -111,8 +85,7 @@ class HullPartsMixin:
 
     @staticmethod
     def _draw_front_screen(pen, level, paint, layout):
-        """Четыре тонких листа перед лбом на стойках. level только включает показ:
-        число и толщина листов от ползунка не зависят."""
+        """Четыре тонких листа перед лбом на стойках."""
         if level <= 0:
             return
         color = apply_paint(SCREEN_MAIN, paint)
@@ -126,35 +99,8 @@ class HullPartsMixin:
             pen.line(color, p0[0], p0[1], p1[0], p1[1], SCREEN_THICK_M)            # сам лист
 
     @staticmethod
-    def _draw_exhaust(pen, level, layout):
-        """Выхлопные патрубки на кормовой плите."""
-        if level <= 0:
-            return
-        r = 0.13 if level == 1 else 0.17
-        for x in layout.exhaust_xs:
-            pen.ellipse(GRILL, x, layout.exhaust_y, r, r)
-
-    @staticmethod
-    def _draw_deck(pen, y_end, hull_dark, deck_top, half_w=1.05, lead=0.45, min_free=0.9):
-        """Моторная крышка на палубе между носом и башней."""
-        y0 = deck_top + lead
-        free = y_end - 0.15 - y0
-        if free < min_free:
-            return
-        gw = half_w - 0.15
-        pen.rect(hull_dark, -half_w, y0, 2.0 * half_w, free, r=0.05)        # рама крышки
-        pen.rect(GRILL, -gw, y0 + 0.12, 2.0 * gw, free - 0.24)              # решётка
-        ly = y0 + 0.32
-        while ly < y0 + free - 0.2:                                         # жалюзи
-            pen.line(GRILL_LINE, -(gw - 0.14), ly, gw - 0.14, ly, 0.05)
-            ly += 0.26
-        if free >= 2.2:                                                     # длинная палуба: два люка
-            pen.rect(hull_dark, -gw, y0 + free / 2.0 - 0.05, 2.0 * gw, 0.10, outline=None)
-
-    @staticmethod
     def _draw_pike_plate(pen, layout, paint):
-        """Щучий нос: две полосы вдоль скатов (близкие тона) и клин палубы с V-образным передним краем.
-        Рисовать ПОСЛЕ прямоугольника палубы: клин и полосы перекрывают его верхний контур."""
+        """Щучий нос: две полосы вдоль скатов (близкие тона) и клин палубы."""
         left, tip, right = layout.front_plate
         hw = right[0]
         sh_y, tip_y = left[1], tip[1]

@@ -13,9 +13,10 @@ from vehicles.gun.params import (
 from vehicles.render.hull_parts import HullPartsMixin
 from vehicles.chassis.running_gear import LEFT, RIGHT
 from vehicles.render.pen import (
-    Pen, SS, apply_grain, TRACK_BODY, TRACK_LINK, TRACK_BROKEN,
-    TRACK_BROKEN_MARK, GUN, GUN_LIGHT, GUN_DARK
+    Pen, SS, apply_grain, TRACK_BODY, TRACK_LINK,
+    TRACK_BROKEN, TRACK_BROKEN_MARK, GUN
 )
+from vehicles.parts import barrel_parts, draw_parts, PartCtx, BAND_ALL
 
 # ==========================================
 # КОНСТАНТЫ РИСОВКИ
@@ -406,8 +407,9 @@ class GunVehicleRenderer(HullPartsMixin):
                 y += TRACK_LINK_M
 
     # ---------- ствол (одинаковый у всех) ----------
+
     def _build_barrel(self, bl, bt, look):
-        """Ствол: узкая вертикальная картинка (дульный срез сверху). Центр — середина видимой длины."""
+        """Ствол: узкая вертикальная картинка."""
         ppm = self._ppm
         length = bl * BARREL_LEN_STEP_M
         thick = bt * BARREL_THICK_STEP_M
@@ -418,14 +420,7 @@ class GunVehicleRenderer(HullPartsMixin):
         pen = Pen(big, ppm * SS)
 
         pen.rect(GUN, -thick / 2, -half, thick, 2.0 * half)                       # ствол
-        pen.rect(GUN_LIGHT, -(thick + 0.08) / 2, -half + 0.35 * length,
-                 thick + 0.08, 0.30, r=0.05)                                      # эжектор
-        pen.rect(GUN_DARK, -(thick + 0.06) / 2, -half, thick + 0.06, 0.22)        # дульный срез
-
-        if look.gun > 0:    # дульный тормоз: шире ствола, но в пределах заготовки (запас 0.30 м)
-            bw = thick + (0.14 if look.gun == 1 else 0.22)
-            pen.rect(GUN_DARK, -bw / 2, -half + 0.25, bw, 0.40, r=0.04)
-            for y in (-half + 0.38, -half + 0.52):
-                pen.line(GUN_LIGHT, -bw / 2 + 0.03, y, bw / 2 - 0.03, y, 0.04)
+        parts = barrel_parts(length, thick, look)
+        draw_parts(pen, parts, BAND_ALL, PartCtx(paint=None, look=look, layout=None))
 
         return pygame.transform.smoothscale(big, (w, h))

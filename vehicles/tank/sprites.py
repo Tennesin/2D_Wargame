@@ -1,5 +1,4 @@
-"""vehicles/tank/sprites.py — отрисовка ОБТ: корпус и башня строятся из раскладки (vehicles/chassis/hulls.py).
-Общая часть (гусеницы, ствол, тень, кэши) лежит в vehicles/render/base.py."""
+"""vehicles/tank/sprites.py — отрисовка ОБТ."""
 import math
 import pygame
 
@@ -7,12 +6,12 @@ from engine import clamp, lerp_color
 from vehicles.chassis.hulls import max_canvas_half_m, NOSE_PIKE, NOSE_WEDGE
 from vehicles.render.base import GunVehicleRenderer
 from vehicles.render.pen import (
-    Pen as _Pen, apply_paint as _paint, SS, OUTLINE,
+    Pen as _Pen, apply_paint as _paint, SS,
     HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, RING,
-    TURRET_MAIN, TURRET_LIGHT, TURRET_DARK, EMBLEM_COLOR,
+    TURRET_MAIN, TURRET_LIGHT, TURRET_DARK,
 )
 from vehicles.parts import (
-    parts_for, draw_parts, PartCtx, SURFACE_HULL,
+    parts_for, draw_parts, PartCtx, SURFACE_HULL, SURFACE_TURRET,
     BAND_FENDER, BAND_DECK, BAND_COVER, BAND_TOP
 )
 
@@ -30,8 +29,6 @@ SLAB_FRONT_CHAMFER = (0.55, 0.60)   # передняя фаска: (по x, по
 SLAB_REAR_CHAMFER = (0.30, 0.30)    # задняя фаска
 SLAB_RIM = 0.20                     # ширина боковых граней (рамка вокруг верхней плиты)
 SLAB_LIGHT_DIR = (-0.55, -0.83)     # откуда падает свет: слева-сверху
-
-CHEVRON = [(0.00, -0.95), (0.40, -0.55), (0.40, -0.38), (0.00, -0.78), (-0.40, -0.38), (-0.40, -0.55)]
 
 class TankRenderer(GunVehicleRenderer):
     HULL_HALF_M = HULL_HALF_M
@@ -97,53 +94,39 @@ class TankRenderer(GunVehicleRenderer):
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
         pen = _Pen(big, ppm * SS)                            # центр спрайта = ось башни
 
+        parts = parts_for(self.DESIGN_KIND, spec, SURFACE_TURRET, look, emblem)
+        ctx = PartCtx(paint=paint, look=look, layout=spec.layout, team=team_color)
+
         colors = (_paint(TURRET_MAIN, paint), _paint(TURRET_LIGHT, paint), _paint(TURRET_DARK, paint))
         if style == "oval":
-            self._turret_oval(pen, team_color, look, emblem, spec, *colors)
+            self._turret_oval(pen, team_color, look, spec, parts, ctx, *colors)
         elif style == "slab":
-            self._turret_slab(pen, team_color, look, emblem, spec, *colors)
+            self._turret_slab(pen, team_color, look, spec, parts, ctx, *colors)
         else:
-            self._turret_hex(pen, team_color, look, emblem, spec, *colors)
+            self._turret_hex(pen, team_color, look, spec, parts, ctx, *colors)
 
         return self._finish(pygame.transform.smoothscale(big, (size, size)), (41, 67))
 
-    @staticmethod
-    def _chevrons(pen, s, dy):
-        """Двойной шеврон острием вперёд (Уничтожитель); s — масштаб, dy — сдвиг по y."""
-        for k in (0.0, 0.25 * s):
-            pen.poly(EMBLEM_COLOR, [(x * s, y * s + dy + k) for x, y in CHEVRON], outline=None)
-
-    def _turret_hex(self, pen, team, look, emblem, spec, main, light, dark):
-        if look.front > 0:                  # утолщённая броня: тёмный «обод»
+    def _turret_hex(self, pen, team, look, spec, parts, ctx, main, light, dark):
+        if look.front > 0:
             k = 1.0 + 0.10 * look.front
             pen.poly(dark, [(x * k, y * k) for x, y in HEX_POINTS])
         pen.poly(main, HEX_POINTS)
         pen.poly(light, HEX_INNER, outline=dark)
-        if emblem == "chevron":
-            self._chevrons(pen, 1.0, 0.0)
+        draw_parts(pen, parts, BAND_DECK, ctx)                          # шеврон
         pen.rect(team, -0.55, -spec.GUN_FRONT_M, 1.10, 0.60, r=0.08)    # маска орудия
-        pen.ellipse(dark, 0.42, 0.30, 0.42, 0.42)                       # люк командира
-        pen.ellipse(team, 0.42, 0.30, 0.32, 0.32)
-        if look.speed > 0:                  # антенна
-            pen.line(OUTLINE, -0.75, 1.0, -0.95, 1.95, 0.04)
-            pen.ellipse(dark, -0.75, 1.0, 0.10, 0.10)
+        draw_parts(pen, parts, BAND_TOP, ctx)                           # люк командира, антенна
 
-    def _turret_oval(self, pen, team, look, emblem, spec, main, light, dark):
-        """Лёгкий корпус: широкая башня со скруглёнными углами, ширина одинакова по всей длине.
-        Тело: x от -1.0 до 1.0, y от -1.15 до 1.55 (центр по y = 0.20)."""
-        if look.front > 0:                              # утолщённая броня: тёмный «обод»
+    def _turret_oval(self, pen, team, look, spec, parts, ctx, main, light, dark):
+        """Лёгкий корпус: широкая башня со скруглёнными углами, ширина одинакова по всей длине."""
+        if look.front > 0:
             k = 1.0 + 0.08 * look.front
             pen.rect(dark, -1.00 * k, 0.20 - 1.35 * k, 2.00 * k, 2.70 * k, r=0.45)
         pen.rect(main, -1.00, -1.15, 2.00, 2.70, r=0.45)
         pen.rect(light, -0.70, -0.85, 1.40, 2.10, outline=dark, r=0.30)
-        if emblem == "chevron":
-            self._chevrons(pen, 0.85, 0.25)
+        draw_parts(pen, parts, BAND_DECK, ctx)                          # шеврон
         pen.rect(team, -0.50, -spec.GUN_FRONT_M, 1.00, 0.50, r=0.08)    # маска орудия
-        pen.ellipse(dark, 0.45, 0.55, 0.32, 0.32)                       # люк командира
-        pen.ellipse(team, 0.45, 0.55, 0.23, 0.23)
-        if look.speed > 0:                                              # антенна
-            pen.line(OUTLINE, -0.75, 0.90, -0.90, 1.75, 0.04)
-            pen.ellipse(dark, -0.75, 0.90, 0.09, 0.09)
+        draw_parts(pen, parts, BAND_TOP, ctx)                           # люк командира, антенна
 
     @staticmethod
     def _slab_points(inset=0.0, front_extra=0.0):
@@ -157,8 +140,8 @@ class TankRenderer(GunVehicleRenderer):
         return [(-(w - fcx), -f), (w - fcx, -f), (w, -f + fcy), (w, r - rcy),
                 (w - rcx, r), (-(w - rcx), r), (-w, r - rcy), (-w, -f + fcy)]
 
-    def _turret_slab(self, pen, team, look, emblem, spec, main, light, dark):
-        """Тяжёлый корпус: башня-«плита» (ориентир: башня Мауса в плане)."""
+    def _turret_slab(self, pen, team, look, spec, parts, ctx, main, light, dark):
+        """Тяжёлый корпус: башня-«плита»."""
         outer = self._slab_points()
         inner = self._slab_points(SLAB_RIM, 0.07 * look.front)   # броня: толще лобовая грань
         pen.poly(main, outer)
@@ -175,15 +158,6 @@ class TankRenderer(GunVehicleRenderer):
             pen.poly(lerp_color(dark, light, t), [a, b, ib, ia], outline=None)
         pen.poly(light, inner, outline=dark)                     # верхняя плита
 
-        for sy in (0.0, 1.0):                                    # швы листов крыши
-            pen.line(dark, -0.95, sy, 0.95, sy, 0.04)
-        if emblem == "chevron":
-            self._chevrons(pen, 0.9, -0.05)
-
-        pen.rect(team, -0.55, -spec.GUN_FRONT_M, 1.10, 0.50, r=0.08)   # маска уже передней грани
-        pen.ellipse(dark, 0.62, 0.45, 0.36, 0.36)                      # люк командира
-        pen.ellipse(team, 0.62, 0.45, 0.26, 0.26)
-        pen.ellipse(dark, -0.62, 0.62, 0.26, 0.26)                     # люк заряжающего
-        if look.speed > 0:                                             # антенна
-            pen.line(OUTLINE, -0.80, 0.85, -0.92, 1.30, 0.04)
-            pen.ellipse(dark, -0.80, 0.85, 0.09, 0.09)
+        draw_parts(pen, parts, BAND_DECK, ctx)                          # швы листов крыши, шеврон
+        pen.rect(team, -0.55, -spec.GUN_FRONT_M, 1.10, 0.50, r=0.08)    # маска уже передней грани
+        draw_parts(pen, parts, BAND_TOP, ctx)                           # люки, антенна

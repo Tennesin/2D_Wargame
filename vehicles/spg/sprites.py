@@ -1,27 +1,23 @@
-"""vehicles/spg/sprites.py — отрисовка САУ: моторная крышка спереди, открытое боевое отделение с ящиками
-боекомплекта сзади, щит орудия цвета архетипа, толстый ствол и кормовой сошник.
-Наследует TDRenderer: слой маски (_draw_front_layer), кэши и общий порядок слоёв те же."""
+"""vehicles/spg/sprites.py — отрисовка САУ."""
 import math
 import pygame
 
 from engine import shade_color
 from vehicles.render.pen import (
-    Pen as _Pen, apply_paint as _paint, SS, OUTLINE,
+    Pen as _Pen, apply_paint as _paint, SS,
     HULL_DARK, GRILL, TURRET_MAIN, TURRET_LIGHT, TURRET_DARK,
 )
 from vehicles.td.params import TD_TURRET_HALF_M
 from vehicles.td.sprites import TDRenderer
+from .case import spg_case_box, CASE_INSET_M
 
-CRATE = (132, 124, 106)         # ящики боекомплекта
-CASE_FRONT_M = 0.45             # передняя стенка отделения впереди оси орудия
-CASE_REACH_M = 1.65             # на сколько метров назад от оси уходит отделение (до масштаба CASE_K)
-REAR_MARGIN_M = 0.45            # отделение не доходит до кормы корпуса: там плита и выхлоп
 SHIELD_DEPTH_M = 1.0            # глубина щита орудия вдоль ствола (больше BARREL_HIDDEN_M + откат)
 BARREL_THICK_K = 1.3            # САУ рисуется с более толстым стволом, чем остальная техника
 SPADE_DEPTH_M = (0.30, 0.55)    # вынос сошника за корму для уровней опоры 1 и 2
 SPADE_HALF_W_M = 0.95
 
 class SPGRenderer(TDRenderer):
+    DESIGN_KIND = "spg"
 
     # ==========================================
     # СТВОЛ
@@ -49,46 +45,22 @@ class SPGRenderer(TDRenderer):
                 pen.line(GRILL, sx * 0.62, tail - 0.10, sx * 0.48, tail + depth * 0.8, 0.12)
 
     def _draw_superstructure(self, pen, paint, look, spec):
-        """САУ: моторная крышка, кормовая плита и открытое боевое отделение с ящиками боекомплекта."""
-        layout = spec.layout
-        axis = -layout.axis_fwd_m                        # ось орудия в координатах корпуса (перёд = -y)
-        g = spec.CASE_K
-        hull_dark = _paint(HULL_DARK, paint)
+        """САУ: открытое боевое отделение (структура)."""
+        axis, front, rear, wf, wr = spg_case_box(spec)
         case_main = _paint(TURRET_MAIN, paint)
         case_light = _paint(TURRET_LIGHT, paint)
         case_dark = _paint(TURRET_DARK, paint)
-        crate = _paint(CRATE, paint)
 
-        # --- геометрия боевого отделения ---
-        tail = max(y for _, y in layout.outline)
-        front = axis - CASE_FRONT_M
-        rear = min(axis + CASE_REACH_M * g, tail - REAR_MARGIN_M)
-        rear = max(rear, front + 1.6)
-        wf = 0.80 + 0.30 * g                             # полуширина спереди
-        wr = wf + 0.18                                   # и сзади (отделение расширяется к корме)
-
-        # --- моторная крышка между носом и боевым отделением, кормовая плита ---
-        self._draw_deck(pen, front, hull_dark, layout.deck_rect[1], lead=0.45)
-        pen.rect(hull_dark, *layout.rear_plate)
-
-        # --- открытое боевое отделение: светлые кромки стенок и тёмный пол ---
+        # открытое боевое отделение: светлые кромки стенок и тёмный пол
         outer = [(-wf, front), (wf, front), (wr, front + 0.45), (wr, rear - 0.25),
                  (wr - 0.30, rear), (-(wr - 0.30), rear), (-wr, rear - 0.25), (-wr, front + 0.45)]
         pen.poly(case_light, outer)
-        inset = 0.24
+        inset = CASE_INSET_M
         inner = [(-wf + inset, front + inset), (wf - inset, front + inset),
                  (wr - inset, front + 0.45 + inset * 0.4), (wr - inset, rear - 0.25 - inset * 0.4),
                  (wr - 0.30 - inset, rear - inset), (-(wr - 0.30 - inset), rear - inset),
                  (-(wr - inset), rear - 0.25 - inset * 0.4), (-(wr - inset), front + 0.45 + inset * 0.4)]
         pen.poly(case_dark, inner, outline=case_main)
-
-        cy0 = rear - inset - 0.55                        # ящики боекомплекта у задней стенки
-        for cx in (-0.62, 0.02):
-            pen.rect(crate, cx, cy0, 0.58, 0.45, r=0.04)
-
-        if look.speed > 0:                               # антенна
-            pen.line(OUTLINE, -wr + 0.12, rear - 0.9, -wr + 0.05, rear - 0.2, 0.04)
-            pen.ellipse(case_dark, -wr + 0.12, rear - 0.9, 0.08, 0.08)
 
     # ==========================================
     # ЩИТ ОРУДИЯ
