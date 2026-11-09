@@ -16,7 +16,7 @@ from vehicles.render.pen import (
     Pen, SS, apply_grain, TRACK_BODY, TRACK_LINK,
     TRACK_BROKEN, TRACK_BROKEN_MARK, GUN
 )
-from vehicles.parts import barrel_parts, draw_parts, PartCtx, BAND_ALL
+from vehicles.parts import barrel_parts_for, corners, draw_parts, PartCtx, BAND_ALL
 
 # ==========================================
 # КОНСТАНТЫ РИСОВКИ
@@ -137,15 +137,15 @@ class GunVehicleRenderer(HullPartsMixin):
 
         hull_k = self._bucket(tank.hull_angle)
         turret_k = self._bucket(tank.turret_angle)
-        barrel_key = (bl, bt, look.barrel_key)
+        barrel_key = (bl, bt, look.barrel_key, spec.BARREL_KEY)
 
         # корпус и ходовая не зависят от фазы гусениц: оба слоя берутся из кэша по углу
-        gear_rot = self._rotated("gear", (var, broken),
+        gear_rot = self._rotated("gear", (spec.layout.key, broken),
                                  lambda: self._get_gear(spec, *broken), hull_k, hs)
         hull_rot = self._rotated("hull", (paint, look.hull_key, var),
                                  lambda: self._get_hull(paint, look, spec), hull_k, hs)
         barrel_rot = self._rotated("barrel", barrel_key,
-                                   lambda: self._get_barrel(bl, bt, look), turret_k, ts)
+                                   lambda: self._get_barrel(bl, bt, look, spec), turret_k, ts)
 
         fx, fy = heading_vector(turret_k * ANGLE_STEP)
         f = (spec.GUN_FRONT_M + bl * BARREL_LEN_STEP_M / 2.0 - BARREL_HIDDEN_M / 2.0
@@ -165,7 +165,7 @@ class GunVehicleRenderer(HullPartsMixin):
         hox, hoy = (round(v * ppm * hs) for v in SHADOW_HULL_M)
         tox, toy = (round(v * ppm * ts) for v in SHADOW_TURRET_M)
         parts = [
-            (self._shadow("gear", var, hull_k, hs, gear_rot), gear_rect.move(hox + ex, hoy + ey)),
+            (self._shadow("gear", spec.layout.key, hull_k, hs, gear_rot), gear_rect.move(hox + ex, hoy + ey)),
             (self._shadow("hull", (look.hull_key, var), hull_k, hs, hull_rot), hull_rect.move(hox + ex, hoy + ey)),
             (self._shadow("barrel", barrel_key, turret_k, ts, barrel_rot), barrel_rect.move(tox + ex, toy + ey)),
         ]
@@ -300,9 +300,9 @@ class GunVehicleRenderer(HullPartsMixin):
             (team_color, paint, look.turret_key, emblem, spec.HULL_VARIANT),
             lambda: self._build_turret(team_color, paint, look, emblem, spec))
 
-    def _get_barrel(self, bl, bt, look):
+    def _get_barrel(self, bl, bt, look, spec):
         return self._barrel_cache.get_or_build(
-            (bl, bt, look.barrel_key), lambda: self._build_barrel(bl, bt, look))
+            (bl, bt, look.barrel_key, spec.BARREL_KEY), lambda: self._build_barrel(bl, bt, look, spec))
 
     # ---------- общие детали корпуса ----------
 
@@ -333,7 +333,7 @@ class GunVehicleRenderer(HullPartsMixin):
 
     def _get_gear(self, spec, left_broken=False, right_broken=False):
         return self._gear_cache.get_or_build(
-            (spec.HULL_VARIANT, left_broken, right_broken),
+            (spec.layout.key, left_broken, right_broken),
             lambda: self._build_gear(spec, left_broken, right_broken))
 
     @staticmethod
@@ -357,7 +357,7 @@ class GunVehicleRenderer(HullPartsMixin):
         # слои снизу вверх, как в draw(): ходовая, корпус, ствол, башня, маска
         layers = [(self._get_gear(spec), hs, 0.0),
                   (self._get_hull(paint, look, spec), hs, 0.0),
-                  (self._get_barrel(bl, bt, look), ts, f_px)]
+                  (self._get_barrel(bl, bt, look, spec), ts, f_px)]
         if self.HAS_TURRET_SPRITE:
             layers.append((self._get_turret(team, paint, look, vehicle.emblem, spec), ts, 0.0))
         build_mantlet = getattr(self, "_build_mantlet", None)      # есть у ПТ-САУ и САУ
@@ -408,19 +408,26 @@ class GunVehicleRenderer(HullPartsMixin):
 
     # ---------- ствол (одинаковый у всех) ----------
 
-    def _build_barrel(self, bl, bt, look):
+    def _build_barrel(self, bl, bt, look, spec):
         """Ствол: узкая вертикальная картинка."""
         ppm = self._ppm
         length = bl * BARREL_LEN_STEP_M
         thick = bt * BARREL_THICK_STEP_M
         half = (length + BARREL_HIDDEN_M) / 2.0  # часть уходит под башню
-        w = max(2, 2 * math.ceil((thick + 0.30) * ppm / 2.0))
-        h = max(2, round(2.0 * half * ppm))
+        parts = barrel_parts_for(spec, length, thick, look)
+
+        ext_x, ext_y = thick / 2.0 + 0.15, half
+        for p in parts:
+            for cx, cy in corners(p):
+                ext_x = max(ext_x, abs(cx))
+                ext_y = max(ext_y, abs(cy) - 0.01)     # допуск 1 см: округление данных не должно менять размер
+
+        w = max(2, 2 * math.ceil(ext_x * ppm))
+        h = max(2, round(2.0 * ext_y * ppm))
         big = pygame.Surface((w * SS, h * SS), pygame.SRCALPHA)
         pen = Pen(big, ppm * SS)
 
         pen.rect(GUN, -thick / 2, -half, thick, 2.0 * half)                       # ствол
-        parts = barrel_parts(length, thick, look)
         draw_parts(pen, parts, BAND_ALL, PartCtx(paint=None, look=look, layout=None))
 
         return pygame.transform.smoothscale(big, (w, h))

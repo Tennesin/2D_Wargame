@@ -13,7 +13,7 @@ import pygame
 from engine import PX_PER_M, VehicleKind
 from tools.tank_snapshot import SNAPSHOT_DIR
 from vehicles import VEHICLE_TYPES, RENDERERS, NOSE_PIKE
-from vehicles.gun.params import BARREL_LEN_STEP_M, BARREL_THICK_STEP_M
+from vehicles.gun.params import BARREL_LEN_STEP_M, BARREL_THICK_STEP_M, BARREL_HIDDEN_M
 from vehicles.parts import (
     PartsDesign, freeze_auto, resolve, PART_TYPES,
     new_part, reshaped, center, contains
@@ -74,7 +74,7 @@ def render(kind, values):
             out[f"mantlet_{who}"] = renderer._build_mantlet(team, paint, look, spec)
     bl = int(round(spec.BARREL_LEN_M / BARREL_LEN_STEP_M))
     bt = int(round(spec.BARREL_THICK_M / BARREL_THICK_STEP_M))
-    out["barrel"] = renderer._build_barrel(bl, bt, look)
+    out["barrel"] = renderer._build_barrel(bl, bt, look, spec)
     return out
 
 def compare(a, b):
@@ -106,7 +106,7 @@ def check_design():
         frozen = freeze_auto(RENDERERS[kind].DESIGN_KIND, spec)
         data = json.loads(json.dumps(frozen.to_data()))   # как после записи в файл
         loaded = PartsDesign.from_data(data)
-        for surface in ("hull", "turret"):
+        for surface in ("hull", "turret", "barrel"):
             parts = loaded.get(surface)
             if parts is None:
                 continue
@@ -117,7 +117,7 @@ def check_design():
         auto = render(kind, values)
         manual = render(kind, {**values, "parts_design": data})
         for layer, surf in auto.items():
-            if layer == "barrel" or layer.endswith("chevron"):    # ствол подключается на этапе 4; шеврон зависит от эмблемы бота
+            if layer.endswith("chevron"):
                 continue
             res = compare(surf, manual[layer])
             if res is None:
@@ -152,12 +152,31 @@ def check_geometry():
                 failed += 1
     return failed
 
+def check_anchors():
+    """Деталь у дульного среза остаётся у дульного среза при смене калибра (длина ствола другая)."""
+    kind = VehicleKind.MBT
+    vt = VEHICLE_TYPES[kind]
+    base = _base(kind)
+    spec_a = vt.spec_cls.from_values({**base, "gun_caliber_mm": 100})
+    data = json.loads(json.dumps(freeze_auto(RENDERERS[kind].DESIGN_KIND, spec_a).to_data()))
+    spec_b = vt.spec_cls.from_values({**base, "gun_caliber_mm": 135, "parts_design": data})
+    parts = resolve(PartsDesign.from_data(data).barrel, spec_b, "barrel")
+    band = next((p for p in parts if p.kind == "muzzle_band"), None)
+    if band is None:
+        print("АНКЕРЫ: поясок пропал при смене калибра")
+        return 1
+    half = (spec_b.BARREL_LEN_M + BARREL_HIDDEN_M) / 2.0
+    if abs(band.y + half) > 1e-3:
+        print(f"АНКЕРЫ: поясок {band.y:.3f}, ожидалось {-half:.3f}")
+        return 1
+    return 0
+
 def main():
     save = "--save" in sys.argv
     pygame.init()
     pygame.display.set_mode((1, 1))
     if "--design" in sys.argv:
-        failed = check_geometry() + check_design()
+        failed = check_geometry() + check_design() + check_anchors()
         print("Дизайн: всё совпадает." if not failed else f"Дизайн: проблем {failed}")
         pygame.quit()
         return

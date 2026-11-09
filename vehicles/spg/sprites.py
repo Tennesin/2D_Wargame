@@ -23,9 +23,9 @@ class SPGRenderer(TDRenderer):
     # СТВОЛ
     # ==========================================
 
-    def _build_barrel(self, bl, bt, look):
-        """Тот же ствол, но толще: ключ кэша остаётся прежним (bl, bt), меняется только рисунок."""
-        return super()._build_barrel(bl, max(bt, round(bt * BARREL_THICK_K)), look)
+    def _build_barrel(self, bl, bt, look, spec):
+        """Тот же ствол, но толще."""
+        return super()._build_barrel(bl, max(bt, round(bt * BARREL_THICK_K)), look, spec)
 
     # ==========================================
     # КОРПУС (общий шаблон в TDRenderer._build_hull)

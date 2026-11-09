@@ -6,6 +6,7 @@ from ..chassis.hulls import NOSE_FLAT
 from ..chassis.params import COLLISION_MARGIN_PX, FRONT_SCREEN, SCREEN_LOOK_STEPS
 from ..chassis.spec import ChassisSpec
 from ..parts.design import PartsDesign
+from ..parts.model import SURFACE_BARREL
 from ..cost import raw_cost, round_cost
 from ..look import Look, level
 from .barrel import length_pen_k, length_cost_k
@@ -29,6 +30,7 @@ class GunVehicleSpec(ChassisSpec):
         super().__init__(body, front, side, rear, power, payload_t=payload_t, screen_mm=screen_mm)
         self.parts_design = PartsDesign.from_data(parts_design)
         self.PARTS_KEY = self.parts_design.key
+        self.BARREL_KEY = self.parts_design.surface_key(SURFACE_BARREL)
         self.gun = make_gun(self.size_k)
         self._calc_reach()
         self._calc_economy()

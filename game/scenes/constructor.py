@@ -246,7 +246,7 @@ class ConstructorScene(Scene):
         if not self._has_parts:
             return
         renderer_cls = RENDERERS[kind]
-        surfaces = ["hull"] + (["turret"] if renderer_cls.HAS_TURRET_SPRITE else [])
+        surfaces = ["hull"] + (["turret"] if renderer_cls.HAS_TURRET_SPRITE else []) + ["barrel"]
         self.parts.bind(self.vehicle, renderer_cls.DESIGN_KIND,
                         self.session.values[kind].get("parts_design"), surfaces)
         self.ui.set_choice_options(self._parts_mode, "parts_surface",

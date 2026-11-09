@@ -5,8 +5,8 @@ from .model import (Part, PartCtx, SURFACES, SURFACE_HULL, SURFACE_TURRET, SURFA
 from .registry import PART_TYPES, PartType, part_type, z_of
 from . import library
 from .design import (PartsDesign, AUTO_DESIGN, clean_design_data, resolve, anchors, fits,
-                     ANCHOR_NAMES, FORMAT_VERSION, LIMITS, fit_polygons)
-from .defaults import default_parts, parts_for, barrel_parts, freeze_auto
+                     ANCHOR_NAMES, FORMAT_VERSION, LIMITS, fit_polygons, anchor_part)
+from .defaults import default_parts, parts_for, barrel_parts, freeze_auto, barrel_parts_for
 from .render import draw_parts
 from .geometry import (local_bounds, to_surface, to_local, center, corners, extent_m, contains,
                        with_center, reshaped, new_part)
@@ -17,4 +17,4 @@ __all__ = ["Part", "PartCtx", "SURFACES", "SURFACE_HULL", "SURFACE_TURRET", "SUR
            "draw_parts", "PartsDesign", "AUTO_DESIGN", "clean_design_data", "resolve", "anchors", "fits",
            "ANCHOR_NAMES", "FORMAT_VERSION", "LIMITS", "freeze_auto", "fit_polygons", "local_bounds",
            "to_surface", "to_local", "center", "corners", "extent_m", "contains",
-           "with_center", "reshaped", "new_part"]
+           "with_center", "reshaped", "new_part", "barrel_parts_for", "anchor_part"]

@@ -4,7 +4,7 @@ import math
 from vehicles.chassis.hull_noses import PIKE_BAND_M
 from vehicles.chassis.hulls import NOSE_PIKE, NOSE_WEDGE, HULL_STYLE_FRONT_ENGINE
 from vehicles.gun.params import BARREL_HIDDEN_M, BARREL_LEN_STEP_M, BARREL_THICK_STEP_M
-from .design import PartsDesign, resolve
+from .design import PartsDesign, resolve, anchor_part
 from vehicles.render.pen import outline_x_at
 from .library import SEAM_FRACS
 from .model import SURFACE_HULL, SURFACE_TURRET, SURFACE_BARREL, Part
@@ -37,10 +37,17 @@ def freeze_auto(kind, spec, emblem=""):
     look = spec.LOOK
     length = round(spec.BARREL_LEN_M / BARREL_LEN_STEP_M) * BARREL_LEN_STEP_M     # как в рендерере
     thick = round(spec.BARREL_THICK_M / BARREL_THICK_STEP_M) * BARREL_THICK_STEP_M
+
+    def anchored(parts, surface):
+        return tuple(anchor_part(p, spec, surface) for p in parts)
+
+    turret = None
+    if kind == "mbt":
+        turret = anchored(default_parts(kind, spec, SURFACE_TURRET, look, emblem), SURFACE_TURRET)
     return PartsDesign(
         hull=default_parts(kind, spec, SURFACE_HULL, look),
-        turret=default_parts(kind, spec, SURFACE_TURRET, look, emblem) if kind == "mbt" else None,
-        barrel=barrel_parts(length, thick, look))
+        turret=turret,
+        barrel=anchored(barrel_parts(length, thick, look), SURFACE_BARREL))
 
 def barrel_parts(length_m, thick_m, look):
     """Детали ствола."""
@@ -56,6 +63,14 @@ def barrel_parts(length_m, thick_m, look):
         bw = thick_m + (0.14 if look.gun == 1 else 0.22)
         parts.append(Part("muzzle_brake", x=-bw / 2.0, y=-half + 0.25, w=bw, h=0.40, surface=s))
     return tuple(parts)
+
+def barrel_parts_for(spec, length_m, thick_m, look):
+    """Детали ствола для рендерера."""
+    design = getattr(spec, "parts_design", None)
+    manual = None if design is None else design.get(SURFACE_BARREL)
+    if manual is not None:
+        return resolve(manual, spec, SURFACE_BARREL)
+    return barrel_parts(length_m, thick_m, look)
 
 # ==========================================
 # ОБЩИЕ ПОМОЩНИКИ

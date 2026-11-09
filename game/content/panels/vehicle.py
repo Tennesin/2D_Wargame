@@ -34,7 +34,7 @@ DESIGN_STATS = {
                      "Поворот корпуса", "Перезарядка"),
 }
 # Вкладка «Детали»
-PARTS_SURFACE_RU = {"hull": "Корпус", "turret": "Башня"}
+PARTS_SURFACE_RU = {"hull": "Корпус", "turret": "Башня", "barrel": "Ствол"}
 PARTS_BTN_MIRROR = "Отразить"
 PARTS_BTN_DELETE = "Удалить деталь"
 PARTS_BTN_UNDO = "Отменить"

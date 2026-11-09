@@ -26,6 +26,11 @@ ANCHOR_NAMES = {
     SURFACE_TURRET: (ANCHOR_HULL, "turret", "turret_front", "turret_rear"),
     SURFACE_BARREL: (ANCHOR_HULL, "mid", "breech", "muzzle"),
 }
+# К каким якорям привязываются детали при редактировании и «заморозке» (корпус остаётся в абсолютных метрах)
+ANCHOR_CANDIDATES = {
+    SURFACE_TURRET: ("turret", "turret_front", "turret_rear"),
+    SURFACE_BARREL: ("muzzle", "mid", "breech"),
+}
 
 def _num(v):
     return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
@@ -116,6 +121,17 @@ def resolve(parts, spec, surface):
             out.append(p)
     return tuple(out)
 
+def anchor_part(p, spec, surface):
+    """Деталь в абсолютных метрах -> та же деталь, привязанная к ближайшему (по y) якорю поверхности."""
+    names = ANCHOR_CANDIDATES.get(surface)
+    if not names or p.anchor != ANCHOR_HULL:
+        return p
+    table = anchors(spec, surface)
+    cy = center(p)[1]
+    name = min(names, key=lambda n: abs(cy - table[n][1]))
+    bx, by = table[name]
+    return replace(p, x=p.x - bx, y=p.y - by, anchor=name)
+
 # ==========================================
 # СЕРИАЛИЗАЦИЯ ОДНОЙ ДЕТАЛИ
 # ==========================================
@@ -174,9 +190,13 @@ class PartsDesign:
 
     @property
     def key(self):
-        """Число для ключей кэша спрайтов: None у авто-дизайна. Считать один раз (спецификацией),
-        а не на каждом кадре: хэш кортежа деталей каждый раз пересчитывается."""
+        """Число для ключей кэша спрайтов: None у авто-дизайна."""
         return None if self.is_auto else hash((self.hull, self.turret, self.barrel))
+
+    def surface_key(self, surface):
+        """Ключ кэша одной поверхности: None у авто-набора."""
+        lst = self.get(surface)
+        return None if lst is None else hash(lst)
 
     def with_parts(self, surface, parts):
         """Копия дизайна, где поверхность переведена в «Вручную» с этими деталями (None: обратно в «Авто»)."""

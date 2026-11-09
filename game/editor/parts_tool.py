@@ -7,9 +7,10 @@ from dataclasses import replace
 from engine import PX_PER_M, round_to, shortest_angle_diff
 from inputs import MouseOwner
 from structures import ROTATE_SNAP_DEG
+from vehicles.gun.params import BARREL_HIDDEN_M, BARREL_LEN_STEP_M
 from vehicles.parts import (
-    PART_TYPES, PartsDesign, AUTO_DESIGN, LIMITS, SURFACE_HULL, fits, anchors, freeze_auto, z_of,
-    center, contains, with_center, reshaped, new_part, extent_m,
+    PART_TYPES, PartsDesign, AUTO_DESIGN, LIMITS, SURFACE_HULL, SURFACE_BARREL, fits, anchors,
+    freeze_auto, z_of, center, contains, with_center, reshaped, new_part, extent_m, anchor_part,
 )
 from vehicles.parts.model import ANCHOR_HULL
 from . import gizmo
@@ -151,14 +152,17 @@ class PartsTool:
     # ГЕОМЕТРИЯ ЭКРАНА
     # ==========================================
     def frame(self):
-        """Корпус: центр спрайта = ось орудия, метры корпуса сдвинуты на axis_fwd_m. Башня: начало в оси.
-        Техника в конструкторе не едет, корпус и башня стоят в нуле, поэтому поворотов нет."""
+        """Корпус: центр спрайта = ось орудия."""
         v = self.vehicle
         spec = v.spec
         sx, sy = self.camera.world_to_screen(v.x, v.y)
         ppm = PX_PER_M * self.camera.zoom
         if self.surface == SURFACE_HULL:
             return Frame(round(sx), round(sy), ppm * spec.HULL_SCALE, spec.layout.axis_fwd_m)
+        if self.surface == SURFACE_BARREL:
+            length = round(spec.BARREL_LEN_M / BARREL_LEN_STEP_M) * BARREL_LEN_STEP_M
+            mid = spec.GUN_FRONT_M + length / 2.0 - BARREL_HIDDEN_M / 2.0     # как f в GunVehicleRenderer.draw
+            return Frame(round(sx), round(sy), ppm * spec.TURRET_SCALE, -mid)
         return Frame(round(sx), round(sy), ppm * spec.TURRET_SCALE, 0.0)
 
     def gizmo_geom(self):
@@ -323,7 +327,8 @@ class PartsTool:
 
     def _replace_selected(self, part, record):
         lst = list(self.manual)
-        lst[self.selected] = replace(part, anchor=ANCHOR_HULL)
+        part = anchor_part(replace(part, anchor=ANCHOR_HULL), self.spec, self.surface)
+        lst[self.selected] = part
         self._commit(self.design.with_parts(self.surface, lst), record)
 
     def _place(self, pos):
@@ -335,7 +340,7 @@ class PartsTool:
             lst = self._frozen_list()
         if len(lst) >= LIMITS[self.surface]:
             return
-        lst = list(lst) + [part]
+        lst = list(lst) + [anchor_part(part, self.spec, self.surface)]
         self.selected = len(lst) - 1
         self._commit(self.design.with_parts(self.surface, lst))
 
