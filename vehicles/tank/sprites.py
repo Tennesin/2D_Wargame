@@ -4,13 +4,16 @@ import math
 import pygame
 
 from engine import clamp, lerp_color
-from vehicles.chassis.hulls import max_canvas_half_m, NOSE_PIKE, NOSE_WEDGE, HULL_STYLE_FRONT_ENGINE
-from vehicles.chassis.hull_noses import PIKE_BAND_M
+from vehicles.chassis.hulls import max_canvas_half_m, NOSE_PIKE, NOSE_WEDGE
 from vehicles.render.base import GunVehicleRenderer
 from vehicles.render.pen import (
     Pen as _Pen, apply_paint as _paint, SS, OUTLINE,
-    HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, RING, GRILL, GRILL_LINE,
+    HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, RING,
     TURRET_MAIN, TURRET_LIGHT, TURRET_DARK, EMBLEM_COLOR,
+)
+from vehicles.parts import (
+    parts_for, draw_parts, PartCtx, SURFACE_HULL,
+    BAND_FENDER, BAND_DECK, BAND_COVER, BAND_TOP
 )
 
 HULL_HALF_M = max_canvas_half_m()   # один холст на все раскладки
@@ -29,11 +32,10 @@ SLAB_RIM = 0.20                     # ширина боковых граней (
 SLAB_LIGHT_DIR = (-0.55, -0.83)     # откуда падает свет: слева-сверху
 
 CHEVRON = [(0.00, -0.95), (0.40, -0.55), (0.40, -0.38), (0.00, -0.78), (-0.40, -0.38), (-0.40, -0.55)]
-TOOLBOX = (132, 124, 106)    # ящики ЗИП на крыльях
-CABLE = (66, 60, 52)
 
 class TankRenderer(GunVehicleRenderer):
     HULL_HALF_M = HULL_HALF_M
+    DESIGN_KIND = "mbt"  # ключ авто-набора деталей
 
     # ---------- корпус ----------
 
@@ -51,12 +53,15 @@ class TankRenderer(GunVehicleRenderer):
         hull_light = _paint(HULL_LIGHT, paint)
         hull_dark = _paint(HULL_DARK, paint)
         deck = _paint(DECK, paint)
-        front_engine = layout.hull_style == HULL_STYLE_FRONT_ENGINE
+
+        parts = parts_for(self.DESIGN_KIND, spec, SURFACE_HULL, look)
+        ctx = PartCtx(paint=paint, look=look, layout=layout)
 
         pen.poly(hull_main, layout.outline)
 
         for fx, fy, fw, fh in layout.fender_rects:           # подкрылки (полки над гусеницами)
             pen.rect(hull_dark, fx, fy, fw, fh)
+        draw_parts(pen, parts, BAND_FENDER, ctx)
 
         self._draw_skirts(pen, look.side + layout.base_skirt, paint, layout)
 
@@ -69,61 +74,19 @@ class TankRenderer(GunVehicleRenderer):
         else:
             pen.poly(hull_light, layout.front_plate)
             pen.rect(deck, *layout.deck_rect)
-        self._draw_seams(pen, layout, hull_dark)
+        draw_parts(pen, parts, BAND_DECK, ctx)               # швы палубы
 
         self._draw_front_kit(pen, look.front, paint, layout)
         self._draw_front_screen(pen, look.screen, paint, layout)
-
-        if front_engine:
-            self._draw_front_engine(pen, layout, hull_dark)   # до погона: башня и погон перекроют лишнее
+        draw_parts(pen, parts, BAND_COVER, ctx)              # моторная крышка носа (до погона: погон и башня её перекроют)
 
         # Погон башни: тёмное кольцо вокруг оси
         pen.ellipse(_paint(RING, paint), 0.0, -layout.axis_fwd_m,
                     layout.ring_r_m, layout.ring_r_m, outline=None)
 
-        if front_engine:
-            self._draw_stowage(pen, layout, paint)            # ЗИП и трос вместо кормовой решётки
-        else:
-            hx, hy, hr = layout.hatch                         # люк механика-водителя
-            hy = max(hy, layout.deck_rect[1] + hr + 0.12)
-            pen.ellipse(hull_dark, hx, hy, hr, hr)
-
-            gx, gy, gw, gh = layout.grill_rect                # МТО: решётка и жалюзи
-            pen.rect(GRILL, gx, gy, gw, gh)
-            ly = gy + 0.30
-            while ly < gy + gh - 0.10:
-                pen.line(GRILL_LINE, gx + 0.15, ly, gx + gw - 0.15, ly, 0.05)
-                ly += 0.25
-
-        pen.rect(hull_dark, *layout.rear_plate)               # кормовая плита
-        self._draw_exhaust(pen, look.speed, layout)
+        draw_parts(pen, parts, BAND_TOP, ctx)                # люк, решётка, ЗИП, трос, кормовая плита, выхлоп
 
         return self._finish(pygame.transform.smoothscale(big, (size, size)))
-
-    def _draw_front_engine(self, pen, layout, hull_dark):
-        """Моторная крышка на носу тяжёлого корпуса: от начала палубы до передней кромки башни."""
-        reach = layout.turret_front_m * layout.turret_k * layout.turret_scale_range[1]
-        y_end = -layout.axis_fwd_m - reach
-        if layout.nose == NOSE_PIKE:
-            lead = PIKE_BAND_M + 0.10
-        elif layout.nose == NOSE_WEDGE:
-            lead = 0.20
-        else:
-            lead = 0.25
-        half_w = layout.deck_rect[2] / 2.0 - 0.30
-        self._draw_deck(pen, y_end, hull_dark, layout.deck_rect[1],
-                        half_w=half_w, lead=lead, min_free=0.6)
-
-    @staticmethod
-    def _draw_stowage(pen, layout, paint):
-        """Ящики ЗИП слева и трос справа лежат на бортовых экранах."""
-        tool = _paint(TOOLBOX, paint)
-        y0, y1, w = layout.skirt_levels[0]
-        cx = layout.skirt_outer_x - w / 2.0              # середина полосы экрана
-        span = y1 - y0
-        pen.rect(tool, -cx - 0.15, y0 + span * 0.50, 0.30, 0.95, r=0.04)
-        pen.rect(tool, -cx - 0.15, y0 + span * 0.20, 0.30, 0.60, r=0.04)
-        pen.line(CABLE, cx, y0 + 0.5, cx, y1 - 0.5, 0.07)
 
     # ---------- башня ----------
 
