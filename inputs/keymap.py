@@ -26,6 +26,9 @@ class Action(Enum):
     SAVE = auto()
     TAKE_UPGRADE = auto()
     DECLINE_UPGRADE = auto()
+    UNDO = auto()
+    REDO = auto()
+    MIRROR = auto()
 
 class MouseOwner(Enum):
     """Кому сейчас принадлежит нажатая кнопка мыши (до её отпускания)."""
@@ -34,6 +37,7 @@ class MouseOwner(Enum):
     FIRE = auto()     # удержание ЛКМ в мире при включённом боевом состоянии
     PAN = auto()      # перетаскивание камеры зажатой ПКМ (свободная камера)
     PAINT = auto()    # мазок кисти ландшафта в редакторе карт
+    MOVE = auto()     # перемещение детали за белую точку (конструктор)
 
 # Удерживаемые действия: действие -> клавиши, любая из которых его включает
 HELD_KEYMAP = {
@@ -62,6 +66,9 @@ PRESS_KEYMAP = {
     Action.SAVE:            (pygame.K_s,),
     Action.TAKE_UPGRADE:    (pygame.K_e,),
     Action.DECLINE_UPGRADE: (pygame.K_f,),
+    Action.UNDO:            (pygame.K_z,),
+    Action.REDO:            (pygame.K_y,),
+    Action.MIRROR:          (pygame.K_m,),
 }
 
 # Обратная таблица для быстрого поиска по событию KEYDOWN: клавиша -> действие

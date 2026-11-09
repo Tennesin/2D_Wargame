@@ -14,12 +14,17 @@ from engine import PX_PER_M, VehicleKind
 from tools.tank_snapshot import SNAPSHOT_DIR
 from vehicles import VEHICLE_TYPES, RENDERERS, NOSE_PIKE
 from vehicles.gun.params import BARREL_LEN_STEP_M, BARREL_THICK_STEP_M
-from vehicles.parts import PartsDesign, freeze_auto, resolve
+from vehicles.parts import (
+    PartsDesign, freeze_auto, resolve, PART_TYPES,
+    new_part, reshaped, center, contains
+)
 
 ZOOM = 0.25                       # ppm = 25: зерно включено, спрайты небольшие
 BASE_DIR = os.path.join(SNAPSHOT_DIR, "parts_baseline")
 MAX_BAD_FRAC = 0.002              # допустимая доля отличающихся пикселей
 MAX_DIFF = 70                     # допустимое отличие канала у такого пикселя
+DESIGN_MAX_BAD_FRAC = 0.004       # проверка дизайна: допускаем сдвиг тонкой линии на 1 пиксель суперсэмплинга
+DESIGN_MAX_DIFF = 140
 TEAM = (200, 60, 60)
 
 def _base(kind):
@@ -134,12 +139,25 @@ def check_design():
         print("мусор ->", "Авто" if d.is_auto else f"hull={d.hull}")
     return failed
 
+def check_geometry():
+    """Поворот, отражение и размер идут вокруг центра: центр габарита не должен уезжать."""
+    failed = 0
+    for kind, ptype in PART_TYPES.items():
+        p = new_part(kind, ptype.surfaces[0], 0.3, 0.4)
+        for change in ({"angle": 37.0}, {"mirror": True}, {"angle": 200.0, "mirror": True}):
+            q = reshaped(p, **change)
+            cx, cy = center(q)
+            if abs(cx - 0.3) > 1e-9 or abs(cy - 0.4) > 1e-9 or not contains(q, cx, cy, 0.0):
+                print(f"ГЕОМЕТРИЯ {kind} {change}: центр ({cx:.4f}; {cy:.4f})")
+                failed += 1
+    return failed
+
 def main():
     save = "--save" in sys.argv
     pygame.init()
     pygame.display.set_mode((1, 1))
     if "--design" in sys.argv:
-        failed = check_design()
+        failed = check_geometry() + check_design()
         print("Дизайн: всё совпадает." if not failed else f"Дизайн: проблем {failed}")
         pygame.quit()
         return

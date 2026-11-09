@@ -7,6 +7,10 @@ from .wall_tool import WallTool
 from .rock_tool import RockTool
 from .land_tool import LandTool
 from .overlays import RockOverlay, BrushOverlay
+from .parts_tool import PartsTool
+from .parts_overlay import PartsOverlay
+from .part_icons import make_part_icons
 
 __all__ = ["load_walls", "collect_walls", "EditorBar", "Dialog", "WallTool",
-           "RockTool", "LandTool", "RockOverlay", "BrushOverlay"]
+           "RockTool", "LandTool", "RockOverlay", "BrushOverlay",
+           "PartsTool", "PartsOverlay", "make_part_icons"]

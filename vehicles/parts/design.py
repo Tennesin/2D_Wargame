@@ -7,6 +7,7 @@ from engine import point_in_convex
 from vehicles.gun.params import BARREL_HIDDEN_M
 from .model import Part, SURFACES, SURFACE_HULL, SURFACE_TURRET, SURFACE_BARREL, ANCHOR_HULL
 from .registry import PART_TYPES
+from .geometry import center
 
 FORMAT_VERSION = 1
 LIMITS = {SURFACE_HULL: 60, SURFACE_TURRET: 40, SURFACE_BARREL: 8}   # деталей на поверхность
@@ -71,8 +72,8 @@ def _in_rect(x0, y0, x1, y1, x, y):
     return x0 - e <= x <= x1 + e and y0 - e <= y <= y1 + e
 
 def fits(p, spec, surface):
-    """Помещается ли деталь (её опорная точка x, y в абсолютных метрах поверхности)."""
-    x, y = p.x, p.y
+    """Помещается ли деталь: центр её габарита лежит в допустимой области."""
+    x, y = center(p)
     if surface == SURFACE_HULL:
         lay = spec.layout
         if point_in_convex(lay.outline, x, y):
@@ -84,6 +85,21 @@ def fits(p, spec, surface):
         return abs(x) <= TURRET_BOX_M and abs(y) <= TURRET_BOX_M
     half = (spec.BARREL_LEN_M + BARREL_HIDDEN_M) / 2.0
     return abs(x) <= BARREL_BOX_X_M and abs(y) <= half + 0.05
+
+def fit_polygons(spec, surface):
+    """Многоугольники допустимой области поверхности."""
+    def box(x0, y0, x1, y1):
+        return ((x0, y0), (x1, y0), (x1, y1), (x0, y1))
+    if surface == SURFACE_HULL:
+        lay = spec.layout
+        polys = [tuple(lay.outline)]
+        polys += [box(fx, fy, fx + fw, fy + fh) for fx, fy, fw, fh in lay.fender_rects]
+        polys += [box(*r) for r in lay.track_rects]
+        return polys
+    if surface == SURFACE_TURRET:
+        return [box(-TURRET_BOX_M, -TURRET_BOX_M, TURRET_BOX_M, TURRET_BOX_M)]
+    half = (spec.BARREL_LEN_M + BARREL_HIDDEN_M) / 2.0 + 0.05
+    return [box(-BARREL_BOX_X_M, -half, BARREL_BOX_X_M, half)]
 
 def resolve(parts, spec, surface):
     """Ручные детали -> то, что рисует рендерер: абсолютные координаты, только помещающиеся.
@@ -106,8 +122,8 @@ def resolve(parts, spec, surface):
 
 def part_to_dict(p):
     return {"k": p.kind, "s": p.surface, "a": p.anchor,
-            "x": round(p.x, 3), "y": round(p.y, 3), "w": round(p.w, 3), "h": round(p.h, 3),
-            "r": round(p.angle, 2), "m": p.mirror, "var": p.variant, "z": p.z}
+            "x": round(p.x, 4), "y": round(p.y, 4), "w": round(p.w, 4), "h": round(p.h, 4),
+            "r": round(p.angle, 3), "m": p.mirror, "var": p.variant, "z": p.z}
 
 def part_from_dict(d, surface):
     """Деталь из словаря или None. Неизвестный тип, чужая поверхность, неизвестный якорь, мусор
@@ -128,11 +144,11 @@ def part_from_dict(d, surface):
     var, z, mirror = d.get("var", 0), d.get("z"), d.get("m", False)
     return Part(
         kind=kind,
-        x=round(_limit(x, -COORD_LIMIT_M, COORD_LIMIT_M), 3),
-        y=round(_limit(y, -COORD_LIMIT_M, COORD_LIMIT_M), 3),
-        w=0.0 if ptype.w_range is None else round(_limit(w, *ptype.w_range), 3),
-        h=0.0 if ptype.h_range is None else round(_limit(h, *ptype.h_range), 3),
-        angle=round(r % 360.0, 2),
+        x=round(_limit(x, -COORD_LIMIT_M, COORD_LIMIT_M), 4),
+        y=round(_limit(y, -COORD_LIMIT_M, COORD_LIMIT_M), 4),
+        w=0.0 if ptype.w_range is None else round(_limit(w, *ptype.w_range), 4),
+        h=0.0 if ptype.h_range is None else round(_limit(h, *ptype.h_range), 4),
+        angle=round(r % 360.0, 3),
         mirror=mirror if isinstance(mirror, bool) else False,
         variant=_limit(var, 0, VARIANT_MAX) if _int(var) else 0,
         z=_limit(z, 0, Z_MAX) if _int(z) else None,

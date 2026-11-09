@@ -17,6 +17,7 @@ from .tank_panel import (
 from .upgrade_icons import make_upgrade_icon, CELL_ICON_PX
 from .feed_icons import FeedIcon, FeedTone
 from .damage_feed import DamageFeed, feed_zone
+from .palette import PartPalette
 
 __all__ = ["DELETE_BUTTON_COLORS", "ACTIVE_BUTTON_COLORS", "Button", "Checkbox", "Slider", "ScrollArea",
            "SectionHeader", "ParamRow", "make_param_row", "StatsBlock", "InfoText", "AmmoBar",
@@ -25,4 +26,4 @@ __all__ = ["DELETE_BUTTON_COLORS", "ACTIVE_BUTTON_COLORS", "Button", "Checkbox",
            "MiniMap", "AccordionRow", "UpgradeBar", "CellView", "OfferView","TankPanel", "SILHOUETTE_BOX",
            "ModuleView", "MODULE_OK", "MODULE_BROKEN", "MODULE_REPAIR", "TERRAIN_PLAIN",
            "TERRAIN_WATER", "TERRAIN_MUD", "make_upgrade_icon", "CELL_ICON_PX",
-           "FeedIcon", "FeedTone", "DamageFeed", "feed_zone"]
+           "FeedIcon", "FeedTone", "DamageFeed", "feed_zone", "PartPalette"]

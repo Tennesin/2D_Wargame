@@ -2,13 +2,17 @@
 и «Дизайн» для типов, у которых есть дизайн (сейчас ОБТ). Ключ панели: (VehicleKind, "build" | "design")."""
 from functools import partial
 
-from engine import VehicleKind
+from engine import VehicleKind, Param
+from inputs import Action, key_label
 from vehicles import (
     GUN_TUNE_PARAMS, VEHICLE_TYPES, FRONT_SCREEN, NOSE_FLAT, NOSE_PIKE, NOSE_MIN_FRONT_MM,
     SPECIAL_HEAT, SPECIAL_HESH, HESH_MIN_CAL_MM,
     TURRET_STYLES, TURRET_STYLE_RU, DESIGN_PARAMS
 )
-from ui import Panel, SectionHeader, StatsBlock, InfoText, ChoiceRow, make_param_row
+from ui import (
+    Panel, SectionHeader, StatsBlock, InfoText, ChoiceRow,
+    ActionButton, make_param_row, DELETE_BUTTON_COLORS
+)
 
 # Пояснения под ползунком мощности. Это текст интерфейса, поэтому он лежит здесь, а не в реестре техники.
 VEHICLE_NOTES = {
@@ -29,10 +33,54 @@ DESIGN_STATS = {
     VehicleKind.TD: ("Стоимость", "Масса", "Масштаб корпуса", "Крепление орудия", "Ось орудия от центра",
                      "Поворот корпуса", "Перезарядка"),
 }
+# Вкладка «Детали»
+PARTS_SURFACE_RU = {"hull": "Корпус", "turret": "Башня"}
+PARTS_BTN_MIRROR = "Отразить"
+PARTS_BTN_DELETE = "Удалить деталь"
+PARTS_BTN_UNDO = "Отменить"
+PARTS_BTN_REDO = "Повторить"
+PARTS_STAT_SEL = ("Тип", "Центр", "Угол", "Размер", "Положение")
+PARTS_STAT_ALL = ("Режим", "Деталей", "Не помещаются")
+PART_SIZE_PARAMS = {      # границы подменяются при выборе детали (ширина / радиус и длина / высота)
+    "part_w": Param("Ширина или радиус", "м", 0.0, 3.0, 0.0, 0.05, 2),
+    "part_h": Param("Высота или длина", "м", 0.0, 5.0, 0.0, 0.05, 2),
+}
 
 def _tab_row(tab):
     """Переключатель вкладок; его значение читает ConstructorScene._on_change."""
-    return ChoiceRow("tab", "Раздел", [("build", "Сборка"), ("design", "Дизайн")], tab)
+    return ChoiceRow("tab", "Раздел", [("build", "Сборка"), ("design", "Дизайн"), ("parts", "Детали")], tab)
+
+def build_parts_panel(kind):
+    """Вкладка «Детали»: поверхность, режим «Авто / Вручную», выбранная деталь, история."""
+    vt = VEHICLE_TYPES[kind]
+    delete, mirror = key_label(Action.DELETE_WALL), key_label(Action.MIRROR)
+    undo, redo = key_label(Action.UNDO), key_label(Action.REDO)
+    items = [
+        _tab_row("parts"),
+        InfoText("Слева выберите тип и кликните по зелёной области: центр детали должен лежать в ней. "
+                 "Клик по детали выбирает её: белая точка двигает, любая из двух дуг вращает "
+                 "(Shift: шаг 15°, Ctrl: без привязки к сетке). "
+                 f"{delete} удаляет, {mirror} отражает, Ctrl+{undo} и Ctrl+{redo} отменяют и повторяют, "
+                 "ПКМ и Esc снимают выбор, колёсико меняет масштаб."),
+        SectionHeader("Набор деталей"),
+        ChoiceRow("parts_surface", "Поверхность", [("hull", "Корпус")], "hull"),
+        ChoiceRow("parts_mode", "Режим", [("auto", "Авто"), ("manual", "Вручную")], "auto"),
+        InfoText("Авто: детали выводятся из ползунков брони и мощности. Вручную: набор сохранён, ползунки "
+                 "на него не влияют. Первая поставленная деталь тоже переводит в «Вручную»."),
+        SectionHeader("Выбранная деталь"),
+        StatsBlock(list(PARTS_STAT_SEL)),
+        make_param_row(PART_SIZE_PARAMS, "part_w"),
+        make_param_row(PART_SIZE_PARAMS, "part_h"),
+        InfoText("Ползунок не работает, если тип детали не использует этот размер."),
+        ActionButton(PARTS_BTN_MIRROR, None),
+        ActionButton(PARTS_BTN_DELETE, DELETE_BUTTON_COLORS),
+        SectionHeader("История"),
+        ActionButton(PARTS_BTN_UNDO, None),
+        ActionButton(PARTS_BTN_REDO, None),
+        SectionHeader("Дизайн"),
+        StatsBlock(list(PARTS_STAT_ALL)),
+    ]
+    return Panel(f"Конструктор: {vt.label}: детали", items)
 
 def build_vehicle_panel(kind):
     """Вкладка «Сборка» для типа техники kind: ползунки из vt.params плюс блоки характеристик."""
@@ -122,4 +170,5 @@ def build_vehicle_panels():
         panels[(kind, "build")] = build_vehicle_panel(kind)
         if vt.design_defaults:
             panels[(kind, "design")] = build_design_panel(kind)
+            panels[(kind, "parts")] = build_parts_panel(kind)
     return panels
