@@ -53,7 +53,7 @@ class CombatController:
         stats, target = im.stats, im.target
         full_pen = stats.penetration * im.power
         full_dmg = stats.damage * im.power * self._incoming_k(target, stats.kind)
-        mh = module_hit(target, full_pen, full_dmg, stats, im.cos, im.x, im.y)
+        mh = module_hit(target, full_pen, full_dmg, stats, im.cos, im.x, im.y, im.dx, im.dy)
         pen = mh.pen                                      # остаток пробития после гусеницы или экрана
         res = target.hit_result(pen, im.cos, im.normal)
         hp_before = getattr(target, "hp", 0.0)
@@ -61,8 +61,10 @@ class CombatController:
         is_vehicle = target.target_type is TargetType.VEHICLE
         if is_vehicle:
             self.match_stats.on_damage(im.owner, target, hp_before - target.hp, "shot", direct=True)
-        if mh.module is not None and mh.pen < full_pen:
-            self.notifier.on_module_absorb(im.owner, target, mh.module, full_pen - mh.pen)
+        if mh.screen_lost > 0.0:
+            self.notifier.on_module_absorb(im.owner, target, "screen", mh.screen_lost)
+        if mh.module is not None and mh.track_lost > 0.0:
+            self.notifier.on_module_absorb(im.owner, target, mh.module, mh.track_lost)
         self.notifier.on_hit(im.owner, target, im.normal, res, dealt)
         if is_vehicle and target.alive:
             self._hit_tracks(im, target, mh, full_pen, full_dmg)

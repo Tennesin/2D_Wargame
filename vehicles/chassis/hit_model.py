@@ -5,8 +5,9 @@ import math
 from engine import (
     heading_vector, convex_segment_hit, to_local_frame, vec_to_local, vec_from_local, PX_PER_M,
 )
-from combat import resolve_hit
-from vehicles.chassis.params import ARMOR_K
+from combat import resolve_hit, effective_armor
+from vehicles.chassis.params import ARMOR_K, SCREEN_RAY_BACK_M, SCREEN_RAY_FWD_M
+from vehicles.chassis.screens import ray_crossings
 
 class HitModelMixin:
 
@@ -85,7 +86,7 @@ class HitModelMixin:
         base *= plate.k
         if zone == "front":
             base += s.screen_mm
-        elif zone == "side":
+        if zone == "side":
             base += s.track_mm
         return base * ARMOR_K * self.mods.armor_k
 
@@ -108,7 +109,13 @@ class HitModelMixin:
         nu, nv = best[1]
         cos_i = abs(ex * nu + ey * nv)
         normal = vec_from_local(nu, nv, hull_deg)
-        return self.armor_at(normal, hull_deg), cos_i
+        # экраны на пути до входа в корпус: луч идёт от стрелка к цели, вход на best[0] * span
+        span = 2.0 * reach
+        lost = 0.0
+        for t, s, c in ray_crossings(self.spec.screens, tx + ex * reach, ty + ey * reach, -ex, -ey, 0.0, span):
+            if t <= best[0] * span + SCREEN_RAY_FWD_M:
+                lost += effective_armor(s.mm * self.mods.armor_k, c)
+        return self.armor_at(normal, hull_deg), cos_i, lost
 
     def facing_normal(self, x, y):
         """Наружная нормаль грани, ближайшей к точке (x, y)."""
@@ -123,6 +130,17 @@ class HitModelMixin:
             return fx * sign, fy * sign                   # лоб или корма
         sign = 1.0 if across >= 0.0 else -1.0
         return rx * sign, ry * sign                       # правый или левый борт
+
+    def screens_along_world(self, x, y, dx, dy):
+        """Листы на пути снаряда через точку попадания (x, y) в направлении (dx, dy)."""
+        screens = self.spec.screens
+        if not screens:
+            return ()
+        u, v = self._to_hull_local(x, y)
+        du, dv = vec_to_local(dx, dy, self.hull_angle)
+        k = self.mods.armor_k
+        return [(s.mm * k, cos) for _, s, cos in
+                ray_crossings(screens, u, v, du, dv, SCREEN_RAY_BACK_M, SCREEN_RAY_FWD_M)]
 
     def armor_facing(self, x, y):
         """Броня грани, ближайшей к точке (x, y) (мм). Нужна взрывам по площади: у них нет «луча»."""
@@ -140,9 +158,3 @@ class HitModelMixin:
 
     def hit_result(self, penetration, cos_impact=1.0, normal=None):
         return resolve_hit(penetration, self.armor_at(normal), cos_impact)
-
-    def frag_armor_bonus(self, normal=None):
-        """Экраны для осколков считаются втрое: 1x уже есть в armor_at, добавляем ещё 2x (только на лбу)."""
-        if self.spec.screen_mm > 0.0 and self.zone_at(normal) == "front":
-            return 2.0 * self.spec.screen_mm * ARMOR_K * self.mods.armor_k
-        return 0.0

@@ -1,9 +1,11 @@
 """vehicles/parts/library.py — типы деталей и функции их рисования."""
-from vehicles.render.pen import (
-    apply_paint, OUTLINE, HULL_DARK, GRILL, GRILL_LINE, RIVET_R_M,
-    TURRET_MAIN, TURRET_DARK, GUN_LIGHT, GUN_DARK, EMBLEM_COLOR,
+from vehicles.render.pen import SCREEN_MAIN, SCREEN_MESH
+from vehicles.chassis.params import (
+    SCREEN_GAP_M, SCREEN_RAIL_W_M, SCREEN_POST_W_M, SCREEN_THICK_BASE_M,
+    SCREEN_THICK_PER_MM, SCREEN_LEN_MIN_M, SCREEN_LEN_MAX_M
 )
-from .model import SURFACE_HULL, SURFACE_TURRET, SURFACE_BARREL
+from .model import CAT_FUNCTIONAL
+from .screens import effective_mm
 from .registry import part_type
 
 TOOLBOX = (132, 124, 106)           # ящики ЗИП
@@ -213,3 +215,28 @@ def draw_muzzle_brake(p, part, ctx):
     p.rect(GUN_DARK, 0.0, 0.0, part.w, part.h, r=0.04)
     for y in (0.13, 0.27):
         p.line(GUN_LIGHT, 0.03, y, part.w - 0.03, y, 0.04)
+
+# ==========================================
+# ЭКРАНЫ
+# ==========================================
+
+def _draw_sheet(p, w, thick, color):
+    """Лист на рельсе: тонкая полоска на корпусе (+y), две стойки к листу, сам лист на y = 0."""
+    half = w / 2.0
+    p.line(SCREEN_MESH, -half, SCREEN_GAP_M, half, SCREEN_GAP_M, SCREEN_RAIL_W_M)
+    for x in (-half + 0.06, half - 0.06):
+        p.line(SCREEN_MESH, x, SCREEN_GAP_M, x, 0.0, SCREEN_POST_W_M)
+    p.line(OUTLINE, -half, 0.0, half, 0.0, thick + 0.04)
+    p.line(color, -half, 0.0, half, 0.0, thick)
+
+@part_type("screen", "Экран (броня)", surfaces=HULL, z=40, category=CAT_FUNCTIONAL,
+           w=(SCREEN_LEN_MIN_M, SCREEN_LEN_MAX_M))
+def draw_screen(p, part, ctx):
+    """Бронелист: влияет на игру. Начало: середина листа. w: длина, mm: толщина (None: общая шкала)."""
+    mm = effective_mm(part, ctx.screen_mm)
+    _draw_sheet(p, part.w, SCREEN_THICK_BASE_M + SCREEN_THICK_PER_MM * mm, apply_paint(SCREEN_MAIN, ctx.paint))
+
+@part_type("turret_screen", "Экран башни (декор)", surfaces=TURRET, z=35, w=(SCREEN_LEN_MIN_M, 2.5))
+def draw_turret_screen(p, part, ctx):
+    """Декоративный лист вокруг башни: на игру, массу и цену не влияет."""
+    _draw_sheet(p, part.w, SCREEN_THICK_BASE_M + SCREEN_THICK_PER_MM * 15.0, apply_paint(SCREEN_MAIN, ctx.paint))

@@ -1,13 +1,9 @@
-"""vehicles/chassis/tracks.py — гусеницы и внешние модули корпуса: какую гусеницу или лобовой экран
-задела точка попадания, сбитие, ремонт, влияние на управление и анимация траков.
-Миксин для Vehicle: состояние (self.tracks) создаёт Vehicle.__init__.
-Экран живёт здесь же, потому что module_at сначала спрашивает про гусеницу, а потом про экран."""
+"""vehicles/chassis/tracks.py — гусеницы и внешние модули корпуса."""
 import math
 
 from engine import PX_PER_M, clamp
-from vehicles.chassis.hull_noses import screen_hit
 from vehicles.chassis.params import (
-    TRACK_LINK_M, ONE_TRACK_SPEED_K, SCREEN_FACE_EPS_PX, TRACK_EDGE_ZONE_M, TRACK_HIT_TOL_M,
+    TRACK_LINK_M, ONE_TRACK_SPEED_K, TRACK_EDGE_ZONE_M, TRACK_HIT_TOL_M,
 )
 from vehicles.chassis.running_gear import LEFT, RIGHT, TRACK_SIDES
 
@@ -42,24 +38,10 @@ class TracksMixin:
                 return side
         return None
 
-    def screen_at(self, x, y):
-        """Попала ли точка (x, y) прямо в лист лобового экрана (а не просто в лоб).
-        Если экранов нет (screen_mm = 0), всегда False."""
-        s = self.spec
-        if s.screen_mm <= 0.0:
-            return False
-        u, v = self._to_hull_local(x, y)
-        k = s.HULL_SCALE * PX_PER_M
-        return screen_hit(s.layout, u, v, SCREEN_FACE_EPS_PX / k)
-
     def module_at(self, x, y):
-        """Внешний модуль, который первым задевает точка попадания (x, y)."""
+        """Целая гусеница, которую задевает точка попадания."""
         side = self.track_at(x, y)
-        if side is not None and not self.tracks.is_broken(side):
-            return side
-        if self.screen_at(x, y):
-            return "screen"
-        return None
+        return side if side is not None and not self.tracks.is_broken(side) else None
 
     @property
     def track_thickness_mm(self):

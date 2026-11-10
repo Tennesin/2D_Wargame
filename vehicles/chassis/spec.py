@@ -7,14 +7,14 @@ from typing import Optional
 
 from vehicles.chassis.hulls import HullLayout
 from engine import PX_PER_M, clamp, round_to, lerp
+from vehicles.chassis.screens import screen_mass_t
 from vehicles.chassis.params import (
     STEEL_T_PER_M3, V_CAP_KMH, PW_SCALE, V_MASS_EXP, V_MIN_KMH, V_MAX_CLAMP_KMH,
-    V_AVG_BASE, V_AVG_GAIN, BACK_SPEED_K, V_BACK_CAP_KMH,
+    V_AVG_BASE, V_AVG_GAIN, BACK_SPEED_K, V_BACK_CAP_KMH, SCREEN_TURN_FULL_SHARE,
     ACCEL_K, ACCEL_MIN, ACCEL_MAX, ACCEL_TAIL_FLOOR, REVERSE_ACCEL_K, COAST_DECEL, BRAKE_DECEL,
     HULL_TURN_CAP, HULL_TURN_MIN, HULL_ALPHA_REF, HULL_ALPHA_MIN, HULL_ALPHA_MAX,
-    HP_EXP, HP_STEP, FRONT_SCREEN, SCREEN_MASS_K, SCREEN_TURN_LOSS,
-    TRACK_HP_K, TRACK_MM_RANGE, TRACK_MM_STEP, TRACK_SIZE_K_RANGE, INERTIA_K,
-    TRACK_REPAIR_S_RANGE, RAM_MASS_RANGE_T
+    HP_EXP, HP_STEP, SCREEN_TURN_LOSS, TRACK_HP_K, TRACK_MM_RANGE, TRACK_MM_STEP,
+    TRACK_SIZE_K_RANGE, INERTIA_K, TRACK_REPAIR_S_RANGE, RAM_MASS_RANGE_T
 )
 from vehicles.chassis.running_gear import RunningGear, TRACKS
 
@@ -24,18 +24,17 @@ def armor_masses(areas_m2, front, side, rear, size_k):
     return tuple(mm / 1000.0 * area * STEEL_T_PER_M3 * k2
                  for mm, area in zip((front, side, rear), areas_m2))
 
-def chassis_masses(body, area_k, front, side, rear, power, payload_t, screen_mm=0.0):
-    """Массы шасси: (двигатель, «начинка», size_k, (лоб, борт, корма))"""
+def chassis_masses(body, area_k, front, side, rear, power, payload_t, screens=()):
+    """Массы шасси: (двигатель, «начинка», size_k, (лоб, борт, корма, экраны))"""
     m_engine = body.engine_t_per_hp * power
     filling = body.fixed_t + m_engine + payload_t
     areas = tuple(a * k for a, k in zip(body.areas_m2, area_k))
-    front_eff = front + screen_mm * SCREEN_MASS_K
     size_mass = filling
     if body.size_armor_k > 0.0:
-        size_mass += body.size_armor_k * sum(armor_masses(areas, front_eff, side, rear, 1.0))
+        size_mass += body.size_armor_k * sum(armor_masses(areas, front, side, rear, 1.0))
     ref = body.ref_size_mass_t or body.ref_filling_t
     size_k = (size_mass / ref) ** (1.0 / 3.0)
-    armor = armor_masses(areas, front_eff, side, rear, size_k)
+    armor = armor_masses(areas, front, side, rear, size_k) + (screen_mass_t(screens) * size_k ** 2,)
     return m_engine, filling, size_k, armor
 
 @dataclass(frozen=True)
@@ -64,7 +63,8 @@ class ChassisBody:
 class ChassisSpec:
     """Входы уже должны быть в допустимых границах (это делает конкретная спецификация)."""
 
-    def __init__(self, body, front, side, rear, power, payload_t, screen_mm=0.0):
+    def __init__(self, body, front, side, rear, power, payload_t, screen_mm=0.0, screens=()):
+        self.screens = tuple(screens)
         if body.layout is None:
             raise ValueError("ChassisBody без раскладки корпуса: задайте layout (vehicles/chassis/hulls.py)")
         self.screen_mm = screen_mm
@@ -87,10 +87,10 @@ class ChassisSpec:
         b = self.body
         self.m_fixed = b.fixed_t
         (self.m_engine, self.filling, self.size_k,
-         (self.m_front, self.m_side, self.m_rear)) = chassis_masses(
+         (self.m_front, self.m_side, self.m_rear, self.m_screens)) = chassis_masses(
             b, self.layout.area_k, self.front, self.side, self.rear,
-            self.power, self.payload_t, self.screen_mm)
-        self.m_armor = self.m_front + self.m_side + self.m_rear
+            self.power, self.payload_t, self.screens)
+        self.m_armor = self.m_front + self.m_side + self.m_rear + self.m_screens
         self.mass = self.filling + self.m_armor
 
     def _calc_ratios(self):
@@ -111,7 +111,8 @@ class ChassisSpec:
 
         # момент сопротивления ~ M * size_k, момент тяги ~ P * size_k, инерция ~ M * size_k²
         self.q_turn = self.q_drive / self.size_k
-        screen_k = 1.0 - SCREEN_TURN_LOSS * self.screen_mm / FRONT_SCREEN.max
+        share = self.m_screens / (SCREEN_TURN_FULL_SHARE * self.mass)
+        screen_k = 1.0 - SCREEN_TURN_LOSS * clamp(share, 0.0, 1.0)
         turn_k = screen_k * self.layout.turn_k                 # экраны и форма носа (клин)
         self.hull_turn = max(
             HULL_TURN_MIN,

@@ -5,10 +5,13 @@ from typing import Optional
 
 from engine import point_in_convex
 from vehicles.gun.params import BARREL_HIDDEN_M, BARREL_THICK_STEP_M
+from vehicles.chassis.params import SCREEN_MM_MIN, FRONT_SCREEN
+from vehicles.chassis.screens import mount_edges
 from .model import Part, SURFACES, SURFACE_HULL, SURFACE_TURRET, SURFACE_BARREL, ANCHOR_HULL
 from .registry import PART_TYPES
 from .geometry import center, corners
 from .shapes import turret_outline, turret_fit_outline
+from .screens import locate, accept, turret_edges
 
 BARREL_OVERHANG_M = 0.15     # насколько деталь может выступать за боковую кромку ствола
 
@@ -47,8 +50,7 @@ def _limit(v, lo, hi):
 # ==========================================
 
 def anchors(spec, surface):
-    """{имя: (x, y)}: где якоря поверхности у этой техники (метры поверхности).
-    Нет якоря у этой раскладки (например, подкрылков у тяжёлого): имени нет в словаре."""
+    """{имя: (x, y)}: где якоря поверхности у этой техники (метры поверхности)."""
     out = {ANCHOR_HULL: (0.0, 0.0)}
     if surface == SURFACE_HULL:
         lay = spec.layout
@@ -82,14 +84,17 @@ def barrel_thick_m(spec):
     return round(spec.BARREL_THICK_M / BARREL_THICK_STEP_M) * BARREL_THICK_STEP_M
 
 def barrel_box(spec):
-    """(x0, y0, x1, y1): область центров деталей ствола. По x это сам ствол,
-    по y видимая часть: от дульного среза до начала участка под башней или маской."""
+    """(x0, y0, x1, y1): область центров деталей ствола."""
     half = (spec.BARREL_LEN_M + BARREL_HIDDEN_M) / 2.0
     hw = barrel_thick_m(spec) / 2.0
     return -hw, -half, hw, half - BARREL_HIDDEN_M
 
 def fits(p, spec, surface):
     """Помещается ли деталь: центр её габарита лежит в допустимой области."""
+    if p.kind == "screen":
+        return surface == SURFACE_HULL and locate(mount_edges(spec.layout), p) is not None
+    if p.kind == "turret_screen":
+        return surface == SURFACE_TURRET and locate(turret_edges(spec.layout.turret_style), p) is not None
     x, y = center(p)
     if surface == SURFACE_HULL:
         lay = spec.layout
@@ -122,8 +127,7 @@ def fit_polygons(spec, surface):
     return [box(x0, y0, x1, y1)]
 
 def resolve(parts, spec, surface):
-    """Ручные детали -> то, что рисует рендерер: абсолютные координаты, только помещающиеся.
-    Не поместившиеся пропускаются, сами данные не трогаются."""
+    """Ручные детали -> то, что рисует рендерер."""
     table = anchors(spec, surface)
     out = []
     for p in parts:
@@ -134,10 +138,15 @@ def resolve(parts, spec, surface):
             p = replace(p, x=p.x + base[0], y=p.y + base[1], anchor=ANCHOR_HULL)
         if fits(p, spec, surface):
             out.append(p)
+    if surface == SURFACE_HULL:
+        good = [q for q, *_ in accept(spec.layout, [p for p in out if p.kind == "screen"])]
+        out = [p for p in out if p.kind != "screen" or any(p is q for q in good)]
     return tuple(out)
 
 def anchor_part(p, spec, surface):
     """Деталь в абсолютных метрах -> та же деталь, привязанная к ближайшему якорю поверхности."""
+    if p.kind in ("screen", "turret_screen"):
+        return p
     names = ANCHOR_CANDIDATES.get(surface)
     if not names or p.anchor != ANCHOR_HULL:
         return p
@@ -154,11 +163,11 @@ def anchor_part(p, spec, surface):
 def part_to_dict(p):
     return {"k": p.kind, "s": p.surface, "a": p.anchor,
             "x": round(p.x, 4), "y": round(p.y, 4), "w": round(p.w, 4), "h": round(p.h, 4),
-            "r": round(p.angle, 3), "m": p.mirror, "var": p.variant, "z": p.z}
+            "r": round(p.angle, 3), "m": p.mirror, "var": p.variant, "z": p.z,
+            "mm": None if p.mm is None else round(p.mm, 2)}
 
 def part_from_dict(d, surface):
-    """Деталь из словаря или None. Неизвестный тип, чужая поверхность, неизвестный якорь, мусор
-    в числах: пропуск. Числа подрезаются под границы типа."""
+    """Деталь из словаря или None."""
     if not isinstance(d, dict):
         return None
     kind = d.get("k")
@@ -173,6 +182,8 @@ def part_from_dict(d, surface):
         return None
     x, y, w, h, r = (float(v) for v in vals)
     var, z, mirror = d.get("var", 0), d.get("z"), d.get("m", False)
+    mm = d.get("mm")
+    mm = round(_limit(float(mm), SCREEN_MM_MIN, FRONT_SCREEN.max), 2) if (kind == "screen" and _num(mm)) else None
     return Part(
         kind=kind,
         x=round(_limit(x, -COORD_LIMIT_M, COORD_LIMIT_M), 4),
@@ -183,7 +194,7 @@ def part_from_dict(d, surface):
         mirror=mirror if isinstance(mirror, bool) else False,
         variant=_limit(var, 0, VARIANT_MAX) if _int(var) else 0,
         z=_limit(z, 0, Z_MAX) if _int(z) else None,
-        surface=surface, anchor=anchor)
+        surface=surface, anchor=anchor, mm=mm)
 
 # ==========================================
 # ДИЗАЙН ЦЕЛИКОМ
@@ -226,8 +237,7 @@ class PartsDesign:
 
     @classmethod
     def from_data(cls, data):
-        """Принимает None, словарь из файла или готовый PartsDesign. Мусор и версия новее
-        нашей: «Авто». Битые детали пропускаются, остальные загружаются."""
+        """Принимает None, словарь из файла или готовый PartsDesign."""
         if isinstance(data, cls):
             return data
         if not isinstance(data, dict):

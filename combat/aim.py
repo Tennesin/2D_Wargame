@@ -44,7 +44,8 @@ def compute_aim(tank, targets):
     point = (tank.x + (end[0] - tank.x) * t, tank.y + (end[1] - tank.y) * t)
     cos_impact = 1.0 if normal is None else impact_cos(
         stats, abs(dx * normal[0] + dy * normal[1]), target, point)
-    pen = pen_after_modules(target, stats.penetration, stats, *point, cos_impact=cos_impact)
+    pen = pen_after_modules(target, stats.penetration, stats, *point,
+                            cos_impact=cos_impact, dx=dx, dy=dy)
     res = target.hit_result(pen, cos_impact, normal)
 
     frag_frac = 0.0 if target.target_type is TargetType.TERRAIN else stats.splash_frac

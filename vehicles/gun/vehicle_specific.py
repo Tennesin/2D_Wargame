@@ -5,6 +5,8 @@ from engine import PX_PER_M, clamp, AmmoKind
 from ..chassis.hulls import NOSE_FLAT
 from ..chassis.params import COLLISION_MARGIN_PX, FRONT_SCREEN, SCREEN_LOOK_STEPS
 from ..chassis.spec import ChassisSpec
+from ..chassis.screens import equivalent_armor
+from ..parts.screens import screens_of
 from ..parts.design import PartsDesign
 from ..parts.model import SURFACE_BARREL
 from ..cost import raw_cost, round_cost
@@ -29,6 +31,9 @@ class GunVehicleSpec(ChassisSpec):
         """make_gun(size_k) -> GunSpec: создаёт орудие, когда шасси уже посчитано."""
         super().__init__(body, front, side, rear, power, payload_t=payload_t, screen_mm=screen_mm)
         self.parts_design = PartsDesign.from_data(parts_design)
+        screens = screens_of(body.layout, self.parts_design, screen_mm)
+        super().__init__(body, front, side, rear, power, payload_t=payload_t,
+                         screen_mm=screen_mm, screens=screens)
         self.PARTS_KEY = self.parts_design.key
         self.BARREL_KEY = self.parts_design.surface_key(SURFACE_BARREL)
         self.gun = make_gun(self.size_k)
@@ -80,7 +85,8 @@ class GunVehicleSpec(ChassisSpec):
         """Цена по формуле танка."""
         prof = self.profile
         length = self.gun.length_cal if self.gun.length_cal is not None else REF_L_CAL
-        raw = raw_cost(self.cal, self.front + self.screen_mm, self.side, self.rear, self.power,
+        f_add, s_add = equivalent_armor(self.layout, self.screens)
+        raw = raw_cost(self.cal, self.front + f_add, self.side + s_add, self.rear, self.power,
                        self.damage_k, self.pen_k * length_pen_k(length),
                        prof.dmg_mult(self.cal), prof.pen_mult(self.cal), length_cost_k(length),
                        self.TURRET_MASS_K)
@@ -95,6 +101,13 @@ class GunVehicleSpec(ChassisSpec):
             speed=level(self.q_pw, self.LOOK_SPEED_RATIO),
             screen=level(self.screen_mm, SCREEN_LOOK_STEPS),
         )
+
+    @property
+    def screens_text(self):
+        if not self.screens:
+            return "нет"
+        front = sum(1 for s in self.screens if s.face == "front")
+        return f"лоб {front}, борта {len(self.screens) - front}; {self.m_screens:.1f} т"
 
     # ==========================================
     # СВОЙСТВА ОРУДИЯ

@@ -65,7 +65,6 @@ class TankRenderer(GunVehicleRenderer):
         draw_parts(pen, parts, BAND_DECK, ctx)               # швы палубы
 
         self._draw_front_kit(pen, look.front, paint, layout)
-        self._draw_front_screen(pen, look.screen, paint, layout)
         draw_parts(pen, parts, BAND_COVER, ctx)              # моторная крышка носа (до погона: погон и башня её перекроют)
 
         # Погон башни: тёмное кольцо вокруг оси
@@ -86,7 +85,7 @@ class TankRenderer(GunVehicleRenderer):
         pen = _Pen(big, ppm * SS)                            # центр спрайта = ось башни
 
         parts = parts_for(self.DESIGN_KIND, spec, SURFACE_TURRET, look, emblem)
-        ctx = PartCtx(paint=paint, look=look, layout=spec.layout, team=team_color)
+        ctx = PartCtx(paint=paint, look=look, layout=spec.layout, team=team_color, screen_mm=spec.screen_mm)
 
         colors = (_paint(TURRET_MAIN, paint), _paint(TURRET_LIGHT, paint), _paint(TURRET_DARK, paint))
         if style == "oval":

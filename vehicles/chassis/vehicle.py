@@ -188,13 +188,14 @@ class Vehicle(MotionMixin, TracksMixin, HitModelMixin, ShockMixin, Damageable):
         nose = getattr(s, "nose", None)
         pike = nose == NOSE_PIKE
         rows = [
-            ("Броня: лоб (по оси)" if pike else "Броня: лоб",
-             f"{s.front:.0f}" + (f" + {s.screen_mm:.0f}" if s.screen_mm else "") + " мм"),
+            ("Броня: лоб (по оси)" if pike else "Броня: лоб", f"{s.front:.0f} мм"),
             ("Броня: борт", f"{s.side:.0f} + {s.track_mm:.0f} мм"),
             ("Броня: корма", f"{s.rear:.0f} мм"),
             ("Масса", f"{fmt_num(s.mass, 1)} т"),
             ("Гусеницы", self._track_status()),
         ]
+        if s.screens:
+            rows.insert(2, ("Экраны", s.screens_text))
         if nose in (NOSE_PIKE, NOSE_WEDGE):
             rows.insert(1, ("Нос корпуса", NOSE_RU[nose]))
         return title, rows

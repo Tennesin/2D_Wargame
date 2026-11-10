@@ -21,6 +21,8 @@ class Impact:
     owner: object
     x: float               # точка взрыва, мировые px
     y: float
+    dx: float = 0.0        # единичное направление полёта в момент попадания
+    dy: float = 0.0
 
 @dataclass
 class Blast:
@@ -105,7 +107,7 @@ class EffectsSystem:
                 if shell.hit_target is not None or shell.stats.explode_at_range:
                     hits.append(Impact(shell.hit_target, shell.stats, shell.hit_cos,
                                        shell.hit_normal, shell.power, shell.owner,
-                                       shell.x, shell.y))
+                                       shell.x, shell.y, shell.dx, shell.dy))
                 elif shell.bounces == 0:
                     misses.append(shell.owner)
 

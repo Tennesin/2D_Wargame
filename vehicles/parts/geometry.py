@@ -21,16 +21,16 @@ def _chevron(p): return -0.40 * p.w, -0.95 * p.w, 0.40 * p.w, -0.13 * p.w
 
 def _vline(t):
     return lambda p: (-t, 0.0, t, p.h)
+def _sheet(p): return -p.w / 2.0, -0.14, p.w / 2.0, 0.14      # центр габарита = центр листа
 
 BOUNDS = {
     "hatch": _disc, "exhaust": _disc, "dome": _disc, "turret_hatch": _disc, "loader_hatch": _disc,
     "grill": _rect, "plate": _rect, "engine_cover": _rect, "toolbox": _rect, "clamp": _rect,
     "vent_grille": _rect, "periscope": _rect, "roof_hatch": _rect, "vent": _rect, "ammo_crate": _rect,
     "ejector": _rect, "muzzle_band": _rect, "muzzle_brake": _rect,
-    "seam": _seam, "roof_seam": _flat,
-    "cable": _vline(0.04), "handle": _vline(0.03),
-    "breech_tray": _hang, "embrasure": _hang,
-    "antenna": _antenna, "chevron": _chevron,
+    "seam": _seam, "roof_seam": _flat, "cable": _vline(0.04), "handle": _vline(0.03),
+    "breech_tray": _hang, "embrasure": _hang, "antenna": _antenna, "chevron": _chevron,
+    "screen": _sheet, "turret_screen": _sheet
 }
 
 # размер новой детали (w, h); обрезается под границы типа
@@ -42,6 +42,7 @@ DEFAULT_SIZE = {
     "roof_hatch": (0.42, 0.40), "vent": (0.7, 0.34), "ammo_crate": (0.58, 0.45), "antenna": (0.09, 0.9),
     "chevron": (1.0, 0.0), "turret_hatch": (0.42, 0.32), "loader_hatch": (0.26, 0.0),
     "ejector": (0.4, 0.3), "muzzle_band": (0.4, 0.22), "muzzle_brake": (0.5, 0.4),
+    "screen": (0.6, 0.0), "turret_screen": (0.6, 0.0)
 }
 
 def local_bounds(part):

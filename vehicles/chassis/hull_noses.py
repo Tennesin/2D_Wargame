@@ -149,12 +149,8 @@ def wedge_front_factor():
 # ==========================================
 SCREEN_COUNT = 4             # всего листов (на щучьем носу по два на скат)
 SCREEN_COVER = 0.78          # какую долю длины лба закрывают листы
-SCREEN_OFFSET_M = 0.12       # вынос листа вперёд от плиты, м
-SCREEN_THICK_M = 0.07        # толщина листа на рисунке, м
-SCREEN_HIT_DEPTH_M = 0.40    # насколько впереди плиты (м) точка попадания ещё считается «на лбу»
-                             # (у плоского лба хитбокс чуть шире спрайта)
 
-def _front_edges(layout):
+def front_edges(layout):
     """Рёбра, вдоль которых стоят экраны: (a, b, сколько листов). Всего SCREEN_COUNT."""
     fp = layout.front_plate
     if layout.nose == NOSE_PIKE:
@@ -169,7 +165,7 @@ def screen_pieces(layout):
     """Листы экранов: ((a, b, (nx, ny)), ...). a и b лежат на самой плите, (nx, ny) смотрит наружу.
     На каждом ребре листы расставлены с равными просветами; по краям ребра полпросвета."""
     pieces = []
-    for a, b, per_edge in _front_edges(layout):
+    for a, b, per_edge in front_edges(layout):
         dx, dy = b[0] - a[0], b[1] - a[1]
         length = math.hypot(dx, dy)
         ux, uy = dx / length, dy / length
@@ -185,16 +181,3 @@ def screen_pieces(layout):
                            (nx, ny)))
             pos += piece + gap
     return tuple(pieces)
-
-def screen_hit(layout, u, v, tol=0.03):
-    """Попала ли точка (u, v) (метры корпуса) НАПРОТИВ листа экрана: вдоль плиты в пределах листа
-    и на лбу (не на гусенице и не на борту). Попадание в просвет между листами не считается."""
-    for (ax, ay), (bx, by), (nx, ny) in screen_pieces(layout):
-        dx, dy = bx - ax, by - ay
-        t = ((u - ax) * dx + (v - ay) * dy) / (dx * dx + dy * dy)
-        if not 0.0 <= t <= 1.0:
-            continue
-        depth = (u - ax) * nx + (v - ay) * ny          # > 0: точка впереди плиты
-        if -tol <= depth <= SCREEN_HIT_DEPTH_M:
-            return True
-    return False

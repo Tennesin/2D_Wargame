@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from engine import AmmoKind, AmmoStats, clamp, lerp
 from vehicles.gun.params import (
     CALIBER,
-    HEAT_MODULE_LOSS_K, HEAT_SCREEN_PEN_K, HEAT_DAMAGE_K, HEAT_PEN_K, HEAT_SPEED_K, HEAT_RELOAD_K,
+    HEAT_MODULE_LOSS_K, HEAT_SCREEN_LOSS_K, HEAT_DAMAGE_K, HEAT_PEN_K, HEAT_SPEED_K, HEAT_RELOAD_K,
     HE_DAMAGE_K, HE_PEN_K, HE_SPEED_K, HE_RELOAD_K, HE_RADIUS_PX_PER_MM,
     HESH_DAMAGE_K, HESH_PEN_K, HESH_SPEED_K, HESH_RELOAD_K, HESH_RANGE_K,
     HESH_RADIUS_PX_PER_MM, HESH_STUN_FRAC, HESH_STUN_MIN_S, AP_NORMALIZATION_DEG,
@@ -29,7 +29,7 @@ class AmmoType:
     explode_at_range: bool = False
     radius_px_per_mm: float = 0.0
     module_loss_k: float = 1.0
-    screen_pen_k: float = 1.0
+    screen_loss_k: float = 1.0
     range_k: float = 1.0                    # множитель дальности относительно ББ
     stun_frac: tuple = (0.0, 0.0)           # оглушение как доля перезарядки снаряда (мин. и макс. калибр); (0, 0) = не оглушает
     stun_min_s: float = 0.0                 # нижняя граница длительности оглушения, с
@@ -42,7 +42,7 @@ AMMO_TYPES = {
                             dmg_k=HEAT_DAMAGE_K, pen_k=HEAT_PEN_K,
                             speed_k=HEAT_SPEED_K, reload_k=HEAT_RELOAD_K,
                             ricochet=False, module_loss_k=HEAT_MODULE_LOSS_K,
-                            screen_pen_k=HEAT_SCREEN_PEN_K),
+                            screen_loss_k=HEAT_SCREEN_LOSS_K),
     AmmoKind.HESH: AmmoType(AmmoKind.HESH, "ПФ",
                             dmg_k=HESH_DAMAGE_K, pen_k=HESH_PEN_K,
                             speed_k=HESH_SPEED_K, reload_k=HESH_RELOAD_K,
@@ -86,7 +86,7 @@ def ammo_stats(spec, kind):
         aoe_radius_px=t.radius_px_per_mm * spec.cal,
         explode_at_range=t.explode_at_range,
         module_loss_k=t.module_loss_k,
-        screen_pen_k=t.screen_pen_k,
+        screen_loss_k=t.screen_loss_k,
         stun_s=stun_s,
         caliber_mm=spec.cal,
         normalization_deg=lerp(t.normalization_deg[0], t.normalization_deg[1], cal_t),

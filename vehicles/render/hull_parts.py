@@ -3,10 +3,10 @@ import math
 
 from engine import lerp_color, shrink_polygon
 from vehicles.chassis.hulls import NOSE_PIKE
-from vehicles.chassis.hull_noses import screen_pieces, SCREEN_OFFSET_M, SCREEN_THICK_M, PIKE_BAND_M
+from vehicles.chassis.hull_noses import PIKE_BAND_M
 from vehicles.render.pen import (
-    OUTLINE, OUTLINE_W, SKIRT_MAIN, SCREEN_MAIN, SCREEN_MESH,
-    HULL_MAIN, HULL_LIGHT, HULL_DARK, DECK, RIVET_R_M, apply_paint,
+    OUTLINE, OUTLINE_W, SKIRT_MAIN, HULL_MAIN, HULL_LIGHT,
+    HULL_DARK, DECK, RIVET_R_M, apply_paint,
 )
 
 class HullPartsMixin:
@@ -80,21 +80,6 @@ class HullPartsMixin:
                 ln = math.hypot(dx, dy) or 1.0
                 pen.ellipse(edge, x + dx / ln * 0.10, y + dy / ln * 0.10,
                             RIVET_R_M, RIVET_R_M, outline=None)
-
-    @staticmethod
-    def _draw_front_screen(pen, level, paint, layout):
-        """Четыре тонких листа перед лбом на стойках."""
-        if level <= 0:
-            return
-        color = apply_paint(SCREEN_MAIN, paint)
-        off = SCREEN_OFFSET_M
-        for (ax, ay), (bx, by), (nx, ny) in screen_pieces(layout):
-            p0 = (ax + nx * off, ay + ny * off)
-            p1 = (bx + nx * off, by + ny * off)
-            pen.line(SCREEN_MESH, ax, ay, p0[0], p0[1], 0.04)                  # стойки
-            pen.line(SCREEN_MESH, bx, by, p1[0], p1[1], 0.04)
-            pen.line(OUTLINE, p0[0], p0[1], p1[0], p1[1], SCREEN_THICK_M + 0.04)   # контур листа
-            pen.line(color, p0[0], p0[1], p1[0], p1[1], SCREEN_THICK_M)            # сам лист
 
     @staticmethod
     def _draw_pike_plate(pen, layout, paint):

@@ -27,10 +27,10 @@ def _mean_frac(defender, pen, from_deg, hull_deg, laterals=AIM_LATERALS_M, norm_
         res = defender.armor_along(from_deg, hull_deg, lat)
         if res is None:
             continue
-        armor, cos_i = res
+        armor, cos_i, screen_mm = res
         if norm_deg > 0.0 and not is_ricochet(cos_i):
             cos_i = normalize_cos(cos_i, norm_deg)
-        total += resolve_hit(pen, armor, cos_i).damage_frac
+        total += resolve_hit(max(0.0, pen - screen_mm), armor, cos_i).damage_frac
         n += 1
     return total / n if n else 1.0
 
@@ -110,9 +110,7 @@ def evaluate_matchup(me, enemy):
 # ==========================================
 
 def outflank_feasibility(me, enemy, dist_px):
-    """0..1: успею ли я обойти врага, пока он доворачивает орудие.
-    Угловая скорость облёта по окружности радиуса dist равна v / R, но не больше моего поворота корпуса.
-    Сравниваем с тем, как быстро враг водит башней (плюс половина поворота его корпуса)."""
+    """0..1: успею ли я обойти врага, пока он доворачивает орудие."""
     r_px = max(dist_px, OUTFLANK_MIN_RADIUS_M * PX_PER_M)
     omega = math.degrees(me.spec.v_avg * KMH_TO_PX / r_px)
     omega = min(omega, me.spec.hull_turn)
@@ -120,8 +118,7 @@ def outflank_feasibility(me, enemy, dist_px):
     return clamp(0.35 + 0.65 * omega / max(track, 1.0), 0.0, 1.0)
 
 def preferred_distance_m(me, enemy, base_m, edge_k=1.0):
-    """Желаемая дистанция боя из характеристик. Быстрее и скорострельнее врага: держимся дальше
-    (кайтинг). Медленнее и слабее по темпу: сокращаем дистанцию."""
+    """Желаемая дистанция боя из характеристик."""
     spd = me.spec.v_avg / max(enemy.spec.v_avg, 1.0)
     rel = enemy.spec.reload / max(me.spec.reload, 0.1)
     edge = clamp(0.6 * math.log2(spd) + 0.4 * math.log2(rel), -1.0, 1.0) * edge_k
@@ -163,8 +160,7 @@ def best_hull_heading(me, enemy, to_enemy_deg):
 # ==========================================
 
 def shot_geometry(me, enemy):
-    """Как мой снаряд ляжет в центр корпуса врага из текущей позиции: (нормаль, cos угла, точка).
-    Луч идёт из центра танка, как у настоящего снаряда. Не достаём корпус: (None, 1.0, None)."""
+    """Как мой снаряд ляжет в центр корпуса врага из текущей позиции."""
     dx, dy = enemy.x - me.x, enemy.y - me.y
     ln = math.hypot(dx, dy)
     if ln < 1.0:
@@ -177,15 +173,15 @@ def shot_geometry(me, enemy):
         return None, 1.0, None
     _, t, normal = hit
     point = (me.x + (end_x - me.x) * t, me.y + (end_y - me.y) * t)
-    return normal, abs(ux * normal[0] + uy * normal[1]), point
+    return normal, abs(ux * normal[0] + uy * normal[1]), (point[0], point[1], ux, uy)
 
-def ammo_value(me, target, kind, normal, cos_i, point):
-    """Ожидаемый урон в секунду снарядом kind по цели при такой геометрии удара."""
+def ammo_value(me, target, kind, normal, cos_i, ray):
     stats = ammo_stats(me.spec, kind)
+    point = None if ray is None else ray[:2]
     cos_n = impact_cos(stats, cos_i, target, point)
     pen = stats.penetration
-    if point is not None:
-        pen = pen_after_modules(target, pen, stats, *point, cos_impact=cos_n)
+    if ray is not None:
+        pen = pen_after_modules(target, pen, stats, ray[0], ray[1], cos_n, ray[2], ray[3])
     frac = target.hit_result(pen, cos_n, normal).damage_frac
     if stats.splash_frac > 0.0 and stats.damage > 0.0:                # осколки ФГ и HESH с учётом брони
         frag = target.frag_damage(pen, stats.damage, stats.splash_frac, normal) / stats.damage
@@ -193,9 +189,9 @@ def ammo_value(me, target, kind, normal, cos_i, point):
     dps = stats.damage * frac / stats.reload
     return dps * (stats.speed_px / me.spec.SHELL_SPEED_PX) ** AMMO_SPEED_EXP
 
-def best_ammo(me, target, normal, cos_i, point, banned=()):
+def best_ammo(me, target, normal, cos_i, ray, banned=()):
     """Лучший тип снаряда по цели."""
-    scores = {k: ammo_value(me, target, k, normal, cos_i, point)
+    scores = {k: ammo_value(me, target, k, normal, cos_i, ray)
               for k in me.spec.ammo_kinds if k not in banned}
     if not scores:
         return me.ammo
@@ -239,6 +235,6 @@ def shot_fraction_now(me, enemy):
         hx, hy = me.x + (end_x - me.x) * t_hit, me.y + (end_y - me.y) * t_hit
         for st in rounds:
             cos_n = impact_cos(st, cos_i, enemy, (hx, hy))
-            pen = pen_after_modules(enemy, st.penetration, st, hx, hy, cos_n)
+            pen = pen_after_modules(enemy, st.penetration, st, hx, hy, cos_n, ux, uy)
             best = max(best, enemy.hit_result(pen, cos_n, normal).damage_frac)
     return best

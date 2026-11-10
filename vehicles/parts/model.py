@@ -35,6 +35,7 @@ class Part:
     z: Optional[int] = None         # None: слой типа
     surface: str = SURFACE_HULL
     anchor: str = ANCHOR_HULL
+    mm: Optional[float] = None      # только у "screen": своя толщина, мм
 
 @dataclass
 class PartCtx:
@@ -43,3 +44,4 @@ class PartCtx:
     look: object                    # Look техники
     layout: object                  # HullLayout
     team: Optional[tuple] = None    # цвет команды (деталям башни и маски)
+    screen_mm: float = 0.0          # общая шкала толщины экранов

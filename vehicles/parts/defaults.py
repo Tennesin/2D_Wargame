@@ -4,10 +4,11 @@ import math
 from vehicles.chassis.hull_noses import PIKE_BAND_M
 from vehicles.chassis.hulls import NOSE_PIKE, NOSE_WEDGE, HULL_STYLE_FRONT_ENGINE
 from vehicles.gun.params import BARREL_HIDDEN_M, BARREL_LEN_STEP_M, BARREL_THICK_STEP_M
-from .design import PartsDesign, resolve, anchor_part
 from vehicles.render.pen import outline_x_at
+from .design import PartsDesign, resolve, anchor_part
 from .library import SEAM_FRACS
 from .model import SURFACE_HULL, SURFACE_TURRET, SURFACE_BARREL, Part
+from .screens import auto_screen_parts
 
 _BUILDERS = {}                      # (вид техники, поверхность) -> функция(spec, look, emblem) -> список Part
 
@@ -163,6 +164,7 @@ def _mbt_hull(spec, look, emblem=""):
     rx, ry, rw, rh = layout.rear_plate
     parts.append(Part("plate", x=rx, y=ry, w=rw, h=rh))
     parts += _exhaust(layout, look)
+    parts += auto_screen_parts(layout, spec.screen_mm)
     return parts
 
 @default_builder("mbt", SURFACE_TURRET)
@@ -193,6 +195,7 @@ def _mbt_turret(spec, look, emblem=""):
         parts.append(Part("turret_hatch", x=0.42, y=0.30, w=0.42, h=0.32, surface=s))
         if look.speed > 0:
             parts.append(_antenna(-0.75, 1.0, -0.95, 1.95, 0.10, s))
+    parts += auto_screen_parts(layout, spec.screen_mm)
     return parts
 
 # ==========================================
@@ -241,6 +244,7 @@ def _td_hull(spec, look, emblem=""):
         ay = axis + 0.95
         parts.append(_antenna(-0.80, ay, -0.95, min(ay + 0.6, rear - 0.1), 0.09))
     parts += _exhaust(layout, look)
+    parts += auto_screen_parts(layout, spec.screen_mm)
     return parts
 
 # ==========================================

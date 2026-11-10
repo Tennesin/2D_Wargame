@@ -40,7 +40,7 @@ class TDRenderer(GunVehicleRenderer):
         big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
         pen = _Pen(big, ppm * SS, 0.0, layout.axis_fwd_m)       # центр спрайта = ось орудия
         parts = parts_for(self.DESIGN_KIND, spec, SURFACE_HULL, look)
-        ctx = PartCtx(paint=paint, look=look, layout=layout)
+        ctx = PartCtx(paint=paint, look=look, layout=layout, screen_mm=spec.screen_mm)
 
         self._draw_hull_back(pen, paint, look, spec)
         self._draw_hull_base(pen, paint, look, spec, parts, ctx)
@@ -78,7 +78,6 @@ class TDRenderer(GunVehicleRenderer):
             pen.rect(deck, *layout.deck_rect)
         draw_parts(pen, parts, BAND_DECK, ctx)                  # швы палубы
         self._draw_front_kit(pen, look.front, paint, layout)
-        self._draw_front_screen(pen, look.screen, paint, layout)
 
     # ---------- рубка (структура) ----------
 

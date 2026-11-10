@@ -4,13 +4,20 @@
 import math
 from dataclasses import replace
 
-from engine import PX_PER_M, round_to, shortest_angle_diff
+from engine import clamp
+from vehicles.chassis.params import SCREEN_MM_MIN, FRONT_SCREEN
+from vehicles.chassis.screens import mount_edges as hull_edges
+from vehicles.parts.screens import (
+    SHEET_KINDS, snap_hull, snap_turret, accept, coverage, max_length,
+    turret_edges, turret_free, auto_screen_parts
+)
 from inputs import MouseOwner
 from structures import ROTATE_SNAP_DEG
 from vehicles.gun.params import BARREL_HIDDEN_M, BARREL_LEN_STEP_M
 from vehicles.parts import (
     PART_TYPES, PartsDesign, AUTO_DESIGN, LIMITS, SURFACE_HULL, SURFACE_BARREL, fits, anchors,
     freeze_auto, z_of, center, contains, with_center, reshaped, new_part, extent_m, anchor_part,
+    SURFACE_TURRET, resolve
 )
 from vehicles.parts.model import ANCHOR_HULL
 from . import gizmo
@@ -142,7 +149,7 @@ class PartsTool:
         return 0 if self.manual is None else len(self.manual)
 
     def unfit_count(self):
-        return sum(1 for _, p in self.entries() if not self.is_fit(p))
+        return sum(1 for i, p in self.entries() if not self._fit(p, i))
 
     def _frozen_list(self):
         """Авто-набор текущей поверхности как список деталей (для перехода в «Вручную»)."""
@@ -192,6 +199,10 @@ class PartsTool:
         if self.armed is None:
             return None
         u, v = self.frame().to_surface(*pos)
+        if self.armed == "screen":
+            return snap_hull(self.spec.layout, u, v)
+        if self.armed == "turret_screen":
+            return snap_turret(self.spec.layout.turret_style, u, v)
         if not self.input.ctrl:
             u, v = round_to(u, GRID_M), round_to(v, GRID_M)
         return new_part(self.armed, self.surface, u, v)
@@ -205,7 +216,9 @@ class PartsTool:
         if self.pick(*pos) is not None:
             return None
         part = self._candidate(pos)
-        ok = fits(part, self.spec, self.surface) and self.count() < LIMITS[self.surface]
+        if part is None:
+            return None
+        ok = self._fit(part) and self.count() < LIMITS[self.surface]
         return part, ok
 
     # ==========================================
@@ -223,8 +236,9 @@ class PartsTool:
         geom = self.gizmo_geom()
         if geom is not None:
             mode = gizmo.hit(*geom, pos)
-            if mode is not None and self._grab(mode, pos, geom):
-                return
+            sel = self.selected_part()
+            if mode == "rotate" and sel is not None and sel.kind in SHEET_KINDS:
+                mode = None
         i = self.pick(*pos)
         if i is not None:
             self.selected = i
@@ -291,12 +305,15 @@ class PartsTool:
         mx, my = self.input.mouse_pos
         if d["mode"] == "move":
             u, v = self.frame().to_surface(mx, my)
-            tx, ty = d["off"][0] + u, d["off"][1] + v
-            if not self.input.ctrl:
-                tx, ty = round_to(tx, GRID_M), round_to(ty, GRID_M)
-            new = with_center(p, tx, ty)
-            if new == p or not fits(new, self.spec, self.surface):
-                return                                   # за границу области деталь не пускаем
+            if p.kind in SHEET_KINDS:
+                new = self._slide(p, u, v)
+            else:
+                tx, ty = d["off"][0] + u, d["off"][1] + v
+                if not self.input.ctrl:
+                    tx, ty = round_to(tx, GRID_M), round_to(ty, GRID_M)
+                new = with_center(p, tx, ty)
+            if new is None or new == p or not self._fit(new, self.selected):
+                return
         else:
             geom = self.gizmo_geom()
             if geom is None:
@@ -310,6 +327,59 @@ class PartsTool:
                 return                                   # в неподходящее положение не вращаем
         self._replace_selected(new, d["fresh"])
         d["fresh"] = False
+
+    def _sheets(self, kind, exclude=None):
+        return [q for i, q in self.entries() if q.kind == kind and i != exclude]
+
+    def _fit(self, p, index=None):
+        """Помещается ли деталь. Листы экранов ещё проверяются на охват и пересечения."""
+        if p.kind == "screen":
+            return any(q is p for q, *_ in accept(self.spec.layout, self._sheets("screen", index) + [p]))
+        if p.kind == "turret_screen":
+            return (fits(p, self.spec, self.surface)
+                    and turret_free(self.spec.layout.turret_style, self._sheets("turret_screen", index), p))
+        return fits(p, self.spec, self.surface)
+
+    def is_fit(self, p, index=None):
+        return self._fit(p, index)
+
+    def _slide(self, p, u, v):
+        """Лист едет вдоль кромок за курсором (может перейти на соседнюю кромку)."""
+        if p.kind == "screen":
+            return snap_hull(self.spec.layout, u, v, p.w, p.mm)
+        return snap_turret(self.spec.layout.turret_style, u, v, p.w)
+
+    def mount_edges(self):
+        """Кромки для подсветки: лист выбран или взят из палитры."""
+        sel = self.selected_part()
+        kinds = {self.armed, None if sel is None else sel.kind}
+        if "screen" in kinds and self.surface == SURFACE_HULL:
+            return hull_edges(self.spec.layout)
+        if "turret_screen" in kinds and self.surface == SURFACE_TURRET:
+            return turret_edges(self.spec.layout.turret_style)
+        return ()
+
+    def screen_coverage(self):
+        """{группа: (занято, длина)} по листам корпуса (авто или ручного набора)."""
+        layout, hull = self.spec.layout, self.design.hull
+        parts = (auto_screen_parts(layout, self.spec.screen_mm) if hull is None
+                 else [p for p in resolve(hull, self.spec, SURFACE_HULL) if p.kind == "screen"])
+        return coverage(layout, parts)
+
+    def max_length(self, p, index=None):
+        return max_length(self.spec.layout, self._sheets("screen", index), p)
+
+    def set_thickness(self, mm):
+        """Толщина выбранного экрана: число (своя) или None (общая шкала). Один жест ползунка = один шаг отмены."""
+        p = self.selected_part()
+        if p is None or p.kind != "screen":
+            return
+        own = None if mm is None else clamp(float(mm), SCREEN_MM_MIN, FRONT_SCREEN.max)
+        if own == p.mm:
+            return
+        fresh = not self._size_gesture
+        self._size_gesture = True
+        self._replace_selected(replace(p, mm=own), fresh)
 
     # ==========================================
     # ИЗМЕНЕНИЯ ДИЗАЙНА
@@ -333,8 +403,7 @@ class PartsTool:
 
     def _place(self, pos):
         part = self._candidate(pos)
-        if part is None or not fits(part, self.spec, self.surface):
-            return
+        if part is None or not self._fit(part): return
         lst = self.manual
         if lst is None:                                   # авто-набор замораживается вместе с постановкой
             lst = self._frozen_list()

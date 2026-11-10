@@ -208,7 +208,7 @@ class TDSpec(GunVehicleSpec):
             "Удельная мощность": f"{self.pw:.1f} л.с./т",
             "Калибр / платформа": f"{self.q_gun:.2f}",
             "Бронированность": f"{self.q_arm:.2f}",
-            "Лоб с экранами": f"{self.front + self.screen_mm:.0f} мм",
+            "Экраны": self.screens_text,
             "Гусеница: толщина / HP": f"{self.track_mm:.0f} мм / {self.track_max_hp:.0f}",
             "Ремонт гусеницы": f"{self.track_repair_s:.1f} с",
             "Длина ствола": f"{self.l_cal:.1f} кал.",

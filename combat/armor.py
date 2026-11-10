@@ -96,27 +96,34 @@ def impact_cos(stats, cos_impact, target=None, point=None):
 
 @dataclass(frozen=True)
 class ModuleHit:
-    module: Optional[str]           # "left" / "right" / "screen" / None
-    pen: float                      # пробитие после модуля (остаток, идущий в корпус)
-    track_damage: float = 0.0       # урон гусенице, HP её шкалы (только для гусеницы)
+    module: Optional[str]           # "left" / "right" / None (гусеница)
+    pen: float                      # пробитие после экранов и гусеницы
+    track_damage: float = 0.0       # урон гусенице, HP её шкалы
+    screen_lost: float = 0.0        # сколько пробития съели экраны, мм
+    track_lost: float = 0.0         # сколько съела гусеница, мм
 
-def module_hit(target, penetration, damage, stats, cos_impact, x, y):
-    """Что делает внешний модуль цели в точке попадания (x, y)."""
+def module_hit(target, penetration, damage, stats, cos_impact, x, y, dx=None, dy=None):
+    """Что делают внешние модули."""
+    pen, screen_lost = penetration, 0.0
+    along = getattr(target, "screens_along_world", None)
+    if along is not None and dx is not None:
+        for mm, cos in along(x, y, dx, dy):
+            if pen <= 0.0:
+                break
+            loss = min(pen, effective_armor(mm, cos) * stats.screen_loss_k)
+            pen -= loss
+            screen_lost += loss
     module_at = getattr(target, "module_at", None)
-    if module_at is None:
-        return ModuleHit(None, penetration)
-    module = module_at(x, y)
-    if module is None:
-        return ModuleHit(None, penetration)
-    if module == "screen":
-        return ModuleHit(module, penetration * stats.screen_pen_k)
+    side = None if module_at is None else module_at(x, y)
+    if side is None:
+        return ModuleHit(None, pen, 0.0, screen_lost)
     eff = effective_armor(target.track_thickness_mm, cos_impact)
-    loss = min(penetration, eff * stats.module_loss_k)
-    return ModuleHit(module, penetration - loss, damage * damage_fraction(penetration, eff))
+    loss = min(pen, eff * stats.module_loss_k)
+    return ModuleHit(side, pen - loss, damage * damage_fraction(pen, eff), screen_lost, loss)
 
-def pen_after_modules(target, penetration, stats, x, y, cos_impact=1.0):
-    """Только остаточное пробитие (для прицела и мозга ботов). Считает то же, что module_hit."""
-    return module_hit(target, penetration, 0.0, stats, cos_impact, x, y).pen
+def pen_after_modules(target, penetration, stats, x, y, cos_impact=1.0, dx=None, dy=None):
+    """Только остаточное пробитие (для прицела и мозга ботов)."""
+    return module_hit(target, penetration, 0.0, stats, cos_impact, x, y, dx, dy).pen
 
 class Damageable:
     """Миксин для целей."""
