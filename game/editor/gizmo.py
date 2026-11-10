@@ -42,7 +42,7 @@ def _arc_points(cx, cy, radius, center_deg, n=12):
         pts.append((cx + radius * math.cos(a), cy + radius * math.sin(a)))
     return pts
 
-def draw(screen, cx, cy, radius, angle_deg, hover=None, active=None):
+def draw(screen, cx, cy, radius, angle_deg, hover=None, active=None, arcs=True):
     """Рисует точку и дуги. Подсвечивается то, над чем курсор или что сейчас тянут."""
     mode = active or hover
     for base in (angle_deg, angle_deg + 180.0):

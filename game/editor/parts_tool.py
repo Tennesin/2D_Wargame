@@ -323,7 +323,7 @@ class PartsTool:
             if self.input.shift:
                 angle = round_to(angle, ROTATE_SNAP_DEG)
             new = reshaped(p, angle=angle % 360.0)
-            if new == p or (self.is_fit(p) and not fits(new, self.spec, self.surface)):
+            if new == p or (self.is_fit(p, self.selected) and not self._fit(new, self.selected)):
                 return                                   # в неподходящее положение не вращаем
         self._replace_selected(new, d["fresh"])
         d["fresh"] = False
@@ -439,7 +439,7 @@ class PartsTool:
             self._state()                                  # вернуть ползунок на место
             return
         new = reshaped(p, w=round(nw, 4), h=round(nh, 4))
-        if self.is_fit(p) and not fits(new, self.spec, self.surface):
+        if self.is_fit(p, self.selected) and not self._fit(new, self.selected):
             self._state()                                  # не лезет: ползунок возвращаем
             return
         fresh = not self._size_gesture
