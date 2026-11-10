@@ -100,6 +100,39 @@ def compare(a, b):
         worst = max(worst, d)
     return bad, worst
 
+def check_screens():
+    """Авто-набор проходит правила, жадная набивка не превышает охват, на корме кромок нет, луч видит лист."""
+    from vehicles.chassis.screens import ray_crossings, Screen
+    from vehicles.parts.screens import auto_screen_parts, accept, snap_hull, coverage
+    failed = 0
+    for name, kind, values in cases():
+        spec = VEHICLE_TYPES[kind].spec_cls.from_values(values)
+        layout = spec.layout
+        parts = auto_screen_parts(layout, 30)
+        if len(accept(layout, parts)) != len(parts):
+            print(f"ЭКРАНЫ авто-набор не проходит правила: {name}")
+            failed += 1
+        filled = []
+        for sx in range(-6, 7):
+            for sy in range(-6, 7):
+                p = snap_hull(layout, sx * 0.4, sy * 0.6, 3.0)
+                if p is not None and any(q is p for q, *_ in accept(layout, filled + [p])):
+                    filled.append(p)
+        for g, (used, total) in coverage(layout, filled).items():
+            cap = 0.9 if g == "front" else 0.8
+            if used > cap * total + 0.01:
+                print(f"ЭКРАНЫ охват {name}/{g}: {used / total:.2f}")
+                failed += 1
+        if snap_hull(layout, 0.0, 3.2, 0.6) is not None:
+            print(f"ЭКРАНЫ корма: {name}")
+            failed += 1
+    sheet = Screen((-0.5, -2.0), (0.5, -2.0), (0.0, -1.0), 30.0, "front")
+    hits = ray_crossings([sheet], 0.0, -4.0, 0.0, 1.0, 1.0, 5.0)
+    if len(hits) != 1 or abs(hits[0][2] - 1.0) > 1e-9:
+        print("ЭКРАНЫ луч не нашёл лист")
+        failed += 1
+    return failed
+
 def check_design():
     """Авто-набор -> «заморозка» -> JSON -> загрузка -> рисунок должен совпасть с авто-рисунком.
     Заодно: все замороженные детали помещаются, а мусор в данных не роняет загрузку."""
@@ -181,7 +214,7 @@ def main():
     pygame.init()
     pygame.display.set_mode((1, 1))
     if "--design" in sys.argv:
-        failed = check_geometry() + check_design() + check_anchors()
+        failed = check_geometry() + check_design() + check_anchors() + check_screens()
         print("Дизайн: всё совпадает." if not failed else f"Дизайн: проблем {failed}")
         pygame.quit()
         return

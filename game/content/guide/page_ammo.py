@@ -9,7 +9,7 @@ from ui import SectionHeader, InfoText, AccordionRow
 from ui.ammo_icons import make_ammo_icon
 from vehicles import AMMO_ORDER, AMMO_TYPES
 from vehicles.gun.params import (
-    CALIBER, HESH_MIN_CAL_MM, HEAT_PEN_K, HEAT_SPEED_K, HEAT_RELOAD_K, HEAT_MODULE_LOSS_K, HEAT_SCREEN_PEN_K,
+    CALIBER, HESH_MIN_CAL_MM, HEAT_PEN_K, HEAT_SPEED_K, HEAT_RELOAD_K, HEAT_MODULE_LOSS_K, HEAT_SCREEN_LOSS_K,
     HE_DAMAGE_K, HE_PEN_K, HE_RADIUS_PX_PER_MM, HESH_DAMAGE_K, HESH_PEN_K, HESH_RANGE_K, HESH_RADIUS_PX_PER_MM,
     HESH_STUN_FRAC, HESH_STUN_MIN_S, FRAG_DAMAGE_FRAC
 )
@@ -67,7 +67,7 @@ def _details():
             f"Не рикошетит. Слишком косой удар считается ровно на границе рикошета: броня для него толще "
             f"примерно в {cos_k:.1f} раза, но пробить её можно.",
             f"Сработав на целой гусенице, теряет пробитие в {HEAT_MODULE_LOSS_K:g} раза больше остальных снарядов, "
-            f"на листе лобового экрана остаётся {HEAT_SCREEN_PEN_K * 100:.0f}%. Лента сообщений сообщает о таком срабатывании.",
+            f"на листе экрана в {HEAT_SCREEN_LOSS_K:g} раза больше. Лента сообщений сообщает о таком срабатывании.",
             "Сбитая гусеница заряд уже не поглощает.",
         ],
         AmmoKind.HESH: [

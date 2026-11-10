@@ -60,7 +60,7 @@ ROUND_NO_TIME = "—"
 # Прочее
 DISTANCE_FMT = "{:.0f} м"
 ZONE_RU = {"front": "в лоб", "side": "в борт", "rear": "в корму"}
-MODULE_ON = {"left": "гусенице", "right": "гусенице", "screen": "лобовом экране"}
+MODULE_ON = {"left": "гусенице", "right": "гусенице", "screen": "экране"}
 
 # Статистика и итоги боя
 STATS_TITLE = "Статистика"

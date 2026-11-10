@@ -1,10 +1,13 @@
 """vehicles/parts/library.py — типы деталей и функции их рисования."""
-from vehicles.render.pen import SCREEN_MAIN, SCREEN_MESH
+from vehicles.render.pen import (
+    OUTLINE, HULL_DARK, GRILL, GRILL_LINE, TURRET_MAIN, TURRET_DARK,
+    GUN, GUN_LIGHT, GUN_DARK, EMBLEM_COLOR, RIVET_R_M, SCREEN_MAIN, SCREEN_MESH, apply_paint,
+)
 from vehicles.chassis.params import (
     SCREEN_GAP_M, SCREEN_RAIL_W_M, SCREEN_POST_W_M, SCREEN_THICK_BASE_M,
     SCREEN_THICK_PER_MM, SCREEN_LEN_MIN_M, SCREEN_LEN_MAX_M
 )
-from .model import CAT_FUNCTIONAL
+from .model import CAT_FUNCTIONAL, SURFACE_HULL, SURFACE_TURRET, SURFACE_BARREL
 from .screens import effective_mm
 from .registry import part_type
 

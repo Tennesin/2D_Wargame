@@ -4,6 +4,7 @@ from functools import partial
 
 from engine import VehicleKind, Param
 from inputs import Action, key_label
+from vehicles.chassis.params import SCREEN_MM_MIN, FRONT_SCREEN as _FS
 from vehicles import (
     GUN_TUNE_PARAMS, VEHICLE_TYPES, FRONT_SCREEN, NOSE_FLAT, NOSE_PIKE, NOSE_MIN_FRONT_MM,
     SPECIAL_HEAT, SPECIAL_HESH, HESH_MIN_CAL_MM,
@@ -18,7 +19,8 @@ from ui import (
 VEHICLE_NOTES = {
     VehicleKind.MBT: (f"Скошенный нос доступен при лобовой броне больше {NOSE_MIN_FRONT_MM:.0f} мм: он усиливает лоб, "
                       "но у очень тяжёлых машин ухудшает разгон и поворот. "
-                      "Лобовые экраны защищают от кумулятивных снарядов."),
+                      "Экраны (общая толщина здесь, листы на вкладке «Детали») защищают лоб и борта, "
+                      "особенно от кумулятивных снарядов."),
     VehicleKind.TD: ("Орудие без башни наводится только в узком секторе (УГН), дальше нужно доворачивать корпус. "
                      "Чем крупнее калибр, тем уже сектор и тем дальше назад уезжает орудие. "
                      "Допустимый калибр зависит от брони: на тяжёлой машине мелкое орудие недоступно, "
@@ -39,11 +41,13 @@ PARTS_BTN_MIRROR = "Отразить"
 PARTS_BTN_DELETE = "Удалить деталь"
 PARTS_BTN_UNDO = "Отменить"
 PARTS_BTN_REDO = "Повторить"
-PARTS_STAT_SEL = ("Тип", "Центр", "Угол", "Размер", "Положение")
-PARTS_STAT_ALL = ("Режим", "Деталей", "Не помещаются")
+PARTS_STAT_SEL = ("Тип", "Центр", "Угол", "Размер", "Положение", "Толщина")
+PARTS_STAT_ALL = ("Режим", "Деталей", "Не помещаются",
+                  "Экраны: лоб", "Экраны: левый борт", "Экраны: правый борт")
 PART_SIZE_PARAMS = {      # границы подменяются при выборе детали (ширина / радиус и длина / высота)
     "part_w": Param("Ширина или радиус", "м", 0.0, 3.0, 0.0, 0.05, 2),
     "part_h": Param("Высота или длина", "м", 0.0, 5.0, 0.0, 0.05, 2),
+    "part_mm": Param("Толщина выбранного экрана", "мм", SCREEN_MM_MIN, _FS.max, SCREEN_MM_MIN, _FS.step),
 }
 
 def _tab_row(tab):
@@ -71,6 +75,11 @@ def build_parts_panel(kind):
         StatsBlock(list(PARTS_STAT_SEL)),
         make_param_row(PART_SIZE_PARAMS, "part_w"),
         make_param_row(PART_SIZE_PARAMS, "part_h"),
+        ChoiceRow("part_mm_mode", "Толщина экрана", [("global", "Общая шкала"), ("own", "Своя")], "global"),
+        make_param_row(PART_SIZE_PARAMS, "part_mm"),
+        InfoText("Экраны ставятся на лоб и борта, не на корму. Свою толщину можно задать каждому листу: "
+                 "она главнее общей шкалы со вкладки «Сборка». Один лист не длиннее 45% лба или 20% борта, "
+                 "все вместе не более 90% лба и 80% борта."),
         InfoText("Ползунок не работает, если тип детали не использует этот размер."),
         ActionButton(PARTS_BTN_MIRROR, None),
         ActionButton(PARTS_BTN_DELETE, DELETE_BUTTON_COLORS),

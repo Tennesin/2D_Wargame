@@ -23,6 +23,8 @@ from ..content.panels.vehicle import (
     PARTS_STAT_SEL, PARTS_STAT_ALL,
 )
 from ..editor import PartsTool, PartsOverlay, make_part_icons
+from vehicles.chassis.params import SCREEN_LEN_MIN_M, SCREEN_MM_MIN, SCREEN_FRONT_SUM, SCREEN_SIDE_SUM
+from vehicles.parts.screens import effective_mm
 try:
     from tools.tank_snapshot import save_snapshot
 except ImportError:
@@ -299,7 +301,7 @@ class ConstructorScene(Scene):
                                         max(0, size[1] - PALETTE_TOP - PALETTE_BOTTOM)))
 
     def _on_parts_panel(self, values):
-        """Панель «Детали»: поверхность, режим, размер. Меняется что-то одно за раз."""
+        """Панель «Детали»: поверхность, режим, толщина экрана, размер."""
         t = self.parts
         surface = values.get("parts_surface")
         if surface is not None and surface != t.surface:
@@ -310,6 +312,16 @@ class ConstructorScene(Scene):
         if mode is not None and (mode == "manual") != t.is_manual:
             t.set_manual(mode == "manual")
             return
+        p = t.selected_part()
+        mm_mode, mm = values.get("part_mm_mode"), values.get("part_mm")
+        if p is not None and p.kind == "screen":
+            own = p.mm is not None
+            if mm_mode is not None and (mm_mode == "own") != own:
+                t.set_thickness(mm if mm_mode == "own" else None)
+                return
+            if own and mm is not None and abs(mm - p.mm) > 1e-6:
+                t.set_thickness(mm)
+                return
         t.set_size(values.get("part_w"), values.get("part_h"))
 
     def _on_parts_design(self, design):
@@ -343,25 +355,47 @@ class ConstructorScene(Scene):
                 ui.set_stat(mode, name, "—")
             ui.set_range(mode, "part_w", 0.0, 0.05)
             ui.set_range(mode, "part_h", 0.0, 0.05)
-            ui.set_values(mode, {"part_w": 0.0, "part_h": 0.0})
+            ui.set_values(mode, {"part_w": 0.0, "part_h": 0.0,
+                                 "part_mm": SCREEN_MM_MIN, "part_mm_mode": "global"})
+            ui.set_enabled(mode, "part_mm_mode", False)
         else:
             pt = PART_TYPES[p.kind]
             cx, cy = center(p)
+            is_screen = p.kind == "screen"
             ui.set_stat(mode, "Тип", pt.label)
             ui.set_stat(mode, "Центр", f"{cx:.2f}; {cy:.2f} м")
             ui.set_stat(mode, "Угол", f"{p.angle:.0f} °" + (", отражена" if p.mirror else ""))
             ui.set_stat(mode, "Размер", f"{p.w:.2f} × {p.h:.2f} м")
-            ui.set_stat(mode, "Положение", "помещается" if t.is_fit(p) else "не помещается")
-            ui.set_range(mode, "part_w", *self._slider_range(pt.w_range))
+            ui.set_stat(mode, "Положение", "помещается" if t.is_fit(p, t.selected) else "не помещается")
+            if is_screen:
+                wr = self._slider_range((SCREEN_LEN_MIN_M,
+                                         max(SCREEN_LEN_MIN_M + 0.05, t.max_length(p, t.selected))))
+                eff = effective_mm(p, self.vehicle.spec.screen_mm)
+                ui.set_stat(mode, "Толщина", f"{eff:.0f} мм ({'своя' if p.mm is not None else 'общая'})")
+            else:
+                wr = self._slider_range(pt.w_range)
+                eff = SCREEN_MM_MIN
+                ui.set_stat(mode, "Толщина", "—")
+            ui.set_range(mode, "part_w", *wr)
             ui.set_range(mode, "part_h", *self._slider_range(pt.h_range))
-            ui.set_values(mode, {"part_w": p.w, "part_h": p.h})
+            ui.set_values(mode, {"part_w": p.w, "part_h": p.h, "part_mm": eff,
+                                 "part_mm_mode": "own" if p.mm is not None else "global"})
+            ui.set_enabled(mode, "part_mm_mode", is_screen)
 
         ui.set_stat(mode, "Режим", "Вручную" if t.is_manual else "Авто")
         ui.set_stat(mode, "Деталей", str(t.count()) if t.is_manual else "—")
         ui.set_stat(mode, "Не помещаются", str(t.unfit_count()) if t.is_manual else "—")
 
+        cov = t.screen_coverage()
+        for key, name, cap in (("front", "Экраны: лоб", SCREEN_FRONT_SUM),
+                               ("side_l", "Экраны: левый борт", SCREEN_SIDE_SUM),
+                               ("side_r", "Экраны: правый борт", SCREEN_SIDE_SUM)):
+            used, total = cov.get(key, (0.0, 0.0))
+            ui.set_stat(mode, name, f"{used / total * 100:.0f}% из {cap * 100:.0f}%" if total else "—")
+
         buttons = self._parts_buttons.get(mode, {})
-        states = {PARTS_BTN_MIRROR: p is not None, PARTS_BTN_DELETE: p is not None,
+        states = {PARTS_BTN_MIRROR: p is not None and p.kind != "screen",
+                  PARTS_BTN_DELETE: p is not None,
                   PARTS_BTN_UNDO: t.can_undo, PARTS_BTN_REDO: t.can_redo}
         for label, enabled in states.items():
             if label in buttons:

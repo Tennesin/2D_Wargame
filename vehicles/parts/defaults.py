@@ -195,7 +195,6 @@ def _mbt_turret(spec, look, emblem=""):
         parts.append(Part("turret_hatch", x=0.42, y=0.30, w=0.42, h=0.32, surface=s))
         if look.speed > 0:
             parts.append(_antenna(-0.75, 1.0, -0.95, 1.95, 0.10, s))
-    parts += auto_screen_parts(layout, spec.screen_mm)
     return parts
 
 # ==========================================
@@ -274,4 +273,5 @@ def _spg_hull(spec, look, emblem=""):
     if look.speed > 0:
         parts.append(_antenna(-wr + 0.12, rear - 0.9, -wr + 0.05, rear - 0.2, 0.08))
     parts += _exhaust(layout, look)
+    parts += auto_screen_parts(layout, spec.screen_mm)
     return parts

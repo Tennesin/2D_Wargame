@@ -6,7 +6,7 @@ from ui import SectionHeader, InfoText, AccordionRow
 from vehicles import (VEHICLE_TYPES, RENDERERS, make_vehicle, TD_GUN, FRONT_SCREEN, NOSE_MIN_FRONT_MM,
                       SUPERHEAVY_MASS_T, WEDGE_ACCEL_K, WEDGE_TURN_K, HESH_MIN_CAL_MM)
 from vehicles.chassis.params import SCREEN_TURN_LOSS
-from vehicles.gun.params import CALIBER, GUN_DAMAGE_RANGE, GUN_PEN_RANGE, HEAT_SCREEN_PEN_K
+from vehicles.gun.params import CALIBER, GUN_DAMAGE_RANGE, GUN_PEN_RANGE, HEAT_SCREEN_LOSS_K
 from vehicles.tank.hull_rules import CAL_MAX_AT_LIGHT, CAL_MIN_AT_HEAVY
 from vehicles.td.params import (TD_ARC_MAX_DEG, TD_ARC_MIN_DEG, MOUNT_CAL,
                                 TD_TRAVERSE_MIN, TD_TRAVERSE_MAX)
@@ -49,9 +49,10 @@ def _mbt_details():
         f"Скошенный нос доступен при лобовой броне больше {NOSE_MIN_FRONT_MM:.0f} мм. Машины тяжелее "
         f"{SUPERHEAVY_MASS_T:.0f} т получают клин вместо щучьего носа: он ухудшает разгон (×{WEDGE_ACCEL_K:g}) "
         f"и поворот корпуса (×{WEDGE_TURN_K:g}).",
-        f"Лобовые экраны (до {FRONT_SCREEN.max:.0f} мм, шаг {FRONT_SCREEN.step:.0f} мм) снижают пробитие "
-        f"кумулятивного до {HEAT_SCREEN_PEN_K * 100:.0f}%, но при максимальной толщине "
-        f"уменьшают поворот корпуса на {SCREEN_TURN_LOSS * 100:.0f}%.",
+        f"Экраны ставятся на вкладке «Детали»: на лоб и борта, не на корму. Один лист не длиннее 45% лба "
+        f"или 20% борта, все вместе не более 90% лба и 80% борта. Толщина: общая шкала (до {FRONT_SCREEN.max:.0f} мм) "
+        f"или своя у каждого листа, своя главнее. Кумулятивный теряет на листе в {HEAT_SCREEN_LOSS_K:g} раза "
+        f"больше пробития; очень тяжёлые экраны замедляют поворот корпуса (до {SCREEN_TURN_LOSS * 100:.0f}%).",
         f"Урон можно менять от {GUN_DAMAGE_RANGE[0] * 100:.0f}% до {GUN_DAMAGE_RANGE[1] * 100:.0f}% номинала калибра, "
         f"пробитие от {GUN_PEN_RANGE[0] * 100:.0f}% до {GUN_PEN_RANGE[1] * 100:.0f}%. "
         "Чем больше любое из них, тем дольше перезарядка.",

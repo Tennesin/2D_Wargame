@@ -29,7 +29,6 @@ class GunVehicleSpec(ChassisSpec):
 
     def __init__(self, body, front, side, rear, power, payload_t, screen_mm, make_gun, parts_design=None):
         """make_gun(size_k) -> GunSpec: создаёт орудие, когда шасси уже посчитано."""
-        super().__init__(body, front, side, rear, power, payload_t=payload_t, screen_mm=screen_mm)
         self.parts_design = PartsDesign.from_data(parts_design)
         screens = screens_of(body.layout, self.parts_design, screen_mm)
         super().__init__(body, front, side, rear, power, payload_t=payload_t,

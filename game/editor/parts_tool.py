@@ -4,7 +4,7 @@
 import math
 from dataclasses import replace
 
-from engine import clamp
+from engine import PX_PER_M, clamp, round_to, shortest_angle_diff
 from vehicles.chassis.params import SCREEN_MM_MIN, FRONT_SCREEN
 from vehicles.chassis.screens import mount_edges as hull_edges
 from vehicles.parts.screens import (
@@ -239,6 +239,8 @@ class PartsTool:
             sel = self.selected_part()
             if mode == "rotate" and sel is not None and sel.kind in SHEET_KINDS:
                 mode = None
+            if mode is not None and self._grab(mode, pos, geom):
+                return
         i = self.pick(*pos)
         if i is not None:
             self.selected = i
@@ -340,9 +342,6 @@ class PartsTool:
                     and turret_free(self.spec.layout.turret_style, self._sheets("turret_screen", index), p))
         return fits(p, self.spec, self.surface)
 
-    def is_fit(self, p, index=None):
-        return self._fit(p, index)
-
     def _slide(self, p, u, v):
         """Лист едет вдоль кромок за курсором (может перейти на соседнюю кромку)."""
         if p.kind == "screen":
@@ -424,7 +423,7 @@ class PartsTool:
 
     def mirror_selected(self):
         p = self.selected_part()
-        if p is not None:
+        if p is not None and p.kind not in SHEET_KINDS:
             self._replace_selected(reshaped(p, mirror=not p.mirror), True)
 
     def set_size(self, w, h):

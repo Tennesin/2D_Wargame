@@ -43,7 +43,7 @@ class TankRenderer(GunVehicleRenderer):
         deck = _paint(DECK, paint)
 
         parts = parts_for(self.DESIGN_KIND, spec, SURFACE_HULL, look)
-        ctx = PartCtx(paint=paint, look=look, layout=layout)
+        ctx = PartCtx(paint=paint, look=look, layout=layout, screen_mm=spec.screen_mm)
 
         pen.poly(hull_main, layout.outline)
 

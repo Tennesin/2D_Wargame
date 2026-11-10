@@ -1,13 +1,14 @@
-"""game/editor/parts_overlay.py — подсказки поверх превью на вкладке «Детали»: зелёная область «сюда можно»,
-рамки деталей, призрак новой детали и рукоятка выбранной."""
+"""game/editor/parts_overlay.py — подсказки поверх превью на вкладке «Детали»."""
 import math
 from dataclasses import replace
 
 import pygame
 
 from engine import AlphaLayer
+from vehicles.chassis.params import SCREEN_GAP_M
 from vehicles.parts import PART_TYPES, PartCtx, fit_polygons, corners, center, extent_m
 from vehicles.parts.frame import PartPen
+from vehicles.parts.screens import SHEET_KINDS
 from vehicles.render.pen import Pen
 from . import gizmo
 
@@ -25,6 +26,7 @@ class PartsOverlay:
             return
         fr = tool.frame()
         self._region(screen, tool, fr)
+        self._edges(screen, tool, fr)
         self._outlines(screen, tool, fr)
         self._ghost(screen, tool, fr)
         self._gizmo(screen, tool)
@@ -48,13 +50,22 @@ class PartsOverlay:
             pygame.draw.polygon(layer, (*GOOD, line), local, 1)
         screen.blit(layer, area.topleft)
 
+    # ---------- кромки крепления экранов ----------
+    def _edges(self, screen, tool, fr):
+        off = fr.k * SCREEN_GAP_M
+        for e in tool.mount_edges():
+            a, b = fr.to_screen(*e.a), fr.to_screen(*e.b)
+            pa = (a[0] + e.n[0] * off, a[1] + e.n[1] * off)
+            pb = (b[0] + e.n[0] * off, b[1] + e.n[1] * off)
+            pygame.draw.line(screen, GOOD, pa, pb, 2)          # здесь встанет лист
+
     # ---------- рамки деталей ----------
     def _outlines(self, screen, tool, fr):
         for i, p in tool.entries():
             pts = [fr.to_screen(u, v) for u, v in corners(p)]
             if i == tool.selected:
                 color, width = YELLOW, 2
-            elif not tool.is_fit(p):
+            elif not tool.is_fit(p, i):
                 color, width = RED, 2                     # не помещается: не рисуется в игре, но данные целы
             else:
                 color, width = SOFT, 1
@@ -73,7 +84,8 @@ class PartsOverlay:
         layer = pygame.Surface((side, side), pygame.SRCALPHA)
         pen = Pen(layer, fr.k, -cu, -cv)                  # центр габарита встаёт в центр слоя
         spec = tool.spec
-        ctx = PartCtx(paint=None, look=spec.LOOK, layout=spec.layout, team=tool.vehicle.team_color)
+        ctx = PartCtx(paint=None, look=spec.LOOK, layout=spec.layout, team=tool.vehicle.team_color,
+                      screen_mm=spec.screen_mm)
         ptype.draw(PartPen(pen, p0), p0, ctx)
         if not ok:
             layer.fill((140, 0, 0, 0), special_flags=pygame.BLEND_RGB_ADD)
@@ -89,4 +101,8 @@ class PartsOverlay:
         hover = None
         if tool.drag_mode is None and tool.input.pointer_in_world:
             hover = gizmo.hit(*geom, tool.input.mouse_pos)
-        gizmo.draw(screen, *geom, hover=hover, active=tool.drag_mode)
+        sel = tool.selected_part()
+        sheet = sel is not None and sel.kind in SHEET_KINDS
+        if sheet and hover == "rotate":
+            hover = None
+        gizmo.draw(screen, *geom, hover=hover, active=tool.drag_mode, arcs=not sheet)

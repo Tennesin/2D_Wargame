@@ -45,10 +45,11 @@ def _arc_points(cx, cy, radius, center_deg, n=12):
 def draw(screen, cx, cy, radius, angle_deg, hover=None, active=None, arcs=True):
     """Рисует точку и дуги. Подсвечивается то, над чем курсор или что сейчас тянут."""
     mode = active or hover
-    for base in (angle_deg, angle_deg + 180.0):
-        pts = _arc_points(cx, cy, radius, base)
-        pygame.draw.lines(screen, EDGE, False, pts, ARC_W + 3)
-        pygame.draw.lines(screen, HOT if mode == "rotate" else WHITE, False, pts, ARC_W)
+    if arcs:
+        for base in (angle_deg, angle_deg + 180.0):
+            pts = _arc_points(cx, cy, radius, base)
+            pygame.draw.lines(screen, EDGE, False, pts, ARC_W + 3)
+            pygame.draw.lines(screen, HOT if mode == "rotate" else WHITE, False, pts, ARC_W)
     center = (round(cx), round(cy))
     pygame.draw.circle(screen, HOT if mode == "move" else WHITE, center, DOT_R)
     pygame.draw.circle(screen, EDGE, center, DOT_R, 1)
