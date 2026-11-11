@@ -1,6 +1,5 @@
 """vehicles/chassis/motion.py — движение шасси: разгон и торможение, поворот корпуса, скольжение
-вдоль препятствий, вязкая местность, толчок от тарана, давление. Миксин для Vehicle: состояния не хранит,
-читает поля и методы итогового класса (spec, _overlaps, _has_solids, _hull_obb, hull_angle...)."""
+вдоль препятствий, вязкая местность, толчок от тарана, давление."""
 import math
 
 from engine import normalize_angle, heading_vector, find_free_fraction, clamp, PX_PER_M
@@ -8,9 +7,9 @@ from vehicles.chassis.params import (
     KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, TERRAIN_MIN_K, TERRAIN_BRAKE,
     TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY, CONTACT_TURN_STEPS, CONTACT_PUSH_STEPS,
     SLIDE_ANGLES_DEG, SLIDE_MIN_PX, CONTACT_SCRUB, CONTACT_STOP_PROGRESS,
-    PUSH_STOP_PX, TERRAIN_SAMPLE_REACH, RAM_MAX_SPIN_DEG_S,
+    PUSH_STOP_PX, TERRAIN_SAMPLE_REACH, RAM_MAX_SPIN_DEG_S, PUSH_SHOVE_HOLD_S,
     PUSH_LATERAL_FRICTION_MS2, PUSH_MAX_MS, PUSH_OVERSPEED_K, TERRAIN_PUSH_DRAG,
-    PUSH_RAMP_S, SPIN_FRICTION_DEG_S2, REVERSE_ACCEL_K,
+    PUSH_RAMP_S, SPIN_FRICTION_DEG_S2, REVERSE_ACCEL_K, PUSH_IDLE_DECEL_KMH_S,
     G_MS2, PUSH_TRACTION_G, PUSH_PW_REF, PUSH_RESIST_ALONG_G, PUSH_RESIST_LATERAL_G, PUSH_LIFTED_K,
 )
 
@@ -78,27 +77,34 @@ class MotionMixin:
 
         old = self.hull_angle
         new = normalize_angle(old + delta)
-        if (self._has_solids(obstacles) and delta != 0
-                and not self._overlaps(self.x, self.y, old, obstacles)
-                and self._overlaps(self.x, self.y, new, obstacles)):
-            self.contact_spin = self.hull_rate       # солвер тарана увидит вращение, с которым упёрлись
-            turned = self._turn_with_resistance(old, delta, obstacles)
+
+        blocked = None
+        if delta != 0 and self._has_solids(obstacles):
+            if (not self._overlaps(self.x, self.y, old, obstacles)
+                    and self._overlaps(self.x, self.y, new, obstacles)):
+                blocked = lambda x, y, a: self._overlaps(x, y, a, obstacles)
+            elif (self._terrain is not None
+                  and not self._hits_terrain(self.x, self.y, old)
+                  and self._hits_terrain(self.x, self.y, new)):
+                blocked = self._hits_terrain
+
+        if blocked is not None:
+            self.contact_spin = self.hull_rate  # солвер тарана увидит вращение, с которым упёрлись
+            turned = self._turn_with_resistance(old, delta, blocked)
             if turned is not None:
-                # поворачиваемся медленнее и «отползаем» от препятствия; hull_rate не гасим
                 new, ox, oy, delta = turned
                 self.x += ox
                 self.y += oy
             else:
-                # подобрать не удалось: поворачиваем до касания и гасим вращение
                 frac = find_free_fraction(
-                    lambda f: self._overlaps(self.x, self.y, normalize_angle(old + delta * f), obstacles))
+                    lambda f: blocked(self.x, self.y, normalize_angle(old + delta * f)))
                 delta *= frac
                 new = normalize_angle(old + delta)
                 self.hull_rate = 0.0
         self.hull_angle = new
         return delta
 
-    def _turn_with_resistance(self, old, delta, obstacles):
+    def _turn_with_resistance(self, old, delta, blocked):
         """Поворот на delta упёрся в препятствие."""
         s = self.spec
         radius = math.hypot(s.COLLISION_HALF_W_PX, s.COLLISION_HALF_L_PX)
@@ -112,7 +118,7 @@ class MotionMixin:
                 for a, b in _NUDGE_DIRS:
                     ox = (fx * a + rx * b) * push_max * f
                     oy = (fy * a + ry * b) * push_max * f
-                    if not self._overlaps(self.x + ox, self.y + oy, new, obstacles):
+                    if not blocked(self.x + ox, self.y + oy, new):
                         return new, ox, oy, part
         return None
 
@@ -129,39 +135,47 @@ class MotionMixin:
         new_x, new_y = self.x + dx, self.y + dy
         along = distance  # сколько пути реально пройдено вдоль курса
 
+        blocked = None
         if (self._has_solids(obstacles)
                 and not self._overlaps(self.x, self.y, self.hull_angle, obstacles)
                 and self._overlaps(new_x, new_y, self.hull_angle, obstacles)):
-            self.impact_kmh = self.speed_kmh        # скорость ДО гашения: по ней считается таран
-            new_x, new_y = self._move_along_obstacle(dx, dy, obstacles)
+            blocked = lambda x, y, a: self._overlaps(x, y, a, obstacles)
+        elif (self._terrain is not None
+              and not self._hits_terrain(self.x, self.y, self.hull_angle)
+              and self._hits_terrain(new_x, new_y, self.hull_angle)):
+            blocked = self._hits_terrain
+
+        if blocked is not None:
+            self.impact_kmh = self.speed_kmh
+            new_x, new_y = self._move_along_obstacle(dx, dy, blocked)
             along = (new_x - self.x) * fx + (new_y - self.y) * fy
             progress = max(0.0, min(1.0, along / distance))
             self._scrub_speed(progress, dt)
 
         self.x, self.y = new_x, new_y
         return along
+        return along
 
-    def _move_along_obstacle(self, dx, dy, obstacles):
+    def _move_along_obstacle(self, dx, dy, blocked):
         """Прямой путь (dx, dy) упёрся в препятствие."""
         x0, y0, ang = self.x, self.y, self.hull_angle
-        frac = find_free_fraction(
-            lambda f: self._overlaps(x0 + dx * f, y0 + dy * f, ang, obstacles))
+        frac = find_free_fraction(lambda f: blocked(x0 + dx * f, y0 + dy * f, ang))
         x1, y1 = x0 + dx * frac, y0 + dy * frac
 
-        rest = (1.0 - frac) * math.hypot(dx, dy)  # путь, который не удалось проехать прямо
+        rest = (1.0 - frac) * math.hypot(dx, dy)
         if rest < SLIDE_MIN_PX:
             return x1, y1
 
         base = math.atan2(dy, dx)
         for deg in SLIDE_ANGLES_DEG:
             rad = math.radians(deg)
-            length = rest * math.cos(rad)  # чем круче отклонение, тем короче скольжение
+            length = rest * math.cos(rad)
             for sign in (1, -1):
                 a = base + rad * sign
                 sx, sy = x1 + math.cos(a) * length, y1 + math.sin(a) * length
-                if not self._overlaps(sx, sy, ang, obstacles):
+                if not blocked(sx, sy, ang):
                     return sx, sy
-        return x1, y1  # удар почти в лоб: скользить некуда
+        return x1, y1
 
     def _scrub_speed(self, progress, dt):
         """Трение о препятствие. Не действует при мягком контакте и пока работает давление."""
@@ -192,16 +206,20 @@ class MotionMixin:
         else:
             target = 0.0
 
+        shoved = self.shoved_s > 0.0
+        coast = PUSH_IDLE_DECEL_KMH_S if shoved else s.decel_coast
+        brake_rate = max(s.decel_brake, PUSH_IDLE_DECEL_KMH_S) if shoved else s.decel_brake
+
         v = self.speed_kmh
         if v > target:
             if v > 0:
-                rate = s.decel_brake if (target < 0 or brake) else s.decel_coast
+                rate = brake_rate if (target < 0 or brake) else coast
                 v = max(v - rate * dt, max(target, 0.0))
             else:
                 v = max(v - s.accel_back * dt, target)
         elif v < target:
             if v < 0:
-                rate = s.decel_brake if (target > 0 or brake) else s.decel_coast
+                rate = brake_rate if (target > 0 or brake) else coast
                 v = min(v + rate * dt, min(target, 0.0))
             else:
                 v = min(v + s.accel_at(v) * dt, target)
@@ -314,11 +332,12 @@ class MotionMixin:
         along = self.push_vx * fx + self.push_vy * fy
         lat = self.push_vx * rx + self.push_vy * ry
 
-        if along:  # дальше едем (или пятимся) обычным ходом
+        if along:
             v = self.speed_kmh + along / KMH_TO_PX
             self.speed_kmh = clamp(v, -s.v_back * PUSH_OVERSPEED_K, s.v_max * PUSH_OVERSPEED_K)
+            self.shoved_s = PUSH_SHOVE_HOLD_S
 
-        pressed = self.press_s > 0.0                         # пока давит солвер, трение и порог остановки отключены
+        pressed = self.press_s > 0.0
         grip = 1.0 + (1.0 - self.terrain_k) * TERRAIN_PUSH_DRAG
         drop = 0.0 if pressed else PUSH_LATERAL_FRICTION_MS2 * grip * PX_PER_M * dt
         stop = 0.0 if pressed else PUSH_STOP_PX

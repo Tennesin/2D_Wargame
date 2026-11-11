@@ -67,10 +67,14 @@ class RamController:
             if rec.first is not None:
                 self._after_impact(rec)
             self._separate(rec)
-
         for v in self.fleet.vehicles:
             v.contact_push = None
             v.contact_spin = None
+        for v in self.fleet.vehicles:
+            v.contact_push = None
+            v.contact_spin = None
+            if v.alive:
+                v.keep_in_world(WORLD.half_w_px, WORLD.half_h_px)
 
         self.terrain.rocks.update(dt, self._obbs_near)
         self.walls.remove_dead()

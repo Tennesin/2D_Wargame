@@ -15,9 +15,19 @@ class HitModelMixin:
         """Выпуклые участки для попаданий в метрах корпуса (центр корпуса = (0, 0), перед = -v)."""
         return self.spec.layout.hit_parts
 
+    def _enters_track_from_inside(self, part, normal):
+        """True, если снаряд вошёл бы в гусеницу через её внутреннюю грань."""
+        if normal is None:
+            return False
+        xs = [p[0] for p in part]
+        mid = (min(xs) + max(xs)) / 2.0
+        if abs(abs(mid) - self.spec.layout.track_x) > 0.05:
+            return False  # это не гусеница
+        side = 1.0 if mid > 0.0 else -1.0
+        return normal[0] * side < -0.5  # нормаль смотрит к оси танка
+
     def raycast(self, x0, y0, x1, y1):
-        """Пересечение отрезка с корпусом: (self, t, normal) или None.
-        Отрезок переводится в систему корпуса, там ищется ближайшая из выпуклых частей раскладки."""
+        """Пересечение отрезка с корпусом: (self, t, normal) или None."""
         cx, cy, _, _, ang = self.hull_obb()
         k = self.spec.HULL_SCALE * PX_PER_M
         u0, v0 = to_local_frame(x0, y0, cx, cy, ang, k)
@@ -25,7 +35,9 @@ class HitModelMixin:
         best = None
         for part in self._local_parts():
             res = convex_segment_hit(part, u0, v0, u1, v1)
-            if res is not None and (best is None or res[0] < best[0]):
+            if res is None or self._enters_track_from_inside(part, res[1]):
+                continue
+            if best is None or res[0] < best[0]:
                 best = res
         if best is None:
             return None
@@ -35,8 +47,7 @@ class HitModelMixin:
         return self, t, n
 
     def zone_at(self, normal, hull_angle=None):
-        """Какая грань корпуса принимает удар: "front" / "side" / "rear".
-        normal — наружная нормаль грани. hull_angle — гипотетический угол корпуса (по умолчанию текущий)."""
+        """Какая грань корпуса принимает удар: "front" / "side" / "rear"."""
         if normal is None:                      # выстрел начался внутри корпуса
             return "side"
         fx, fy = heading_vector(self.hull_angle if hull_angle is None else hull_angle)
@@ -48,8 +59,7 @@ class HitModelMixin:
         return "side"
 
     def plate_at(self, normal, hull_angle=None):
-        """Плита брони, принявшая удар: та, чья наружная нормаль ближе всего к normal (мировая).
-        Нормаль None (выстрел начался внутри) = боковая плита."""
+        """Плита брони, принявшая удар: та, чья наружная нормаль ближе всего к normal (мировая)."""
         layout = self.spec.layout
         if normal is None:
             return next((p for p in layout.plates if p.zone == "side"), layout.plates[0])
@@ -58,8 +68,7 @@ class HitModelMixin:
         return layout.plate_by_normal(nu, nv)
 
     def plate_at_point(self, x, y):
-        """Плита брони, ближайшая к мировой точке (x, y). Нужна тарану: у него есть точка контакта,
-        а нормаль может принадлежать оси другого корпуса."""
+        """Плита брони, ближайшая к мировой точке (x, y)."""
         u, v = self._to_hull_local(x, y)
         best, best_d = None, None
         for p in self.spec.layout.plates:
@@ -96,16 +105,16 @@ class HitModelMixin:
             hull_deg = self.hull_angle
         wx, wy = heading_vector(from_deg)
         ex, ey = vec_to_local(wx, wy, hull_deg)       # единичный вектор на стрелка в системе корпуса
-        tx, ty = -ey * lateral, ex * lateral          # точка прицеливания
+        tx, ty = -ey * lateral, ex * lateral          # точка прицеливаниdddddddddddddddddddddddddя
         reach = 50.0                                  # м: заведомо больше корпуса
         best = None
         for part in self._local_parts():
             res = convex_segment_hit(part, tx + ex * reach, ty + ey * reach,
                                      tx - ex * reach, ty - ey * reach)
-            if res is not None and (best is None or res[0] < best[0]):
+            if res is None or self._enters_track_from_inside(part, res[1]):
+                continue
+            if best is None or res[0] < best[0]:
                 best = res
-        if best is None or best[1] is None:
-            return None
         nu, nv = best[1]
         cos_i = abs(ex * nu + ey * nv)
         normal = vec_from_local(nu, nv, hull_deg)

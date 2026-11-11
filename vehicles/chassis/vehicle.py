@@ -46,6 +46,7 @@ class Vehicle(MotionMixin, TracksMixin, HitModelMixin, ShockMixin, Damageable):
         self.contact_push = None        # боковой толчок, с которым упёрлись в этом кадре (видит солвер тарана)
         self.contact_spin = None        # вращение корпуса (°/с), с которым упёрлись в этом кадре
         self.press_s = 0.0              # пока > 0, солвер «ведёт» скорость (давление)
+        self.shoved_s = 0.0             # пока > 0, после толчка вдоль корпуса машина тормозит гусеницами усиленно
         self.last_throttle = 0.0        # газ после учёта оглушения (нужен давлению)
         self.terrain_k = 1.0            # множитель скорости от местности под корпусом
         self.terrain_kind = None        # вид вязкой местности под корпусом (TerrainKind) или None: трава
@@ -163,21 +164,49 @@ class Vehicle(MotionMixin, TracksMixin, HitModelMixin, ShockMixin, Damageable):
             return True
         return self._terrain is not None and self._terrain.blocks_obb_in(self._patches, hull)
 
+    def _hits_terrain(self, x, y, angle):
+        """Задевает ли корпус камень, глубокую воду или край мира."""
+        return (self._terrain is not None
+                and self._terrain.blocks_obb_in(self._patches, self._hull_obb(x, y, angle)))
+
     def _has_solids(self, obstacles):
         """Есть ли вообще что проверять на столкновение (стены или карта местности)."""
         return bool(obstacles) or self._terrain is not None
 
     def reach_px(self):
-        """Радиус, в который попадает всё, что техника может задеть за один кадр (считается в spec)."""
+        """Радиус, в который попадает всё, что техника может задеть за один кадр."""
         return self.spec.REACH_PX
 
     def hits_obb(self, other):
         """Задевает ли корпус повёрнутый прямоугольник (x, y, half_w, half_l, angle)."""
         return obb_hits_obb(*self._hull_obb(self.x, self.y, self.hull_angle), *other)
 
+    def keep_in_world(self, half_w, half_h):
+        """Последняя страховка: корпус не должен выходить за границы мира."""
+        cx, cy, hw, hl, ang = self.hull_obb()
+        rad = math.radians(ang)
+        c, s = abs(math.cos(rad)), abs(math.sin(rad))
+        ex = hw * c + hl * s
+        ey = hw * s + hl * c
+        dx = dy = 0.0
+        if cx - ex < -half_w:
+            dx = -half_w - (cx - ex)
+        elif cx + ex > half_w:
+            dx = half_w - (cx + ex)
+        if cy - ey < -half_h:
+            dy = -half_h - (cy - ey)
+        elif cy + ey > half_h:
+            dy = half_h - (cy + ey)
+        if dx == 0.0 and dy == 0.0:
+            return False
+        self.x += dx
+        self.y += dy
+        self.push_vx = self.push_vy = 0.0
+        self._pending = []
+        return True
+
     def footprint_at(self, x, y, hull_angle):
-        """Прямоугольники, которые техника займёт в точке (x, y). Корпус всегда первый:
-        по нему проверяется грунт."""
+        """Прямоугольники, которые техника займёт в точке (x, y)."""
         return [self._hull_obb(x, y, hull_angle)]
 
     # ---------- сводка и наведение ----------
@@ -201,8 +230,7 @@ class Vehicle(MotionMixin, TracksMixin, HitModelMixin, ShockMixin, Damageable):
         return title, rows
 
     def hull_offset_to(self, x, y):
-        """Сколько градусов надо довернуть корпус (+ по часовой), чтобы точка (x, y) стала досягаема
-        орудием. Базовая техника: 0 (вопрос не стоит)."""
+        """Сколько градусов надо довернуть корпус, чтобы точка (x, y) стала досягаема орудием."""
         return 0.0
 
     # ---------- кадр ----------
@@ -233,6 +261,7 @@ class Vehicle(MotionMixin, TracksMixin, HitModelMixin, ShockMixin, Damageable):
         self._soft_contact_s = max(0.0, self._soft_contact_s - dt)
         self.press_s = max(0.0, self.press_s - dt)
         self.lift_left = max(0.0, self.lift_left - dt)
+        self.shoved_s = max(0.0, self.shoved_s - dt)
         return shot
 
     def _update_weapons(self, command, dt):

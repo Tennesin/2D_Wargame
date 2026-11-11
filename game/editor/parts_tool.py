@@ -142,8 +142,9 @@ class PartsTool:
                 return p
         return None
 
-    def is_fit(self, p):
-        return fits(p, self.spec, self.surface)
+    def is_fit(self, p, index=None):
+        """Помещается ли деталь."""
+        return self._fit(p, index)
 
     def count(self):
         return 0 if self.manual is None else len(self.manual)
