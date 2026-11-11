@@ -1,5 +1,4 @@
-"""game/scenes/map_editor.py — редактор карт: каркас сцены (камера, панель инструментов, сохранение, выход).
-Инструменты (стена, камень, ландшафт) подключаются через _tool_click и панели режимов MAP_*."""
+"""game/scenes/map_editor.py — редактор карт."""
 import math
 from types import SimpleNamespace
 
@@ -19,8 +18,11 @@ from ..content import texts
 from ..content.panels import (build_editor_panels, TOOL_MODE, WallPanelLink,
                               RockPanelLink, LandPanelLink,
                               STAT_NAME, STAT_SIZE, STAT_ROCKS, STAT_WALLS, STAT_FILE)
-from ..editor import (EditorBar, Dialog, WallTool, RockTool, LandTool, RockOverlay, BrushOverlay,
-                      load_walls, collect_walls)
+from ..editor import (
+    EditorBar, Dialog, WallTool, RockTool, LandTool,
+    WallOverlay, RockOverlay, BrushOverlay,
+    load_walls, collect_walls
+)
 from ..match.control.camera import CameraController
 from ..view.world_renderer import Renderer
 
@@ -87,6 +89,7 @@ class MapEditorScene(Scene):
         self.land_tool = LandTool(self.camera, self.input, self.walls, self.terrain,
                                   on_change=self.mark_dirty)
         self.land_link = LandPanelLink(self.ui, self.land_tool)
+        self.wall_overlay = WallOverlay()
         self.rock_overlay = RockOverlay()
         self.brush_overlay = BrushOverlay()
         self.camera_ctrl = CameraController(self.camera, self.input)
@@ -248,6 +251,7 @@ class MapEditorScene(Scene):
             self._handle_clicks()
             if self.tool == "wall":
                 self.wall_tool.update_rotation()
+                self.wall_tool.update_move()
                 self.wall_link.update_stats()
             elif self.tool == "land":
                 self.land_tool.update_stroke()
@@ -305,6 +309,8 @@ class MapEditorScene(Scene):
     def draw(self, screen):
         preview = self.wall_tool.preview() if self.tool == "wall" else None
         self.renderer.draw(screen, self.camera, build_preview=preview)
+        if self.tool == "wall":
+            self.wall_overlay.draw(screen, self.wall_tool)
         if self.tool == "rock":
             self.rock_overlay.draw(screen, self.camera, self.rock_tool)
         elif self.tool == "land":

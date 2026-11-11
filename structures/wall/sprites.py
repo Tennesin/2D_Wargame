@@ -1,11 +1,8 @@
 """structures/wall/sprites.py — отрисовка стены: тень, бетонный блок, трещины, выделение, ручка поворота, призрак."""
 import math
-
 import pygame
 
-from engine import (PX_PER_M, clamp, CONCRETE_SIDE,
-                    OUTLINE_DARK, SHADOW_ALPHA, AlphaLayer)
-from .params import ROTATE_HANDLE_RADIUS_PX
+from engine import PX_PER_M, clamp, CONCRETE_SIDE, OUTLINE_DARK, SHADOW_ALPHA, AlphaLayer
 
 WALL_SIDE = CONCRETE_SIDE
 WALL_TOP = (158, 158, 162)
@@ -13,7 +10,6 @@ WALL_JOINT = (132, 132, 136)
 WALL_OUTLINE = OUTLINE_DARK
 CRACK_COLOR = (36, 34, 32)
 SELECT_COLOR = (255, 220, 80)
-HANDLE_COLOR = (255, 255, 255)
 
 GHOST_OK_FILL = (205, 210, 220, 110)
 GHOST_OK_BORDER = (255, 255, 255, 200)
@@ -137,11 +133,6 @@ class WallRenderer:
     def _draw_selection(self, screen, camera, wall):
         frame = self._quad(camera, wall, pad=3.0 / camera.zoom)     # рамка на 3 экранных px шире стены
         pygame.draw.polygon(screen, SELECT_COLOR, frame, 2)
-
-        cx, cy = camera.world_to_screen(wall.x, wall.y)             # белая точка поворота в центре
-        center = (round(cx), round(cy))
-        pygame.draw.circle(screen, HANDLE_COLOR, center, ROTATE_HANDLE_RADIUS_PX)
-        pygame.draw.circle(screen, WALL_OUTLINE, center, ROTATE_HANDLE_RADIUS_PX, 1)
 
     # ---------- призрак при выборе места ----------
     def draw_preview(self, screen, camera, wall, blocked):

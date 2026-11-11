@@ -8,6 +8,7 @@ class Modes:
         self.input = input_handler
         self.combat = False              # боевое состояние (Alt): огонь по ЛКМ и красная линия прицела
         self.turret_follow = True        # башня следит за мышью (Q)
+        self.is_blocked = None           # колбэк() -> bool: ввод режимов временно запрещён
         self.on_exit = None              # колбэк «выйти из партии в меню»
 
     def set_combat(self, on):
@@ -28,10 +29,12 @@ class Modes:
         if inp.was_pressed(Action.LOCK_TURRET):
             self.turret_follow = not self.turret_follow
 
-        if COMBAT_HOLD:
-            self.set_combat(Action.COMBAT in inp.held)
-        elif inp.was_pressed(Action.COMBAT):
-            self.set_combat(not self.combat)
+        stunned = self.is_blocked is not None and self.is_blocked()
+        if not stunned:
+            if COMBAT_HOLD:
+                self.set_combat(Action.COMBAT in inp.held)
+            elif inp.was_pressed(Action.COMBAT):
+                self.set_combat(not self.combat)
 
         if inp.was_pressed(Action.CANCEL):
             self.handle_escape()

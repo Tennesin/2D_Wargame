@@ -306,3 +306,9 @@ class WallManager:
             self.items = [w for w in self.items if w.alive]
         if self.selected is not None and self.selected not in self.items:
             self.selected = None
+
+    def move_to(self, wall, x, y):
+        """Переместить центр стены с обновлением индекса."""
+        self._unindex(wall)
+        wall.x, wall.y = float(x), float(y)
+        self._index(wall)

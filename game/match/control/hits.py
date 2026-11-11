@@ -58,6 +58,7 @@ class CombatController:
         res = target.hit_result(pen, im.cos, im.normal)
         hp_before = getattr(target, "hp", 0.0)
         dealt = target.take_hit(pen, full_dmg, im.cos, im.normal, stats.splash_frac)
+        real = max(0.0, hp_before - getattr(target, "hp", 0.0))
         is_vehicle = target.target_type is TargetType.VEHICLE
         if is_vehicle:
             self.match_stats.on_damage(im.owner, target, hp_before - target.hp, "shot", direct=True)
@@ -65,7 +66,7 @@ class CombatController:
             self.notifier.on_module_absorb(im.owner, target, "screen", mh.screen_lost)
         if mh.module is not None and mh.track_lost > 0.0:
             self.notifier.on_module_absorb(im.owner, target, mh.module, mh.track_lost)
-        self.notifier.on_hit(im.owner, target, im.normal, res, dealt)
+        self.notifier.on_hit(im.owner, target, im.normal, res, real)
         if is_vehicle and target.alive:
             self._hit_tracks(im, target, mh, full_pen, full_dmg)
             if stats.stun_s > 0.0:
@@ -130,7 +131,7 @@ class CombatController:
                 if side is not None and target.tracks.break_track(side):
                     self.notifier.on_track_broken(blast.owner, target, side)
                     self.match_stats.on_track_broken(blast.owner, target)
-            self.notifier.on_artillery(blast.owner, target, dealt, stunned)
+            self.notifier.on_artillery(blast.owner, target, real, stunned)
 
     # ---------- осколки ----------
     def _splash(self, im):
@@ -159,7 +160,7 @@ class CombatController:
             target.take_damage(dealt)
             if target.target_type is TargetType.VEHICLE:
                 self.match_stats.on_damage(im.owner, target, real, "shot")
-            self.notifier.on_splash(im.owner, target, dealt)
+            self.notifier.on_splash(im.owner, target, real)
 
     @staticmethod
     def _frag_k(target, x, y, pen):

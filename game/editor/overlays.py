@@ -3,6 +3,7 @@ import math
 import pygame
 
 from engine import AlphaLayer
+from . import gizmo
 
 GHOST_OK_FILL = (205, 210, 220, 110)
 GHOST_OK_BORDER = (255, 255, 255, 200)
@@ -11,6 +12,17 @@ GHOST_BAD_BORDER = (255, 90, 90, 230)
 SELECT_COLOR = (255, 220, 80)
 BRUSH_COLORS = {"plain": (190, 230, 120), "mud": (170, 130, 90),
                 "water": (110, 190, 230), "deep": (60, 110, 190)}
+
+class WallOverlay:
+
+    def draw(self, screen, tool):
+        geom = tool.gizmo_geom()
+        if geom is None:
+            return
+        hover = None
+        if tool.drag_mode is None and tool.input.pointer_in_world:
+            hover = gizmo.hit(*geom, tool.input.mouse_pos)
+        gizmo.draw(screen, *geom, hover=hover, active=tool.drag_mode)
 
 class RockOverlay:
     def __init__(self):

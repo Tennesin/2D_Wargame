@@ -66,7 +66,9 @@ class TracksMixin:
 
     # ---------- ремонт и состояние ----------
     def start_repair(self, side=None):
-        """Начать ремонт сбитой гусеницы."""
+        """Начать ремонт сбитой гусеницы. Оглушённая машина чиниться не может."""
+        if self.stunned:
+            return None
         return self.tracks.start_repair(self.spec.track_repair_s, side)
 
     def _track_status(self):

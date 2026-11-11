@@ -2,7 +2,7 @@
 вдоль препятствий, вязкая местность, толчок от тарана, давление."""
 import math
 
-from engine import normalize_angle, heading_vector, find_free_fraction, clamp, PX_PER_M
+from engine import normalize_angle, heading_vector, find_free_fraction, clamp, PX_PER_M, obb_hits_obb
 from vehicles.chassis.params import (
     KMH_TO_PX, HULL_BRAKE_K, HULL_TURN_SPEED_LOSS, TERRAIN_MIN_K, TERRAIN_BRAKE,
     TERRAIN_ROLL_DECEL, TURN_SPEED_PENALTY, CONTACT_TURN_STEPS, CONTACT_PUSH_STEPS,
@@ -58,6 +58,21 @@ class MotionMixin:
             return target
         return current + math.copysign(step, target - current)
 
+    def _entry_blocker(self, obstacles, x1, y1, a1):
+        """Функция blocked(x, y, angle) или None."""
+        old = self._hull_obb(self.x, self.y, self.hull_angle)
+        fresh = [o for o in obstacles if not obb_hits_obb(*old, *o)]
+        terrain_ok = (self._terrain is not None
+                      and not self._hits_terrain(self.x, self.y, self.hull_angle))
+
+        def blocked(x, y, a):
+            hull = self._hull_obb(x, y, a)
+            if any(obb_hits_obb(*hull, *o) for o in fresh):
+                return True
+            return terrain_ok and self._terrain.blocks_obb_in(self._patches, hull)
+
+        return blocked if blocked(x1, y1, a1) else None
+
     # ---------- поворот корпуса ----------
     def _rotate_hull(self, steer, dt, obstacles=()):
         s = self.spec
@@ -80,13 +95,7 @@ class MotionMixin:
 
         blocked = None
         if delta != 0 and self._has_solids(obstacles):
-            if (not self._overlaps(self.x, self.y, old, obstacles)
-                    and self._overlaps(self.x, self.y, new, obstacles)):
-                blocked = lambda x, y, a: self._overlaps(x, y, a, obstacles)
-            elif (self._terrain is not None
-                  and not self._hits_terrain(self.x, self.y, old)
-                  and self._hits_terrain(self.x, self.y, new)):
-                blocked = self._hits_terrain
+            blocked = self._entry_blocker(obstacles, self.x, self.y, new)
 
         if blocked is not None:
             self.contact_spin = self.hull_rate  # солвер тарана увидит вращение, с которым упёрлись
@@ -136,14 +145,8 @@ class MotionMixin:
         along = distance  # сколько пути реально пройдено вдоль курса
 
         blocked = None
-        if (self._has_solids(obstacles)
-                and not self._overlaps(self.x, self.y, self.hull_angle, obstacles)
-                and self._overlaps(new_x, new_y, self.hull_angle, obstacles)):
-            blocked = lambda x, y, a: self._overlaps(x, y, a, obstacles)
-        elif (self._terrain is not None
-              and not self._hits_terrain(self.x, self.y, self.hull_angle)
-              and self._hits_terrain(new_x, new_y, self.hull_angle)):
-            blocked = self._hits_terrain
+        if self._has_solids(obstacles):
+            blocked = self._entry_blocker(obstacles, new_x, new_y, self.hull_angle)
 
         if blocked is not None:
             self.impact_kmh = self.speed_kmh

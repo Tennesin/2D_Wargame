@@ -182,11 +182,13 @@ class RamController:
         vp, vq = _vel_n(pusher, nx, ny), _vel_n(pushed, nx, ny)
         if vp - vq < -0.1:
             return                                           # уже расходятся
-        v_new = press_velocity(net, pushed.resist(nx, ny), pusher.mass, pushed.mass, vp, vq, dt)
-        pushed.shove(nx, ny, v_new - vq)
-        pusher.shove(nx, ny, v_new - vp)
+        resist = pushed.resist(nx, ny)
+        v_new = press_velocity(net, resist, pusher.mass, pushed.mass, vp, vq, dt)
+        pusher.shove(nx, ny, v_new - vp)      # толкающий всегда упирается
         pusher.hold(PRESS_HOLD_S)
-        pushed.hold(PRESS_HOLD_S)
+        if net > resist:                      # толкаемого "ведём" только если его реально двигают
+            pushed.shove(nx, ny, v_new - vq)
+            pushed.hold(PRESS_HOLD_S)
 
     # ==========================================
     # ВЫТАЛКИВАНИЕ ИЗ ПЕРЕСЕЧЕНИЯ

@@ -47,6 +47,7 @@ class Match:
         # --- контроллеры игрока ---
         self.modes = Modes(input_handler)
         self.modes.on_exit = on_exit
+        self.modes.is_blocked = lambda: self.fleet.player.stunned
         self.camera_ctrl = CameraController(camera, input_handler)
         self.combat = CombatController(self.ctx, self.modes)
         self.tank_ctrl = TankController(self.ctx, input_handler, self.modes)
